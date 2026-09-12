@@ -18,7 +18,9 @@ static char* copy_once(const char* text) {
 #define FERN_STRDUP(text) copy_once(text)
 #undef FERN_ALLOC
 #define FERN_ALLOC(bytes) allocate_once(bytes)
-/* glibc normalizes this marker to 1; the included implementation defines it empty. */
+/* glibc normalizes feature macros after headers; the included implementation
+ * supplies its original definitions again. */
+#undef _POSIX_C_SOURCE
 #undef _DEFAULT_SOURCE
 #include "../../runtime/fern_runtime.c"
 #define REQUIRE(c) do { if (!(c)) { fprintf(stderr, "%s:%d: %s\n", __func__, __LINE__, #c); return 1; } } while (0)

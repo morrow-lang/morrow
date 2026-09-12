@@ -1,6 +1,8 @@
 #!/bin/bash
 # Native-supervised cache worker. Arguments are fixed literal paths, never shell fragments.
 set -o pipefail
+# The final checker inherits the supervisor's caller mask; only private build files use this mask.
+umask 077
 style_run= style_run_identity=
 export LC_ALL=C
 [[ $# == 4 ]] || exit 125

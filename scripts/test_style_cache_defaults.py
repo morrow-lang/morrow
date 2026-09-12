@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify empty XDG configuration uses the same private HOME cache as an unset variable."""
+"""Verify HOME cache selection and private bootstrap files under permissive caller umasks."""
 import os
 from pathlib import Path
 import subprocess
@@ -22,14 +22,14 @@ def main():
             if empty:
                 environment['XDG_CACHE_HOME'] = ''
             result = subprocess.run([ROOT / 'scripts/check_style', '--help'],
-                                    env=environment, capture_output=True, timeout=180)
+                                    env=environment, capture_output=True, timeout=180, umask=0o002)
             assert (result.returncode, result.stdout, result.stderr) == (0, expected, b''), result
             assert list((home / '.cache/fern-style').rglob('ready')), 'HOME cache was not populated'
         result = subprocess.run([ROOT / 'scripts/clean_style_cache'], env=environment,
                                 capture_output=True, timeout=15)
         assert (result.returncode, result.stdout, result.stderr) == (0, b'', b''), result
         assert not list((home / '.cache/fern-style').rglob('ready')), 'empty XDG selected a different cache'
-    print('Unset/empty XDG share the private HOME cache and explicit cleanup')
+    print('Unset/empty XDG share the private HOME cache under caller umask002 and explicit cleanup')
 
 
 if __name__ == '__main__':

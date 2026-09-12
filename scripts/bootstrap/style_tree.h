@@ -2,6 +2,7 @@
  * application heap allocation. */
 #include <dirent.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -53,6 +54,13 @@ static void tree_open(Tree *tree) {
         return;
     }
     DIR *directory = opendir(tree->path);
+    // A compiler under this effective identity cannot resolve descendants without search access.
+    // Rechecking the marker on every lookup makes gained access invalidate the cached inventory.
+    if (!directory && errno == EACCES &&
+        faccessat(AT_FDCWD, tree->path, X_OK, AT_EACCESS) != 0 && errno == EACCES) {
+        tree_record(tree, 'U', NULL);
+        return;
+    }
     struct stat status;
     if (!directory || fstat(dirfd(directory), &status) != 0) {
         if (directory) {

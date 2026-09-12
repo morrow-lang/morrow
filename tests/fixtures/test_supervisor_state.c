@@ -11,10 +11,12 @@
 #endif
 #include <signal.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 #ifdef __APPLE__
 #include <libproc.h>
 #endif
+static int fake_clock_gettime(clockid_t, struct timespec *);
 static ssize_t fake_read(int, void *, size_t);
 static int fake_close(int);
 static int fake_kill(pid_t, int);
@@ -24,6 +26,7 @@ static int fake_waitid(idtype_t, id_t, siginfo_t *, int);
 static int fake_proc_listpids(uint32_t, uint32_t, void *, int);
 #define proc_listpids fake_proc_listpids
 #endif
+#define clock_gettime fake_clock_gettime
 #define close fake_close
 #define read fake_read
 #define kill fake_kill
@@ -32,6 +35,7 @@ static int fake_proc_listpids(uint32_t, uint32_t, void *, int);
 #define main supervisor_main
 #include "../../tools/test_supervisor.c"
 #undef main
+#undef clock_gettime
 #undef read
 #undef close
 #undef assert
@@ -47,7 +51,21 @@ static int fake_proc_listpids(uint32_t, uint32_t, void *, int);
 static int killed, reaped, kill_error, observe_error, membership, interrupted_wait;
 
 static int retry_reads;
+static bool fixed_clock;
 static int close_error_fd = -1;
+
+/** Freeze only the retry-budget oracle; every other case uses the native clock.
+ * @param clock Requested clock. @param now Output timestamp. @return Native status.
+ */
+static int fake_clock_gettime(clockid_t clock, struct timespec *now) {
+    if (!fixed_clock) {
+        return clock_gettime(clock, now);
+    }
+    assert(clock == CLOCK_MONOTONIC);
+    assert(now != NULL);
+    *now = (struct timespec){.tv_sec = 123, .tv_nsec = 0};
+    return 0;
+}
 
 /** Inject a checked close failure only after closing the actual owned
  * descriptor.
@@ -99,6 +117,7 @@ static void drain_interruptions(void) {
 /** A repeated interrupted read cannot spin indefinitely during post-cleanup
  * drain. */
 static void drain_retry_bound(void) {
+    fixed_clock = true;
     Supervisor state = {.streams = {{-1, -1, -1, 0}, {-1, -1, -1, 0}}, .input = -1, .limit = 4};
     state.deadline = milliseconds() + 1000;
     state.streams[0].file = open("/dev/null", O_WRONLY);
@@ -107,10 +126,11 @@ static void drain_retry_bound(void) {
     retry_reads = 70000;
     finish_streams(&state);
     assert(state.error == SUP_IO);
-    assert(retry_reads > 0);
+    assert(retry_reads == 70000 - 65536);
     assert(state.streams[0].reader == -1);
     retry_reads = 0;
     close_owned(&state, &state.streams[0].file);
+    fixed_clock = false;
 }
 
 /** Count group signaling without touching any actual process.

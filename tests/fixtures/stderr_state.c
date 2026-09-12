@@ -21,6 +21,8 @@ static ssize_t controlled_write(int fd,const void* data,size_t count) {
     accepted+=bytes; return (ssize_t)bytes;
 }
 #define write controlled_write
+/* glibc upgrades this feature macro after headers; restore the implementation definition. */
+#undef _POSIX_C_SOURCE
 #include "../../runtime/fern_stderr.c"
 
 /** Reset injected output without touching real stderr. @param next Simulation. */

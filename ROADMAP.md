@@ -72,6 +72,10 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ### Rust Migration Completion
 
+- [x] Make the native supervisor retry-limit oracle independent of elapsed wall time, retaining exact retry counts and real deadline coverage (complete debug/release/sanitizer protocol matrices pass on macOS/Linux).
+- [x] Keep cold bootstrap files private under permissive caller masks and inventory inaccessible system-library subtrees without hiding searchable files (both-platform debug/release/sanitizer permission and caller-mask matrices; Linux cold/warm cache regression; Decision119).
+- [x] Make the offline Python lock-drift oracle independent of registry cache state, retaining exact lock rejection and an unlocked execution control (25 workflow checks pass).
+
 - [x] Remove executable-write races from documentation opener tests using immutable scripts and private symlinks; retain literal non-UTF-8 argv and timeout assertions (six complete parallel Linux binary-suite runs pass).
 - [x] Implement actual checked local LSP rename and canonical formatting code actions, with versioned UTF-16 edits, capture rejection and explicit scope bounds (18 action/negotiation regressions, existing LSP checks and fresh-binary protocol smoke; Decision115).
 - [x] Inventory and bundle exact third-party license notices for all default Unix Cargo dependencies and compiled native components; locked closure and native-license checks pass.

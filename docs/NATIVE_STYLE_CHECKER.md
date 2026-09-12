@@ -41,7 +41,14 @@ never guessed to be abandoned or deleted by another invocation.
 The snapshot permits 4,096 source files and 64 MiB total. External dependencies
 permit 16,384 paths. Lookup inventories permit 128 roots, 131,072 entries, 128
 levels and 32 MiB of records. Ancestor symlink cycles record the link and stop
-re-expansion. Paths containing newline or carriage return reject. Cache freshness
+re-expansion. If directory listing returns `EACCES`, the inventory records an explicit
+`U` marker only when `faccessat(..., X_OK, AT_EACCESS)` also reports `EACCES` for the
+effective user. Such a user cannot resolve descendant headers or libraries. Every
+cache lookup repeats this check; gained search access changes the inventory and
+invalidates the cache. A directory that denies listing but permits search still
+rejects: a compiler could open a known filename that the inventory cannot enumerate.
+Other access errors retain their existing failure behavior. Paths containing newline
+or carriage return reject. Cache freshness
 is checked at lookup and publication boundaries; it is not a filesystem-wide
 transaction against concurrent hostile mutation or a trace of arbitrary wrapper
 configuration.
@@ -51,7 +58,10 @@ configuration.
 Native checker exits and stdout/stderr retain their established behavior.
 Bootstrap or supervision failures exit 125 with a best-effort diagnostic.
 The launcher restores caller PATH, locale, umask and standard-descriptor state
-before checker execution. Unrelated inherited descriptors are closed, including
+before checker execution. The cold build worker separately sets `umask 077` for its
+private generated metadata and artifacts, including when the caller uses `umask 002`.
+This child-only setting does not change the final checker's caller mask. Unrelated
+inherited descriptors are closed, including
 ones above a lowered soft limit. Compiler configuration overrides remain scoped
 to compiler children.
 

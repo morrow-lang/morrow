@@ -31,12 +31,18 @@ class ScriptLocks(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix="fern-script-lock-") as temporary:
             script = Path(temporary) / "probe.py"
             lock = script.with_suffix(".py.lock")
-            script.write_text("# ///" + metadata.replace("rich>=13.0", "rich>=13.1")
+            # Removing the dependency needs no registry metadata, even with a cold
+            # cache. An upgraded constraint can fail resolution before --locked.
+            changed_metadata = metadata.replace('"rich>=13.0",', "")
+            self.assertNotEqual(changed_metadata, metadata)
+            script.write_text("# ///" + changed_metadata
                               + '# ///\nprint("SCRIPT_EXECUTED")\n')
             before = original.with_suffix(".py.lock").read_bytes()
             lock.write_bytes(before)
+            command = ["uv", "run", "--locked", "--offline",
+                       "--cache-dir", str(Path(temporary) / "empty-cache"), str(script)]
             run = subprocess.run(
-                ["uv", "run", "--locked", "--offline", str(script)],
+                command,
                 env=dict(os.environ, UV_PYTHON_DOWNLOADS="never"),
                 capture_output=True, text=True, timeout=30,
             )
@@ -44,6 +50,16 @@ class ScriptLocks(unittest.TestCase):
             self.assertIn("--locked", run.stderr)
             self.assertNotIn("SCRIPT_EXECUTED", run.stdout)
             self.assertEqual(lock.read_bytes(), before)
+            # The exact fixture succeeds when the lock guard is removed, proving
+            # the failure above is the lock contract rather than an offline error.
+            command.remove("--locked")
+            unlocked = subprocess.run(
+                command, env=dict(os.environ, UV_PYTHON_DOWNLOADS="never"),
+                capture_output=True, text=True, timeout=30,
+            )
+            self.assertEqual(unlocked.returncode, 0, unlocked.stderr)
+            self.assertIn("SCRIPT_EXECUTED", unlocked.stdout)
+            self.assertNotEqual(lock.read_bytes(), before)
 
     def test_maintained_tasks_and_shebangs_enforce_locks(self):
         config = tomllib.loads((ROOT / "mise.toml").read_text())

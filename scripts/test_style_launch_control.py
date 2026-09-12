@@ -18,6 +18,7 @@ def prepare(directory, supervisor, helper, label, behavior):
     worker = directory / (label + ".sh")
     worker.write_text('''#!/bin/bash
 set -eu
+umask 077
 work=$1
 helper=$2
 supervisor=$3
@@ -49,6 +50,13 @@ fi
 
 def cases(directory, supervisor, helper):
     """Check status/streams, invalid publications, closed stdio and cold-PID-only interruption."""
+    probe = directory / "umask-probe"
+    probe.write_text("#!/bin/bash\numask\n")
+    probe.chmod(0o700)
+    for mask in (0o000, 0o002, 0o027):
+        _, command = prepare(directory, supervisor, probe, "umask" + str(mask), "ok")
+        result = subprocess.run(command, capture_output=True, timeout=5, umask=mask)
+        assert (result.returncode, result.stdout, result.stderr) == (0, f"{mask:04o}\n".encode(), b""), result
     for status in (0, 7, 127):
         work, command = prepare(directory, supervisor, helper, "status" + str(status), "ok")
         result = subprocess.run([*command, "exit", str(status)], capture_output=True, timeout=5)
@@ -95,14 +103,16 @@ def main():
         helper = directory / "child"
         common = ["clang", "-std=c11", "-Wall", "-Wextra", "-Werror"]
         subprocess.run([*common, ROOT / "tests/fixtures/style_supervisor_child.c", "-o", helper], check=True, env=environment)
+        helper.chmod(0o700)
         for name, flags in (("debug", ["-O0", "-g"]), ("release", ["-O2", "-DNDEBUG"]),
                             ("sanitized", ["-O1", "-g", "-fsanitize=address,undefined"])):
             supervisor = directory / name
             subprocess.run([*common, *flags, ROOT / "scripts/bootstrap/style_supervisor.c", "-o", supervisor], check=True, env=environment)
+            supervisor.chmod(0o700)
             target = directory / (name + "-cases")
             target.mkdir(mode=0o700)
             cases(target, supervisor, helper)
-            print(name + ": 18 launch-control cases passed")
+            print(name + ": 21 launch-control cases passed")
 
 
 if __name__ == "__main__":

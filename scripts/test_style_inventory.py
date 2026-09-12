@@ -49,6 +49,32 @@ def cases(helper, root):
     print("10 directory inventory checks passed")
 
 
+def inaccessible_cases(helper, root):
+    """Denied search cannot hide resolvable headers; gaining access changes the inventory."""
+    private = root / "private"
+    private.mkdir()
+    (private / "hidden.h").write_text("hidden")
+    link = root / "private-link"
+    link.symlink_to(private, target_is_directory=True)
+    try:
+        private.chmod(0o000)
+        assert not os.access(private, os.X_OK), "permission regression requires an unprivileged user"
+        denied = inventory(helper, [link])
+        assert denied.returncode == 0 and b"U " + os.fsencode(link) + b"\n" in denied.stdout, denied
+        assert b"hidden.h" not in denied.stdout
+        private.chmod(0o700)
+        opened = inventory(helper, [link])
+        assert opened.returncode == 0 and b"hidden.h" in opened.stdout, opened
+        assert opened.stdout != denied.stdout
+        private.chmod(0o100)
+        assert os.access(private, os.X_OK) and not os.access(private, os.R_OK)
+        unknown = inventory(helper, [link])
+        assert unknown.returncode == 125 and b"directory open failed" in unknown.stderr, unknown
+    finally:
+        private.chmod(0o700)
+    print("three inaccessible-directory lookup checks passed")
+
+
 def main():
     """Exercise the standalone decoder in debug/release and sanitizers without shared artifacts."""
     env = dict(os.environ, ASAN_OPTIONS="detect_leaks=0", UBSAN_OPTIONS="halt_on_error=1")
@@ -64,6 +90,7 @@ def main():
             target = root / (name + "-cases")
             target.mkdir()
             cases(helper, target)
+            inaccessible_cases(helper, target)
 
 
 if __name__ == "__main__":
