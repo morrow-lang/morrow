@@ -95,6 +95,7 @@ python3 scripts/test_tui.py
 python3 scripts/test_runtime_process.py
 python3 scripts/test_runtime_repeat.py
 python3 scripts/test_runtime_access.py
+python3 scripts/test_runtime_regex.py
 python3 scripts/test_runtime_utf8.py
 python3 scripts/test_runtime_actor_subtree.py
 python3 scripts/test_runtime_managed.py

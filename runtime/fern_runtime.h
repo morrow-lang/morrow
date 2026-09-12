@@ -1395,7 +1395,9 @@ FernStringList* fern_regex_split(const char* s, const char* pattern);
  * Find match with capture groups.
  * @param s The string to search.
  * @param pattern The regex pattern with groups.
- * @return FernRegexCaptures with all capture groups.
+ * @return Full match and up to nine capture groups in pattern order. An absent
+ *         group has start/end -1 and empty text; an empty participating group has
+ *         equal nonnegative offsets. Invalid patterns/no match return zero groups.
  */
 FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern);
 

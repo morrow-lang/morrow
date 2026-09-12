@@ -78,14 +78,14 @@ def main():
                                     capture_output=True, text=True, timeout=30)
             if result.returncode or result.stdout != expected:
                 raise AssertionError(f"{name}: {result.returncode}, {result.stdout!r}\n{result.stderr}")
-        for name in ("tui_objects", "runtime_tuples", "repl_parity"):
+        for name in ("tui_objects", "runtime_tuples", "repl_parity", "regex_optional"):
             source = ROOT / "compiler-rs/tests/corpus" / f"{name}.fn"
             expected = source.with_suffix(".stdout").read_text()
             result = subprocess.run([compiler,"run",source],cwd=directory,env=environment,
                                     capture_output=True,text=True,timeout=30)
             if result.returncode or result.stdout != expected:
                 raise AssertionError(f"{name}: {result.returncode}, {result.stdout!r}\n{result.stderr}")
-    print(f"Rust stdlib passed: {len(CASES) + 3} native applications")
+    print(f"Rust stdlib passed: {len(CASES) + 4} native applications")
 
 
 if __name__ == "__main__":

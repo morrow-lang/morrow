@@ -1,6 +1,6 @@
 # Fern Standard Library API Reference (Gate C)
 
-Last updated: 2026-02-06
+Last updated: 2026-09-12
 
 This file is the canonical signature reference for the Gate C core standard-library modules.
 It complements `docs/COMPATIBILITY_POLICY.md` with concrete function-level contracts.
@@ -33,6 +33,16 @@ Current runtime-facing APIs use `Int` for error codes.
 2. `Result(T, Int)` means `Err(Int)` where integer values map to runtime error constants.
 
 ## Module Signatures
+
+### Regex capture positions
+
+The Rust frontend exposes `Regex.captures(text, pattern)` as a list of
+`(start: Int, end: Int, text: String)` tuples. Entry zero is the full match;
+the shared runtime returns up to nine numbered subgroups in pattern order.
+An optional group that does not participate keeps its slot with `(-1, -1, "")`.
+A participating empty group has equal nonnegative byte offsets and empty text.
+Invalid patterns and searches with no match return an empty list. Patterns use
+the runtime's POSIX extended regular expression syntax.
 
 ### `String` decimal predicate
 

@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
 #include <limits.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -4239,7 +4240,7 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
         return result;
     }
     
-    /* POSIX regex supports up to 9 subexpressions + full match */
+    /* Preserve the existing bound of nine subexpressions plus the full match. */
     size_t max_groups = 10;
     regmatch_t* matches = FERN_ALLOC(max_groups * sizeof(regmatch_t));
     assert(matches != NULL);
@@ -4251,12 +4252,8 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
         return result;
     }
     
-    /* Count valid matches */
-    size_t count = 0;
-    for (size_t i = 0; i < max_groups; i++) {
-        if (matches[i].rm_so == -1) break;
-        count++;
-    }
+    /* Group slots belong to the pattern, even when an optional group is absent. */
+    size_t count = regex.re_nsub < max_groups ? regex.re_nsub + 1 : max_groups;
     
     result->count = (int64_t)count;
     result->captures = FERN_ALLOC(count * sizeof(FernRegexMatch));
@@ -4266,10 +4263,13 @@ FernRegexCaptures* fern_regex_captures(const char* s, const char* pattern) {
         result->captures[i].start = matches[i].rm_so;
         result->captures[i].end = matches[i].rm_eo;
         
-        size_t len = (size_t)(matches[i].rm_eo - matches[i].rm_so);
+        bool matched = matches[i].rm_so >= 0;
+        size_t len = matched ? (size_t)(matches[i].rm_eo - matches[i].rm_so) : 0;
         result->captures[i].matched = FERN_ALLOC(len + 1);
         assert(result->captures[i].matched != NULL);
-        memcpy(result->captures[i].matched, s + matches[i].rm_so, len);
+        if (matched) {
+            memcpy(result->captures[i].matched, s + matches[i].rm_so, len);
+        }
         result->captures[i].matched[len] = '\0';
     }
     
