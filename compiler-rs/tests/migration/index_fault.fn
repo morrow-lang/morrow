@@ -1,0 +1,5 @@
+fn access() -> Int:
+    defer println("cleanup")
+    [42][-1]
+fn main():
+    println(access())

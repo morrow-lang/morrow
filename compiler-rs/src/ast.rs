@@ -387,6 +387,7 @@ pub enum UnaryOp {
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryOp {
+    In,
     Power,
     BitAnd,
     BitOr,

@@ -70,7 +70,7 @@ fn invalid_or_unsupported_source_is_never_rewritten() {
         "fn main(:",
         "fn main(): \"hi {name\"",
         "fn main(): @",
-        "fn main():\n\t0",
+        "fn main():\n \t0",
     ] {
         assert!(format(source).is_err(), "{source}");
     }

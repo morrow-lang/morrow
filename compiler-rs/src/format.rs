@@ -1320,6 +1320,7 @@ fn quote(value: &str) -> String {
 /// Map an AST operator to its canonical Fern token.
 fn binary_text(op: BinaryOp) -> &'static str {
     match op {
+        BinaryOp::In => "in",
         BinaryOp::Power => "**",
         BinaryOp::BitAnd => "&&&",
         BinaryOp::BitOr => "|||",

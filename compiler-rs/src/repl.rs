@@ -370,7 +370,11 @@ impl Machine {
         {
             return Ok(left);
         }
-        binary(op, left, self.expression(right)?)
+        let right = self.expression(right)?;
+        if op == ast::BinaryOp::In {
+            return self.builtin(ir::Builtin::ListContains, vec![right, left]);
+        }
+        binary(op, left, right)
     }
     /// Run a resolved function in its own locals and catch Result propagation at its boundary.
     fn call(&mut self, target: ir::CallTarget, args: Vec<Value>) -> Eval<Value> {

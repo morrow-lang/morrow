@@ -71,6 +71,7 @@ impl Capability {
 pub(super) fn binary_capability(op: ast::BinaryOp) -> Option<Capability> {
     use ast::BinaryOp::*;
     Some(match op {
+        In => Capability::Contains,
         Add => Capability::Add,
         Power | Subtract | Multiply | Divide => Capability::Numeric,
         Lt | Le | Gt | Ge => Capability::Order,

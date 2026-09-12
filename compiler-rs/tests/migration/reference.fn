@@ -1,0 +1,12 @@
+fn item() -> Int:
+    println(1)
+    5
+fn items() -> List(Int):
+    let values = [4, 5]
+    println(2)
+    values
+fn main():
+    if item() in items():
+        println(3)
+    println([10, 20][0])
+    println([10, 20][1])

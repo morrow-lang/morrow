@@ -1,0 +1,20 @@
+fn probe() -> Int:
+    println(1)
+    2
+
+fn accepted(value: Int) -> Bool:
+    println(2)
+    value > 0
+
+fn selected(value: Int) -> Int:
+    println(3)
+    value
+
+fn main():
+    let value = match probe(): 0 -> 10, item if accepted(item) -> selected(item), _ -> 30
+    println(value)
+    println(match 0: 0 -> 10, _ -> 30)
+    println(match -1: 0 -> 10, item if item > 0 -> 20, _ -> 30)
+    let values = [match 1: 0 -> 10, _ -> 20, 30]
+    println(values[0])
+    println(values[1])

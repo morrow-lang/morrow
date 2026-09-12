@@ -4,6 +4,27 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 121 Preserve bounded inline value-match arms
+* **Date**: 2026-09-12
+* **Status**: Accepted for executable source compatibility
+* **Decision**: I will accept comma-separated inline value-match arms through the existing patterns, guards, AST and typed lowering, with canonical multiline formatting.
+* **Context**: The unchanged C parser/formatter corpus exposed rejection of executable inline matches. Condition-only matches remain indented and with-handlers retain their existing parsing.
+* **Consequences**: A comma followed by a balanced pattern/guard segment with a top-level arrow belongs to the nearest unclosed inline match; other commas remain with the enclosing expression. Group a match before a following caller lambda, or a nested match before subsequent outer arms. Parsing never retries based on inferred types. Seven bounded inline tests, thirty existing/tab parser and formatter tests, exact native evaluation-order output and 512 unchanged seeded cases per compiler pass. No new ABI is introduced.
+
+### 120 Preserve consistent tab indentation during compiler migration
+* **Date**: 2026-09-12
+* **Status**: Accepted for executable source compatibility
+* **Decision**: I will accept consistently tab-indented Fern source using eight-column tab stops, preserve byte spans, and keep canonical formatting at four spaces per layout level.
+* **Context**: The legacy seeded parser/formatter corpus begins with a valid tab-indented program. Rejecting every tab in Rust broke that executable C-source contract. Decision3 rejects mixed tabs/spaces rather than consistently tab-indented source.
+* **Consequences**: Significant code indentation must use one style per source and cannot mix tabs and spaces in a prefix. Blank/comment-only lines and ordinary delimiter continuation whitespace do not select the style; embedded suites do. Horizontal tabs between tokens remain whitespace. Source/token/layout bounds and string/comment contents remain intact. Both default Rust and explicit C reference run the original fuzz smoke corpus; the separate Rust mutation corpus remains required.
+
+### 116 Preserve executable C source operations through typed Rust lowering
+* **Date**: 2026-09-12
+* **Status**: Accepted for migration compatibility
+* **Decision**: I will preserve the shipping service aliases, bracket list indexing and infix membership through existing runtime identities and checked typed operations. Membership retains needle-before-list evaluation order.
+* **Context**: A complete 212-name registration inventory and C lowering audit found these concrete executable compatibility gaps. Parser-only constructs and known C miscompilations are not valid native-output references.
+* **Consequences**: Indexing shares List.get fault, full-width transport and Result-obligation rules; formatting canonicalizes it to List.get. Membership keeps IEEE comparisons and scalar Contains requirements. Native tests cover both backends, exact C reference outputs where valid, source order and deferred fault cleanup. Rust retains documented JSON, Option and error-handling corrections. Full future-language features remain distinct from compiler migration acceptance; see docs/LANGUAGE_PARITY.md.
+
 ### 114 Prove bounded recursive Result builder contracts
 * **Date**: 2026-09-12
 * **Status**: Accepted for implementation and soundness verification

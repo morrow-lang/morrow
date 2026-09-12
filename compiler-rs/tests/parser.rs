@@ -66,7 +66,7 @@ fn strings_booleans_and_comments() {
 #[test]
 fn rejects_malformed_and_unsupported_input() {
     for (source, message) in [
-        ("fn main():\n\t0", "tabs"),
+        ("fn main():\n \t0", "mixed tabs and spaces"),
         ("fn main():\n    0\n  1", "indent"),
         ("fn main(): \"x\\q\"", "escape"),
         ("fn main(): \"hi {name\"", "unterminated"),

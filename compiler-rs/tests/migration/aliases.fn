@@ -1,0 +1,19 @@
+fn code(result: Result(Int, Int)) -> Int:
+    match result:
+        Ok(value) -> value
+        Err(error) -> -error
+fn text(result: Result(String, Int)) -> String:
+    match result:
+        Ok(value) -> value
+        Err(_) -> "error"
+fn database() -> Result(Int, Int):
+    let db = Sql.open(":memory:")?
+    println(Sql.execute(db, "create table data (n integer)")?)
+    Sql.close(db)
+fn main():
+    println(code(database()))
+    println(text(Http.get("")))
+    println(text(Http.post("", "")))
+    let pid = Actors.start("worker")
+    println(code(Actors.post(pid, "message")))
+    println(text(Actors.next(pid)))

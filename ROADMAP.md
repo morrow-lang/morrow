@@ -72,6 +72,11 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ### Rust Migration Completion
 
+- [x] Restore bounded inline match arms with guarded patterns, canonical formatting and explicit nested/caller comma ownership (37 focused parser/formatter checks, ten native migration programs, 512 unchanged seeded parser/formatter cases per compiler; Decision121).
+- [x] Preserve consistent tab indentation, eight-column layout and byte-correct spans while rejecting mixed styles; canonical formatting uses spaces (24 focused parser/formatter tests and Clippy; Decision120).
+- [x] Restore 14 shipping service aliases, bracket list indexing and infix membership through typed operations (four parser/checker/formatter/REPL tests and four native programs covering full-width values, Float/NaN, source order and deferred bounds-fault cleanup).
+- [x] Audit every shipping C builtin name and executable construct against typed Rust lowering (212-name inventory, 48 focused checks, five independent native programs and two C-reference outputs; docs/LANGUAGE_PARITY.md).
+
 - [x] Complete bounded recursive builder contracts and mutual-summary widening without unproved handling credit (90 focused integrations, 76 internal obligation checks; independent empty-subtree cardinality exploit rejected; conservative equations documented in docs/RESULT_HANDLING.md, Decision114).
 
 User authorization: continue through every migration milestone without stopping

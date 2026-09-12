@@ -997,6 +997,9 @@ impl Emitter<'_> {
         if matches!(op, BinaryOp::And | BinaryOp::Or) {
             return self.logical(op, left, right, locals, depth);
         }
+        if op == BinaryOp::In {
+            return self.scalar_contains_ordered(right, left, locals, depth, true);
+        }
         expect_type(right.ty.clone(), left.ty.clone(), right.span)?;
         let result_type = numeric::binary_type(op, &left.ty, left.span)?;
         let lhs = self.expr(left, locals, depth)?;
@@ -1150,7 +1153,7 @@ fn binary_instruction(op: BinaryOp, operand: Type) -> MachineBinary {
         BinaryOp::Le => Comparison::SLe,
         BinaryOp::Gt => Comparison::SGt,
         BinaryOp::Ge => Comparison::SGe,
-        BinaryOp::Power | BinaryOp::And | BinaryOp::Or => {
+        BinaryOp::In | BinaryOp::Power | BinaryOp::And | BinaryOp::Or => {
             unreachable!("operator requires dedicated lowering")
         }
     };

@@ -13,7 +13,7 @@ pub(super) fn binary_type(op: BinaryOp, operand: &Type, span: Span) -> Lowering<
             operand,
             Type::Int | Type::Float | Type::Bool | Type::String | Type::Pid(_)
         ),
-        And | Or => {
+        In | And | Or => {
             return Err(invalid(
                 span,
                 "logical operation requires short-circuit lowering",
@@ -120,6 +120,19 @@ impl Emitter<'_> {
         let [list, value] = args else {
             return Err(invalid(span, "List.contains requires two arguments"));
         };
+        self.scalar_contains_ordered(list, value, locals, depth, false)
+    }
+
+    /// Preserve caller operand order while sharing scalar equality and ABI validation.
+    pub(super) fn scalar_contains_ordered(
+        &mut self,
+        list: &Expr,
+        value: &Expr,
+        locals: &mut Locals,
+        depth: usize,
+        item_first: bool,
+    ) -> Lowering<(Type, String)> {
+        let span = list.span;
         let Type::List(item) = &list.ty else {
             return Err(invalid(span, "List.contains requires List"));
         };
@@ -132,8 +145,13 @@ impl Emitter<'_> {
         ) {
             return Err(invalid(span, "List.contains requires scalar equality"));
         }
-        let list = self.expr(list, locals, depth)?;
-        let raw = self.expr(value, locals, depth)?;
+        let (list, raw) = if item_first {
+            let raw = self.expr(value, locals, depth)?;
+            (self.expr(list, locals, depth)?, raw)
+        } else {
+            let list = self.expr(list, locals, depth)?;
+            (list, self.expr(value, locals, depth)?)
+        };
         let found = if primitive == Type::Float {
             self.float_contains_used = true;
             self.assign(

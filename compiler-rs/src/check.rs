@@ -1160,9 +1160,19 @@ impl Checker<'_> {
         use ast::BinaryOp::*;
         let left = self.expression(left, depth)?;
         let right = self.expression(right, depth)?;
-        self.inference
-            .unify(&left.ty, &right.ty, right.span, "binary operator")?;
+        if op == In {
+            self.inference.unify(
+                &right.ty,
+                &Type::List(Box::new(left.ty.clone())),
+                right.span,
+                "membership",
+            )?;
+        } else {
+            self.inference
+                .unify(&left.ty, &right.ty, right.span, "binary operator")?;
+        }
         let ty = match op {
+            In => Type::Bool,
             Add => left.ty.clone(),
             Eq | Ne => Type::Bool,
             Power | Subtract | Multiply | Divide | Remainder | Lt | Le | Gt | Ge => {
@@ -2092,6 +2102,11 @@ pub(crate) fn builtin(name: &str) -> Option<ir::Builtin> {
 /// Compute a supported concrete scalar operation result, rejecting pointer equality.
 fn binary_result(op: ast::BinaryOp, left: &Type, right: &Type) -> Option<Type> {
     use ast::BinaryOp::*;
+    if op == In {
+        return ((scalar(left) || *left == Type::Float)
+            && *right == Type::List(Box::new(left.clone())))
+        .then_some(Type::Bool);
+    }
     if left != right {
         return None;
     }

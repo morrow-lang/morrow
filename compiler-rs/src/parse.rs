@@ -182,6 +182,7 @@ struct LayoutLexer {
     levels: Vec<usize>,
     delimiters: Vec<Token>,
     suites: Vec<SuiteLayout>,
+    indentation_style: Option<u8>,
 }
 
 /// Tokenize logical rows while preserving bounded expression suites inside delimiters.
@@ -196,6 +197,7 @@ fn lex_layout(source: &str, close_parentheses: bool) -> ParseResult<Vec<Token>> 
         levels: vec![0],
         delimiters: Vec::new(),
         suites: Vec::new(),
+        indentation_style: None,
     };
     let mut offset = 0;
     while offset < source.len() {
@@ -219,25 +221,30 @@ fn lex_layout(source: &str, close_parentheses: bool) -> ParseResult<Vec<Token>> 
 impl LayoutLexer {
     /// Select significant layout for one physical line; nested ordinary delimiters suspend it.
     fn line(&mut self, content: &str, offset: usize) -> ParseResult<usize> {
-        let indent = content.bytes().take_while(|b| *b == b' ').count();
-        let rest = &content[indent..];
+        let bytes = content
+            .bytes()
+            .take_while(|b| matches!(b, b' ' | b'\t'))
+            .count();
+        let leading = &content[..bytes];
+        let indent = leading.bytes().fold(0, |column, byte| {
+            if byte == b'\t' {
+                (column + 8) & !7
+            } else {
+                column + 1
+            }
+        });
+        let rest = &content[bytes..];
         let span = Span {
-            start: offset + indent,
-            end: offset + content.len(),
+            start: offset,
+            end: offset + bytes,
         };
-        if rest.starts_with('\t') {
-            return Err(Diagnostic::new(
-                span,
-                "tabs are not allowed for indentation; use spaces",
-            ));
-        }
         let mut raw = Vec::new();
-        let consumed = lex_line(content, indent, offset, &mut raw)?;
+        let consumed = lex_line(content, bytes, offset, &mut raw)?;
         raw.retain(|token| token.kind != Kind::Comment);
         if raw.is_empty() {
             return Ok(consumed);
         }
-        self.prepare_layout(rest, indent, offset)?;
+        self.prepare_layout(rest, indent, leading, span)?;
         let opens = suite_header(&raw, self.delimiters.len())?;
         self.append_line(raw)?;
         if opens && !self.delimiters.is_empty() && !self.layout_active() {
@@ -265,25 +272,48 @@ impl LayoutLexer {
     }
 
     /// End embedded frames at parent layout while retaining enclosing indentation.
-    fn prepare_layout(&mut self, rest: &str, indent: usize, offset: usize) -> ParseResult<()> {
+    fn prepare_layout(
+        &mut self,
+        rest: &str,
+        indent: usize,
+        leading: &str,
+        span: Span,
+    ) -> ParseResult<()> {
         while let Some(frame) = self.suites.last() {
             if self.delimiters.len() != frame.delimiters || indent > frame.indent {
                 break;
             }
-            self.close_suite(Span {
-                start: offset,
-                end: offset + indent,
-            })?;
+            self.close_suite(span)?;
         }
         if self.layout_active() {
+            self.check_indentation_style(leading, span)?;
             if rest.starts_with("|>") && indent >= *self.levels.last().unwrap() {
                 if self.tokens.last().is_some_and(|t| t.kind == Kind::Newline) {
                     self.tokens.pop();
                 }
             } else {
-                layout(&mut self.tokens, &mut self.levels, indent, offset)?;
+                layout(&mut self.tokens, &mut self.levels, indent, span)?;
             }
         }
+        Ok(())
+    }
+
+    /// Only significant code indentation fixes the source-wide space-or-tab style.
+    fn check_indentation_style(&mut self, leading: &str, span: Span) -> ParseResult<()> {
+        let Some(style) = leading.bytes().next() else {
+            return Ok(());
+        };
+        if leading.bytes().any(|byte| byte != style)
+            || self
+                .indentation_style
+                .is_some_and(|previous| previous != style)
+        {
+            return Err(Diagnostic::new(
+                span,
+                "mixed tabs and spaces in indentation",
+            ));
+        }
+        self.indentation_style = Some(style);
         Ok(())
     }
 
@@ -425,22 +455,16 @@ fn layout(
     tokens: &mut Vec<Token>,
     levels: &mut Vec<usize>,
     indent: usize,
-    offset: usize,
+    span: Span,
 ) -> ParseResult<()> {
     let current = levels.last().copied().unwrap_or(0);
     match indent.cmp(&current) {
         std::cmp::Ordering::Greater => {
             if levels.len() >= MAX_DEPTH {
-                return Err(Diagnostic::new(
-                    Span {
-                        start: offset,
-                        end: offset + indent,
-                    },
-                    "indentation depth limit exceeded",
-                ));
+                return Err(Diagnostic::new(span, "indentation depth limit exceeded"));
             }
             levels.push(indent);
-            push(tokens, Kind::Indent, offset, offset + indent)?;
+            push(tokens, Kind::Indent, span.start, span.end)?;
         }
         std::cmp::Ordering::Less => {
             for _ in 0..levels.len() {
@@ -448,16 +472,10 @@ fn layout(
                     break;
                 }
                 levels.pop();
-                push(tokens, Kind::Dedent, offset, offset + indent)?;
+                push(tokens, Kind::Dedent, span.start, span.end)?;
             }
             if levels.last().copied() != Some(indent) {
-                return Err(Diagnostic::new(
-                    Span {
-                        start: offset,
-                        end: offset + indent,
-                    },
-                    "inconsistent indentation",
-                ));
+                return Err(Diagnostic::new(span, "inconsistent indentation"));
             }
         }
         std::cmp::Ordering::Equal => {}
@@ -475,7 +493,7 @@ fn lex_line(
     while at < line.len() {
         match line.as_bytes()[at] {
             b'\n' => return Ok(at + 1),
-            b' ' | b'\r' => {
+            b' ' | b'\t' | b'\r' => {
                 at += 1;
                 continue;
             }
@@ -2100,7 +2118,9 @@ impl Parser {
     fn postfix(&mut self) -> ParseResult<Parsed> {
         let mut value = self.prefix()?;
         for _ in 0..self.tokens.len() {
-            if self.previous_dedent() && self.current().kind == Kind::Left {
+            if self.previous_dedent()
+                && matches!(self.current().kind, Kind::Left | Kind::LeftBracket)
+            {
                 break;
             }
             if self.current().kind == Kind::Question {
@@ -2125,11 +2145,39 @@ impl Parser {
                 )?;
             } else if self.eat(&Kind::Dot) {
                 value = self.field_postfix(value)?;
+            } else if self.eat(&Kind::LeftBracket) {
+                value = self.index_postfix(value)?;
             } else {
                 break;
             }
         }
         Ok(value)
+    }
+
+    /// Lower source indexing to the same typed, bounds-checked operation as List.get.
+    /// Argument order keeps the collection and index evaluated once, left to right.
+    fn index_postfix(&mut self, value: Parsed) -> ParseResult<Parsed> {
+        let index = self.expr(0)?;
+        let end = self
+            .expect(Kind::RightBracket, "expected ']' after list index")?
+            .span
+            .end;
+        let span = Span {
+            start: value.node.span.start,
+            end,
+        };
+        let depth = value.depth.max(index.depth) + 1;
+        expression(
+            ExprKind::Call {
+                name: "List.get".into(),
+                args: vec![
+                    Argument::positional(value.node),
+                    Argument::positional(index.node),
+                ],
+            },
+            span,
+            depth,
+        )
     }
 
     /// Parse one member selector, retaining opaque recovery identity only for the private token.
@@ -2700,11 +2748,8 @@ impl Parser {
     }
 
     /// Share pattern arms between value matches and explicit with error handlers.
-    fn match_arms(&mut self, require_block: bool) -> ParseResult<(Vec<MatchArm>, usize, usize)> {
+    fn match_arms(&mut self, inline_list: bool) -> ParseResult<(Vec<MatchArm>, usize, usize)> {
         let block = self.eat(&Kind::Newline);
-        if require_block && !block {
-            return Err(self.error("match requires an indented arm block"));
-        }
         if block {
             self.expect(Kind::Indent, "match requires an indented arm block")?;
         }
@@ -2740,6 +2785,10 @@ impl Parser {
                 span,
             });
             if !block {
+                if inline_list && self.inline_arm_follows() {
+                    self.take(); // The comma belongs to the next pattern arm.
+                    continue;
+                }
                 break;
             }
             if !self.eat(&Kind::Newline)
@@ -2753,6 +2802,31 @@ impl Parser {
             return Err(self.error("match requires at least one arm"));
         }
         Ok((arms, depth, end))
+    }
+
+    /// Leave caller commas untouched unless a balanced next pattern/guard has an arm arrow.
+    fn inline_arm_follows(&self) -> bool {
+        if self.current().kind != Kind::Comma {
+            return false;
+        }
+        let mut depth = 0usize;
+        for token in self.tokens.iter().skip(self.position + 1) {
+            match token.kind {
+                Kind::Left | Kind::LeftBracket | Kind::LeftBrace => depth += 1,
+                Kind::Right | Kind::RightBracket | Kind::RightBrace => {
+                    if depth == 0 {
+                        return false;
+                    }
+                    depth -= 1;
+                }
+                Kind::Arrow if depth == 0 => return true,
+                Kind::Comma | Kind::Newline | Kind::Dedent | Kind::End if depth == 0 => {
+                    return false
+                }
+                _ => {}
+            }
+        }
+        false
     }
 
     /// Parse condition branches separately from pattern matches, retaining wildcard syntax.
@@ -3187,6 +3261,7 @@ fn operator(kind: &Kind) -> Option<(BinaryOp, u8)> {
     Some(match kind {
         Kind::Name(n) if n == "or" => (BinaryOp::Or, 0),
         Kind::Name(n) if n == "and" => (BinaryOp::And, 1),
+        Kind::Name(n) if n == "in" => (BinaryOp::In, 7),
         Kind::BitOr => (BinaryOp::BitOr, 3),
         Kind::BitXor => (BinaryOp::BitXor, 4),
         Kind::BitAnd => (BinaryOp::BitAnd, 5),
