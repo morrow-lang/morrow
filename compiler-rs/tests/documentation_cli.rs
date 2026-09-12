@@ -73,7 +73,6 @@ fn doc_rejects_source_aliases_and_malformed_options() {
         assert_eq!(fs::read(dir.0.join("library.fn")).unwrap(), original);
     }
     for args in [
-        vec!["doc"],
         vec!["doc", "library.fn", "-o"],
         vec!["doc", "--html", "--html", "library.fn"],
         vec!["doc", "library.fn", "extra.fn"],

@@ -72,6 +72,11 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ### Rust Migration Completion
 
+- [x] Remove executable-write races from documentation opener tests using immutable scripts and private symlinks; retain literal non-UTF-8 argv and timeout assertions (six complete parallel Linux binary-suite runs pass).
+- [x] Implement actual checked local LSP rename and canonical formatting code actions, with versioned UTF-16 edits, capture rejection and explicit scope bounds (18 action/negotiation regressions, existing LSP checks and fresh-binary protocol smoke; Decision115).
+- [x] Inventory and bundle exact third-party license notices for all default Unix Cargo dependencies and compiled native components; locked closure and native-license checks pass.
+- [x] Restore CLI literal-path delimiters, default documentation cwd, public fern identity and REPL type/help/clear commands; real PTY editing, completion, persistent history and cancellation pass with bounded history import (Decision115).
+
 - [x] Restore bounded inline match arms with guarded patterns, canonical formatting and explicit nested/caller comma ownership (37 focused parser/formatter checks, ten native migration programs, 512 unchanged seeded parser/formatter cases per compiler; Decision121).
 - [x] Preserve consistent tab indentation, eight-column layout and byte-correct spans while rejecting mixed styles; canonical formatting uses spaces (24 focused parser/formatter tests and Clippy; Decision120).
 - [x] Restore 14 shipping service aliases, bracket list indexing and infix membership through typed operations (four parser/checker/formatter/REPL tests and four native programs covering full-width values, Float/NaN, source order and deferred bounds-fault cleanup).

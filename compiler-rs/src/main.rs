@@ -1,4 +1,4 @@
-//! Experimental CLI; parsing and type checking never call the C frontend.
+//! Fern CLI; parsing and type checking use the Rust frontend.
 #![forbid(unsafe_code)]
 // Keep production panic restrictions explicit while allowing assertions in tests.
 #![cfg_attr(not(test), deny(clippy::panic, clippy::panic_in_result_fn))]
@@ -69,19 +69,20 @@ impl NativeCode {
 /// Print explicit user-requested help, even when informational output is quiet.
 fn help() {
     println!(
-            "fern-rs: experimental Rust frontend (C remains the default)\n\
-Usage: fern-rs <check|emit|build|run|fmt|doc|lex|parse> <source.fn> [-o output]\n\
-Run arguments: fern-rs run source.fn -- [arguments]\n\
+            "fern: the Fern programming language\n\
+Usage: fern <command> [options] [source.fn|directory]\n\
+Commands: check, emit, build, run, fmt, doc, test, lex, parse, repl, lsp.\n\
+Run arguments: fern run source.fn -- [arguments]\n\
 Native backend: --backend=qbe|cranelift (or --backend <name>); QBE is the default. Cranelift requires its Cargo feature and supports build/run.\n\
 Global controls: --quiet, --verbose, --color=auto|always|never; -v aliases --version.\n\
-Subset: generic functions, custom types, modules, Int/Bool/String, List/Option/Result, guarded match, and Result ?.\n\
-Documentation: fern-rs doc <source.fn|directory> [--html] [--inferred] [--open] [-o output] generates source documentation.\n\
-Tests: fern-rs test --doc [source.fn|directory] executes documentation examples.\n\
-Formatting: fern-rs fmt <source.fn|directory> updates sources after validating every file.\n\
-Format validation: fern-rs fmt --check <source.fn|directory> checks canonical formatting without writing.\n\
-Interactive evaluation: fern-rs repl retains successful bindings and typed functions.\n\
-Editor protocol: fern-rs lsp communicates over standard input/output.\n\
-Native builds: run mise run rust-build; FERN_QBE and FERN_RUNTIME_LIB override backend paths."
+Language: generic functions, custom types, modules, Int/Bool/String, List/Option/Result, guarded match, and Result ?.\n\
+Documentation: fern doc [source.fn|directory] [--html] [--inferred] [--open] [-o output] generates source documentation.\n\
+Tests: fern test [--doc] [source.fn|directory] executes unit tests and documentation examples.\n\
+Formatting: fern fmt <source.fn|directory> updates sources after validating every file.\n\
+Format validation: fern fmt --check <source.fn|directory> checks canonical formatting without writing.\n\
+Interactive evaluation: fern repl retains successful bindings and typed functions. Terminal editing includes Tab completion and ~/.fern_history (FERN_REPL_HISTORY overrides the path).\n\
+Editor protocol: fern lsp communicates over standard input/output.\n\
+Native builds: FERN_QBE and FERN_RUNTIME_LIB override backend paths."
         );
 }
 
@@ -91,14 +92,14 @@ fn options(
     controls: cli_controls::Controls,
 ) -> Result<Option<Options>, String> {
     if arguments.is_empty() {
-        return Err("Usage: fern-rs <command> [options] <source.fn>\nUse fern-rs --help for commands and global controls.".into());
+        return Err("Usage: fern <command> [options] <source.fn>\nUse fern --help for commands and global controls.".into());
     }
     if arguments[0] == "--help" || arguments[0] == "-h" {
         help();
         return Ok(None);
     }
     if arguments[0] == "--version" {
-        println!("fern-rs {} (experimental)", env!("CARGO_PKG_VERSION"));
+        println!("fern {}", env!("CARGO_PKG_VERSION"));
         return Ok(None);
     }
     let command = arguments[0]
@@ -113,11 +114,22 @@ fn options(
     let mut forwarded = Vec::new();
     let mut format_check = false;
     let mut backend = None;
+    let mut literal = false;
     let mut rest = arguments.into_iter().skip(1);
     while let Some(argument) = rest.next() {
-        if argument == "--" && source.is_some() && command == "run" {
+        if !literal && argument == "--" && source.is_some() && command == "run" {
             forwarded.extend(rest);
             break;
+        }
+        if !literal && argument == "--" {
+            literal = true;
+            continue;
+        }
+        if literal {
+            if source.replace(PathBuf::from(argument)).is_some() {
+                return Err("only one source file is accepted".into());
+            }
+            continue;
         }
         if argument == "--backend"
             || argument
@@ -197,9 +209,7 @@ fn run(options: Options) -> Result<u8, String> {
     let loaded = modules::load(&options.source).map_err(|error| error.message)?;
     let typed = check::check(&loaded.program).map_err(|error| loaded.render(error))?;
     if options.command == "check" {
-        options
-            .controls
-            .information("No type errors (Rust prototype subset)");
+        options.controls.information("No type errors");
         return Ok(0);
     }
     if options.command == "emit" {
@@ -329,12 +339,16 @@ fn dispatch(arguments: Vec<OsString>, controls: cli_controls::Controls) -> Resul
             Err("repl accepts no additional arguments".into())
         } else {
             use std::io::IsTerminal;
-            fern_prototype::repl::serve(
-                std::io::stdin().lock(),
-                std::io::stdout().lock(),
-                std::io::stdin().is_terminal() && !controls.quiet,
-            )
-            .map(|()| 0)
+            if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+                fern_prototype::repl::serve_terminal(controls.quiet).map(|()| 0)
+            } else {
+                fern_prototype::repl::serve(
+                    std::io::stdin().lock(),
+                    std::io::stdout().lock(),
+                    false,
+                )
+                .map(|()| 0)
+            }
         }
     } else if arguments.first().is_some_and(|arg| arg == "lsp") {
         if arguments.len() != 1 {

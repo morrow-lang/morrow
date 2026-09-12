@@ -95,3 +95,33 @@ fn if_without_else_discards_its_value_but_keeps_effects() {
     assert_eq!(repl.evaluate("if false: 42").unwrap(), "");
     assert_eq!(repl.evaluate("if true: println(42)").unwrap(), "42\n");
 }
+
+#[test]
+fn type_commands_inspect_without_evaluating_or_replaying_retained_effects() {
+    let input = b"fn effect() -> Int:\n    println(99)\n    7\n\nlet x = effect()\n:type x + 1\n:t effect()\n:type 1 / 0\n:type File.read(\"not-a-real-file\")\n:type missing\nx\n:quit\n";
+    let mut output = Vec::new();
+    fern_prototype::repl::serve(std::io::Cursor::new(input), &mut output, false).unwrap();
+    let output = String::from_utf8(output).unwrap();
+    assert!(
+        output.starts_with("99\nInt\nInt\nInt\nResult(String, Int)\nerror:"),
+        "{output}"
+    );
+    assert!(output.ends_with("7 : Int\n"), "{output}");
+    assert_eq!(output.matches("99\n").count(), 1);
+}
+
+#[test]
+fn repl_legacy_help_clear_and_type_usage_are_supported() {
+    let input = b":h\n:type\n:t \n:clear\n4 + 2\n:q\n";
+    let mut output = Vec::new();
+    fern_prototype::repl::serve(std::io::Cursor::new(input), &mut output, false).unwrap();
+    let output = String::from_utf8(output).unwrap();
+    assert!(output.contains(":type"), "{output}");
+    assert_eq!(
+        output.matches("usage: :type <expression>").count(),
+        2,
+        "{output}"
+    );
+    assert!(output.contains("\x1b[H\x1b[2J"), "{output:?}");
+    assert!(output.ends_with("6 : Int\n"), "{output}");
+}

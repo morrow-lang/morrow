@@ -1,6 +1,10 @@
 //! Bounded JSON-RPC transport and UTF-16 editor diagnostics.
 //! Lifecycle and sync follow https://microsoft.github.io/language-server-protocol/.
 use crate::{ast, check, modules, parse, runtime, Span, Type};
+#[path = "lsp/actions.rs"]
+mod actions;
+#[path = "lsp/capabilities.rs"]
+mod capabilities;
 #[path = "lsp/formatting.rs"]
 mod formatting;
 #[path = "lsp/hover.rs"]
@@ -10,6 +14,11 @@ mod index;
 #[path = "lsp/navigation.rs"]
 mod navigation;
 mod recovery;
+#[path = "lsp/refactor.rs"]
+mod refactor;
+#[cfg(test)]
+#[path = "lsp/refactor_tests.rs"]
+mod refactor_tests;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, Read, Write};
 use std::path::{Path, PathBuf};
@@ -29,6 +38,7 @@ type Result<T> = std::result::Result<T, String>;
 pub fn serve(mut input: impl BufRead, mut output: impl Write) -> Result<()> {
     let mut server = Server {
         state: State::New,
+        client_edits: capabilities::ClientEdits::default(),
         documents: BTreeMap::new(),
         published: BTreeMap::new(),
     };
@@ -518,6 +528,7 @@ struct Document {
 }
 struct Server {
     state: State,
+    client_edits: capabilities::ClientEdits,
     documents: BTreeMap<String, Document>,
     published: BTreeMap<String, Json>,
 }
@@ -604,6 +615,17 @@ impl Server {
                 Ok(result) => respond(output, id, result),
                 Err((code, message)) => send_error(output, id, code, &message),
             },
+            "textDocument/rename" | "textDocument/prepareRename" | "textDocument/codeAction" => {
+                let result = match method {
+                    "textDocument/rename" => self.rename(params),
+                    "textDocument/prepareRename" => self.prepare_rename(params),
+                    _ => self.code_actions(params),
+                };
+                match result {
+                    Ok(result) => respond(output, id, result),
+                    Err((code, message)) => send_error(output, id, code, &message),
+                }
+            }
             "textDocument/definition" | "textDocument/completion" | "textDocument/hover" => {
                 match self.navigation(method, params) {
                     Ok(result) => respond(output, id, result),
@@ -625,6 +647,7 @@ impl Server {
         if !matches!(params, Json::Object(_)) {
             return send_error(output, id, -32602, "initialize params must be an object");
         }
+        self.client_edits = capabilities::ClientEdits::initialize(params);
         self.state = State::Running;
         respond(
             output,
@@ -637,6 +660,8 @@ impl Server {
                         ("definitionProvider", Json::Bool(true)),
                         ("hoverProvider", Json::Bool(true)),
                         ("documentFormattingProvider", Json::Bool(true)),
+                        ("renameProvider", self.client_edits.rename_provider()),
+                        ("codeActionProvider", self.client_edits.action_provider()),
                         (
                             "completionProvider",
                             object([

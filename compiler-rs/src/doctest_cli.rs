@@ -18,7 +18,7 @@ struct Options {
 /// Run source-owned examples in independent native processes and report every failed example.
 pub(super) fn run(arguments: Vec<OsString>, controls: Controls) -> Result<u8, String> {
     if arguments.len() == 2 && (arguments[1] == "--help" || arguments[1] == "-h") {
-        println!("Usage: fern-rs test [--doc] [source.fn|directory] [--timeout seconds]\nExecute zero-argument test_ functions and fenced Fern documentation examples. --doc runs only documentation examples and # => pattern expectations.\nDefaults to the current directory and a 10-second timeout per example (1–60).\nExamples execute user code. Unit tests must return Unit or Result(Unit, E). Assertion libraries, coverage, benchmarks and watch mode are not yet supported.");
+        println!("Usage: fern test [--doc] [source.fn|directory] [--timeout seconds]\nExecute zero-argument test_ functions and fenced Fern documentation examples. --doc runs only documentation examples and # => pattern expectations.\nDefaults to the current directory and a 10-second timeout per example (1–60).\nExamples execute user code. Unit tests must return Unit or Result(Unit, E). Assertion libraries, coverage, benchmarks and watch mode are not yet supported.");
         return Ok(0);
     }
     let options = options(arguments)?;
@@ -211,8 +211,19 @@ fn options(arguments: Vec<OsString>) -> Result<Options, String> {
     let mut path = None;
     let mut timeout = None;
     let mut doc = false;
+    let mut literal = false;
     let mut arguments = arguments.into_iter().skip(1);
     while let Some(argument) = arguments.next() {
+        if !literal && argument == "--" {
+            literal = true;
+            continue;
+        }
+        if literal {
+            if path.replace(PathBuf::from(argument)).is_some() {
+                return Err("test accepts one source file or directory".into());
+            }
+            continue;
+        }
         if argument == "--doc" {
             if doc {
                 return Err("--doc specified more than once".into());

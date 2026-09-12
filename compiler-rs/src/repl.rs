@@ -57,6 +57,29 @@ pub struct Session {
     statements: usize,
 }
 impl Session {
+    /// Inspect an expression using the checker without evaluating it or retained effects.
+    pub fn expression_type(&self, source: &str) -> Result<String, String> {
+        let mut name = "fern_repl_type_query".to_owned();
+        while self.definitions.contains(&name) {
+            name.push('_');
+        }
+        let body = format!("{}\n{source}", self.bindings.join("\n"));
+        let indented = parse::indent_code(&body, "    ").map_err(|error| error.message)?;
+        let program = format!("{}\nfn {name}():\n{indented}", self.definitions);
+        let syntax = parse::parse(&program).map_err(|error| error.message)?;
+        let schemes = check::editor::function_schemes(&syntax).map_err(|error| error.message)?;
+        let scheme = schemes
+            .iter()
+            .find(|scheme| scheme.name == name)
+            .ok_or("missing type query")?;
+        crate::presentation::render_type_with_names(
+            &scheme.result,
+            &scheme.generics,
+            crate::presentation::Limits::default(),
+        )
+        .map_err(|error| error.message)
+    }
+
     /// Check an entry before evaluating it; failed entries never replace prior bindings.
     pub fn evaluate(&mut self, source: &str) -> Result<String, String> {
         let declaration = declaration_source(source);
@@ -851,13 +874,48 @@ fn float_text(value: f64) -> String {
 /// Prompts appear only for a terminal, keeping piped sessions deterministic.
 pub fn serve(
     mut input: impl std::io::BufRead,
-    mut output: impl std::io::Write,
+    output: impl std::io::Write,
     interactive: bool,
+) -> Result<(), String> {
+    serve_lines(output, interactive, |ready, output| {
+        if interactive {
+            repl_prompt(output, ready)?;
+        }
+        let mut line = String::new();
+        let read = std::io::Read::take(input.by_ref(), 1024 * 1024 + 1)
+            .read_line(&mut line)
+            .map_err(|error| error.to_string())?;
+        Ok(if read == 0 {
+            Input::End
+        } else {
+            Input::Line(line)
+        })
+    })
+}
+
+mod terminal;
+
+/// Run the terminal editor while sharing evaluation and multiline state with piped sessions.
+pub fn serve_terminal(quiet: bool) -> Result<(), String> {
+    terminal::serve(quiet)
+}
+
+enum Input {
+    Line(String),
+    Interrupted,
+    End,
+}
+
+/// One entry state machine serves both readline terminals and bounded buffered input.
+fn serve_lines<W: std::io::Write>(
+    mut output: W,
+    banner: bool,
+    mut read_line: impl FnMut(bool, &mut W) -> Result<Input, String>,
 ) -> Result<(), String> {
     let mut session = Session::default();
     let mut pending = String::new();
     let mut pasting = false;
-    if interactive {
+    if banner {
         writeln!(
             output,
             "Fern interactive session. :help for commands; blank line submits a block."
@@ -865,13 +923,16 @@ pub fn serve(
         .map_err(|e| e.to_string())?;
     }
     loop {
-        if interactive {
-            repl_prompt(&mut output, pending.is_empty() && !pasting)?;
-        }
-        let mut line = String::new();
-        let read = std::io::Read::take(input.by_ref(), 1024 * 1024 + 1)
-            .read_line(&mut line)
-            .map_err(|e| e.to_string())?;
+        output.flush().map_err(|error| error.to_string())?;
+        let (line, read) = match read_line(pending.is_empty() && !pasting, &mut output)? {
+            Input::Line(line) => (line, 1),
+            Input::End => (String::new(), 0),
+            Input::Interrupted => {
+                pending.clear();
+                pasting = false;
+                continue;
+            }
+        };
         if line.len() + pending.len() > 1024 * 1024 {
             return Err("interactive input limit exceeded".into());
         }
@@ -923,11 +984,24 @@ fn repl_command(
     pasting: &mut bool,
     output: &mut impl std::io::Write,
 ) -> Result<bool, String> {
+    let (command, expression) = entry.split_once(char::is_whitespace).unwrap_or((entry, ""));
+    if matches!(command, ":type" | ":t") {
+        let result = if expression.trim().is_empty() {
+            "usage: :type <expression>".into()
+        } else {
+            session
+                .expression_type(expression.trim())
+                .unwrap_or_else(|error| format!("error: {error}"))
+        };
+        writeln!(output, "{result}").map_err(|error| error.to_string())?;
+        return Ok(true);
+    }
     match entry {
         ":quit" | ":q" => return Ok(false),
         ":reset" => *session = Session::default(),
         ":paste" => *pasting = true,
-        ":help" => writeln!(output, "Enter expressions, let bindings, or typed functions. Commands: :help :reset :quit. Use :paste then :end to submit multiple function clauses together. Native-only APIs report a diagnostic here.").map_err(|e| e.to_string())?,
+        ":clear" => write!(output, "\x1b[H\x1b[2J").map_err(|error| error.to_string())?,
+        ":help" | ":h" => writeln!(output, "Enter expressions, let bindings, or typed functions. Commands: :help (:h), :type (:t) <expression>, :clear, :reset, :quit (:q). Use :paste then :end to submit multiple function clauses together. Native-only APIs report a diagnostic here.").map_err(|e| e.to_string())?,
         _ => writeln!(output, "error: unknown interactive command").map_err(|e| e.to_string())?,
     }
     Ok(true)

@@ -23,13 +23,14 @@ fn run_source(source: &str, command: &str) -> std::process::Output {
 }
 
 #[test]
-fn help_describes_experimental_boundary() {
+fn help_describes_public_fern_commands() {
     let output = Command::new(env!("CARGO_BIN_EXE_fern-rs"))
         .arg("--help")
         .output()
         .unwrap();
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).contains("experimental"));
+    assert!(String::from_utf8_lossy(&output.stdout).starts_with("fern: "));
+    assert!(!String::from_utf8_lossy(&output.stdout).contains("fern-rs"));
     assert!(String::from_utf8_lossy(&output.stdout).contains("List/Option/Result"));
 }
 

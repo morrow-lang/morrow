@@ -16,7 +16,7 @@ struct Options {
 pub(super) fn run(arguments: Vec<OsString>) -> Result<u8, String> {
     if arguments.len() == 2 && (arguments[1] == "--help" || arguments[1] == "-h") {
         use std::io::Write;
-        std::io::stdout().lock().write_all(b"Usage: fern-rs doc <source.fn|directory> [--html] [--inferred] [--open] [-o output]\nGenerate source documentation without executing code. Markdown is written to stdout by default. Directory HTML includes module navigation and local search. --inferred checks the current module graph and adds resolved signatures. --open implies HTML, retains -o output (default: fern-docs.html in the current directory), then best-effort launches the platform opener.\n")
+        std::io::stdout().lock().write_all(b"Usage: fern doc [source.fn|directory] [--html] [--inferred] [--open] [-o output]\nGenerate source documentation without executing code. Markdown is written to stdout by default. Directory HTML includes module navigation and local search. --inferred checks the current module graph and adds resolved signatures. --open implies HTML, retains -o output (default: fern-docs.html in the current directory), then best-effort launches the platform opener.\n")
             .map_err(|error| error.to_string())?;
         return Ok(0);
     }
@@ -73,8 +73,19 @@ fn options(arguments: Vec<OsString>) -> Result<Options, String> {
     let mut html = false;
     let mut inferred = false;
     let mut open = false;
+    let mut literal = false;
     let mut arguments = arguments.into_iter().skip(1);
     while let Some(argument) = arguments.next() {
+        if !literal && argument == "--" {
+            literal = true;
+            continue;
+        }
+        if literal {
+            if source.replace(PathBuf::from(argument)).is_some() {
+                return Err("doc accepts one source file or directory".into());
+            }
+            continue;
+        }
         if argument == "--inferred" {
             if inferred {
                 return Err("--inferred specified more than once".into());
@@ -108,7 +119,7 @@ fn options(arguments: Vec<OsString>) -> Result<Options, String> {
         output = Some(PathBuf::from("fern-docs.html"));
     }
     Ok(Options {
-        source: source.ok_or("doc requires a source file or directory")?,
+        source: source.unwrap_or_else(|| PathBuf::from(".")),
         output,
         format: if html || open {
             Output::Html

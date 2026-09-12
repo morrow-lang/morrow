@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 118 Retain separate measured compiler budgets during default migration
+* **Date**: 2026-09-12
+* **Status**: Accepted for release-profile implementation and platform verification
+* **Decision**: I will retain the C reference compiler's 1,500,000-byte ceiling and require the expanded Rust default to fit 4 MiB, with the existing 150-second build and 100-ms startup-p95 ceilings unchanged. Use ThinLTO and one codegen unit with normal release optimization.
+* **Context**: The full typed frontend, Result proof engine, native testing, editor tools and terminal editor measured about 4.3 MiB with stock release settings, 3.6 MiB with ThinLTO, and 3.1 MiB with size optimization plus ThinLTO on macOS arm64. The original compiler-size ceiling measured the narrower C compiler, not generated Fern applications. Removing implemented language guarantees to match that earlier compiler would defeat the migration.
+* **Consequences**: Both compiler budgets remain enforced independently by mise run perf-budget. Prefer normal optimization over the smaller size-optimized build; measure actual frontend/native workflows and validate both platform releases before promotion. These compiler budgets make no new claim about generated-program size, static linking, or universal performance. Cargo source dependencies and native components remain visible in the release and notices.
+
+### 115 Complete CLI and interactive-tool compatibility with safe Rust
+* **Date**: 2026-09-12
+* **Status**: Accepted for implementation and platform acceptance
+* **Decision**: I will preserve public fern identity, literal source operands, default documentation discovery and REPL inspection/editing behavior in the Rust default. Use exactly pinned Rustyline18.0.1 with only file-history support enabled for terminal editing.
+* **Context**: Failing compatibility and real-PTY tests demonstrated missing command delimiters, inspection commands, editing, completion and persistent history. Standard safe Rust does not supply a readline terminal editor; a maintained dependency avoids adding custom unsafe terminal control.
+* **Consequences**: Piped execution keeps its existing bounded state machine and quiet output. Type inspection has no runtime effects, Ctrl-C cancels pending input without losing prior state, and history import has explicit byte/entry limits and rejects nonregular inputs. Package the dependency notices. The C developer shell-command test overrides remain explicit bootstrap-only facilities; Rust executes source tests directly. Semantic LSP actions publish real versioned edits, reject ambiguous bindings and negotiate client support for documentChanges, prepareRename and literal actions. See docs/TOOLING_PARITY.md for the tested command matrix and limits.
+
 ### 121 Preserve bounded inline value-match arms
 * **Date**: 2026-09-12
 * **Status**: Accepted for executable source compatibility

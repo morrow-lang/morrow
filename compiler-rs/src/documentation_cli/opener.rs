@@ -75,14 +75,14 @@ mod tests {
     use std::{
         ffi::OsString,
         fs,
-        os::unix::{ffi::OsStringExt, fs::PermissionsExt},
+        os::unix::{ffi::OsStringExt, fs::symlink},
         path::PathBuf,
         sync::atomic::{AtomicUsize, Ordering},
     };
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     struct Fixture(PathBuf);
     impl Fixture {
-        fn new(body: &str) -> Self {
+        fn new(helper: &str) -> Self {
             let path = std::env::temp_dir().join(format!(
                 "fern-opener-{}-{}",
                 std::process::id(),
@@ -90,8 +90,12 @@ mod tests {
             ));
             fs::create_dir(&path).unwrap();
             let script = path.join("opener");
-            fs::write(&script, format!("#!/bin/sh\n{body}")).unwrap();
-            fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+            // Static executable fixtures avoid writable descriptors inherited by
+            // concurrent child creation, which can cause Linux ETXTBSY.
+            let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(helper);
+            symlink(source, &script).unwrap();
             Self(path)
         }
         fn command(&self) -> String {
@@ -109,14 +113,14 @@ mod tests {
     }
     #[test]
     fn timeout_reaps_only_the_direct_launcher() {
-        let fixture = Fixture::new("exec /bin/sleep 60\n");
+        let fixture = Fixture::new("documentation_opener_timeout.sh");
         let error = launch(&fixture.command(), &fixture.0, Duration::from_millis(20)).unwrap_err();
         assert!(error.contains("timed out"));
         assert!(error.contains("retained"));
     }
     #[test]
     fn launcher_preserves_non_utf8_argument_without_filesystem_decoding() {
-        let fixture = Fixture::new("printf '%s' \"$1\" > \"$0.result\"\n");
+        let fixture = Fixture::new("documentation_opener_capture.sh");
         let path = PathBuf::from(OsString::from_vec(b"/literal-\xff.html".to_vec()));
         launch(&fixture.command(), &path, Duration::from_secs(1)).unwrap();
         assert_eq!(
