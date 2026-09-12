@@ -23,6 +23,7 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 - [x] Pass targeted optimized runtime/JSON/supervisor checks (92 standard tests plus five custom protocols per host) and 12 separate object/ABI/GC tests. This does not claim the entire compiler integration suite was run optimized.
 - [x] Preserve 26 Rust distribution contracts and 18 negative/two positive lint policy probes. Both platforms pass three compiler-phase fixture tests and ten benchmark smoke phases.
 - [x] Complete refreshed release artifact, relocation/install/source-test/uninstall and performance records for both ARM64 platforms. Archive and performance reports identify matching component hashes; no x86-64 execution, complete optimized compiler suite or 1.0 release is implied.
+- [x] Refresh the public README around Fern's purpose, Rust implementation policy, verified platform scope and preview limits. Execute the greeting, quickstart run/build and HTML documentation command; verify local links and contributor guidance.
 
 ### Previous Compiler-Default Acceptance
 

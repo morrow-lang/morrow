@@ -26,7 +26,7 @@ installation and release packaging. Root `Cargo.lock` fixes compiler dependencie
 - `fern lex source.fn` and `fern parse source.fn`: inspect tokens or source AST.
 - `fern emit source.fn`: print validated textual machine IR without invoking native tools.
 - `fern repl`: evaluate expressions with persistent bindings and terminal editing.
-- `fern docs source.fn --html`: generate documentation; `--open` opens retained HTML.
+- `fern doc source.fn --html`: generate documentation; `--open` opens retained HTML.
 - `fern test source.fn`: execute zero-argument `test_` functions and documentation examples.
 - `fern lsp`: serve the language-server protocol over standard input/output.
 
