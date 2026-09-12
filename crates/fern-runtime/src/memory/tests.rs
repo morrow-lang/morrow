@@ -144,3 +144,72 @@ fn heap_shutdown_finalizes_remaining_external_payloads() {
     drop(heap);
     assert_eq!(count.get(), 1);
 }
+
+#[test]
+fn root_and_native_frame_tokens_retire_their_original_heap_after_scope_switch() {
+    unsafe {
+        let control_a = alloc(16, false).cast::<usize>();
+        let control_b = alloc(16, false).cast::<usize>();
+        let a = create_actor_heap(control_a, 2);
+        let b = create_actor_heap(control_b, 2);
+        let a_words = Box::new([0usize; 1]);
+        let mut b_words = Box::new([0usize; 1]);
+        let root_a;
+        let frame_a;
+        {
+            let _a = enter_heap(a);
+            root_a = root_range(a_words.as_ptr(), 1);
+            frame_a = fern_gc_frame_enter(a_words.as_ptr(), 1);
+        }
+        let value;
+        let frame_b;
+        {
+            let _b = enter_heap(b);
+            value = alloc(128, true);
+            value.write(73);
+            b_words[0] = value as usize;
+            frame_b = fern_gc_frame_enter(b_words.as_ptr(), 1);
+            drop(root_a);
+            fern_gc_frame_leave(frame_a);
+            fern_gc_collect_precise();
+            assert_eq!(value.read(), 73);
+        }
+        {
+            let _a = enter_heap(a);
+            fern_gc_frame_leave(frame_b);
+        }
+        {
+            let _b = enter_heap(b);
+            fern_gc_collect_precise();
+            assert!(!heap_owns(b, value.cast()));
+        }
+        retire_heap(a);
+        retire_heap(b);
+    }
+}
+
+#[test]
+fn active_heap_retirement_waits_for_callback_scope_and_finalizes_once() {
+    struct Counted(std::rc::Rc<std::cell::Cell<usize>>);
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.0.set(self.0.get() + 1);
+        }
+    }
+    let count = std::rc::Rc::new(std::cell::Cell::new(0));
+    unsafe {
+        let control = alloc(16, false).cast::<usize>();
+        let heap = create_actor_heap(control, 2);
+        {
+            let _scope = enter_heap(heap);
+            let value = managed(Counted(count.clone()), 4096);
+            control.write(value as usize);
+            retire_heap(heap);
+            assert_eq!(count.get(), 0);
+            assert!(heap_owns(heap, value.cast()));
+        }
+        assert_eq!(count.get(), 1);
+        retire_heap(heap);
+        assert_eq!(count.get(), 1);
+    }
+}

@@ -501,6 +501,7 @@ impl Checker<'_> {
                 | Type::Float
                 | Type::String
                 | Type::Range
+                | Type::Native(crate::runtime::NativeType::JsonValue)
                 | Type::Pid(_)
                 | Type::Generic(_)
                 | Type::Infer(_) => {}

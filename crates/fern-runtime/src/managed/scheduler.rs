@@ -80,6 +80,8 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
         (*s).live -= 1;
+        memory::retire_heap((*a).heap);
+        (*a).heap = 0;
     }
 }
 
@@ -203,7 +205,10 @@ pub unsafe extern "C" fn fern_managed_run(exec: *mut Exec) {
                 poll(a, false);
             } else {
                 let f = function(s, (*a).frame);
-                let status = ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame);
+                let status = {
+                    let _actor_scope = memory::enter_heap((*a).heap);
+                    ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
+                };
                 if status == 2 {
                     finish(a);
                 } else if !matches!(status, 0 | 1 | 3)

@@ -35,7 +35,7 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
                 continue;
             }
             if seen.len() >= 4096
-                || !(0..=11).contains(&(*ty).kind)
+                || !(0..=TYPE_JSON_VALUE).contains(&(*ty).kind)
                 || !(0..=4096).contains(&(*ty).count)
             {
                 return false;
@@ -247,7 +247,19 @@ impl Cost {
                         && self.add(std::mem::size_of::<Pid>())
                 }
                 7 => self.frame(pointer, depth),
-                10 => self.add(24),
+                TYPE_RANGE => self.add(24),
+                TYPE_JSON_VALUE => {
+                    let node = crate::json::node(pointer.cast());
+                    if node.nodes > WORK - self.work {
+                        false
+                    } else {
+                        self.work += node.nodes;
+                        self.add(
+                            std::mem::size_of::<crate::json::NativeJson>()
+                                + fern_json::retained_bytes(&node),
+                        )
+                    }
+                }
                 _ => false,
             };
             self.seen[index].2 = false;

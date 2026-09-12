@@ -5,7 +5,9 @@ pub mod compatibility;
 pub mod distribution;
 pub mod fuzz;
 pub mod lint_policy;
+pub mod notices;
 pub mod performance;
+pub mod web;
 
 use std::{
     fs,

@@ -84,6 +84,7 @@ impl Emitter<'_> {
             NativeOperation::Load(LoadKind::I64, native_operand("%return_slot")),
         );
         let value = self.unpack(locals, &locals.return_type.clone(), raw);
+        self.root_exit(locals);
         self.output
             .statement(Statement::Return(Some(native_operand(&(value)))));
         self.output.end();

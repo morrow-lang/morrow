@@ -47,6 +47,7 @@ pub unsafe extern "C" fn fern_managed_new(
                 }
             }
         }
+        let _control_scope = memory::enter_heap(0);
         let s = allocate::<Session>();
         (*s).identities = memory::alloc(IDS * std::mem::size_of::<*mut Actor>(), false).cast();
         (*s).retained = std::mem::size_of::<Session>() + IDS * std::mem::size_of::<*mut Actor>();
@@ -112,17 +113,25 @@ pub unsafe extern "C" fn fern_managed_spawn(
             fail(exec, 9);
             return null_mut();
         }
-        let a = allocate::<Actor>();
+        let a = {
+            let _control_scope = memory::enter_heap(0);
+            allocate::<Actor>()
+        };
         (*a).exec = Exec {
             session: s,
             actor: a,
             fault: &raw mut (*a).fault,
         };
+        (*a).heap = memory::create_actor_heap(a.cast(), std::mem::size_of::<Actor>() / 8);
         (*s).next_id += 1;
         (*a).id = (*s).next_id as u64;
         (*a).alive = true;
         (*a).mailbox = mailbox;
-        (*a).frame = closure;
+        {
+            let _child_scope = memory::enter_heap((*a).heap);
+            let copied = copy::frame(s, closure);
+            (*a).frame = copied.value as *mut c_void;
+        }
         (*a).frame_cost = cost;
         (*a).deadline = u64::MAX;
         *(*s).identities.add((*s).next_id - 1) = a;
@@ -139,7 +148,7 @@ pub unsafe extern "C" fn fern_managed_spawn(
     }
 }
 
-/// Borrow and enqueue a value, preserving mailbox contents on every failure.
+/// Copy and enqueue a value, preserving mailbox contents on every failure.
 /// # Safety
 /// Nonnull pointers must be live native values; identity must be a native PID object.
 #[unsafe(no_mangle)]
@@ -176,24 +185,28 @@ pub unsafe extern "C" fn fern_managed_send(
         if !charge(s, cost) {
             return abi::result_err(4);
         }
-        let message = allocate::<Message>();
         let Some(now) = now() else {
             release(s, cost);
             fail(exec, 12);
             return abi::result_err(4);
         };
-        *message = Message {
-            next: null_mut(),
-            value,
-            cost,
-            enqueued: now,
-        };
-        if (*a).last.is_null() {
-            (*a).first = message;
-        } else {
-            (*(*a).last).next = message;
+        {
+            let _receiver_scope = memory::enter_heap((*a).heap);
+            let copied = copy::value(s, ty, value);
+            let message = allocate::<Message>();
+            *message = Message {
+                next: null_mut(),
+                value: copied.value,
+                cost,
+                enqueued: now,
+            };
+            if (*a).last.is_null() {
+                (*a).first = message;
+            } else {
+                (*(*a).last).next = message;
+            }
+            (*a).last = message;
         }
-        (*a).last = message;
         (*a).messages += 1;
         (*s).messages += 1;
         if (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {

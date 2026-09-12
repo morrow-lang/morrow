@@ -182,6 +182,7 @@ fn sendable(ty: &Type, layouts: &HashMap<Type, &ir::TypeLayout>, span: Span) -> 
             | Type::Float
             | Type::String
             | Type::Range
+            | Type::Native(crate::runtime::NativeType::JsonValue)
             | Type::Pid(_) => {}
             Type::List(item) | Type::Option(item) => pending.push(item),
             Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),

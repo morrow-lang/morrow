@@ -568,6 +568,256 @@ fn sole_native_pointer_stays_visible_to_rust_collector_across_collecting_calls()
     );
 }
 
+fn core_runtime_archive() -> std::path::PathBuf {
+    let archive = std::env::var_os("FERN_RUNTIME_CORE_LIB")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            std::env::current_exe()
+                .unwrap()
+                .ancestors()
+                .find(|path| {
+                    path.file_name()
+                        .is_some_and(|name| name == "debug" || name == "release")
+                })
+                .unwrap()
+                .join("libfern_runtime.a")
+        });
+    assert!(
+        archive.is_file(),
+        "build the Rust runtime archive first: {}",
+        archive.display()
+    );
+    archive
+}
+
+#[test]
+fn typed_native_root_survives_collection_without_stack_or_register_scanning() {
+    let source = "fn main() -> Int:\n    let text = \"native\" + \" root\"\n    String.len(text)\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let function = program
+        .functions
+        .iter_mut()
+        .find(|f| machine::bare(&f.name) == "f0")
+        .unwrap();
+    let position = function.body.iter().position(|statement| matches!(statement,
+        Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. }
+        if machine::bare(name) == "fern_str_len"
+    )).unwrap();
+    // The missing-root branch avoids dereferencing freed memory in the negative
+    // control. Only generated code holds the dynamic allocation across this GC.
+    function.body.splice(
+        position..position,
+        [
+            Statement::Effect(Operation::Call {
+                callee: symbol("fern_gc_collect_precise"),
+                args: vec![],
+                variadic: None,
+            }),
+            assign(
+                "gc_bytes",
+                Scalar::I64,
+                Operation::Call {
+                    callee: symbol("fern_gc_heap_size"),
+                    args: vec![],
+                    variadic: None,
+                },
+            ),
+            assign(
+                "gc_alive",
+                Scalar::I32,
+                Operation::Binary(
+                    BinaryOp::Compare(Comparison::Ne, Scalar::I64),
+                    temp("gc_bytes"),
+                    Operand::Int(0),
+                ),
+            ),
+            Statement::Branch {
+                condition: temp("gc_alive"),
+                then_label: "gc_present".into(),
+                else_label: "gc_missing".into(),
+            },
+            Statement::Label("gc_missing".into()),
+            Statement::Store {
+                kind: LoadKind::I64,
+                value: Operand::Int(-999),
+                address: temp("return_slot"),
+            },
+            Statement::Jump("return".into()),
+            Statement::Label("gc_present".into()),
+        ],
+    );
+    let archive = core_runtime_archive();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { println!(\"{}\", unsafe { fern_main() }); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(&program, harness, &[archive.clone().into_os_string()]),
+        b"11\n"
+    );
+
+    // Independently prove this oracle fails safely when explicit registration
+    // is absent, even though live pointer copies remain in native stack slots.
+    for function in &mut program.functions {
+        for statement in &mut function.body {
+            if let Statement::Assign { operation, .. } = statement
+                && matches!(operation, Operation::Call { callee: Operand::Symbol(name), .. } if machine::bare(name) == "fern_gc_frame_enter")
+            {
+                *operation = Operation::Unary(UnaryOp::Copy, Operand::Int(0));
+            }
+        }
+        function.body.retain(|statement| !matches!(statement,
+            Statement::Effect(Operation::Call { callee: Operand::Symbol(name), .. }) if machine::bare(name) == "fern_gc_frame_leave"
+        ));
+    }
+    assert_eq!(
+        NativeFixture::new().execute_linked(&program, harness, &[archive.into_os_string()]),
+        b"-999\n"
+    );
+}
+
+#[test]
+fn integer_matching_a_heap_address_is_not_a_precise_root_and_keeps_all_bits() {
+    let source = "fn identity(value: Int) -> Int: value\nfn main(): ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let function = program
+        .functions
+        .iter_mut()
+        .find(|f| machine::bare(&f.name) == "f0")
+        .unwrap();
+    function.export = true;
+    function.body.insert(
+        1,
+        Statement::Effect(Operation::Call {
+            callee: symbol("fern_gc_collect_precise"),
+            args: vec![],
+            variadic: None,
+        }),
+    );
+    let harness = "unsafe extern \"C\" { fn f0(env:usize,fault:*mut i64,value:i64)->i64; fn fern_alloc(size:usize)->usize; fn fern_gc_heap_size()->usize; } fn main() { let mut fault=0; let address=unsafe{fern_alloc(32)}; let value=unsafe{f0(0,&mut fault,address as i64)}; assert_eq!(value,address as i64); assert_eq!(unsafe{fern_gc_heap_size()},0); for n in [i64::MIN,i64::MAX] { assert_eq!(unsafe{f0(0,&mut fault,n)},n); } println!(\"precise integers preserved\"); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"precise integers preserved\n"
+    );
+}
+
+#[test]
+fn generated_actor_callback_roots_belong_to_its_owned_heap() {
+    let source = "fn worker():\n    let text = \"actor\" + \" root\"\n    println(String.len(text))\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let function = program
+        .functions
+        .iter_mut()
+        .find(|f| machine::bare(&f.name) == "f0")
+        .unwrap();
+    let position = function.body.iter().position(|statement| matches!(statement,
+        Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. }
+        if machine::bare(name) == "fern_str_len"
+    )).unwrap();
+    // The actor's environment and string are both live. Comparing heap sizes
+    // makes a missing registration fail without touching a reclaimed pointer.
+    function.body.splice(
+        position..position,
+        [
+            assign(
+                "gc_before",
+                Scalar::I64,
+                Operation::Call {
+                    callee: symbol("fern_gc_heap_size"),
+                    args: vec![],
+                    variadic: None,
+                },
+            ),
+            Statement::Effect(Operation::Call {
+                callee: symbol("fern_gc_collect_precise"),
+                args: vec![],
+                variadic: None,
+            }),
+            assign(
+                "gc_after",
+                Scalar::I64,
+                Operation::Call {
+                    callee: symbol("fern_gc_heap_size"),
+                    args: vec![],
+                    variadic: None,
+                },
+            ),
+            assign(
+                "gc_preserved",
+                Scalar::I32,
+                Operation::Binary(
+                    BinaryOp::Compare(Comparison::Eq, Scalar::I64),
+                    temp("gc_before"),
+                    temp("gc_after"),
+                ),
+            ),
+            Statement::Branch {
+                condition: temp("gc_preserved"),
+                then_label: "gc_present".into(),
+                else_label: "gc_missing".into(),
+            },
+            Statement::Label("gc_missing".into()),
+            Statement::Store {
+                kind: LoadKind::I64,
+                value: Operand::Int(0),
+                address: temp("return_slot"),
+            },
+            Statement::Jump("return".into()),
+            Statement::Label("gc_present".into()),
+        ],
+    );
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { println!(\"code={}\", unsafe { fern_main() }); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"10\ncode=0\n"
+    );
+}
+
+#[test]
+fn compiled_actor_range_capture_keeps_full_width_endpoints_and_inclusive_flag() {
+    let source = "fn main():\n    let values = -2..=2\n    let boundary = 9223372036854775806..=9223372036854775807\n    let pid: Pid(()) = spawn(() ->\n        for value in values: println(value)\n        for value in boundary: println(value)\n    )\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"-2\n-1\n0\n1\n2\n9223372036854775806\n9223372036854775807\n"
+    );
+}
+
+#[test]
+fn compiled_json_actor_capture_and_mailbox_use_a_distinct_descriptor() {
+    let source = "fn main():\n    let captured = json.from_int(-9223372036854775808)\n    let first: Pid(()) = spawn(() ->\n        match json.as_int(captured):\n            Ok(value) -> println(value)\n            Err(_) -> println(0)\n    )\n    let target: Pid(json.Value) = spawn(() ->\n        receive:\n            message ->\n                match json.as_int(message):\n                    Ok(value) -> println(value)\n                    Err(_) -> println(0)\n    )\n    match send(target, json.from_int(9223372036854775807)):\n        Ok(()) -> ()\n        Err(_) -> println(0)\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"-9223372036854775808\n9223372036854775807\n"
+    );
+}
+
 /// Quiet/signaling NaNs retain sign and payload across constants, loads and bitcasts.
 #[test]
 fn exact_ieee_bits_survive_native_codegen_without_decimal_canonicalization() {

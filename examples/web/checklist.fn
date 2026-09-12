@@ -1,0 +1,35 @@
+# Portable application policy. Compile with:
+# fern build --target=wasm32 examples/web/checklist.fn -o checklist.wasm
+#
+# The Rust browser host owns DOM handles, storage and transport. These pure Fern
+# functions decide visibility, progress and event availability in every browser,
+# including while disconnected. Int crosses the WASM boundary as i64/BigInt.
+module checklist
+
+pub fn task_visible(filter: Int, done: Bool) -> Bool:
+    match filter:
+        1 -> not done
+        2 -> done
+        _ -> true
+
+pub fn completion_percent(done: Int, total: Int) -> Int:
+    if total <= 0 or done <= 0:
+        0
+    else:
+        if done >= total:
+            100
+        else:
+            # The protocol bounds each room to 100 tasks, so multiplication
+            # cannot overflow for the accepted application state.
+            done * 100 / total
+
+pub fn can_submit(label_bytes: Int, online: Bool, pending: Bool) -> Bool:
+    online and not pending and label_bytes > 0 and label_bytes <= 256
+
+pub fn next_filter(current: Int) -> Int:
+    match current:
+        0 -> 1
+        1 -> 2
+        _ -> 0
+
+pub fn toggle_done(done: Bool) -> Bool: not done

@@ -1,13 +1,19 @@
-//! Nonmoving, invocation-thread conservative collector for the native value ABI.
+//! Nonmoving tracing heaps for invocation controls and isolated actor payloads.
 use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
+#[path = "memory/heaps.rs"]
+mod heaps;
 #[path = "memory/platform.rs"]
 mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
+pub(crate) use heaps::{
+    create as create_actor_heap, enter as enter_heap, owns as heap_owns, retire as retire_heap,
+};
+pub use heaps::{fern_gc_frame_enter, fern_gc_frame_leave};
 pub use rc::{
     fern_rc_alloc, fern_rc_drop, fern_rc_dup, fern_rc_flags, fern_rc_refcount, fern_rc_set_flags,
     fern_rc_type_tag,
@@ -188,18 +194,15 @@ impl Drop for Heap {
     }
 }
 
-thread_local! { static HEAP: RefCell<Heap> = RefCell::new(Heap::new()); }
-
 /// Registered native words outside the managed heap. This token cannot cross threads.
 pub struct Root {
+    heap: usize,
     id: usize,
     _thread: PhantomData<Rc<()>>,
 }
 impl Drop for Root {
     fn drop(&mut self) {
-        let _ = HEAP.try_with(|heap| {
-            heap.borrow_mut().roots.remove(&self.id);
-        });
+        heaps::remove_root(self.heap, self.id);
     }
 }
 
@@ -211,31 +214,16 @@ impl Drop for Root {
 pub unsafe fn root_range(pointer: *const usize, words: usize) -> Root {
     assert!(!pointer.is_null() || words == 0);
     assert!(words <= isize::MAX as usize / 8);
-    HEAP.with(|heap| {
-        let mut heap = heap.borrow_mut();
-        heap.next_root = heap
-            .next_root
-            .checked_add(1)
-            .unwrap_or_else(|| std::process::abort());
-        let id = heap.next_root;
-        heap.roots.insert(id, (pointer as usize, words));
-        Root {
-            id,
-            _thread: PhantomData,
-        }
-    })
+    heaps::root(pointer, words)
 }
 
-/// Allocate zeroed stable storage. Managed values belong to this invocation thread.
+/// Allocate zeroed stable storage in the active actor or invocation heap.
 #[inline(never)]
 pub fn alloc(size: usize, atomic: bool) -> *mut u8 {
-    if HEAP.with(|heap| {
-        let h = heap.borrow();
-        h.bytes.saturating_add(size) > h.threshold
-    }) {
+    if heaps::with(|h| h.bytes.saturating_add(size) > h.threshold) {
         collect();
     }
-    HEAP.with(|heap| heap.borrow_mut().allocate(size, atomic))
+    heaps::with_mut(|heap| heap.allocate(size, atomic))
 }
 
 /// Own a Rust value behind a stable, atomic native pointer, finalized on collection.
@@ -248,26 +236,23 @@ pub fn alloc(size: usize, atomic: bool) -> *mut u8 {
 /// graphs may be counted separately per wrapper). The value stays on this thread.
 pub unsafe fn managed<T: 'static>(value: T, retained_bytes: usize) -> *mut T {
     let pressure = retained_bytes.saturating_add(std::mem::size_of::<T>());
-    if HEAP.with(|heap| {
-        let h = heap.borrow();
-        h.bytes.saturating_add(pressure) > h.threshold
-    }) {
+    if heaps::with(|h| h.bytes.saturating_add(pressure) > h.threshold) {
         collect();
     }
     // SAFETY: caller establishes atomic ownership and finalizer constraints.
-    HEAP.with(|heap| unsafe { heap.borrow_mut().managed(value, retained_bytes) })
+    heaps::with_mut(|heap| unsafe { heap.managed(value, retained_bytes) })
 }
 
-/// Collect unreachable native values on the current invocation thread.
+/// Collect only the active heap, using registered roots plus this thread's stack.
 #[inline(never)]
 pub fn collect() -> Stats {
     let roots = platform::snapshot();
-    HEAP.with(|heap| heap.borrow_mut().trace(&roots))
+    heaps::with_mut(|heap| heap.trace(&roots))
 }
 
 /// Current physical managed storage, independently of actor logical quotas.
 pub fn stats() -> Stats {
-    HEAP.with(|heap| heap.borrow().stats())
+    heaps::stats()
 }
 
 /// Release an invocation's heap after all its values have become inaccessible.
@@ -275,10 +260,19 @@ pub fn stats() -> Stats {
 /// # Safety
 /// No managed pointer may be accessed afterward and every root token must be retired.
 pub unsafe fn shutdown() {
-    HEAP.with(|heap| {
-        let mut heap = heap.borrow_mut();
-        assert!(heap.roots.is_empty());
-        *heap = Heap::new();
+    heaps::shutdown();
+}
+
+/// Collect only the active heap's explicitly registered roots. This oracle is
+/// available for verified compiler frames; ordinary native execution still uses
+/// conservative stack/register discovery until all allocation sites are audited.
+/// # Safety
+/// Every subsequently accessed value in the active heap must be reachable from
+/// its registered roots; unregistered native stack/register words are ignored.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_gc_collect_precise() {
+    heaps::with_mut(|heap| {
+        heap.trace(&[]);
     });
 }
 

@@ -2,6 +2,8 @@
 use crate::{abi, memory};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
+#[path = "managed/copy.rs"]
+mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
 const LIVE: usize = 1024;
@@ -10,6 +12,10 @@ const MAILBOX: usize = 4096;
 const MESSAGES: usize = 65536;
 const BYTES: usize = 64 * 1024 * 1024;
 const WORK: usize = 1048576;
+/// Native Range descriptor: three full-width words (start, end, inclusive).
+pub const TYPE_RANGE: i64 = 10;
+/// Immutable json.Value descriptor, distinct from Range and unsupported native handles.
+pub const TYPE_JSON_VALUE: i64 = 12;
 #[repr(C)]
 pub struct Type {
     pub kind: i64,
@@ -42,6 +48,7 @@ struct Message {
 #[repr(C)]
 struct Actor {
     exec: Exec,
+    heap: usize,
     id: u64,
     alive: bool,
     queued: bool,

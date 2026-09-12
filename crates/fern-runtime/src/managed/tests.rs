@@ -59,6 +59,377 @@ fn malformed_descriptor_rejected_before_publication() {
     assert_eq!(existing, 7);
 }
 
+#[test]
+fn spawn_copies_capture_storage_before_publishing_actor() {
+    TRACE.with(|trace| trace.borrow_mut().clear());
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut frame = [complete as *const () as i64, 41];
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = fern_managed_spawn(exec, frame.as_mut_ptr().cast(), &*f.scalar).cast::<Pid>();
+        assert_ne!((*(*pid).actor).frame, frame.as_mut_ptr().cast());
+        frame[1] = 99;
+        std::hint::black_box(&frame);
+        fern_managed_run(exec);
+        TRACE.with(|trace| assert_eq!(*trace.borrow(), [41]));
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn actor_termination_reclaims_its_payload_without_collecting_other_actors() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let first = f.spawn(exec, 41);
+        let second = f.spawn(exec, 42);
+        let before = memory::stats().bytes;
+        scheduler::finish((*first).actor);
+        assert!(
+            memory::stats().bytes < before,
+            "termination must reclaim the actor's physical payload heap"
+        );
+        assert_eq!(*(*(*second).actor).frame.cast::<i64>().add(1), 42);
+        assert!((*(*second).actor).alive);
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn native_range_descriptor_copies_three_full_width_words_without_json_interpretation() {
+    let range = Type {
+        kind: 10,
+        ..scalar()
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    let source = [i64::MIN, i64::MAX, 1];
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &range;
+        (*(*pid).actor).mailbox = &range;
+        assert_eq!(
+            cost::value((*exec).session, &range, source.as_ptr() as i64),
+            Some(24)
+        );
+        let result = fern_managed_send(exec, pid.cast(), source.as_ptr() as i64, &range)
+            as *const abi::ResultValue;
+        assert_eq!((*result).tag, 0);
+        let copied = (*(*(*pid).actor).first).value as *const i64;
+        assert_ne!(copied, source.as_ptr());
+        assert_eq!(std::slice::from_raw_parts(copied, 3), source);
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn actor_termination_finalizes_copied_json_even_with_stale_pointer_words() {
+    let ty = Type {
+        kind: TYPE_JSON_VALUE,
+        ..scalar()
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    let original = fern_json::text_node("receiver-owned".into(), 0);
+    let source = crate::json::wrap(original.clone());
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &ty;
+        (*(*pid).actor).mailbox = &ty;
+        let result =
+            fern_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
+        assert_eq!((*result).tag, 0);
+        let stale = (*(*(*pid).actor).first).value;
+        let copied = crate::json::node(stale as *const crate::json::NativeJson);
+        let weak = std::rc::Rc::downgrade(&copied);
+        drop(copied);
+        fern_managed_stop(exec);
+        std::hint::black_box(stale);
+        assert!(
+            weak.upgrade().is_none(),
+            "actor termination must finalize receiver JSON independently of stack scanning"
+        );
+        assert!(
+            matches!(&original.kind, fern_json::Kind::String(text) if text == "receiver-owned")
+        );
+    }
+}
+
+#[test]
+fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
+    let ty = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let sender = f.spawn(exec, 41);
+        let receiver = f.spawn(exec, 42);
+        let a = (*sender).actor;
+        let b = (*receiver).actor;
+        (*receiver).mailbox = &ty;
+        (*b).mailbox = &ty;
+        assert_ne!((*a).heap, (*b).heap);
+        let message;
+        {
+            let _sender = memory::enter_heap((*a).heap);
+            let source = abi::string("isolated transfer");
+            assert!(memory::heap_owns((*a).heap, source.cast()));
+            let result = fern_managed_send(&raw mut (*a).exec, receiver.cast(), source as i64, &ty)
+                as *const abi::ResultValue;
+            assert_eq!((*result).tag, 0);
+            message = (*(*b).first).value as *const c_void;
+            assert!(memory::heap_owns((*b).heap, message));
+            assert!(!memory::heap_owns((*a).heap, message));
+            // The source is deliberately unrooted once send returns. Its stale
+            // stack word cannot retain it under this independent collection.
+            memory::fern_gc_collect_precise();
+            assert!(!memory::heap_owns((*a).heap, source.cast()));
+        }
+        scheduler::finish(a);
+        {
+            let _receiver = memory::enter_heap((*b).heap);
+            memory::fern_gc_collect_precise();
+            assert_eq!(
+                std::ffi::CStr::from_ptr(message.cast()).to_bytes(),
+                b"isolated transfer"
+            );
+            assert_eq!(*(*b).frame.cast::<i64>().add(1), 42);
+        }
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn actor_collection_does_not_retain_payload_through_another_actor_heap() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let first = f.spawn(exec, 41);
+        let second = f.spawn(exec, 42);
+        let a = (*first).actor;
+        let b = (*second).actor;
+        let value = {
+            let _first = memory::enter_heap((*a).heap);
+            memory::alloc(128, true)
+        };
+        // Deliberately forge a foreign payload edge in the second actor. It is
+        // forbidden by transfer semantics and must not become an implicit root
+        // of the first actor's independent collector.
+        let foreign_slot = Box::new(value as usize);
+        let registration = {
+            let _second = memory::enter_heap((*b).heap);
+            memory::root_range(&*foreign_slot, 1)
+        };
+        {
+            let _first = memory::enter_heap((*a).heap);
+            memory::fern_gc_collect_precise();
+            assert!(!memory::heap_owns((*a).heap, value.cast()));
+        }
+        drop(registration);
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn suspended_receive_roots_belong_to_the_actor_until_resume() {
+    TRACE.with(|trace| trace.borrow_mut().clear());
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 99);
+        let actor = (*pid).actor;
+        dequeue((*exec).session);
+        assert_eq!(f.receive(pid, 7, 42, 0, -1), 1);
+        assert!(memory::heap_owns((*actor).heap, (*actor).selector));
+        {
+            let _scope = memory::enter_heap((*actor).heap);
+            memory::fern_gc_collect_precise();
+        }
+        fern_managed_send(exec, pid.cast(), 7, &*f.scalar);
+        fern_managed_run(exec);
+        TRACE.with(|trace| assert_eq!(*trace.borrow(), [42]));
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn send_copies_nested_graph_and_preserves_internal_sharing() {
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let fields = [&string as *const Type, &string as *const Type];
+    let pair = Type {
+        kind: 3,
+        count: 2,
+        children: fields.as_ptr(),
+        arities: null(),
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut text = *b"hello\0";
+    let mut source = [0, text.as_ptr() as i64, text.as_ptr() as i64];
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &pair;
+        (*(*pid).actor).mailbox = &pair;
+        let sent = fern_managed_send(exec, pid.cast(), source.as_ptr() as i64, &pair)
+            as *const abi::ResultValue;
+        assert_eq!((*sent).tag, 0);
+        let actor = (*pid).actor;
+        let copied = (*(*actor).first).value as *const i64;
+        assert_ne!(copied, source.as_ptr());
+        assert_ne!(*copied.add(1), text.as_ptr() as i64);
+        assert_eq!(*copied.add(1), *copied.add(2));
+        text[0] = b'X';
+        source[1] = 0;
+        std::hint::black_box((&text, &source));
+        memory::collect();
+        assert_eq!(
+            std::ffi::CStr::from_ptr(*copied.add(1) as *const _).to_bytes(),
+            b"hello"
+        );
+        fern_managed_stop(exec);
+        assert!((*actor).first.is_null());
+        assert_eq!((*(*exec).session).messages, 0);
+    }
+}
+
+#[test]
+fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
+    use fern_json::{Json, Kind, Node};
+    use std::rc::Rc;
+    let ty = Type {
+        kind: TYPE_JSON_VALUE,
+        ..scalar()
+    };
+    let leaf = fern_json::text_node("shared".to_owned(), 0);
+    let original: Json = Rc::new(Node {
+        kind: Kind::Array(vec![leaf.clone(), leaf.clone()]),
+        offset: 0,
+        height: 2,
+        nodes: 3,
+        encoded: 19,
+    });
+    let source = crate::json::wrap(original.clone());
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &ty;
+        (*(*pid).actor).mailbox = &ty;
+        let session = (*exec).session;
+        let before = (*session).retained;
+        let result =
+            fern_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
+        assert_eq!((*result).tag, 0);
+        let message = (*(*pid).actor).first;
+        let copied = crate::json::node((*message).value as *const crate::json::NativeJson);
+        assert!(!Rc::ptr_eq(&original, &copied));
+        let Kind::Array(children) = &copied.kind else {
+            panic!("expected array")
+        };
+        assert!(Rc::ptr_eq(&children[0], &children[1]));
+        assert!(!Rc::ptr_eq(&leaf, &children[0]));
+        assert!(matches!(&children[0].kind, Kind::String(text) if text == "shared"));
+        assert_eq!(
+            (*session).retained - before,
+            std::mem::size_of::<Message>()
+                + std::mem::size_of::<crate::json::NativeJson>()
+                + fern_json::retained_bytes(&original)
+        );
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn quota_failure_does_not_copy_or_publish_message() {
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &string;
+        (*(*pid).actor).mailbox = &string;
+        let session = (*exec).session;
+        let original_retained = (*session).retained;
+        (*session).retained = BYTES - std::mem::size_of::<Message>();
+        let objects = memory::stats().objects;
+        let result = fern_managed_send(exec, pid.cast(), c"hello".as_ptr() as i64, &string)
+            as *const abi::ResultValue;
+        assert_eq!(((*result).tag, (*result).value), (1, 4));
+        assert_eq!((*session).retained, BYTES - std::mem::size_of::<Message>());
+        // Only the Result allocation is allowed on a rejected transfer.
+        assert_eq!(memory::stats().objects, objects + 1);
+        assert!((*(*pid).actor).first.is_null());
+        assert_eq!((*session).messages, 0);
+        assert_eq!(fault, 0);
+        (*session).retained = original_retained;
+        fern_managed_stop(exec);
+    }
+}
+
+#[test]
+fn copy_roots_partial_lists_across_allocation_pressure() {
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let children = [&string as *const Type];
+    let ty = Type {
+        kind: 2,
+        count: 1,
+        children: children.as_ptr(),
+        arities: null(),
+    };
+    let f = Fixture::new();
+    let mut fault = 0;
+    // Distinct large strings force collection inside the transfer. Their source
+    // storage is Rust-owned so only the copied graph depends on temporary roots.
+    let first = std::ffi::CString::new(vec![b'a'; 700_000]).unwrap();
+    let second = std::ffi::CString::new(vec![b'b'; 700_000]).unwrap();
+    let mut data = [first.as_ptr() as i64, second.as_ptr() as i64];
+    let list = abi::List {
+        len: 2,
+        cap: 2,
+        data: data.as_mut_ptr(),
+    };
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let pid = f.spawn(exec, 0);
+        (*pid).mailbox = &ty;
+        (*(*pid).actor).mailbox = &ty;
+        let collections = memory::stats().collections;
+        let result = fern_managed_send(exec, pid.cast(), &list as *const abi::List as i64, &ty)
+            as *const abi::ResultValue;
+        assert_eq!((*result).tag, 0);
+        assert!(memory::stats().collections > collections);
+        let copied = &*((*(*(*pid).actor).first).value as *const abi::List);
+        assert_ne!(copied.data, list.data);
+        for (i, expected) in b"ab".iter().copied().enumerate() {
+            let text = std::ffi::CStr::from_ptr(*copied.data.add(i) as *const _).to_bytes();
+            assert_eq!(text.len(), 700_000);
+            assert!(text.iter().all(|&byte| byte == expected));
+        }
+        fern_managed_stop(exec);
+    }
+}
+
 unsafe extern "C" fn select_equal(_: *mut Exec, frame: *mut c_void, value: i64) -> *mut c_void {
     let fields = frame.cast::<i64>();
     if value == unsafe { *fields.add(1) } {

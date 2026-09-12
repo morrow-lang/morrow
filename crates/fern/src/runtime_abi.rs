@@ -47,6 +47,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_term_size"
         | "fern_user" => (&[], Some(I64), None),
         "fern_gc_collect"
+        | "fern_gc_collect_precise"
         | "fern_live_clear_line"
         | "fern_live_done"
         | "fern_term_clear"
@@ -54,6 +55,8 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_term_restore_cursor"
         | "fern_term_save_cursor"
         | "fern_term_show_cursor" => (&[], None, None),
+        "fern_gc_frame_enter" => (&[I64, I64], Some(I64), None),
+        "fern_gc_frame_leave" => (&[I64], None, None),
         "fern_float_to_str" | "fern_json_value_from_float" => (&[F64], Some(I64), None),
         "fern_print_float" | "fern_println_float" => (&[F64], None, None),
         "fern_prompt_confirm" | "fern_rc_refcount" => (&[I64], Some(I32), None),

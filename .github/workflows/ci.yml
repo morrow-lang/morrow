@@ -32,3 +32,43 @@ jobs:
           install: true
       - name: Check compiler, runtime, tooling and native programs
         run: cargo xtask check
+      - name: Verify the separate compiler benchmark lockfile
+        run: cargo metadata --manifest-path benchmarks/compiler-phases/Cargo.toml --locked --format-version=1 > /dev/null
+
+  web-preview:
+    name: Static Linux server and real browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      FERN_WEB_TARGET: x86_64-unknown-linux-musl
+      FERN_BROWSER: /usr/bin/google-chrome
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.9.1
+          install: true
+      - name: Install browser build tools
+        run: |
+          rustup target add wasm32-unknown-unknown x86_64-unknown-linux-musl
+          cargo install wasm-bindgen-cli --version 0.2.128 --locked
+      - name: Lint browser and offline worker on their real target
+        run: cargo clippy -p fern-browser -p fern-browser-worker --target wasm32-unknown-unknown --locked -- -D warnings
+      - name: Build self-contained static Linux executable
+        run: cargo xtask web-build
+      - name: Exercise two browsers and offline reload
+        env:
+          FERN_WEB_SCREENSHOT: dist/browser-desktop.png
+          FERN_WEB_MOBILE_SCREENSHOT: dist/browser-mobile.png
+        run: cargo xtask web-check dist/fern-web-linux-x86_64
+      - name: Retain preview and browser evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: fern-web-linux-x86_64
+          path: dist/
+          retention-days: 7

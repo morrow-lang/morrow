@@ -2,6 +2,7 @@
 use super::*;
 unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
     unsafe {
+        let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
         let f = function(s, frame);
         if f.is_null()
@@ -19,6 +20,10 @@ unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
             fail(&raw mut (*a).exec, 9);
             return false;
         }
+        let copied = (!memory::heap_owns((*a).heap, frame)).then(|| copy::frame(s, frame));
+        let frame = copied
+            .as_ref()
+            .map_or(frame, |copy| copy.value as *mut c_void);
         release(s, (*a).frame_cost);
         (*a).frame = frame;
         (*a).frame_cost = cost;
@@ -29,6 +34,7 @@ unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
 }
 pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
     unsafe {
+        let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
         let selector = function(s, (*a).selector);
         let mut previous: *mut Message = null_mut();
@@ -115,6 +121,7 @@ pub unsafe extern "C" fn fern_managed_receive(
             return 3;
         }
         let a = (*exec).actor;
+        let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*exec).session;
         if !(-1..=600000).contains(&duration) || (duration >= 0) == timeout.is_null() {
             fail(exec, 8);
@@ -164,6 +171,16 @@ pub unsafe extern "C" fn fern_managed_receive(
             fail(exec, 9);
             return 3;
         }
+        let copied_selector =
+            (!memory::heap_owns((*a).heap, selector)).then(|| copy::frame(s, selector));
+        let selector = copied_selector
+            .as_ref()
+            .map_or(selector, |copy| copy.value as *mut c_void);
+        let copied_timeout = (!timeout.is_null() && !memory::heap_owns((*a).heap, timeout))
+            .then(|| copy::frame(s, timeout));
+        let timeout = copied_timeout
+            .as_ref()
+            .map_or(timeout, |copy| copy.value as *mut c_void);
         (*a).selector = selector;
         (*a).selector_cost = select_cost;
         (*a).timeout_frame = timeout;

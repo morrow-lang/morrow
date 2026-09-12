@@ -44,6 +44,8 @@ fn run() -> Result<(), String> {
         "help" | "--help" | "-h" => println!(
             "cargo xtask <command> [--release]\n\
 build                 Build and stage compiler, runtime and supervisor in bin/\n\
+web-build [output]    Build the browser preview and embed assets in one server executable\n\
+web-check [server]    Verify two real browser clients and offline reload (FERN_BROWSER required)\n\
 check                 Format, Clippy, workspace tests and native acceptance\n\
 test                  Workspace tests and native acceptance\n\
 native [filter]       Execute native expected-output fixtures from bin/\n\
@@ -52,6 +54,7 @@ examples              Typecheck all public examples from bin/\n\
 fmt                   Format the Rust workspace\n\
 lint                  Check Rust formatting and Clippy\n\
 lint-policy           Verify rejected lint fixtures with the pinned toolchain\n\
+notices [--check]     Refresh or check locked workspace dependency license notices\n\
 compatibility         Check native API and atomic rejection fixtures\n\
 perf <report.json>    Measure explicitly staged compiler/runtime components\n\
 package [directory]   Build a release and publish a verified host archive\n\
@@ -62,6 +65,16 @@ verify <tar> <sha256> Validate a release archive without extracting it"
         "build" => {
             let bin = build::build(&root, release)?;
             println!("Built {}", bin.join("fern").display());
+        }
+        "web-build" if rest.len() <= 1 => {
+            xtask::web::build(&root, rest.first().map(Path::new))?;
+        }
+        "web-check" if rest.len() <= 1 => {
+            let server = rest
+                .first()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| root.join("dist/fern-web"));
+            xtask::web::acceptance::run(&server)?;
         }
         "fmt" => cargo(&root, &["fmt", "--all"])?,
         "lint" => {
@@ -82,6 +95,7 @@ verify <tar> <sha256> Validate a release archive without extracting it"
         "check" | "test" => {
             if command == "check" {
                 cargo(&root, &["fmt", "--all", "--", "--check"])?;
+                xtask::notices::run(&root, true)?;
                 cargo(
                     &root,
                     &[
@@ -116,6 +130,9 @@ verify <tar> <sha256> Validate a release archive without extracting it"
         "examples" => acceptance::examples(&root, &root.join("bin"))?,
         "compatibility" if rest.is_empty() => xtask::compatibility::run(&root, &root.join("bin"))?,
         "lint-policy" if rest.is_empty() => xtask::lint_policy::run(&root)?,
+        "notices" if rest.is_empty() || rest == ["--check"] => {
+            xtask::notices::run(&root, !rest.is_empty())?;
+        }
         "perf" if rest.len() == 1 => {
             xtask::performance::run(&root, &root.join("bin"), Path::new(&rest[0]))?
         }

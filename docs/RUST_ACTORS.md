@@ -1,6 +1,9 @@
 # Rust native actor execution (Decision105A)
 
-Status: accepted bounded implementation. Typed native execution is 105A; generalized suspension, typed supervision, and deterministic FernSim execution remain later stages.
+Status: bounded native implementation with actor-owned payload heaps and copied
+messages. Typed native execution began with Decision105A; Decisions124–125 add
+the ownership foundations. Generalized resumable scheduling, typed supervision,
+multicore execution and complete deterministic FernSim parity remain later stages.
 
 ## Try the native example
 
@@ -32,7 +35,16 @@ Ordinary generated ABI remains `(environment, fault, source arguments)` with an 
 
 The native step callback is `int64_t(exec*, frame*)`; selectors are `void*(exec*, frame*, int64_t payload)`. Cranelift transports both native status and payload as 64-bit words. Immutable function descriptors bind exact code identity, capture count/types, callback kind, and mailbox type. Type descriptors have four 64-bit words: kind, count, child pointers, and sum arities. Public IR is validated before private CPS conversion; caller-created IR cannot construct the opaque private lowered operations. Original and inactive signatures, actor metadata, closure identities, and capture arity/types are checked before cloning. Unknown identities have no fallback.
 
-A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains until the invocation is collected. The runtime uses the existing GC heap for retained source values. Small bounded temporary graph indices use Rust-owned collections and are reclaimed on all paths.
+A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains until the invocation is collected. Each actor owns a payload heap for its captures, frames and messages; invocation control data remains separately owned. Small bounded temporary graph indices use Rust-owned collections and are reclaimed on all paths.
+
+Spawn and send copy supported message/capture graphs into receiver-owned storage,
+preserving sharing within a copied graph. Collection cannot follow payloads into
+another actor's heap. PID copies retain scheduler identity, without sharing the
+other actor's payload. Runtime copy roots protect partial graphs until their
+frame or mailbox root is published. Actor callbacks enter their heap through a
+scope guard; retirement releases the heap after active scopes finish. Compiler
+root frames are explicit, but normal collection still uses conservative native
+stack/register and heap-word scanning. See [runtime memory](MEMORY_MANAGEMENT.md).
 
 ## Ownership, quotas, and failures
 
@@ -52,7 +64,7 @@ simulation parity.
 
 Limits are 1024 live actors,65536 lifetime identities,4096 messages per actor,65536 queued messages globally, and 64 MiB aggregate logical retained ownership. Descriptor tables and value graph indices each contain at most 4096 entries, with 128 payload-depth limit. Descriptor registration shares 1,048,576 work units across identity and metadata inspection; each enqueue/frame graph attempt shares the same finite allowance across descriptor work, identity lookup, graph traversal, and 64-byte String scan units. Immutable DAGs share within one owner graph; separate enqueues are charged separately. Unknown native object graphs are not treated as scalar pointers. PID graphs must belong to the same session and exact mailbox identity.
 
-Enqueue validates the graph and reserves bytes before allocating. Its monotonic timestamp is read at commit after potentially expensive validation/allocation; a clock failure rolls back the reservation and leaves the mailbox unchanged. Failed sends never remove or reorder messages. Receive validates duration, selector, timeout mailbox, and clock before publishing roots. Checked clocks reject invalid/overflowing time representations. GC storage is distinct from this logical retained quota; retiring roots makes values collectible but does not claim immediate memory reclamation.
+Enqueue validates the graph and reserves bytes before copying into the receiver's heap. Its monotonic timestamp is read at commit after potentially expensive validation/allocation; a clock failure rolls back the reservation and leaves the mailbox unchanged. Failed sends never remove or reorder messages or publish partial copies. Receive validates duration, selector, timeout mailbox, and clock before publishing roots. Checked clocks reject invalid/overflowing time representations. GC storage is distinct from this logical retained quota: retiring a message root makes its graph collectible; retiring an actor releases its payload heap after active scopes exit. Actual host allocator exhaustion is not a recoverable logical-quota failure.
 
 Fault 8: `actor timeout must be between 0 and 600000 milliseconds`.
 Fault 9: `actor resource limit exceeded`.
@@ -79,3 +91,10 @@ actor programs. Current runners are Rust and use the retained-identity superviso
 for bounded subprocess cleanup. The former C/FernSim/sanitizer totals remain
 historical evidence; [workspace acceptance](RUST_WORKSPACE.md) identifies the
 actual debug and optimized Rust checks.
+
+The new ownership work adds independent cross-actor copy, root and heap-retirement
+oracles. It does not turn the historical migration totals into acceptance of the
+new scheduler architecture. The [web preview](WEB_PREVIEW.md) uses a Rust-owned
+checklist model behind an Axum/Tokio transport; that server is not yet executing
+this native Fern actor runtime. Its two-browser and static-deployment checks do
+not establish native actor fairness, restart isolation or multicore scaling.

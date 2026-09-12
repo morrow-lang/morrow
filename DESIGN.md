@@ -15,10 +15,14 @@ runtime handles do not. The server owns business state and the browser owns loca
 interaction and rendering. A first-party framework supplies the application
 experience while small CLI programs retain a focused dependency surface.
 
-Memory remains automatic: actor-owned tracing heaps and fair scheduling are the
-server target; precise linear-memory tracing is the initial browser baseline,
-with WasmGC evaluated before ABI stabilization. Borrow inference and reuse are
-internal optimizations. These are planned changes, not current capabilities.
+Memory remains automatic. Actor-owned payload heaps and copied messages are
+implemented; precise native root/layout coverage and fair resumable scheduling
+remain open. The separate WASM backend supports scalar values and a bounded
+precise String heap. WasmGC will be evaluated before ABI stabilization; borrow
+inference and reuse remain internal optimizations. The working
+[web preview](docs/WEB_PREVIEW.md) executes Fern policy through a Rust browser
+host, with Rust-owned server state. Full Fern UI/domain actors and scaling remain
+integration goals.
 The [full-stack architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the current
 direction and supersedes conflicting older proposals below. The
 [roadmap](ROADMAP.md) distinguishes implemented features from acceptance gates.
@@ -49,7 +53,7 @@ Everything you need is built-in: actors for concurrency, embedded database, HTTP
 | Silent failures | Must explicitly handle all error cases |
 | "Works on my machine" | Single binary, all dependencies included |
 | Action at a distance | Immutability prevents spooky mutation |
-| Memory leaks | Rust-owned tracing collection; per-actor heaps remain planned |
+| Unreachable managed values | Rust-owned tracing collection and actor-owned payload heaps; resource close and complete precise-root coverage remain explicit work |
 | Buffer overflows | Bounds-checked collections, no raw pointers |
 
 ### Core Principles
@@ -1965,9 +1969,10 @@ point.x  # 10
 Fern uses an **actor-based concurrency model** inspired by Erlang/Elixir, with type-safe message passing.
 
 **Implementation boundary:** the default Rust frontend executes the bounded native
-subset in [Decision105A](docs/RUST_ACTORS.md). Generalized suspension, typed
-supervision, isolated heaps and actor REPL/FernSim parity remain planned. The
-explicit C reference frontend retains its separate [mailbox/supervision contract](docs/ACTOR_RUNTIME.md).
+subset in [the native actor contract](docs/RUST_ACTORS.md), now with actor-owned
+payload heaps and copied messages. Generalized resumable scheduling, typed
+supervision, multicore execution and complete actor REPL/FernSim parity remain
+planned. The old C reference implementation has been removed.
 
 ### Lightweight Processes
 
@@ -3140,13 +3145,13 @@ println(true)          # "true"
 
 ### Implementation Strategy ✅ Decided
 
-1. **Compiler language**: C with safety libraries (AI-assisted development)
+1. **Compiler language**: Rust Cargo workspace
 2. **Backend**: Cranelift native object generation
-3. **Memory**: Arena allocation (eliminates use-after-free)
-4. **Type safety**: Datatype99 (Rust-like tagged unions)
-5. **Data structures**: stb_ds.h (hash maps, dynamic arrays)
-6. **Strings**: SDS (Redis strings, binary-safe, length-tracked)
-7. **Development**: AddressSanitizer, UBSan, static analysis
+3. **Memory**: Rust-owned nonmoving tracing with actor payload heaps and explicit roots; conservative native scanning remains
+4. **Type safety**: Checked semantic IR and validated native ABI/lowering boundaries
+5. **Data structures**: Rust-owned compiler collections and bounded native value layouts
+6. **Browser**: Separate scalar/String WASM emitter and Rust-authored browser host
+7. **Development**: Test-first changes, independent native/WASM execution oracles, formatting, Clippy and bounded fuzz checks
 
 ### Standard Library ✅ Decided
 
@@ -4530,16 +4535,21 @@ Fern source → typed Rust frontend → machine IR → Cranelift object → host
 ```
 
 The workspace separates `fern`, `fern-json`, `fern-runtime`,
-`fern-runtime-native`, `fern-test-supervisor` and `xtask`. Native startup is isolated
+`fern-runtime-native`, `fern-test-supervisor` and `xtask`, with optional
+`fern-web-protocol`, `fern-web`, `fern-browser` and `fern-browser-worker` packages.
+Native startup is isolated
 from the runtime core so Rust tests can link its ABI without a duplicate main.
 The shared JSON crate implements bounded parsing, exact numbers and immutable
 values used by both the REPL and native runtime.
 
-Native memory uses a Rust-owned nonmoving tracing collector with stack/register
-scanning, interior pointers, explicit temporary roots and finalized Rust values.
-Reference metadata remains bookkeeping. Decision124 prioritizes actor-owned heaps,
-precise safepoint roots and a separate WebAssembly ABI; borrowing and reuse remain
-internal optimization work. See [runtime memory](docs/MEMORY_MANAGEMENT.md) and
+Native memory uses a Rust-owned nonmoving tracing collector with actor-owned
+payload heaps, copied messages, compiler root frames, temporary roots and finalized
+Rust values. Conservative stack/register and heap-word scanning remain enabled;
+reference metadata remains bookkeeping. The WASM backend branches from checked
+semantic IR before native lowering, preserving i64 integers and using a separate
+bounded precise heap for supported String operations. Complete precise native
+roots/layouts, broader browser values, borrowing and reuse remain implementation
+work. See [runtime memory](docs/MEMORY_MANAGEMENT.md) and
 the [full-stack target architecture](docs/FULL_STACK_ARCHITECTURE.md).
 
 Fern-authored code and development tooling are Rust. Mature third-party native

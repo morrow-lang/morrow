@@ -1,8 +1,9 @@
 # Full-stack Fern: actors and a reactive WebAssembly client
 
-Date: 2026-09-12. Decision124 adopts this direction. This is an architecture and
-acceptance plan, not an implemented browser/server feature claim. The existing
-[Rust workspace acceptance](RUST_WORKSPACE.md) remains the implementation baseline.
+Date: 2026-09-12. Decision124 adopts this direction; Decision125 records the first
+implemented foundations. This document is the full architecture and acceptance
+plan. The [web preview guide](WEB_PREVIEW.md) describes what runs today; the earlier
+[Rust workspace acceptance](RUST_WORKSPACE.md) records the native migration scope.
 
 ## Product direction
 
@@ -39,6 +40,42 @@ flowchart LR
 Shared source does not imply shared memory, shared authority or remote function
 calls. Native actor messages, browser events and network messages have different
 ownership and delivery contracts.
+
+## Implemented preview boundary
+
+The collaborative checklist now runs end to end with a compiled Fern scalar WASM
+module, a Rust browser host, a Rust service worker and an Axum/Tokio server. Fern
+exports control filter selection, completion progress and interaction policy.
+The host owns strings, the client model, transport and keyed DOM; the authoritative
+room state is currently a Rust model behind a serialized owner task. This is not
+yet the complete Fern model/update/view application or a compiled Fern domain actor
+shown in the target architecture above.
+
+The bounded command/snapshot protocol implements revision conflicts, sequence
+high-water marks, retained duplicate outcomes, distinct resource/namespace/socket
+identities, expiry and reset handling. The transport adds authentication, Origin
+and CSRF checks, revocation, bounded admission/queues and socket deadlines. Offline
+loading restores cached assets, confirmed state and a local draft; shared changes
+require connectivity and uncertain mutations are not blindly replayed.
+
+`cargo xtask web-build` embeds all browser assets and dependency notices in a
+server executable. ARM64 Linux musl execution has been exercised unprivileged in
+an empty chroot with two real browser clients, including offline reload and
+reconnect. x86-64 musl ELF structure has been validated, without x86-64 execution.
+These checks establish a useful preview, not all acceptance cases below.
+The final macOS browser acceptance additionally passed cold service-worker restart,
+offline draft/filter recovery, 320-pixel mobile layout and rejection of a tampered
+HTTP-200 asset update while retaining the prior offline cache. Fresh macOS native
+quality checks and equivalent Linux coverage across resumed runs also passed;
+the [verification record](WEB_PREVIEW.md#verification) gives their exact scope.
+
+Separately, native Fern actors now own payload heaps and copy message/capture
+graphs. Compiler root frames and scoped runtime roots are explicit, while ordinary
+native collection still conservatively scans stack/register state and heap words.
+The WASM backend branches from semantic IR and supports scalar values plus a
+bounded precise String heap. General aggregate values and a full browser host ABI
+remain work. The scalar checklist uses no shared memory between its Fern and Rust
+WASM modules. See [memory management](MEMORY_MANAGEMENT.md).
 
 ## Decisions to preserve while implementing
 
@@ -258,18 +295,20 @@ latency and throughput under slow clients, reconnects and a saturated actor.
 Compare with Phoenix using the same application behavior and resource limits;
 native code or WebAssembly alone is not evidence of a faster user experience.
 
-## Current gaps and first delivery
+## Current gaps and complete Fern application delivery
 
-Current actors share an invocation-thread TLS conservative heap. Sends retain the
-original payload; callbacks run until they return; one actor fault stops the
-session. Blocking services, lifetime identity limits and deadlock handling assume
-finite invocations. These are explicit migration requirements, not merely missing
-HTTP bindings. See [current actor contracts](RUST_ACTORS.md).
+Actor-owned payload heaps and copied messages are implemented. Native callbacks
+still run cooperatively; one actor fault can stop the invocation. Conservative
+root discovery, blocking services, lifetime identity limits and deadlock handling
+still require changes for long-lived supervised applications. The Rust web server
+does not establish those guarantees for native Fern actors. See
+[current actor contracts](RUST_ACTORS.md).
 
-Build the first end-to-end demonstration as a **two-browser collaborative
-checklist**: a domain actor owns the list, session gateways deliver authorized
-commands, and a Fern WebAssembly client renders confirmed state plus local drafts.
-Start with one server node, bounded ephemeral in-memory state and snapshots.
+Grow the working **two-browser collaborative checklist** into a full Fern
+application: a compiled domain actor owns the list, session gateways deliver
+authorized commands, and a complete Fern model/update/view program renders
+confirmed state plus local drafts through the Rust host. Keep one server node,
+bounded ephemeral in-memory state and snapshots for this integration milestone.
 Server or domain-actor restart creates a new resource incarnation and visibly
 resets the affected demo state; pending commands are not automatically replayed
 into that incarnation. Durable application recovery is a later release gate.
@@ -281,7 +320,9 @@ server foundations can progress independently after shared type/layout contracts
 A single-worker preview may prove the browser protocol before multicore support;
 it must be labeled as such and cannot satisfy the scaling gate.
 
-The first demo is accepted only when real browser tests demonstrate:
+The complete Fern demo is accepted only when real browser tests demonstrate
+all of the following. The current preview covers part of this list; protocol unit
+tests do not replace real typed-actor failure or aggregate browser ABI acceptance:
 
 1. Both browser instances agree after concurrent commands, with independent
    expected state and no lost acknowledged updates.

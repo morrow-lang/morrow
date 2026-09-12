@@ -220,6 +220,7 @@ impl Emitter<'_> {
             Type::Function(_, _) | Type::ActorFunction(_, _) => (7, vec![]),
             Type::Map(key, value) => (9, vec![vec![*key.clone(), *value.clone()]]),
             Type::Range => (10, vec![]),
+            Type::Native(crate::runtime::NativeType::JsonValue) => (12, vec![]),
             Type::Native(_) => (11, vec![]),
             _ => {
                 return Err(invalid(

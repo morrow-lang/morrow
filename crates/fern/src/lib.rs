@@ -19,6 +19,7 @@ pub mod repl;
 pub mod runtime;
 pub mod runtime_abi;
 pub(crate) mod unions;
+pub mod wasm;
 
 /// Source byte range, with an exclusive end offset.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

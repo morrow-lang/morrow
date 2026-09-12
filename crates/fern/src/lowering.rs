@@ -35,6 +35,8 @@ mod newtypes;
 mod nominal;
 #[path = "lowering/numeric.rs"]
 mod numeric;
+#[path = "lowering/roots.rs"]
+mod roots;
 #[path = "lowering/runtime_calls.rs"]
 mod runtime_calls;
 #[path = "lowering/tail.rs"]
@@ -262,6 +264,7 @@ struct Emitter<'a> {
 }
 
 struct Locals {
+    roots: roots::Frame,
     tail: Option<tail::TailLoop>,
     stack_allocations: Buffer,
     values: BTreeMap<usize, (Type, String)>,
@@ -346,6 +349,7 @@ impl Emitter<'_> {
     /// Emit `function` using only its resolved signature and typed body.
     fn function(&mut self, function: &Function) -> Lowering<()> {
         let mut locals = Locals {
+            roots: roots::Frame::default(),
             tail: None,
             stack_allocations: Buffer::new(),
             values: BTreeMap::new(),
@@ -382,6 +386,12 @@ impl Emitter<'_> {
         );
         self.output.statement(Statement::Label("@start".to_owned()));
         let entry = self.output.len();
+        for param in &function.params {
+            self.root_value(&mut locals, &param.ty, &format!("%v{}", param.id.0));
+        }
+        if !function.captures.is_empty() {
+            self.root_pointer(&mut locals, "%env");
+        }
         self.load_captures(function, &mut locals)?;
         self.output.statement(Statement::Assign {
             destination: "%return_slot".to_owned(),
@@ -414,7 +424,9 @@ impl Emitter<'_> {
             Err(error) => return Err(error),
         }
         self.finish_function(&mut locals);
+        self.root_entry(&mut locals, function.body.span)?;
         self.output.insert(entry, &locals.stack_allocations);
+        self.root_phis(entry.saturating_sub(1));
         Ok(())
     }
 
@@ -564,6 +576,7 @@ impl Emitter<'_> {
             ExprKind::Block(stmts) => self.block(stmts, locals, depth + 1, false)?,
         };
         expect_type(actual, expr.ty.clone(), expr.span)?;
+        self.root_value(locals, &expr.ty, &value);
         Ok(value)
     }
 
@@ -744,11 +757,17 @@ impl Emitter<'_> {
     /// Emit a scalar instruction `instruction`, assigning a fresh SSA value of `ty`.
     fn assign(&mut self, locals: &mut Locals, ty: Type, instruction: NativeOperation) -> String {
         let result = locals.temporary();
+        let allocation = matches!(&instruction, NativeOperation::Call { callee: Operand::Symbol(name), .. } if name == "fern_alloc");
         self.output.statement(Statement::Assign {
             destination: result.clone(),
-            ty: machine_width(self.width(ty)),
+            ty: machine_width(self.width(ty.clone())),
             operation: instruction,
         });
+        if allocation {
+            self.root_pointer(locals, &result);
+        } else {
+            self.root_value(locals, &ty, &result);
+        }
         result
     }
 
@@ -1357,6 +1376,7 @@ impl Emitter<'_> {
                 NativeOperation::Unary(MachineUnary::Cast, native_operand(&(value))),
             )
         } else {
+            self.root_value(locals, ty, &value);
             value
         }
     }

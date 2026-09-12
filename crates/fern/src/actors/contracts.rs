@@ -109,6 +109,7 @@ fn capture_type(
             continue;
         }
         match ty {
+            Type::Native(crate::runtime::NativeType::JsonValue) => {}
             Type::Native(_) | Type::Result(_, _) => {
                 return Err(Diagnostic::new(
                     span,

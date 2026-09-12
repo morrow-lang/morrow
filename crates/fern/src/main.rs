@@ -25,6 +25,7 @@ struct Options {
     output: Option<PathBuf>,
     arguments: Vec<OsString>,
     format_check: bool,
+    wasm: bool,
     controls: cli_controls::Controls,
 }
 
@@ -63,6 +64,7 @@ Usage: fern <command> [options] [source.fn|directory]\n\
 Commands: check, emit, build, run, fmt, doc, test, lex, parse, repl, lsp.\n\
 Run arguments: fern run source.fn -- [arguments]\n\
 Native backend: Cranelift is the native backend; --backend=cranelift is optional. emit retains textual machine IR.\n\
+Browser builds: fern build --target=wasm32 source.fn [-o app.wasm] compiles the supported portable subset without a native linker.\n\
 Global controls: --quiet, --verbose, --color=auto|always|never; -v aliases --version.\n\
 Language: generic functions, custom types, modules, Int/Bool/String, List/Option/Result, guarded match, and Result ?.\n\
 Documentation: fern doc [source.fn|directory] [--html] [--inferred] [--open] [-o output] generates source documentation.\n\
@@ -103,6 +105,7 @@ fn options(
     let mut forwarded = Vec::new();
     let mut format_check = false;
     let mut backend = None;
+    let mut target = None;
     let mut literal = false;
     let mut rest = arguments.into_iter().skip(1);
     while let Some(argument) = rest.next() {
@@ -120,7 +123,32 @@ fn options(
             }
             continue;
         }
-        if argument == "--backend"
+        if argument == "--target"
+            || argument
+                .to_str()
+                .is_some_and(|value| value.starts_with("--target="))
+        {
+            if command != "build" {
+                return Err("--target is only valid for build".into());
+            }
+            if target.is_some() {
+                return Err("target specified more than once".into());
+            }
+            let value = if argument == "--target" {
+                rest.next().ok_or("--target requires native or wasm32")?
+            } else {
+                argument
+                    .to_str()
+                    .and_then(|value| value.strip_prefix("--target="))
+                    .ok_or("--target requires native or wasm32")?
+                    .into()
+            };
+            target = Some(match value.to_str() {
+                Some("native") => false,
+                Some("wasm32") => true,
+                _ => return Err("supported targets: native, wasm32".into()),
+            });
+        } else if argument == "--backend"
             || argument
                 .to_str()
                 .is_some_and(|value| value.starts_with("--backend="))
@@ -165,12 +193,19 @@ fn options(
             return Err("only one source file is accepted".into());
         }
     }
+    let wasm = target.unwrap_or(false);
+    if wasm && backend.is_some() {
+        return Err(
+            "--backend selects native compilation and cannot accompany --target=wasm32".into(),
+        );
+    }
     Ok(Some(Options {
         command,
         source: source.ok_or("missing source file")?,
         output,
         arguments: forwarded,
         format_check,
+        wasm,
         controls,
     }))
 }
@@ -184,7 +219,26 @@ fn run(options: Options) -> Result<u8, String> {
         return format_cli::run(&options.source, options.format_check);
     }
     let loaded = modules::load(&options.source).map_err(|error| error.message)?;
-    let typed = check::check(&loaded.program).map_err(|error| loaded.render(error))?;
+    let typed = if options.wasm {
+        check::check_library(&loaded.program)
+    } else {
+        check::check(&loaded.program)
+    }
+    .map_err(|error| loaded.render(error))?;
+    if options.wasm {
+        let bytes = fern_compiler::wasm::compile(&typed).map_err(|error| loaded.render(error))?;
+        let output = options.output.unwrap_or_else(|| {
+            PathBuf::from(options.source.file_stem().unwrap_or_default()).with_extension("wasm")
+        });
+        for source in loaded.sources() {
+            output_destination(source.path, &output)?;
+        }
+        publish_bytes(&options.source, &output, &bytes)?;
+        options
+            .controls
+            .information(&format!("Created WebAssembly module: {}", output.display()));
+        return Ok(0);
+    }
     if options.command == "check" {
         options.controls.information("No type errors");
         return Ok(0);
@@ -269,11 +323,16 @@ fn same_file(source: &Path, output: &Path) -> Result<bool, String> {
 /// Atomically install `il` at `output` without truncating files on write failure.
 /// Source aliases are rejected before a private staging directory is created.
 fn emit_file(source: &Path, output: &Path, il: &str) -> Result<(), String> {
+    publish_bytes(source, output, il.as_bytes())
+}
+
+/// Publish a validated artifact from private staging, preserving the previous file on failure.
+fn publish_bytes(source: &Path, output: &Path, bytes: &[u8]) -> Result<(), String> {
     let destination = output_destination(source, output)?;
     let parent = destination.parent().ok_or("invalid output directory")?;
     let workspace = native::Workspace::new(parent).map_err(|e| e.to_string())?;
-    let staged = workspace.file("program.ssa");
-    fs::write(&staged, il).map_err(|e| format!("cannot write output: {e}"))?;
+    let staged = workspace.file("program.output");
+    fs::write(&staged, bytes).map_err(|e| format!("cannot write output: {e}"))?;
     fs::rename(staged, destination).map_err(|e| format!("cannot install output: {e}"))
 }
 
