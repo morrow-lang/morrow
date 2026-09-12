@@ -14,7 +14,7 @@ DEFAULT_COMPILE_BUDGET_S = 150.0
 DEFAULT_STARTUP_P95_BUDGET_MS = 100.0
 DEFAULT_BINARY_BUDGET_BYTES = 1_500_000
 DEFAULT_STARTUP_RUNS = 30
-DEFAULT_BIN_PATH = Path("bin/fern")
+DEFAULT_BIN_PATH = Path("bin/fern-c")
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:

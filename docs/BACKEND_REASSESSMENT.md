@@ -36,7 +36,7 @@ third-party and generated code:
 
 | Component | Current role | Migration boundary |
 | --- | --- | --- |
-| Legacy C compiler, about 23,000 lines | Shipping default and reference | Rust CLI/tooling/default-install parity and promotion |
+| Legacy C compiler, about 23,000 lines | Explicit `fern-c` reference and bootstrap | Rust/QBE now ships as `fern` (Decision115); retaining C is independent of backend promotion |
 | Authored C runtime, about 11,000 lines | Heap values, JSON, actors, IO and platform services | A separate runtime port preserving layouts, GC roots and resource contracts |
 | Vendored QBE | Reference code generator | Can retire after Cranelift default acceptance |
 | Generated editor parser and headers, about 90,000 lines | Tree-sitter editor integration | Generated C is the editor ecosystem's output format |
@@ -62,7 +62,7 @@ At the 2026-09-06 assessment, the verified current Cranelift release was0.135.1,
 
 Historical Cranelift0.108.2/Wasmtime21.0.2 has a1.75 workspace minimum;0.109.1/Wasmtime22.0.1 moves to1.76. I compiled0.108.2 on1.75 only after pinning an old transitive indexmap version: unconstrained contemporary dependency resolution selected an edition2024 dependency that old Cargo cannot parse. This is concrete evidence that an old version number alone is not a maintained toolchain policy. Do not adopt that unsupported2024 release merely to preserve1.75. [Wasmtime21 manifest](https://raw.githubusercontent.com/bytecodealliance/wasmtime/v21.0.2/Cargo.toml), [Wasmtime22 manifest](https://raw.githubusercontent.com/bytecodealliance/wasmtime/v22.0.1/Cargo.toml).
 
-Decision111 adopts the user's requested dated nightly. Decision112 pins the optional Cranelift crates to0.135.1 and records transitive inputs in Cargo.lock; the default Cargo feature set retains its standard-library-only dependency policy. Backend maintenance follows the upstream supported release window: review upstream releases/security notices, update the Cranelift crate family together, commit the refreshed lockfile, and rerun both native backend gates before adopting an update. Unsupported historical pins are comparison evidence only, never a compatibility strategy. Wasmtime publishes monthly releases and a defined support/LTS policy; Cranelift's API is not assumed permanently stable. [Support policy](https://docs.wasmtime.dev/stability-release.html).
+Decision111 adopts the user's requested dated nightly. Decision112 pins the optional Cranelift crates to0.135.1 and records transitive inputs in Cargo.lock; the default Cargo feature set excludes Cranelift and includes the pinned Rustyline terminal dependency adopted in Decision115. Backend maintenance follows the upstream supported release window: review upstream releases/security notices, update the Cranelift crate family together, commit the refreshed lockfile, and rerun both native backend gates before adopting an update. Unsupported historical pins are comparison evidence only, never a compatibility strategy. Wasmtime publishes monthly releases and a defined support/LTS policy; Cranelift's API is not assumed permanently stable. [Support policy](https://docs.wasmtime.dev/stability-release.html).
 
 ## Concrete integration issues
 

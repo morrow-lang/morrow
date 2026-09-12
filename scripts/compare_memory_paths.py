@@ -108,6 +108,10 @@ def collect_perf_snapshot(startup_runs: int) -> PerfSnapshot:
         [
             "python3",
             "scripts/check_perf_budget.py",
+            "--bin-path",
+            "bin/fern",
+            "--binary-budget-bytes",
+            "4194304",
             "--skip-build",
             "--startup-runs",
             str(startup_runs),

@@ -69,9 +69,11 @@ jobs:
         run: mise run perf-budget
 
       - name: Validate task migration
-        run: mise run mise-workflow-check
+        run: |
+          mise run mise-workflow-check
+          python3 scripts/test_default_ci_workflow.py
 
-      - name: Validate experimental Rust frontend
+      - name: Validate default Rust frontend
         run: mise run rust-check
 
       - name: Validate Cranelift backend and native output

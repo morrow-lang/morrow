@@ -91,13 +91,16 @@ void test_release_package_script_creates_archive_and_checksum(void) {
         sizeof(cmd),
         "mkdir -p %s %s && "
         "printf '#!/bin/sh\\necho fern-test\\n' > %s/fern && chmod +x %s/fern && "
+        "for name in fern-c fern-qbe fern-test-supervisor; do cp %s/fern %s/$name; done && "
+        "printf '{\"format\":1,\"compiler\":\"rust\",\"backend\":\"qbe\"}\\n' > %s/fern-package.json && "
         "printf 'runtime' > %s/libfern_runtime.a && "
-        "cp LICENSE %s/LICENSE && "
+        "cp LICENSE THIRD_PARTY_NOTICES.md %s/ && "
         "python3 scripts/package_release.py package "
         "--version 0.0.0-test --os testos --arch testarch "
         "--staging %s --out-dir %s 2>&1",
         staging, outdir,
         staging, staging,
+        staging, staging, staging,
         staging,
         staging,
         staging, outdir

@@ -78,7 +78,7 @@
       "python3 scripts/test_file_text_frontends.py --compiler bin/fern",
       "python3 scripts/generate_decimal_tables.py --check",
       "python3 scripts/test_decimal_generator.py",
-      "python3 scripts/test_decimal_frontends.py --compiler bin/fern --c",
+      "python3 scripts/test_decimal_frontends.py --compiler bin/fern-c --c",
       "FERN_STYLE_TOOL_PATH=\"$PATH\" uv run scripts/test_style_workflow.py --native \"$PWD/scripts/check_style\""
     ],
     "style-launcher-check": [

@@ -1,0 +1,153 @@
+{
+  "utc": "2026-09-12T02:08:44.261153+00:00",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "release": "25.5.0"
+  },
+  "version": "0.1.0",
+  "archive": {
+    "bytes": 2343873,
+    "sha256": "8eb2ae724c7c3344fb6f5924a6f64d5754a95f9022b0f0d1da07b2d1f8c8e4f4"
+  },
+  "checksum": {
+    "bytes": 96,
+    "sha256": "17313012231f8d35d2bf6caf687576ad49d2bd609dcc8a7bcf5afd0f11311789"
+  },
+  "source_sha256": "43fa7cbd972d2ac8e6f6e35e5886c7cfc6adef51758b147afc9e20fdeff2a825",
+  "source": "newtype Id = Id(Int)\nfn main():\n    println(Id(9223372036854775807).0)\nfn test_wide() -> Result((), Int):\n    if Id(9223372036854775807).0 == 9223372036854775807:\n        Ok(())\n    else:\n        Err(1)\n",
+  "checks": [
+    {
+      "name": "fern version",
+      "exit": 0,
+      "stdout": "fern 0.1.0\n",
+      "stderr": ""
+    },
+    {
+      "name": "fern-c version",
+      "exit": 0,
+      "stdout": "fern 0.1.0\n",
+      "stderr": ""
+    },
+    {
+      "name": "default checks newtype",
+      "exit": 0,
+      "stdout": "No type errors\n",
+      "stderr": ""
+    },
+    {
+      "name": "moved default runs full-width value",
+      "exit": 0,
+      "stdout": "9223372036854775807\n",
+      "stderr": ""
+    },
+    {
+      "name": "moved default builds",
+      "exit": 0,
+      "stdout": "Created executable: /var/folders/n1/d2x5svbs71dd5xvfqyzc2qcr0000gn/T/fern-release-archive-jjhojlsv/native 'output' $program\n",
+      "stderr": ""
+    },
+    {
+      "name": "built native output",
+      "exit": 0,
+      "stdout": "9223372036854775807\n",
+      "stderr": ""
+    },
+    {
+      "name": "moved native source test",
+      "exit": 0,
+      "stdout": "tests: 1/1 passed\n",
+      "stderr": ""
+    },
+    {
+      "name": "missing fern-qbe",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "missing fern-qbe in installed package; restore the sibling component or set FERN_QBE\n"
+    },
+    {
+      "name": "missing libfern_runtime.a",
+      "exit": 1,
+      "stdout": "",
+      "stderr": "missing libfern_runtime.a in installed package; restore the sibling component or set FERN_RUNTIME_LIB\n"
+    },
+    {
+      "name": "missing fern-test-supervisor",
+      "exit": 1,
+      "stdout": "tests: 0/1 passed\n",
+      "stderr": "/var/folders/n1/d2x5svbs71dd5xvfqyzc2qcr0000gn/T/fern-release-archive-jjhojlsv/full width 'program' $input.fn:4: test_wide failed: missing fern-test-supervisor in installed package; restore the sibling component or set FERN_TEST_SUPERVISOR\n"
+    }
+  ],
+  "components": {
+    "fern-c": {
+      "bytes": 548488,
+      "sha256": "8b59e82b287a9b36b66458b4674b4e0deeef9081cef467558a9f37053ebcb9ab"
+    },
+    "LICENSE": {
+      "bytes": 1068,
+      "sha256": "e465ddb23e74dabf12737eae721de5800cefd806354c52e7750f49e1a5e7367f"
+    },
+    "fern-qbe": {
+      "bytes": 297480,
+      "sha256": "8b264d45d981e391a2d93f0f87ef8a0a7564a0bfde2578c46c6c52d49c772e39"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 26508,
+      "sha256": "866e82ed7d2f74e99099f19995d88ae99da0260a8eaeb690ae443b7bac15aa56"
+    },
+    "README.md": {
+      "bytes": 5710,
+      "sha256": "b286f1235a0c6d8471e47129e7bf7af07f0440588232bef6ace0df4847f2ca52"
+    },
+    "fern": {
+      "bytes": 3823744,
+      "sha256": "f3eaec86c3658ea1c4e943096247480a97b851168ba7335aeca23792e716166d"
+    },
+    "fern-test-supervisor": {
+      "bytes": 53432,
+      "sha256": "f2e057c6bf2aa5555cef65fb9dfcdedb1c90b9ebb1a431bc73d2f1e449f8aa94"
+    },
+    "libfern_runtime.a": {
+      "bytes": 415248,
+      "sha256": "c0def65dc086488ef7bbe454636a2bf3b171226ee8c438468cc61c397f28fad8"
+    },
+    "fern-package.json": {
+      "bytes": 47,
+      "sha256": "0b5ec34677994c015e92f37efd88ab98a7b29b13f6e9fb02476835f2b1efdf4d"
+    },
+    "docs/COMPATIBILITY_POLICY.md": {
+      "bytes": 10674,
+      "sha256": "6c3388811b75c933db347ce05d6d3bcec11dcb77f369d0fa3a248328ea3eaaae"
+    }
+  },
+  "source_inputs": {
+    "compiler-rs/Cargo.toml": {
+      "bytes": 1216,
+      "sha256": "3ab7e6d3a2ac4315ccb5535999b0c05116b462737b7621c2cfd1cb50898cda31"
+    },
+    "compiler-rs/Cargo.lock": {
+      "bytes": 13907,
+      "sha256": "73a746b641b95d885d35345863665238355ea8ea39b9999b020a464c072dce1b"
+    },
+    "mise.toml": {
+      "bytes": 22449,
+      "sha256": "5aebdf2abfd840089abd767af543bd84d7169cf3f2150d16e8e1aa456b19dcf8"
+    },
+    "scripts/tasks/build-default": {
+      "bytes": 2783,
+      "sha256": "f765b5637cd50a2e3aa372cfbf2bdd20c8a2d6e933522396ed773fbbc55022d2"
+    },
+    "scripts/package_release.py": {
+      "bytes": 9915,
+      "sha256": "6f761653dd9699487735acc8c10d4d92232558dd88298d10016bfcce2025fcd1"
+    },
+    "LICENSE": {
+      "bytes": 1068,
+      "sha256": "e465ddb23e74dabf12737eae721de5800cefd806354c52e7750f49e1a5e7367f"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 26508,
+      "sha256": "866e82ed7d2f74e99099f19995d88ae99da0260a8eaeb690ae443b7bac15aa56"
+    }
+  }
+}

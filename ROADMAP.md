@@ -6,16 +6,15 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 
 ## Current Status Snapshot
 
-- Quality gate: `mise run check` passing (574 C tests, 16 full-width Int programs, native file/process/stderr/workflow/string/print tests, 13 TUI tests, 18 examples, strict style); validated with stale host `LIBRARY_PATH` excluded
-- Perf gate: `mise run perf-budget` passing on macOS arm64 (4.39 s build, 548,488-byte compiler, 3.92 ms startup p95; 2026-09-12)
-- Fuzz gate: `mise run fuzz-smoke` passing (64 cases, seed `0xC0FFEE`)
-- Docs gate: `mise run docs-check` passing (consistency, generation, doc tests); LSP RPC smoke passing
-- Release readiness: `mise run release-package` and `mise run release-package-check` passing; full-language blockers remain in `docs/RELEASE_READINESS.md`
-- Sanitizer gate: AddressSanitizer/UndefinedBehaviorSanitizer passing on SQL lifecycle/quotas/transactions, managed scheduler/ownership/timers, six prior actor scenarios and three TUI scenarios (GC leak reporting excluded).
-- Bootstrap gate: Fern-native default checker, exact native/Python diagnostic and 66 workflow parity cases, bounded content cache and native supervision verified on macOS/Linux; ordinary style checks need no Python/Cargo
-- Rust migration: `mise run rust-check` passing (1551 Rust checks on macOS with nightly-2026-09-06 (earlier Linux checkpoint: 1518; bounded native actors and relocatable previews), 4 measurement-harness tests, 197 core native programs, 13 newtype programs, 12 namespace programs, 5 labeled-call programs, 27 union programs, 22 entry/access programs, 9 controlled-fault cases, 241 invalid inputs, dual-frontend directory/Result contracts, 192 mutations); expanded frontend remains opt-in; earlier process/stdio and full C/Rust checkpoints passed on Linux arm64
-- Backend gate: `mise run rust-cranelift-check` passing on macOS arm64 (1563 Rust checks, 295 independent native-output cases; 2026-09-12), including SQL lifecycle, optional regex captures and exact NaN bit transport
-- Rust developer tooling: pinned mise environment and incremental lint-policy checks verified; nextest passes 1511 tests on macOS and 1513 on Linux without skips; Criterion fixtures and all 10 smoke cases pass on both. Actor20-program/16-rejection, managed-runtime sanitizer and moved-preview gates pass on both.
+- Rust compiler migration: complete on macOS arm64 and Linux arm64. Build, install and release workflows select Rust as `fern`; `fern-c` remains the explicit C bootstrap/reference. [Acceptance evidence](docs/RUST_DEFAULT_MIGRATION.md).
+- Compiler gates: Rust/QBE passes 1,621/1,624 Cargo tests on macOS/Linux; Cranelift passes 1,633/1,636. Both platforms pass 305 independent backend native-output cases and ten migration programs.
+- Quality gate: full clean quality gates pass, including 574 C tests, 18 examples, runtime/native oracles, strict style and 66 workflow parity cases; documentation and real-server LSP checks pass on both platforms.
+- Fuzz gate: unchanged 64-case `0xC0FFEE` smoke passes for both compilers on both platforms; the 512-case compatibility stretch passes for Rust and C on macOS. Rust's separate 192-mutation corpus passes on both platforms.
+- Bootstrap and developer tools: full native style-launcher checks, 18 negative lint contracts and all ten compiler-phase benchmark smoke cases pass on both platforms. Opener and retry-limit fixtures now have deterministic execution/clock inputs.
+- Perf gate: combined release builds take 44.21 s on macOS and 44.01 s on Linux. Rust compiler sizes are 3,823,744/3,806,232 bytes and startup p95 is 6.62/0.41 ms; C independently retains its 1,500,000-byte ceiling. All enforced budgets pass.
+- Docs gate: documentation consistency, eight snippet-runner regressions and the executable stdlib example pass on both platforms.
+- Distribution: nine installation checks and ten checks of each actual relocated release archive pass. Exact compiler/helper/runtime/license inputs and matching source-tree hashes are recorded in the acceptance report.
+- Release readiness: QBE remains the default backend; the C runtime, native supervisor and editor parser retain their existing implementations. Generalized actors, remaining language/stdlib/editor work, backend promotion and a 1.0 release have separate exit criteria in [release readiness](docs/RELEASE_READINESS.md).
 
 ## Canonical Documents
 
@@ -36,7 +35,7 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 
 ## Rust Frontend Evaluation (2026-09-05)
 
-Status: Complete for the bounded prototype; `mise run check`, `mise run rust-check`, and `mise run docs-check` pass on macOS arm64. CI includes Linux/macOS Rust checks. C remains the shipping default (decision 45).
+Status: Historical bounded prototype checkpoint. Its quality, Rust and documentation gates passed while C was the shipping default (Decision45). The current build and installation select Rust as `fern`; see Rust Migration Completion below.
 
 - [x] Build an independent lexer/parser for a clearly bounded Fern subset (11 parser tests).
 - [x] Resolve names and types once into a typed intermediate representation (10 checker tests).
@@ -73,47 +72,63 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 ### Rust Migration Completion
 
 - [x] Make the native supervisor retry-limit oracle independent of elapsed wall time, retaining exact retry counts and real deadline coverage (complete debug/release/sanitizer protocol matrices pass on macOS/Linux).
+
+- [x] Remove executable-write races from documentation opener tests using immutable scripts and private symlinks; retain literal non-UTF-8 argv and timeout assertions (six complete parallel Linux binary-suite runs pass).
+
+- [x] Restore bounded inline match arms with guarded patterns, canonical formatting and explicit nested/caller comma ownership (37 focused parser/formatter checks, ten native migration programs, 512 unchanged seeded parser/formatter cases per compiler; Decision121).
+
+- [x] Preserve consistent tab indentation, eight-column layout and byte-correct spans while rejecting mixed styles; canonical formatting uses spaces (24 focused parser/formatter tests and Clippy; Decision120).
+
+- [x] Validate documentation snippets with the actual Rust default without rewriting Result obligations or literal source structure; restore current opaque JSON signatures and complete fallible-API examples (eight extractor/default-compiler regressions and docs gate pass).
+
 - [x] Keep cold bootstrap files private under permissive caller masks and inventory inaccessible system-library subtrees without hiding searchable files (both-platform debug/release/sanitizer permission and caller-mask matrices; Linux cold/warm cache regression; Decision119).
 - [x] Make the offline Python lock-drift oracle independent of registry cache state, retaining exact lock rejection and an unlocked execution control (25 workflow checks pass).
 
-- [x] Remove executable-write races from documentation opener tests using immutable scripts and private symlinks; retain literal non-UTF-8 argv and timeout assertions (six complete parallel Linux binary-suite runs pass).
+- [x] Synchronize release version updates across C/Rust and benchmark locks, publish complete readiness bundles, and measure the compiler named in memory reports (four CI/release regressions, actual release-please updater verification, 12 mise tests and three benchmark fixtures).
+
 - [x] Implement actual checked local LSP rename and canonical formatting code actions, with versioned UTF-16 edits, capture rejection and explicit scope bounds (18 action/negotiation regressions, existing LSP checks and fresh-binary protocol smoke; Decision115).
 - [x] Inventory and bundle exact third-party license notices for all default Unix Cargo dependencies and compiled native components; locked closure and native-license checks pass.
+
 - [x] Restore CLI literal-path delimiters, default documentation cwd, public fern identity and REPL type/help/clear commands; real PTY editing, completion, persistent history and cancellation pass with bounded history import (Decision115).
 
-- [x] Restore bounded inline match arms with guarded patterns, canonical formatting and explicit nested/caller comma ownership (37 focused parser/formatter checks, ten native migration programs, 512 unchanged seeded parser/formatter cases per compiler; Decision121).
-- [x] Preserve consistent tab indentation, eight-column layout and byte-correct spans while rejecting mixed styles; canonical formatting uses spaces (24 focused parser/formatter tests and Clippy; Decision120).
+- [x] Audit every shipping C builtin name and executable construct against typed Rust lowering (212-name inventory, 48 focused checks, six independent language migration programs and two C-reference outputs; docs/LANGUAGE_PARITY.md).
+- [x] Build a tested Rust-default publication path preserving the explicit C reference and prior default on Cargo failure (eight debug/release/helper/artifact-selection/failure workflow cases, including directory destinations; final macOS/Linux acceptance recorded below).
+
+- [x] Disable development component fallback in installed Rust distributions, even with damaged markers (native component-selection regressions; explicit sibling/override behavior retained).
+
+- [x] Require complete default Rust release components and validate exact typed package identity, executable helpers and regular archive members (eight independent distribution tests, exact marker types and owner-executable helpers; nine installation checks include sixteen directory-destination failures).
+
 - [x] Restore 14 shipping service aliases, bracket list indexing and infix membership through typed operations (four parser/checker/formatter/REPL tests and four native programs covering full-width values, Float/NaN, source order and deferred bounds-fault cleanup).
-- [x] Audit every shipping C builtin name and executable construct against typed Rust lowering (212-name inventory, 48 focused checks, five independent native programs and two C-reference outputs; docs/LANGUAGE_PARITY.md).
 
-- [x] Complete bounded recursive builder contracts and mutual-summary widening without unproved handling credit (90 focused integrations, 76 internal obligation checks; independent empty-subtree cardinality exploit rejected; conservative equations documented in docs/RESULT_HANDLING.md, Decision114).
-
-User authorization: continue through every migration milestone without stopping
-for approval between milestones. C remains the default until the parity gates pass.
+Status: Compiler migration acceptance is complete on macOS arm64 and Linux arm64.
+Rust is the default `fern`; `fern-c` remains the explicit C bootstrap/reference.
+Executable baseline parity, tooling, native components, installation, packaging,
+fuzz and separate compiler performance gates pass. Future language and runtime
+features retain their own milestones below.
 
 - [x] Custom algebraic/record types, generic functions, nested patterns and guards (41 checker and 36 emitter tests; native recursive values and guarded matching).
 - [x] Modules/imports/visibility and a realistic application spanning multiple files (13 loader tests including visibility bypass regressions, native project execution).
-- [ ] Remaining executable language parity: remaining function/numeric/string operations, control flow and complete error handling.
+- [x] Verify executable C-baseline language parity through typed Rust operations and independent native outputs, with intentional JSON/Option/error corrections documented (212-name inventory, docs/LANGUAGE_PARITY.md; QBE and Cranelift gates on macOS/Linux).
 - [x] Replace reference-only Result checks with bounded reachable-path handling, call/alias provenance, complete collection coverage and deferred cleanup (Decision95).
 - [x] Prove direct recursive nominal Result handlers, complete List/Map child traversals, exact recursive callbacks and deferred child handling (Decision95 R1–R2).
 - [x] Prove complete mutual structural handler groups over actual nominal descendants, including typed List/Map traversal and transparent wrapped children, with independent source-order and unsafe-path probes (Decision95 R3).
 - [x] Verify the combined boundary/CLI/Result checkpoint on macOS and Linux: full Rust/native/C/docs gates, 1447/1449 nextest tests without skips, separate doctests and Criterion smoke.
-- [ ] Complete recursive builders and wider recursive summary equations without granting unproved handling credit.
-- [ ] Standard-library/native ABI compatibility and executable application coverage.
-- [ ] Diagnostics, formatting, REPL/LSP, documentation and developer-command parity.
+- [x] Complete bounded recursive builder contracts and mutual-summary widening without unproved handling credit (90 focused integrations, 76 internal obligation checks; independent empty-subtree cardinality exploit rejected; conservative equations documented in docs/RESULT_HANDLING.md, Decision114).
+- [x] Verify standard-library/native ABI compatibility and executable applications on both platforms, including runtime debug/release/sanitizer oracles and 305 independent backend outputs.
+- [x] Complete diagnostics, formatting, terminal REPL, negotiated LSP edits, documentation and developer-command parity (docs/TOOLING_PARITY.md; real PTY/RPC and literal-source documentation regressions).
 - [x] Preserve common quiet/verbose/color controls, literal forwarded argv, visible failures and missing-command status in the Rust CLI (Decision108A).
 - [x] Add bounded source-only lex/parse inspection with byte spans, escaped dumps, no import/type/backend execution and atomic parser/limit failure (Decision108B).
 - [x] Open retained HTML documentation only after complete atomic generation, with literal platform argv, visible best-effort failures and consistent byte limits (Decision108C).
 - [x] Verify the 1006-test expanded Rust checkpoint, C quality gate and documentation on Linux arm64 with Rust 1.75; expose POSIX test APIs under glibc strict C11 without hiding Darwin extensions.
 - [x] Package explicit Rust/native inputs as a relocatable opt-in preview, with deterministic bounded archives, atomic publication, strict verification and missing-helper isolation (Decision110).
-- [ ] Linux/macOS verification, fuzz/performance/packaging gates and default migration.
+- [x] Complete Rust-default acceptance on macOS/Linux arm64: full quality, Rust/QBE, Cranelift, documentation, LSP, native style-launcher, fuzz, installation, release packaging and separate Rust/C performance gates pass (docs/RUST_DEFAULT_MIGRATION.md).
 
-Each checkpoint below records verified scope; this completion list stays open
-until all of its acceptance criteria are actually satisfied.
+Compiler migration acceptance is complete. Historical checkpoints and remaining
+language, runtime, editor and backend work below retain their own exit criteria.
 
 ### Rust Migration: Expanded Language and Tools
 
-Status: Expanded checkpoint verified on macOS arm64; the default remains C.
+Status: Verified expanded-language checkpoint, incorporated into the Rust default compiler. Remaining planned features are tracked separately from executable baseline migration.
 
 - [x] Custom records/sums, generic specialization, guarded nested matches and modules.
 - [x] IEEE Float values, structural tuples/destructuring, pipelines and interpolation.
@@ -175,7 +190,7 @@ Status: Expanded checkpoint verified on macOS arm64; the default remains C.
 
 ### Rust Migration: Collections and Error Values
 
-Status: Complete for the collections/error-value milestone; shipping compiler remains C (decisions 45–46). See [migration progress](docs/RUST_MIGRATION.md).
+Status: Complete and incorporated into the Rust default compiler. Decisions 45–46 describe the historical collections/error-value checkpoint; see [completed migration acceptance](docs/RUST_DEFAULT_MIGRATION.md).
 
 - [x] Parse recursive List/Option/Result types, list literals, and match expressions (24 isolated parser tests, including all native fixtures).
 - [x] Infer constructor/empty-list types and resolve compound values to concrete typed IR.
@@ -310,21 +325,19 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Reserve an ABI-permitted Apple arm64 QBE scratch register, verify swaps/calls/spills and independent native outputs, and preserve generic Linux assembly (Decision104).
 - [x] Remove newly written executable races from native capture tests; preserve timeout/stream/descendant coverage and add 160 concurrent per-run output/status assertions.
 - [x] Retain direct-child ownership through native unit/doc test cleanup and validate the framed safe-Rust adapter (Decision102).
-- [ ] Verify default-command migration to Rust, retaining C as an explicit bootstrap/reference executable and documenting its legacy JSON source contract (Decision96).
+- [x] Verify default-command migration to Rust on macOS/Linux, retaining `fern-c` as the explicit bootstrap/reference and documenting its legacy JSON contract (Decision96; docs/RUST_DEFAULT_MIGRATION.md).
 - [ ] Implement HTTP serving and the broader SQL query/resource APIs described in the design.
-- [ ] Complete function clauses/pattern parameters, labeled calls, aliases/newtypes/unions, traits/constraints and full private signature inference through native execution.
+- [ ] Complete remaining planned traits/constraints and private-signature inference beyond the verified function, label, alias/newtype and union checkpoints.
 - [ ] Complete Sets and the specified standard modules, including data formats, testing/utilities, IO/system, cryptography and compression.
 - [ ] Audit all specified syntax and stdlib calls for complete typecheck-to-native behavior; reject unsupported execution paths.
 - [ ] Complete ownership analysis and the planned WASM backend.
 
 ## Next Session Start Here
 
-For the active Rust migration, finish bounded process/bootstrap workflows and remaining editor grammar parity, then the remaining
-specified syntax and native/stdlib parity.
-Control flow, closures, maps, function clauses and generic-body validation have
-verified checkpoints. Preserve the concrete type/ABI and native-output gates in
-[migration progress](docs/RUST_MIGRATION.md).
+The Rust compiler migration is complete. Preserve the cross-platform compiler,
+native-output, tooling and distribution gates in
+[default migration acceptance](docs/RUST_DEFAULT_MIGRATION.md).
 
-1. Extend the bounded native actor checkpoint to generalized suspension, typed supervision and REPL/FernSim parity; preserve the verified mailbox and lifecycle contracts.
-2. Preserve the verified native checker default and its C-bootstrap/reference parity while completing the Rust command migration.
-3. Close remaining spec-to-execution gaps using native-output tests, starting with JSON and server/data APIs.
+1. Extend bounded native actors toward generalized suspension, typed supervision and REPL/FernSim parity while preserving mailbox, ownership and lifecycle contracts.
+2. Close remaining language and stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), including advanced JSON traits and server/database APIs; retain explicit diagnostics for unsupported execution.
+3. Complete editor grammar parity and a publishable matching revision. Keep Cranelift debugger, performance, architecture and promotion decisions separate from compiler migration.

@@ -1,10 +1,15 @@
-# Experimental Rust frontend
+# Fern Rust compiler
 
-An independent Rust frontend for evaluating Fern's next compiler architecture.
-The default Cargo feature set uses only the standard library; an optional
-Cranelift feature adds a direct native object backend. The shipping `fern`
-compiler remains C. This prototype implements a bounded subset; it is not a
-replacement for the current compiler.
+The Rust compiler is the default `fern` command produced by this checkout's
+build, release and install tasks. `fern-c` retains the C frontend for explicit
+reference tests. QBE is the default native backend; Cranelift is an opt-in feature.
+The native C runtime, QBE adapter, test supervisor and editor grammar remain
+separate components. This compiler default does not imply completion of every
+planned language feature or release acceptance gate.
+
+The compiler uses safe Rust and pinned dependencies, including `rustyline` for
+interactive terminal editing. Optional Cranelift dependencies are feature-gated;
+`compiler-rs/Cargo.lock` records the complete dependency graph.
 
 ## Run it
 
@@ -12,20 +17,20 @@ Install the [native build dependencies](../BUILD.md), then run `mise install`
 from the repository root. Fern uses **nightly-2026-09-06** with Cargo, rustfmt,
 Clippy and rust-src; `rust-toolchain.toml` selects the same pin for direct Cargo
 commands. The numeric Cargo requirement `1.100` is a minimum version check,
-not a stable MSRV promise. The Rust frontend uses edition 2021. Decision112
+not a stable MSRV promise. The Rust compiler uses edition 2021. Decision112
 permits pinned production dependencies for the optional Cranelift backend.
 From the repository root:
 
 ```sh
-mise run rust-build
-./bin/fern-rs check compiler-rs/tests/corpus/hello.fn
-./bin/fern-rs emit compiler-rs/tests/corpus/hello.fn
-./bin/fern-rs build compiler-rs/tests/corpus/hello.fn -o hello-rs
+mise run debug
+./bin/fern check compiler-rs/tests/corpus/hello.fn
+./bin/fern emit compiler-rs/tests/corpus/hello.fn
+./bin/fern build compiler-rs/tests/corpus/hello.fn -o hello-rs
 ./hello-rs
-./bin/fern-rs run compiler-rs/tests/corpus/string_function.fn
-./bin/fern-rs run compiler-rs/tests/collections/propagation.fn
-./bin/fern-rs run compiler-rs/tests/types/project/main.fn
-./bin/fern-rs fmt source.fn
+./bin/fern run compiler-rs/tests/corpus/string_function.fn
+./bin/fern run compiler-rs/tests/collections/propagation.fn
+./bin/fern run compiler-rs/tests/types/project/main.fn
+./bin/fern fmt source.fn
 mise run rust-check
 ```
 
@@ -52,7 +57,8 @@ assembler. A host linker, the existing C runtime and its native libraries remain
 required. This does not make Fern's runtime or repository entirely Rust-based.
 The mise build also prepares the QBE and test helpers so the same executable can
 run the reference workflow. It copies the feature-enabled compiler to
-`bin/fern-rs-cranelift`, leaving `bin/fern-rs` in place.
+`bin/fern-rs-cranelift`, leaving the default `bin/fern` and its development
+alias `bin/fern-rs` in place.
 
 Cranelift dependencies are pinned to 0.135.1 with transitive versions in
 `compiler-rs/Cargo.lock`. See [the backend assessment](../docs/BACKEND_REASSESSMENT.md)
@@ -82,17 +88,18 @@ cargo run --locked --offline --manifest-path compiler-rs/Cargo.toml -- check exa
 `fern-qbe`, `libfern_runtime.a`, a host C compiler, and the existing runtime's native
 libraries. Selecting Cranelift removes the QBE and assembler execution stages;
 runtime discovery and final native linking use the same contract.
-Development binaries locate the helper and archive beside `fern-rs`, then in the
-development checkout. [Relocatable preview bundles](../docs/RUST_PREVIEW_PACKAGING.md)
-use sibling components and disable implicit checkout fallback when the preview
-marker is present. `FERN_QBE` and `FERN_RUNTIME_LIB` override their paths; `CC`
+Installed/default binaries locate the helper and archive beside the actual
+compiler executable. The sibling `fern-package.json` marker disables implicit
+checkout fallback. Direct Cargo development binaries without a package marker
+may also use the development checkout. [Separate preview bundles](../docs/RUST_PREVIEW_PACKAGING.md)
+use the same component-discovery boundary. `FERN_QBE` and `FERN_RUNTIME_LIB` override their paths; `CC`
 selects a single compiler executable (not a shell command). `run source.fn -- args` forwards
 literal arguments, available through `System.arg`, `System.args`, and `System.args_count`.
 
 Native documentation/unit tests additionally require `fern-test-supervisor`, built by
-`mise run rust-build` (and the Rust release build). Discovery uses
+`mise run debug` and `mise run release` (also the `rust-build` compatibility task). Discovery uses
 `FERN_TEST_SUPERVISOR`, then an executable sibling; development binaries without
-a preview marker may also use the development `bin` directory.
+a package marker may also use the development `bin` directory.
 An absent or incompatible helper fails explicitly; there is no post-reap group-kill
 fallback. The helper is a trusted executable component, not an untrusted protocol
 server. Rust takes the stdin liveness guard before waiting, validates the bounded
@@ -160,9 +167,11 @@ exit125 remains a test result, separate from helper transport failure.
   (`Tui.Panel`, `Tui.Tree`, etc.), keeping ordinary user-defined names available.
 
 Unsupported syntax produces diagnostics. [Bounded native actors](../docs/RUST_ACTORS.md)
-now execute; generalized suspension, typed supervision, actor REPL/FernSim parity
-and full private signature generalization remain open. Source argument labels
-are supported. Full release parity and default migration remain separate work.
+now execute; generalized suspension, typed supervision and actor REPL/FernSim
+parity remain open. Source argument labels and private signature generalization
+are supported. See [migration progress](../docs/RUST_MIGRATION.md) for acceptance
+evidence and [language parity](../docs/LANGUAGE_PARITY.md) for the audited
+executable compatibility surface.
 
 `fmt source.fn` and `fmt src/` format supported syntax in place, preserve comments,
 and verify that each complete syntax tree remains equivalent. Directory formatting
@@ -171,6 +180,26 @@ publication is atomic per file. Hidden/build/dependency directories and child
 symlinks are skipped. `fmt --check src/` reports all dirty files without writing. The Rust LSP also
 exposes canonical full-document formatting over the current unsaved buffer; the
 editor applies the returned edits.
+`textDocument/prepareRename` and `textDocument/rename` support current-document
+local bindings, private functions and private aliases. Renames use source binding
+identities, recheck the edited source with unsaved dependency buffers, and reject
+capture even when both bindings have the same type. Comments, literal string
+contents, unrelated shadows and field selectors remain untouched. The returned
+`WorkspaceEdit` includes the accepted document version and UTF-16 ranges; the
+server never changes files or buffers itself. Rename is advertised only when the
+client enables `workspace.workspaceEdit.documentChanges`; prepareRename also
+requires `textDocument.rename.prepareSupport`. Literal formatting actions also
+require `textDocument.codeAction.codeActionLiteralSupport`. Missing, false or
+malformed support disables the corresponding feature, and unsupported requests
+return a clear error; diagnostics, navigation and ordinary formatting stay available.
+Public declarations, public default
+parameter labels, imported declarations, members and ambiguous label references
+require workspace refactoring and are rejected. Requests require valid checked
+source and are bounded to 512 matching old/new identifiers, a 2 MiB source graph,
+and 32 MiB of reference indexing work. New names have a 128-byte limit.
+`textDocument/codeAction` offers a versioned canonical formatting edit with kind
+`source.fixAll.fern`, honors `context.only`, and returns no action for clean or
+unparseable source. It does not advertise diagnostic repairs that it cannot apply.
 Comments inside multiline arguments may move adjacent to their statement. Invalid
 source leaves the selected files untouched. See the [directory formatting limits](../DECISIONS.md#99-format-source-directories-after-complete-input-validation).
 Every generic body is checked before specialization, including unused definitions;
@@ -190,7 +219,7 @@ String.slice uses clamped byte offsets and rejects endpoints inside a Unicode sc
 Splitting on an empty delimiter returns complete Unicode scalars. Integer domain
 faults are reported after cleanup, as described below. A source
 file is limited to 1 MiB, 65,536 tokens, and a syntax nesting depth of 128. These
-explicit prototype limits prevent unbounded parser recursion/allocation.
+explicit source limits prevent unbounded parser recursion/allocation.
 
 ## List and tuple patterns
 
@@ -222,9 +251,13 @@ copies share the evaluation work budget, and failed matches publish no bindings.
 The compiler bounds both source pattern nesting and expanded coverage analysis.
 Multiline match, if, for, with and callback expressions also work inside call
 arguments, list elements and tuple elements, including inline separators/closers.
-Result handling still uses reference-based checks beyond wildcard patterns;
-inspecting a List(Result) length can currently satisfy its usage obligation.
-Complete semantic Result-consumption tracking remains migration work.
+Result handling tracks structural obligations through aliases, projections,
+branches, calls and supported recursive builders. Inspecting collection length
+or other metadata does not discharge contained Result values, and handling an
+outer Result does not automatically handle nested payloads. Retaining aggregate
+Result obligations does not prove a recursive output collection is nonempty;
+uncertain flattening paths remain rejected. Unsupported recursive or higher-order
+relationships remain conservative diagnostics.
 
 ## Entry results and return inference
 
@@ -252,10 +285,10 @@ These requirements propagate through named calls, function values, closures and
 recursive helpers. Map key restrictions also apply inside nominal field types.
 No arbitrary Int instance is used to validate a generic body.
 
-Intrinsic requirements are internal in this stage; public `where`/trait syntax
-remains future work. Conditional restrictions on generic Result-bearing values
-are still verified when concretely instantiated, and the broader reference-based
-Result handling limitation described below remains.
+Intrinsic requirements are internal; public `where`/trait syntax remains future
+work. Conditional restrictions on generic Result-bearing values are checked
+through reusable function summaries and concrete instantiations. Proofs remain
+bounded; the checker rejects relationships it cannot establish.
 
 ## Private signature inference
 
@@ -471,7 +504,7 @@ values. Unknown, duplicate or incorrectly typed fields produce diagnostics.
 
 ## Interactive and editor tools
 
-`fern-rs repl` evaluates expressions, successful `let` bindings and typed function
+`fern repl` evaluates expressions, successful `let` bindings and typed function
 or type definitions. Submit indented blocks and continued calls with a blank line. `:help`, `:reset`
 and `:quit` control the session. It checks typed IR and retains values without
 replaying earlier effects. Core values, matching, tuples, generics, common string
@@ -482,7 +515,7 @@ compiled code across later entries; unique retained programs count toward the
 interactive storage budget. Session errors preserve prior
 bindings; already completed filesystem effects cannot be rolled back.
 
-`fern-rs lsp` serves JSON-RPC on standard input/output. It supports lifecycle,
+`fern lsp` serves JSON-RPC on standard input/output. It supports lifecycle,
 UTF-16 diagnostics, full/incremental document changes and module-aware checking
 against unsaved buffers. Imported errors retain their source URI; dependency edits
 recheck callers and clear stale diagnostics. It currently reports the first error
@@ -508,15 +541,16 @@ selector inside a function with concrete parameter and return annotations; main
 may omit its Unit return annotation. The receiver must have a concrete type before
 the unfinished operation is checked. Unannotated/generic enclosing signatures or
 unrelated errors retain lexical fallback. No partial proof becomes executable IR.
-See [the recovery contract](../docs/EDITOR_RECOVERY.md). Rename and code actions
-remain subsequent tooling checkpoints.
+See [the recovery contract](../docs/EDITOR_RECOVERY.md). Local semantic rename
+and versioned canonical formatting actions use the checked source and edit
+contracts described above.
 
 ## Source documentation
 
-`fern-rs doc library.fn` writes Markdown to stdout. Use `--html -o docs.html`
+`fern doc library.fn` writes Markdown to stdout. Use `--html -o docs.html`
 for a standalone HTML page, or `-o docs.md` to save Markdown. Output replacement
 is atomic; source files and their symlink/hardlink aliases cannot be overwritten.
-`fern-rs doc --help` describes the options.
+`fern doc --help` describes the options.
 
 Documentation uses the parser to retain function clause groups, guards, nested
 signatures, type declarations and Unicode names. All declarations are included,
@@ -528,7 +562,7 @@ escaped literal text; Markdown retains authored documentation markup.
 Single files are bounded to 1 MiB and 4,096 declarations; single-file output is
 limited to 8 MiB. Use the separate test command below to execute examples.
 
-Directory documentation accepts `fern-rs doc src --html -o docs.html` and produces
+Directory documentation accepts `fern doc src --html -o docs.html` and produces
 one standalone searchable page. Module paths stay distinct, even when files or
 declarations have the same name. Search matches paths, signatures and doc text;
 module links restore the full view before navigating. Markdown also accepts
@@ -541,7 +575,7 @@ depth 32, 8 MiB combined source, 4,096 declarations and 16 MiB project output;
 each source retains the parser's 1 MiB limit. Errors preserve the previous output,
 and output aliases of any discovered source are rejected.
 
-Use `fern-rs doc library.fn --inferred` or `fern-rs doc src --inferred --html`
+Use `fern doc library.fn --inferred` or `fern doc src --inferred --html`
 to supplement original headers with resolved signatures and intrinsic requirements.
 This checks each current module graph once, including private/generic bodies,
 and never executes code. Imports and source anchors determine which declaration
@@ -559,7 +593,7 @@ Unrelated cached source contents are borrowed during graph loading. Library call
 supplying `FunctionInfo` must preserve facts from the same source snapshot;
 identity and size checks cannot attest caller-edited semantic types.
 
-`fern-rs doc library.fn --open` generates HTML and opens it with the platform
+`fern doc library.fn --open` generates HTML and opens it with the platform
 opener (`open` on macOS, `xdg-open` on Linux). `--open` works with directories and
 `--inferred` and implies `--html`. With `-o`, the destination is relative to the
 current working directory; otherwise the retained artifact is `fern-docs.html`
@@ -581,7 +615,7 @@ no script command override or automatic browser/compiler installation is used.
 
 ## Executable documentation examples
 
-`fern-rs test --doc library.fn` executes each fenced `fern` block in literal @doc
+`fern test --doc library.fn` executes each fenced `fern` block in literal @doc
 metadata as a separate native test. A directory uses the same source discovery
 rules as documentation generation; omitting the path selects the current directory.
 The command executes user code and requires the native build dependencies.
@@ -602,13 +636,13 @@ Each example has a default 10-second runtime limit, configurable with
 Standard input is closed. On Unix, the test owns a private process group that is
 terminated on completion, failure or timeout so descendants cannot hold output open.
 There are at most 256 examples, 64 KiB per example and 1 MiB per source overlay.
-Normal `fern-rs test` also runs source-owned unit functions as described below.
+Normal `fern test` also runs source-owned unit functions as described below.
 Invoking System.exit fails both unit and documentation tests, so exit 0 cannot
 bypass later expectations. Normal application compilation remains unchanged.
 
 ## Unit tests
 
-`fern-rs test [source.fn|directory]` runs zero-argument `test_` functions and
+`fern test [source.fn|directory]` runs zero-argument `test_` functions and
 fenced documentation examples. Tests return Unit or Result(Unit,E); normal Unit
 return and Ok pass, while Err, runtime faults and invalid test signatures fail.
 Later tests continue. Generic tests and Boolean/integer results are rejected.
@@ -656,16 +690,19 @@ Option and Result types remain distinct in checked IR.
 Native tools receive literal argument vectors. Private temporary directories own
 intermediate files. Successful builds atomically replace the requested output;
 failed checks or backend invocations preserve existing outputs. Source/output
-aliases are rejected. Normal install/release recipes continue to package C only.
-The separate [opt-in Rust preview workflow](../docs/RUST_PREVIEW_PACKAGING.md)
-packages explicit built components for use after relocation.
+aliases are rejected. Normal install/release recipes publish the Rust compiler
+as `fern` with `fern-qbe`, `fern-test-supervisor`, `libfern_runtime.a`, and the
+package marker; `fern-c` remains an explicit reference executable. The separate
+[preview workflow](../docs/RUST_PREVIEW_PACKAGING.md) remains available for
+packaging explicit built components. Relocation still requires host native
+development libraries for subsequent program compilation.
 
 ## Evaluation and maintenance
 
 Run `mise run rust-check` for format, clippy, Rust tests, and native differential
 fixtures. CI runs it on Linux and macOS. Run `mise run rust-cranelift-check`
 for the optional feature and its independent native corpus, and `mise run check`
-for the existing C gates.
+for the C reference/runtime and default-command integration gates.
 Native fixtures specify exact stdout and exit status independently of C. Known C
 backend differences are named in the manifest and reported; they do not relax
 Rust's expected output. Seeded generated programs exercise the shared subset.
@@ -705,11 +742,11 @@ selector can navigate to both. Duplicate declarations within either namespace
 remain errors.
 
 
-The Rust frontend also compiles `scripts/check_style.fn`. Run
+The default Rust compiler also compiles `scripts/check_style.fn`. Run
 `uv run scripts/test_style_parity.py --compiler compiler-rs/target/debug/fern-rs`
 to compare its native diagnostics, severity, file counts and exits with Python.
-This gate is included in `mise run rust-check`; full bootstrap workflow parity remains
-tracked in the roadmap.
+Source parity and bootstrap workflow checks are included in `mise run rust-check`;
+the roadmap records their current acceptance evidence.
 
 Finite ordinary-type unions now support declared member/subset conversions and
 typed match narrowing in native execution and the REPL. Full-width payloads retain
@@ -719,8 +756,8 @@ and lifted operators remain separate work. See [the union contract](../docs/UNIO
 
 ### Syntax inspection
 
-`fern-rs lex source.fn` prints the actual Rust lexer token kinds with UTF-8 byte
-ranges. `fern-rs parse source.fn` prints the unresolved source AST, including its
+`fern lex source.fn` prints the actual Rust lexer token kinds with UTF-8 byte
+ranges. `fern parse source.fn` prints the unresolved source AST, including its
 spans. Neither command loads imports, checks types/names or runs code; they also
 accept library files without an entrypoint. Lexing still validates delimiters and
 indentation, so a successful token dump is not guaranteed for malformed layout.

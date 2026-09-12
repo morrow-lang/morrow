@@ -62,7 +62,7 @@ def main():
     environment = dict(os.environ)
     environment.setdefault('FERN_QBE', str(ROOT / 'bin/fern-qbe'))
     environment.setdefault('FERN_RUNTIME_LIB', str(ROOT / 'bin/libfern_runtime.a'))
-    compilers = args.compiler or [ROOT / 'bin/fern', ROOT / 'compiler-rs/target/debug/fern-rs']
+    compilers = args.compiler or [ROOT / 'bin/fern-c', ROOT / 'compiler-rs/target/debug/fern-rs']
     with tempfile.TemporaryDirectory(prefix='fern-stderr-source-') as temporary:
         for compiler in compilers:
             verify(compiler.resolve(), Path(temporary), environment)

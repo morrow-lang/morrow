@@ -4,11 +4,11 @@ Status: accepted bounded implementation. Typed native execution is 105A; general
 
 ## Try the native example
 
-Build the opt-in frontend and run the [two-message example](../compiler-rs/tests/actors/receive_continues.fn):
+Build the default compiler and run the [two-message example](../compiler-rs/tests/actors/receive_continues.fn):
 
 ```sh
-mise run rust-build
-./compiler-rs/target/debug/fern-rs run compiler-rs/tests/actors/receive_continues.fn
+mise run debug
+./bin/fern run compiler-rs/tests/actors/receive_continues.fn
 ```
 
 It prints `one`, then `two`. The worker keeps its local state while waiting for the

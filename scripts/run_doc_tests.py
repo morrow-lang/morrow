@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -156,10 +157,10 @@ def extract_snippets(source: Path) -> list[DocSnippet]:
             if not collecting and FENCE_START_RE.match(line):
                 collecting = True
                 buffer = []
-                snippet_line = start_line + idx + 1
+                snippet_line = start_line + idx + 2
                 continue
             if collecting and FENCE_END_RE.match(line):
-                code = "\n".join(buffer).strip()
+                code = textwrap.dedent("\n".join(buffer)).strip()
                 if code:
                     snippets.append(DocSnippet(source=source, line=snippet_line, code=code))
                 collecting = False
@@ -171,79 +172,29 @@ def extract_snippets(source: Path) -> list[DocSnippet]:
     return snippets
 
 
-def should_keep_statement(line: str) -> bool:
-    """Decide whether snippet line should be treated as a statement.
-
-    Args:
-        line: Normalized line.
-
-    Returns:
-        True if line can be emitted as a statement.
-    """
-
-    if line.endswith(":"):
-        return True
-
-    prefixes = (
-        "let ",
-        "return ",
-        "if ",
-        "match ",
-        "with ",
-        "for ",
-        "break",
-        "continue",
-        "defer ",
-    )
-    return line.startswith(prefixes)
-
-
-def strip_expectation(line: str) -> str:
-    """Remove inline expected-output comments.
-
-    Args:
-        line: Snippet line.
-
-    Returns:
-        Line without trailing `# => ...` expectation.
-    """
-
-    marker = "# =>"
-    if marker not in line:
-        return line
-    return line.split(marker, maxsplit=1)[0].rstrip()
-
-
 def build_wrapper(snippet: str) -> str | None:
-    """Wrap expression-style snippets in a minimal compilable Fern program.
+    """Indent literal statements without altering nesting, comments, strings or Result use.
 
-    Args:
-        snippet: Raw snippet code.
-
-    Returns:
-        Wrapped Fern source, or None if snippet has no executable lines.
+    This legacy documentation gate checks types only. Expectation comments remain
+    ordinary comments; executable expectations belong to `fern test --doc`.
     """
-
-    lines = snippet.splitlines()
-    body: list[str] = []
-    value_index = 0
-
-    for raw in lines:
-        stripped = strip_expectation(raw).strip()
-        if not stripped or stripped.startswith("#"):
-            continue
-
-        if should_keep_statement(stripped):
-            body.append(f"    {stripped}")
-        else:
-            body.append(f"    let _doc_value_{value_index} = {stripped}")
-            value_index += 1
-
-    if not body:
+    code = textwrap.dedent(snippet).strip()
+    if not code or all(not line.strip() or line.lstrip().startswith("#") for line in code.splitlines()):
         return None
+    return "fn main() -> Int:\n" + textwrap.indent(code, "    ") + "\n    0\n"
 
-    body.append("    0")
-    return "module doc_tests\n\nfn main() -> Int:\n" + "\n".join(body) + "\n"
+
+def temporary_source_path(directory: Path, source_text: str) -> Path:
+    """Honor a leading module declaration without allowing paths outside the temporary root."""
+    first = next((line.strip() for line in source_text.splitlines()
+                  if line.strip() and not line.lstrip().startswith("#")), "")
+    declaration = re.fullmatch(r"module[ \t]+([^ \t#]+)[ \t]*(?:#.*)?", first)
+    parts = declaration.group(1).split(".") if declaration else ["doc_tests"]
+    if any(not part or any(character in part for character in "/\\\0") for part in parts):
+        raise ValueError("invalid documentation module path")
+    path = directory.joinpath(*parts).with_suffix(".fn")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 def run_check(fern_bin: str, source_text: str) -> tuple[int, str]:
@@ -257,26 +208,23 @@ def run_check(fern_bin: str, source_text: str) -> tuple[int, str]:
         Tuple of `(exit_code, combined_output)`.
     """
 
-    with tempfile.NamedTemporaryFile(
-        mode="w",
-        suffix=".fn",
-        encoding="utf-8",
-        delete=False,
-    ) as temp:
-        temp.write(source_text)
-        temp_path = Path(temp.name)
-
-    try:
-        result = subprocess.run(
-            [fern_bin, "check", str(temp_path)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        output = f"{result.stdout}{result.stderr}"
-        return result.returncode, output
-    finally:
-        temp_path.unlink(missing_ok=True)
+    with tempfile.TemporaryDirectory(prefix="fern-doc-check-") as temp:
+        try:
+            temp_path = temporary_source_path(Path(temp), source_text)
+        except ValueError as error:
+            return 1, str(error)
+        temp_path.write_text(source_text, encoding="utf-8")
+        try:
+            result = subprocess.run(
+                [fern_bin, "check", str(temp_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=15,
+            )
+        except subprocess.TimeoutExpired:
+            return 1, "documentation typecheck exceeded 15-second limit"
+        return result.returncode, f"{result.stdout}{result.stderr}"
 
 
 def check_snippet(snippet: DocSnippet, fern_bin: str) -> tuple[bool, str]:

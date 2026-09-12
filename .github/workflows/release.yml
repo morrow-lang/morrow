@@ -38,17 +38,28 @@ jobs:
       - name: Validate compatibility policy
         run: mise run release-policy-check
 
+      - name: Validate release versions and dependency notices
+        run: |
+          python3 scripts/test_default_ci_workflow.py
+          python3 scripts/test_third_party_notices.py
+
       - name: Enforce performance budgets
         run: PERF_BUDGET_FLAGS=--skip-build mise run perf-budget
 
       - name: Generate benchmark + case-study report
         run: BENCHMARK_FLAGS="--skip-release-build --output dist/benchmark-case-studies.md" mise run benchmark-report
 
-      - name: Upload readiness binary artifact
+      - name: Package verified readiness bundle
+        run: mise run --skip-deps release-package
+
+      - name: Upload readiness bundle artifact
         uses: actions/upload-artifact@v4
         with:
           name: fern-release-readiness-linux
-          path: bin/fern
+          path: |
+            dist/*.tar.gz
+            dist/*.tar.gz.sha256
+          if-no-files-found: error
 
       - name: Upload benchmark report artifact
         uses: actions/upload-artifact@v4
@@ -96,6 +107,9 @@ jobs:
 
       - name: Build and package release bundle
         run: mise run clean && mise run release-package
+
+      - name: Verify packaged dependency notices
+        run: python3 scripts/test_third_party_notices.py
 
       - name: Upload packaged artifacts
         uses: actions/upload-artifact@v4

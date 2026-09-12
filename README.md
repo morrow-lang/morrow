@@ -67,20 +67,17 @@ in the test suite. The [build guide](BUILD.md) covers local installation and
 platform requirements; native builds need the host C compiler and the GC,
 SQLite and OpenSSL libraries listed there.
 
-### Try the Rust frontend
+### Compiler and native components
 
-Fern is moving to Rust. The expanded frontend is available explicitly while the
-C compiler remains the default:
-
-```sh
-mise run rust-build
-./bin/fern-rs run examples/tiny_cli.fn
-```
+`mise run debug`, `release`, and `install` select the Rust compiler as `fern`.
+The C frontend remains available explicitly as `fern-c` for reference tests.
+QBE is the default backend; the native runtime, QBE adapter and test supervisor
+remain C components. The compiler migration does not replace the editor grammar.
 
 Mise selects the project's dated Rust nightly and required components. See the
-[Rust frontend guide](compiler-rs/README.md) for supported syntax and commands,
-or [package a relocatable preview](docs/RUST_PREVIEW_PACKAGING.md) to try it
-outside the source checkout.
+[compiler guide](compiler-rs/README.md) for supported syntax, editor tools and the
+opt-in Cranelift backend. Installation includes the native helpers, runtime archive
+and package marker needed outside the source checkout.
 
 ## Explore by example
 
@@ -90,14 +87,15 @@ outside the source checkout.
 | [HTTP errors](examples/http_api.fn) | Explicit error handling, with no network access required |
 | [Terminal project view](examples/tui_project.fn) | Structured trees and logs |
 | [Actor mailboxes](examples/actor_app.fn) | The default compiler's explicit mailbox operations |
-| [Rust actors](compiler-rs/tests/actors/receive_continues.fn) | Typed messages and native receive continuations; use `fern-rs` |
+| [Typed actors](compiler-rs/tests/actors/receive_continues.fn) | Typed messages and native receive continuations |
 
 ## Where the project stands
 
-Default builds use QBE and the native runtime. The Rust frontend adds
-features including validating JSON, derived codecs and
-[bounded typed actor execution](docs/RUST_ACTORS.md). The default C frontend
-retains its legacy JSON compatibility API and explicit mailbox primitives.
+The Rust default compiler supports validating JSON, derived codecs and
+[bounded typed actor execution](docs/RUST_ACTORS.md), alongside the explicit
+mailbox primitives. The `fern-c` reference retains its legacy JSON compatibility
+API. [Executable parity evidence](docs/LANGUAGE_PARITY.md) records the audited
+compatibility surface and intentional semantic differences.
 
 Generalized actor suspension, typed supervision, actor REPL/FernSim parity and
 HTTP serving remain open. An opt-in

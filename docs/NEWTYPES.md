@@ -48,5 +48,5 @@ capability expansion use depth 128, 4096-node type limits and an aggregate 400,0
 work limit. The backend validates concrete layout shape and references before
 selecting widths or emitting code, including caller-created IR.
 
-This feature is available in the opt-in Rust frontend. The shipping compiler
-remains C until the migration gates are complete.
+This feature is available in the default Rust compiler, `fern`. The explicit
+C reference compiler, `fern-c`, does not implement this contract.

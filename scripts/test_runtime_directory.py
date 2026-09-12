@@ -19,7 +19,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--c-only",action="store_true")
     options=parser.parse_args()
-    compilers=[ROOT/"bin/fern"]
+    compilers=[ROOT/"bin/fern-c"]
     if not options.c_only: compilers.append(ROOT/"compiler-rs/target/debug/fern-rs")
     flags = subprocess.check_output(["pkg-config", "--libs", "bdw-gc", "sqlite3", "openssl"], text=True)
     environment = dict(os.environ, FERN_QBE=str(ROOT / "bin/fern-qbe"),

@@ -66,6 +66,8 @@ description = "Fern debug"
 run = '''
 mise run _build-fern debug
 mise run _build-runtime debug
+mise run _build-rust-backend
+bash scripts/tasks/build-default debug
 '''
 
 [tasks.release]
@@ -74,6 +76,8 @@ run = '''
 mise run clean
 mise run _build-fern release
 mise run _build-runtime release
+mise run _build-rust-backend
+bash scripts/tasks/build-default release
 '''
 
 [tasks.runtime-lib]
@@ -105,6 +109,11 @@ python3 scripts/test_runtime_directory.py --c-only
 python3 scripts/test_string_codegen.py
 python3 tests/integration/test_print_types.py
 python3 scripts/test_release_workflow.py
+python3 scripts/test_default_distribution.py
+python3 scripts/test_default_selection.py
+python3 scripts/test_default_ci_workflow.py
+python3 scripts/test_repl_terminal.py --fern bin/fern
+python3 scripts/test_third_party_notices.py
 '''
 
 [tasks.test-user-workflows]
@@ -132,9 +141,23 @@ echo "✓ Cleaned build artifacts"
 description = "Fern install"
 depends = ["release"]
 run = '''
+# Existing directories must never turn exact component destinations into nested copies.
+for destination in bin/fern bin/fern-c bin/fern-qbe bin/fern-test-supervisor \
+    bin/fern-package.json bin/libfern_runtime.a share/fern/LICENSE share/fern/THIRD_PARTY_NOTICES.md; do
+    if [[ -d "${DESTDIR-}${PREFIX-/usr/local}/$destination" ]]; then
+        echo "invalid install destination: $destination is a directory" >&2
+        exit 1
+    fi
+done
 install -d "${DESTDIR-}${PREFIX-/usr/local}/bin"
+install -d "${DESTDIR-}${PREFIX-/usr/local}/share/fern"
 install -m 755 bin/fern "${DESTDIR-}${PREFIX-/usr/local}/bin/fern"
+install -m 755 bin/fern-c "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-c"
+install -m 755 bin/fern-qbe "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-qbe"
+install -m 755 bin/fern-test-supervisor "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-test-supervisor"
+install -m 644 bin/fern-package.json "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-package.json"
 install -m 644 bin/libfern_runtime.a "${DESTDIR-}${PREFIX-/usr/local}/bin/libfern_runtime.a"
+install -m 644 LICENSE THIRD_PARTY_NOTICES.md "${DESTDIR-}${PREFIX-/usr/local}/share/fern/"
 echo "✓ Installed fern and runtime to ${DESTDIR-}${PREFIX-/usr/local}/bin"
 '''
 
@@ -142,6 +165,8 @@ echo "✓ Installed fern and runtime to ${DESTDIR-}${PREFIX-/usr/local}/bin"
 description = "Fern uninstall"
 run = '''
 rm -f "${DESTDIR-}${PREFIX-/usr/local}/bin/fern" "${DESTDIR-}${PREFIX-/usr/local}/bin/libfern_runtime.a"
+rm -f "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-c" "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-qbe" "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-test-supervisor" "${DESTDIR-}${PREFIX-/usr/local}/bin/fern-package.json"
+rm -f "${DESTDIR-}${PREFIX-/usr/local}/share/fern/LICENSE" "${DESTDIR-}${PREFIX-/usr/local}/share/fern/THIRD_PARTY_NOTICES.md"
 echo "✓ Uninstalled fern"
 '''
 
@@ -166,12 +191,14 @@ python3 scripts/test_style_default.py
 python3 scripts/test_qbe_apple_registers.py
 python3 scripts/test_native_test_supervisor.py
 python3 scripts/test_c_int64.py
-python3 scripts/test_process_frontends.py --compiler bin/fern
-python3 scripts/test_stderr_frontends.py --compiler bin/fern
+python3 scripts/test_process_frontends.py --compiler bin/fern --compiler bin/fern-c
+python3 scripts/test_stderr_frontends.py --compiler bin/fern --compiler bin/fern-c
 python3 scripts/test_file_text_frontends.py --compiler bin/fern
+python3 scripts/test_file_text_frontends.py --compiler bin/fern-c
 python3 scripts/generate_decimal_tables.py --check
 python3 scripts/test_decimal_generator.py
-python3 scripts/test_decimal_frontends.py --compiler bin/fern --c
+python3 scripts/test_decimal_frontends.py --compiler bin/fern-c --c
+python3 scripts/test_decimal_frontends.py --compiler bin/fern
 FERN_STYLE_TOOL_PATH="$PATH" uv run --locked scripts/test_style_workflow.py --native "$PWD/scripts/check_style"
 '''
 
@@ -288,6 +315,7 @@ depends = ["debug"]
 run = '''
 mise run docs-consistency
 python3 scripts/generate_unified_docs.py --check ${DOC_FLAGS:-}
+python3 scripts/test_doc_test_runner.py
 python3 scripts/run_doc_tests.py ${DOC_TEST_FLAGS:-}
 '''
 
@@ -307,6 +335,7 @@ run = '''
 iters="${ITERS:-64}"
 seed="${SEED:-0xC0FFEE}"
 ./bin/fuzz_runner --iterations "$iters" --seed "$seed" --fern-bin ./bin/fern
+./bin/fuzz_runner --iterations "$iters" --seed "$seed" --fern-bin ./bin/fern-c
 '''
 
 [tasks.fuzz-forever]
@@ -324,7 +353,8 @@ done
 [tasks.perf-budget]
 description = "Fern perf budget"
 run = '''
-python3 scripts/check_perf_budget.py ${PERF_BUDGET_FLAGS:-}
+python3 scripts/check_perf_budget.py --bin-path bin/fern-c ${PERF_BUDGET_FLAGS:-}
+python3 scripts/check_perf_budget.py --skip-build --bin-path bin/fern --binary-budget-bytes 4194304
 '''
 
 [tasks.release-policy-check]
@@ -347,8 +377,10 @@ version="$(awk -F'"' '/^#define FERN_VERSION_STRING / {print $2; exit}' include/
 rm -rf dist/staging
 mkdir -p dist/staging/docs
 cp bin/fern dist/staging/fern
+cp bin/fern-c bin/fern-qbe bin/fern-test-supervisor bin/fern-package.json dist/staging/
 cp bin/libfern_runtime.a dist/staging/libfern_runtime.a
 cp LICENSE dist/staging/LICENSE
+cp THIRD_PARTY_NOTICES.md dist/staging/THIRD_PARTY_NOTICES.md
 cp README.md dist/staging/README.md
 cp docs/COMPATIBILITY_POLICY.md dist/staging/docs/COMPATIBILITY_POLICY.md
 python3 scripts/package_release.py package \
@@ -363,8 +395,10 @@ run = '''
 rm -rf dist/staging
 mkdir -p dist/staging/docs
 cp bin/fern dist/staging/fern
+cp bin/fern-c bin/fern-qbe bin/fern-test-supervisor bin/fern-package.json dist/staging/
 cp bin/libfern_runtime.a dist/staging/libfern_runtime.a
 cp LICENSE dist/staging/LICENSE
+cp THIRD_PARTY_NOTICES.md dist/staging/THIRD_PARTY_NOTICES.md
 cp README.md dist/staging/README.md
 cp docs/COMPATIBILITY_POLICY.md dist/staging/docs/COMPATIBILITY_POLICY.md
 python3 scripts/package_release.py verify-layout --staging dist/staging
@@ -438,6 +472,7 @@ mise run rust-fmt
 cargo clippy --locked --manifest-path compiler-rs/Cargo.toml --all-targets --features cranelift -- -D warnings
 cargo test --locked --manifest-path compiler-rs/Cargo.toml --features cranelift
 python3 scripts/test_cranelift_backend.py --compiler bin/fern-rs-cranelift
+python3 scripts/test_migration_language.py --compiler bin/fern-rs-cranelift --backend cranelift --reference-compiler bin/fern-c
 '''
 
 [tasks.zed-extension-check]
@@ -485,6 +520,7 @@ python3 scripts/test_rust_labels.py
 python3 scripts/test_rust_unions.py
 python3 scripts/test_rust_global_identity.py
 python3 scripts/test_rust_stdlib.py
+python3 scripts/test_migration_language.py --compiler compiler-rs/target/debug/fern-rs --reference-compiler bin/fern-c
 python3 scripts/test_sql_frontends.py --compiler compiler-rs/target/debug/fern-rs
 python3 scripts/test_rust_actors.py
 python3 scripts/test_rust_json.py

@@ -14,9 +14,10 @@ class ReleaseWorkflow(unittest.TestCase):
     def test_recipe_builds_one_correctly_named_archive(self):
         with tempfile.TemporaryDirectory(prefix="fern-release-") as temp:
             root = Path(temp)
-            for name in ("mise.toml", "LICENSE", "README.md", "include/version.h",
+            for name in ("mise.toml", "LICENSE", "THIRD_PARTY_NOTICES.md", "README.md", "include/version.h",
                          "docs/COMPATIBILITY_POLICY.md", "scripts/package_release.py",
-                         "bin/fern", "bin/libfern_runtime.a"):
+                         "bin/fern", "bin/fern-c", "bin/fern-qbe", "bin/fern-test-supervisor",
+                         "bin/fern-package.json", "bin/libfern_runtime.a"):
                 destination = root / name
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(ROOT / name, destination)

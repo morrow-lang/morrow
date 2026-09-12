@@ -1,0 +1,270 @@
+{
+  "artifacts": {
+    "c": {
+      "bytes": 651976,
+      "path": "/tmp/fern-migration-run/fern/bin/fern-c",
+      "sha256": "82427afec4c9d0a0e3db2da3a720372aea03b18f47fed1216e9bb4a6cf53295d"
+    },
+    "rust": {
+      "bytes": 3806232,
+      "path": "/tmp/fern-migration-run/fern/bin/fern",
+      "sha256": "288fd2ed9f2c79b39c02e412ff3c278d28046b77d608f59dbaa3ebf19e7dc38b"
+    },
+    "rust_qbe_sidecar": {
+      "bytes": 367488,
+      "path": "/tmp/fern-migration-run/fern/bin/fern-qbe",
+      "sha256": "b324349b6bc50549acc5a501b12bea6edb7bf86c8c23126b0805d94d8e8a5dc5"
+    }
+  },
+  "metadata": {
+    "caveats": [
+      "Binaries are supplied by the caller; this script neither rebuilds nor verifies release flags.",
+      "git_dirty records uncommitted source state; artifact SHA256 values identify the measured binaries.",
+      "Process startup, parsing and checking are included in check/emit timings; emit includes stdout capture.",
+      "Warm filesystem caches and fixed C/Rust order can affect results; no CPU isolation is applied.",
+      "Native build includes frontend, QBE, assembly and linking; it is not a frontend-only measurement.",
+      "p95 uses nearest rank; few samples do not support broad latency claims.",
+      "One synthetic common-subset fixture cannot establish full-language correctness or performance.",
+      "C embeds QBE; Rust's QBE sidecar is reported separately. Shared runtime/system library costs are excluded."
+    ],
+    "configuration": {
+      "FERN_QBE": "/tmp/fern-migration-run/fern/bin/fern-qbe",
+      "FERN_RUNTIME_LIB": "automatic discovery",
+      "LIBRARY_PATH_removed": false,
+      "build_samples": 10,
+      "expected_exit": 0,
+      "expected_stdout": "100\n",
+      "frontend_samples": 30,
+      "functions": 101,
+      "order": "C then Rust, alternating for each sample",
+      "source_bytes": 4519,
+      "source_sha256": "cc4c4a286f4c3cc26cfbab2f055b29884761d4d751d9783e8b5ca1089d49d7f8",
+      "timeout_seconds": 30,
+      "warmups_per_frontend_action": 1
+    },
+    "git_commit": "6a7bae8e2f30256b5401a13adf85ad07a1f774c3",
+    "git_dirty": true,
+    "host": {
+      "logical_cpus": 4,
+      "machine": "aarch64",
+      "release": "7.0.0-27-generic",
+      "system": "Linux"
+    },
+    "tools": {
+      "cargo": "cargo 1.100.0-nightly (3c0b53475 2026-09-04)",
+      "cc": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+      "python": "3.14.7",
+      "rustc": "rustc 1.100.0-nightly (f248f4038 2026-09-05)"
+    },
+    "utc": "2026-09-12T02:10:31.140581+00:00"
+  },
+  "metrics": {
+    "c": {
+      "check": {
+        "median_ms": 0.4478345,
+        "p95_ms": 0.573168,
+        "samples_ms": [
+          0.475709,
+          0.573168,
+          0.439335,
+          0.473209,
+          0.437835,
+          0.46296,
+          0.501293,
+          0.477376,
+          0.445334,
+          1.596005,
+          0.418376,
+          0.472001,
+          0.444335,
+          0.410835,
+          0.439918,
+          0.477959,
+          0.41971,
+          0.467043,
+          0.442334,
+          0.443543,
+          0.418043,
+          0.459335,
+          0.452084,
+          0.453459,
+          0.434709,
+          0.450335,
+          0.49871,
+          0.430168,
+          0.443126,
+          0.409709
+        ]
+      },
+      "emit": {
+        "median_ms": 1.6699009999999999,
+        "p95_ms": 1.956381,
+        "samples_ms": [
+          1.956381,
+          1.819464,
+          1.76463,
+          1.727421,
+          1.702005,
+          1.491671,
+          1.489088,
+          1.557838,
+          1.240379,
+          1.964714,
+          1.759921,
+          1.769589,
+          1.755505,
+          1.405213,
+          1.542921,
+          1.584296,
+          1.594379,
+          1.64038,
+          1.697255,
+          1.664963,
+          1.804839,
+          1.553879,
+          1.250836,
+          1.841131,
+          1.524588,
+          1.69088,
+          1.706755,
+          1.613797,
+          1.627297,
+          1.674839
+        ]
+      },
+      "native_build": {
+        "median_ms": 29.2765425,
+        "p95_ms": 30.85013,
+        "samples_ms": [
+          30.85013,
+          30.606213,
+          29.246459,
+          29.862586,
+          28.811666,
+          29.67846,
+          29.009792,
+          28.685541,
+          29.214792,
+          29.306626
+        ]
+      },
+      "native_executable_bytes": [
+        470296,
+        470296,
+        470296,
+        470296,
+        470296,
+        470296,
+        470296,
+        470296,
+        470296,
+        470296
+      ],
+      "native_verified": 10
+    },
+    "rust": {
+      "check": {
+        "median_ms": 1.8575675,
+        "p95_ms": 1.93388,
+        "samples_ms": [
+          1.937505,
+          1.911756,
+          1.90788,
+          1.79988,
+          1.856131,
+          1.858839,
+          1.845214,
+          1.839006,
+          1.861963,
+          1.925673,
+          1.889589,
+          1.901755,
+          1.83138,
+          1.894422,
+          1.851506,
+          1.865672,
+          1.93388,
+          1.784714,
+          1.911213,
+          1.857172,
+          1.835672,
+          1.771089,
+          1.857963,
+          1.794422,
+          1.790047,
+          1.823463,
+          1.827588,
+          1.879131,
+          1.849422,
+          1.905172
+        ]
+      },
+      "emit": {
+        "median_ms": 2.9640505,
+        "p95_ms": 3.12655,
+        "samples_ms": [
+          2.953092,
+          2.988592,
+          2.939592,
+          2.900467,
+          2.947633,
+          2.955842,
+          2.9318,
+          2.923259,
+          3.184092,
+          2.978717,
+          2.9138,
+          3.066967,
+          3.049258,
+          2.890384,
+          3.092467,
+          3.012258,
+          2.962509,
+          3.052592,
+          2.96705,
+          3.022967,
+          2.9478,
+          3.043009,
+          2.883133,
+          2.872633,
+          3.12655,
+          2.834425,
+          2.961676,
+          3.0738,
+          2.965592,
+          3.080842
+        ]
+      },
+      "native_build": {
+        "median_ms": 35.057204999999996,
+        "p95_ms": 35.822769,
+        "samples_ms": [
+          35.242518,
+          35.422143,
+          35.822769,
+          35.033309,
+          34.753391,
+          34.885975,
+          34.702433,
+          35.525935,
+          34.803933,
+          35.081101
+        ]
+      },
+      "native_executable_bytes": [
+        470800,
+        470800,
+        470800,
+        470800,
+        470800,
+        470800,
+        470800,
+        470800,
+        470800,
+        470800
+      ],
+      "native_verified": 10
+    }
+  },
+  "status": "success"
+}

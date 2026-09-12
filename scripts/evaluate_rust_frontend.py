@@ -191,7 +191,7 @@ def evaluate(options: argparse.Namespace) -> dict:
 def arguments() -> argparse.Namespace:
     """Parse bounded sample counts and caller-selected existing artifacts/output."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--c-compiler", type=Path, default=ROOT / "bin/fern")
+    parser.add_argument("--c-compiler", type=Path, default=ROOT / "bin/fern-c")
     parser.add_argument("--rust-compiler", type=Path, default=ROOT / "compiler-rs/target/release/fern-rs")
     parser.add_argument("--qbe", type=Path, default=ROOT / "bin/fern-qbe")
     parser.add_argument("--samples", type=int, default=15)

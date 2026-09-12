@@ -352,7 +352,7 @@ static BuildRunResult build_and_run_source(const char* source) {
         cmd,
         sizeof(cmd),
         "mise run runtime-lib >/dev/null 2>&1 && "
-        "./bin/fern build -o %s %s 2>&1",
+        "./bin/fern-c build -o %s %s 2>&1",
         output_path,
         source_path
     );
@@ -1162,7 +1162,7 @@ void test_runtime_rejects_unimplemented_actor_execution(void) {
         int failures = 0;
         for (size_t j = 0; j < sizeof(commands) / sizeof(commands[0]); j++) {
             char cmd[1024];
-            snprintf(cmd, sizeof(cmd), "./bin/fern %s %s 2>&1", commands[j], source_path);
+            snprintf(cmd, sizeof(cmd), "./bin/fern-c %s %s 2>&1", commands[j], source_path);
             CmdResult command = run_cmd(cmd);
             if (j == 0) {
                 if (command.exit_code != 0) failures++;

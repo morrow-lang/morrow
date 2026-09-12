@@ -57,5 +57,5 @@ remain forbidden in executable IR.
 Constructor refinements such as `Ok(data) | Err(msg)`, variance, implicit union
 joins and lifted capabilities remain separate work. The formatter, module loader,
 documentation and semantic language server support this checkpoint; full editor
-parser parity is tracked separately. This feature uses the opt-in Rust frontend.
-The shipping compiler remains C until the migration gates are complete.
+parser parity is tracked separately. This feature uses the default Rust compiler,
+`fern`. The explicit C reference compiler, `fern-c`, does not implement this contract.

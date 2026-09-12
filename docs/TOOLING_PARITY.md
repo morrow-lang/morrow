@@ -17,7 +17,7 @@
 
 ### CLI and interactive tooling compatibility
 
-The installed Rust compiler identifies itself as `fern 0.1.0`, exactly matching the C release version; the explicit build artifact/alias may retain the name fern-rs. Help examples use fern, and no banner labels the default compiler an experimental subset. Every source-taking command accepts `--` before a literal source filename, including names that match global options. Existing `fern run source.fn -- arguments` forwarding remains available. Documentation with no operand defaults to the current directory.
+The installed Rust compiler identifies itself as `fern <release-version>`, exactly matching the C release version; the explicit build artifact/alias may retain the name fern-rs. Help examples use fern, and no banner labels the default compiler an experimental subset. Every source-taking command accepts `--` before a literal source filename, including names that match global options. Existing `fern run source.fn -- arguments` forwarding remains available. Documentation with no operand defaults to the current directory.
 
 The REPL supports `:type` / `:t` without evaluating the inspected expression or replaying retained bindings. It obtains finalized inferred schemes from the ordinary checker, including native-only API result types. `:h` and `:clear` match the existing public command aliases. Piped and terminal REPLs share one bounded entry/paste state machine; Ctrl-C cancels the current terminal line/block/paste while preserving successful earlier definitions and values.
 

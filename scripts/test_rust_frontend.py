@@ -35,7 +35,7 @@ def main():
     parser.add_argument("--report")
     args = parser.parse_args()
     rust = (ROOT / args.rust_bin).resolve()
-    reference = ROOT / "bin/fern"
+    reference = ROOT / "bin/fern-c"
     environment = dict(os.environ, FERN_QBE=str(ROOT / "bin/fern-qbe"),
                        FERN_RUNTIME_LIB=str(ROOT / "bin/libfern_runtime.a"))
     records = []

@@ -1,10 +1,13 @@
 # Incremental Rust migration
 
-The Rust frontend now supports custom types, generic functions, modules, immutable
-lists, and error/optional values from source parsing through native execution. The shipping `fern` compiler stays
-C while language and tooling parity are developed. The original
-[evaluation](RUST_FRONTEND_EVALUATION.md) is a snapshot of the initial scalar
-prototype; its measurements do not describe the expanded compiler.
+The default build and installation now select the Rust compiler as `fern`, with
+`fern-c` retained as the explicit C bootstrap/reference compiler. QBE remains the
+default native backend; Cranelift is an optional separately tested backend.
+[The completion contract](RUST_DEFAULT_MIGRATION.md) records executable language,
+Result proof, tooling and distribution acceptance. The dated sections below are
+historical checkpoints; their opt-in/default claims and counts describe those dates.
+The original [evaluation](RUST_FRONTEND_EVALUATION.md) measures the initial scalar
+prototype, not the expanded compiler.
 
 ## Shared native lowering and experimental Cranelift — 2026-09-06
 
@@ -171,17 +174,14 @@ and lack CPU isolation. They demonstrate a usable edit/check loop, not a general
 speed advantage or full-language parity. This synthetic fixture does not measure
 collection-heavy compilation separately.
 
-## Remaining migration work
+## Migration acceptance and future work
 
-Bounded native actors now execute; generalized suspension, typed supervision,
-actor REPL/FernSim parity and broader language/runtime parity remain open.
-Opt-in relocatable Rust preview packaging is available; complete release parity
-and verified default-command migration remain separate requirements. The dated
-sections below record successive checkpoints rather than the current list of
-unsupported features.
-
-See [Rust native actors](RUST_ACTORS.md), [preview packaging](RUST_PREVIEW_PACKAGING.md),
-the [supported-feature guide](../compiler-rs/README.md), and the [roadmap](../ROADMAP.md).
+See [the default migration contract](RUST_DEFAULT_MIGRATION.md),
+[executable language parity](LANGUAGE_PARITY.md), [tooling parity](TOOLING_PARITY.md)
+and the [active roadmap](../ROADMAP.md). Generalized actor suspension, broader
+server/database APIs and additional editor grammar remain future language work.
+The compiler migration preserves the separate C runtime, QBE backend, native
+supervisor, C reference compiler and correctness oracles.
 
 Directory native parity exposed a C backend defect: matched Result payloads were
 classified as Strings solely because their storage was 64 bits. Pattern binders and expressions

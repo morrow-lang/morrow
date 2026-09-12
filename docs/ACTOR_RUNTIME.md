@@ -1,12 +1,12 @@
 # Actor runtime status and contracts
 
 This page describes the legacy C mailbox and supervision runtime. It does not
-execute spawned Fern functions. The opt-in Rust frontend separately supports
+execute spawned Fern functions. The default Rust compiler separately supports
 [bounded typed native actor execution](RUST_ACTORS.md); the two runtimes do not
-yet share a complete supervision or FernSim execution model. For the default C
-frontend, native build, run and IR emission reject `spawn`, `spawn_link` and
-`receive` with an explicit diagnostic directing users to mailbox APIs. C
-`fern check` accepts their syntax and type signatures for tooling; a successful
+yet share a complete supervision or FernSim execution model. For the explicit C
+reference compiler, native build, run and IR emission reject `spawn`, `spawn_link` and
+`receive` with an explicit diagnostic directing users to mailbox APIs.
+`fern-c check` accepts their syntax and type signatures for tooling; a successful
 check does not imply execution support. [DESIGN.md](../DESIGN.md) describes the
 broader target language.
 
@@ -112,7 +112,7 @@ Rust quality gates run this suite; it is verified on macOS and Linux arm64.
 ## Work still required before concurrency is ready for applications
 
 The legacy scheduler does not execute actor functions or suspend/resume them.
-The opt-in Rust scheduler provides those capabilities within the [105A limits](RUST_ACTORS.md),
+The default Rust scheduler provides those capabilities within the [105A limits](RUST_ACTORS.md),
 but generalized suspension, isolated per-actor heaps, synchronous request/reply,
 typed supervision and REPL/FernSim parity remain open. Legacy supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
@@ -130,7 +130,7 @@ See [ROADMAP.md](../ROADMAP.md) for the remaining milestone work and
 
 ## Rust native execution
 
-The opt-in Rust frontend now has a separate [typed native actor contract](RUST_ACTORS.md)
+The default Rust compiler has a separate [typed native actor contract](RUST_ACTORS.md)
 with cooperative execution, selective receive, monotonic deadlines and bounded
 continuations. The C mailbox/supervision APIs above retain their current behavior.
 Generalized suspension, typed supervision and REPL/FernSim parity remain open.

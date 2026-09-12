@@ -140,7 +140,7 @@ static char* make_tmp_output_path(void) {
 }
 
 void test_cli_help_lists_global_flags(void) {
-    CmdResult result = run_cmd("./bin/fern --help 2>&1");
+    CmdResult result = run_cmd("./bin/fern-c --help 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
 
@@ -156,13 +156,13 @@ void test_cli_quiet_suppresses_check_success_output(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check %s 2>&1", source_path);
     CmdResult normal = run_cmd(cmd);
     ASSERT_EQ(normal.exit_code, 0);
     ASSERT_NOT_NULL(normal.output);
     ASSERT_TRUE(strstr(normal.output, "No type errors") != NULL);
 
-    snprintf(cmd, sizeof(cmd), "./bin/fern --quiet check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c --quiet check %s 2>&1", source_path);
     CmdResult quiet = run_cmd(cmd);
     ASSERT_EQ(quiet.exit_code, 0);
     ASSERT_NOT_NULL(quiet.output);
@@ -179,7 +179,7 @@ void test_cli_verbose_emits_debug_lines(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern --verbose check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c --verbose check %s 2>&1", source_path);
     CmdResult verbose = run_cmd(cmd);
 
     ASSERT_EQ(verbose.exit_code, 0);
@@ -196,7 +196,7 @@ void test_cli_verbose_after_command_emits_debug_lines(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern check --verbose %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check --verbose %s 2>&1", source_path);
     CmdResult verbose = run_cmd(cmd);
 
     ASSERT_EQ(verbose.exit_code, 0);
@@ -209,12 +209,12 @@ void test_cli_verbose_after_command_emits_debug_lines(void) {
 }
 
 void test_cli_color_mode_always_and_never(void) {
-    CmdResult always = run_cmd("./bin/fern --color=always build 2>&1");
+    CmdResult always = run_cmd("./bin/fern-c --color=always build 2>&1");
     ASSERT_EQ(always.exit_code, 1);
     ASSERT_NOT_NULL(always.output);
     ASSERT_TRUE(strstr(always.output, "\033[") != NULL);
 
-    CmdResult never = run_cmd("./bin/fern --color=never build 2>&1");
+    CmdResult never = run_cmd("./bin/fern-c --color=never build 2>&1");
     ASSERT_EQ(never.exit_code, 1);
     ASSERT_NOT_NULL(never.output);
     ASSERT_TRUE(strstr(never.output, "\033[") == NULL);
@@ -224,7 +224,7 @@ void test_cli_color_mode_always_and_never(void) {
 }
 
 void test_cli_unknown_global_option_reports_unknown_option(void) {
-    CmdResult result = run_cmd("./bin/fern --bogus 2>&1");
+    CmdResult result = run_cmd("./bin/fern-c --bogus 2>&1");
     ASSERT_EQ(result.exit_code, 1);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "unknown option '--bogus'") != NULL);
@@ -237,7 +237,7 @@ void test_cli_fmt_normalizes_and_is_deterministic(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern fmt %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c fmt %s 2>&1", source_path);
     CmdResult first = run_cmd(cmd);
     ASSERT_EQ(first.exit_code, 0);
     ASSERT_NOT_NULL(first.output);
@@ -269,7 +269,7 @@ void test_cli_e2e_command_flow_fmt_parse_check_build(void) {
     ASSERT_NOT_NULL(output_path);
 
     char cmd[768];
-    snprintf(cmd, sizeof(cmd), "./bin/fern fmt %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c fmt %s 2>&1", source_path);
     CmdResult fmt_result = run_cmd(cmd);
     ASSERT_EQ(fmt_result.exit_code, 0);
     ASSERT_NOT_NULL(fmt_result.output);
@@ -278,20 +278,20 @@ void test_cli_e2e_command_flow_fmt_parse_check_build(void) {
     ASSERT_NOT_NULL(formatted);
     ASSERT_STR_EQ(formatted, "fn main():\n\t42\n");
 
-    snprintf(cmd, sizeof(cmd), "./bin/fern parse %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c parse %s 2>&1", source_path);
     CmdResult parse_result = run_cmd(cmd);
     ASSERT_EQ(parse_result.exit_code, 0);
     ASSERT_NOT_NULL(parse_result.output);
     ASSERT_TRUE(strstr(parse_result.output, "AST for ") != NULL);
     ASSERT_TRUE(strstr(parse_result.output, "Fn: main") != NULL);
 
-    snprintf(cmd, sizeof(cmd), "./bin/fern check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check %s 2>&1", source_path);
     CmdResult check_result = run_cmd(cmd);
     ASSERT_EQ(check_result.exit_code, 0);
     ASSERT_NOT_NULL(check_result.output);
     ASSERT_TRUE(strstr(check_result.output, "No type errors") != NULL);
 
-    snprintf(cmd, sizeof(cmd), "./bin/fern build -o %s %s 2>&1", output_path, source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c build -o %s %s 2>&1", output_path, source_path);
     CmdResult build_result = run_cmd(cmd);
     ASSERT_EQ(build_result.exit_code, 0);
     ASSERT_NOT_NULL(build_result.output);
@@ -323,7 +323,7 @@ void test_cli_check_syntax_error_includes_note_and_help(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check %s 2>&1", source_path);
     CmdResult result = run_cmd(cmd);
 
     ASSERT_EQ(result.exit_code, 1);
@@ -343,7 +343,7 @@ void test_cli_check_type_error_includes_snippet_note_and_help(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check %s 2>&1", source_path);
     CmdResult result = run_cmd(cmd);
 
     ASSERT_EQ(result.exit_code, 1);
@@ -368,7 +368,7 @@ void test_cli_check_binary_type_error_includes_snippet_note_and_help(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[512];
-    snprintf(cmd, sizeof(cmd), "./bin/fern check %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c check %s 2>&1", source_path);
     CmdResult result = run_cmd(cmd);
 
     ASSERT_EQ(result.exit_code, 1);
@@ -388,7 +388,7 @@ void test_cli_test_command_runs_unit_tests(void) {
     CmdResult result = run_cmd(
         "FERN_TEST_CMD='echo unit-tests-ok' "
         "FERN_TEST_DOC_CMD='echo doc-tests-ok' "
-        "./bin/fern test 2>&1"
+        "./bin/fern-c test 2>&1"
     );
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
@@ -399,7 +399,7 @@ void test_cli_test_command_runs_unit_tests(void) {
 }
 
 void test_cli_test_doc_command_runs_doc_tests(void) {
-    CmdResult result = run_cmd("FERN_TEST_DOC_CMD='echo doc-tests-ok' ./bin/fern test --doc 2>&1");
+    CmdResult result = run_cmd("FERN_TEST_DOC_CMD='echo doc-tests-ok' ./bin/fern-c test --doc 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "doc-tests-ok") != NULL);
@@ -425,7 +425,7 @@ void test_cli_test_doc_command_honors_file_argument(void) {
     ASSERT_NOT_NULL(source_path);
 
     char cmd[1024];
-    snprintf(cmd, sizeof(cmd), "./bin/fern test --doc %s 2>&1", source_path);
+    snprintf(cmd, sizeof(cmd), "./bin/fern-c test --doc %s 2>&1", source_path);
     CmdResult result = run_cmd(cmd);
 
     ASSERT_NE(result.exit_code, 0);
@@ -439,7 +439,7 @@ void test_cli_test_doc_command_honors_file_argument(void) {
 }
 
 void test_cli_help_lists_doc_command(void) {
-    CmdResult result = run_cmd("./bin/fern --help 2>&1");
+    CmdResult result = run_cmd("./bin/fern-c --help 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "doc") != NULL);
@@ -449,7 +449,7 @@ void test_cli_help_lists_doc_command(void) {
 }
 
 void test_cli_doc_command_runs_generator(void) {
-    CmdResult result = run_cmd("FERN_DOC_CMD='echo docs-ok' ./bin/fern doc 2>&1");
+    CmdResult result = run_cmd("FERN_DOC_CMD='echo docs-ok' ./bin/fern-c doc 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "docs-ok") != NULL);
@@ -458,7 +458,7 @@ void test_cli_doc_command_runs_generator(void) {
 }
 
 void test_cli_doc_open_command_runs_generator(void) {
-    CmdResult result = run_cmd("FERN_DOC_OPEN_CMD='echo docs-open-ok' ./bin/fern doc --open 2>&1");
+    CmdResult result = run_cmd("FERN_DOC_OPEN_CMD='echo docs-open-ok' ./bin/fern-c doc --open 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "docs-open-ok") != NULL);
@@ -467,7 +467,7 @@ void test_cli_doc_open_command_runs_generator(void) {
 }
 
 void test_cli_open_option_only_valid_for_doc(void) {
-    CmdResult result = run_cmd("./bin/fern test --open 2>&1");
+    CmdResult result = run_cmd("./bin/fern-c test --open 2>&1");
     ASSERT_EQ(result.exit_code, 1);
     ASSERT_NOT_NULL(result.output);
     ASSERT_TRUE(strstr(result.output, "--open is only valid for the doc command") != NULL);
@@ -495,7 +495,7 @@ void test_cli_doc_generates_cross_linked_markdown_with_doc_blocks(void) {
     );
     ASSERT_NOT_NULL(source_path);
 
-    CmdResult result = run_cmd("mkdir -p docs/generated && ./bin/fern doc docs/generated/test_doc_source.fn 2>&1");
+    CmdResult result = run_cmd("mkdir -p docs/generated && ./bin/fern-c doc docs/generated/test_doc_source.fn 2>&1");
     ASSERT_EQ(result.exit_code, 1);
     free(result.output);
 
@@ -505,7 +505,7 @@ void test_cli_doc_generates_cross_linked_markdown_with_doc_blocks(void) {
     ASSERT_EQ(copy_result.exit_code, 0);
     free(copy_result.output);
 
-    CmdResult doc_result = run_cmd("./bin/fern doc docs/generated/test_doc_source.fn 2>&1");
+    CmdResult doc_result = run_cmd("./bin/fern-c doc docs/generated/test_doc_source.fn 2>&1");
     ASSERT_EQ(doc_result.exit_code, 0);
     ASSERT_NOT_NULL(doc_result.output);
 
@@ -541,7 +541,7 @@ void test_cli_doc_html_output_generation(void) {
     ASSERT_EQ(prep.exit_code, 0);
     free(prep.output);
 
-    CmdResult result = run_cmd("./bin/fern doc --html docs/generated/test_doc_html.fn 2>&1");
+    CmdResult result = run_cmd("./bin/fern-c doc --html docs/generated/test_doc_html.fn 2>&1");
     ASSERT_EQ(result.exit_code, 0);
     ASSERT_NOT_NULL(result.output);
 

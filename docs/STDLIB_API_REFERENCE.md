@@ -74,10 +74,16 @@ unreleased migration change; see the compatibility policy and Decision 50.
 
 ### `json`
 
-The following signatures describe the legacy C frontend. The Rust frontend now
-uses opaque values/errors and immutable builders; see [the Rust JSON API](JSON_RUST_API.md).
-Its `parse` returns `Result(json.Value, json.Error)` and `stringify` accepts a Value.
-The `Json` compatibility spelling follows the selected frontend.
+The default Rust compiler uses opaque values/errors and immutable builders.
+`Json` and `json` identify the same operations and types. The full dynamic API,
+resource limits and typed codecs are documented in [the JSON API](JSON_RUST_API.md).
+
+```fern
+json.parse(text: String) -> Result(json.Value, json.Error)
+json.stringify(value: json.Value) -> Result(String, json.Error)
+```
+
+The explicit `fern-c` reference retains its legacy String-copy source contract:
 
 ```fern
 json.parse(text: String) -> Result(String, Int)

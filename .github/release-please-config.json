@@ -12,6 +12,21 @@
         {
           "type": "generic",
           "path": "include/version.h"
+        },
+        {
+          "type": "toml",
+          "path": "compiler-rs/Cargo.toml",
+          "jsonpath": "$.package.version"
+        },
+        {
+          "type": "toml",
+          "path": "compiler-rs/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-prototype')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/compiler-phases/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-prototype')].version"
         }
       ]
     }

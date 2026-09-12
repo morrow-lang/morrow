@@ -153,7 +153,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--compiler', type=Path, action='append')
     options = parser.parse_args()
-    compilers = options.compiler or [ROOT/'bin/fern', ROOT/'compiler-rs/target/debug/fern-rs']
+    compilers = options.compiler or [ROOT/'bin/fern-c', ROOT/'compiler-rs/target/debug/fern-rs']
     environment = dict(os.environ)
     environment.setdefault('FERN_QBE', str(ROOT/'bin/fern-qbe'))
     environment.setdefault('FERN_RUNTIME_LIB', str(ROOT/'bin/libfern_runtime.a'))

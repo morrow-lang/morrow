@@ -155,14 +155,17 @@ The ROADMAP.md is the single source of truth for project progress. Failing to up
 **ALWAYS run the quality checker after ANY code changes. This is non-negotiable.**
 
 ```bash
-# Single command that does EVERYTHING (strict mode - warnings are errors):
+# Native/default integration and C style gates (strict warnings):
 mise run check
+# Rust compiler, tooling and native language gates:
+mise run rust-check
 ```
 
-This runs the Fern-native quality checker (`scripts/check_style`), followed by
-explicit Python integration and parity oracles. The native checker performs:
+`mise run check` runs the Fern-native quality checker (`scripts/check_style`),
+followed by explicit Python integration and parity oracles. `mise run rust-check`
+adds Cargo checks, Rust tests, and native compiler/tooling oracles. The native checker performs:
 1. **Clean build** - `mise run clean && mise run debug` (catches stale .o files)
-2. **Unit tests** - `mise run test` (all 346+ tests must pass)
+2. **Unit and integration tests** - `mise run test` (all selected tests must pass)
 3. **Examples** - Type-checks all `examples/*.fn` files
 4. **FERN_STYLE** - Code compliance (assertions, function length, docs, etc.)
 
@@ -318,26 +321,34 @@ fern/
 ├── CLAUDE.md           # ← THIS FILE (safety guidelines)
 ├── BUILD.md            # ← Build instructions
 ├── README.md           # ← Project overview
-├── src/                # Implementation code
+├── compiler-rs/        # Default Rust compiler and compiler tests
+├── src/                # C reference entry point and native adapters
+├── runtime/            # Native C runtime
 ├── tests/              # Tests (write FIRST)
 ├── lib/                # Safety libraries
 ├── include/            # Header files
 └── scripts/            # Development scripts
 ```
 
-## Language: C with Safety Libraries
+## Implementation languages and component boundaries
 
-Decision 45 permits the experimental `compiler-rs/` frontend to use safe Rust
-and standard owned types, enums, `Vec`, and `Result`. C-specific library and
-assertion rules below apply to C; Rust uses type-enforced invariants, explicit
-input limits, rustfmt, and clippy. Run `mise run rust-check` in addition to
-`mise run check` for prototype changes. The shipping compiler remains C.
+`compiler-rs/` contains the default compiler. `mise run debug`, `release`, and
+`install` publish the Rust compiler as `fern`; `fern-c` explicitly selects the
+C reference frontend. QBE remains the default backend, while Cranelift is an
+opt-in build feature. The native runtime, QBE adapter, test supervisor and editor
+grammar retain their existing implementation languages.
 
-The Fern compiler is written in **C11** with modern safety libraries. This provides:
-- Excellent AI code generation (C is well-represented in training data)
-- Fast compilation and iteration
-- Direct control over memory and codegen
-- Native performance
+Rust uses safe owned types, enums, `Vec`, and `Result`, with type-enforced
+invariants, explicit input limits, rustfmt and Clippy. Run `mise run rust-check`
+and `mise run check` for compiler changes. The default installation must include
+`fern-qbe`, `fern-test-supervisor`, `libfern_runtime.a`, and `fern-package.json`
+alongside `fern`; keep `fern-c` for explicit reference workflows.
+
+The C11 runtime and reference compiler continue to use the safety libraries and
+C-specific memory, assertion and style rules below. Those C allocation rules do
+not replace Rust ownership and standard library types. Switching the compiler
+default does not establish that every planned language feature or release gate
+has been completed; record evidence in the roadmap and migration documents.
 
 ## Critical Safety Rules
 

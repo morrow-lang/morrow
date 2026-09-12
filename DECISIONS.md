@@ -4,27 +4,6 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
-### 119 Preserve lookup accountability across denied directory search
-* **Date**: 2026-09-12
-* **Status**: Adopted for the native bootstrap cache
-* **Decision**: I will record an explicit inaccessible-subtree inventory marker only when directory listing and effective-user search both fail with `EACCES`, and create cold-worker artifacts under a private `umask 077`.
-* **Context**: Linux's ordinary `umask 002` made generated metadata group-writable and therefore correctly rejected by the private-cache validator. After isolating the worker mask, recursive library inventories reached `/usr/lib/ssl/private`, whose root-owned target denied search. Rejecting that unrelated subtree prevented the quality checker from starting; silently ignoring unreadable directories would hide headers that a compiler can still open by known name.
-* **Consequences**: Use `faccessat` with `AT_EACCESS` on Linux and macOS. Re-evaluate the marker on every cache lookup so gained access changes the inventory. Unreadable-but-searchable directories and other access errors still reject; fixed traversal bounds and cycle checks remain. Worker-only permissions do not alter the final checker's caller mask. Red-first permission-transition tests pass with private debug, release and sanitizer helpers on both platforms; cold-cache and caller-mask regressions cover `002` and `000`/`002`/`027` respectively.
-
-### 118 Retain separate measured compiler budgets during default migration
-* **Date**: 2026-09-12
-* **Status**: Accepted for release-profile implementation and platform verification
-* **Decision**: I will retain the C reference compiler's 1,500,000-byte ceiling and require the expanded Rust default to fit 4 MiB, with the existing 150-second build and 100-ms startup-p95 ceilings unchanged. Use ThinLTO and one codegen unit with normal release optimization.
-* **Context**: The full typed frontend, Result proof engine, native testing, editor tools and terminal editor measured about 4.3 MiB with stock release settings, 3.6 MiB with ThinLTO, and 3.1 MiB with size optimization plus ThinLTO on macOS arm64. The original compiler-size ceiling measured the narrower C compiler, not generated Fern applications. Removing implemented language guarantees to match that earlier compiler would defeat the migration.
-* **Consequences**: Both compiler budgets remain enforced independently by mise run perf-budget. Prefer normal optimization over the smaller size-optimized build; measure actual frontend/native workflows and validate both platform releases before promotion. These compiler budgets make no new claim about generated-program size, static linking, or universal performance. Cargo source dependencies and native components remain visible in the release and notices.
-
-### 115 Complete CLI and interactive-tool compatibility with safe Rust
-* **Date**: 2026-09-12
-* **Status**: Accepted for implementation and platform acceptance
-* **Decision**: I will preserve public fern identity, literal source operands, default documentation discovery and REPL inspection/editing behavior in the Rust default. Use exactly pinned Rustyline18.0.1 with only file-history support enabled for terminal editing.
-* **Context**: Failing compatibility and real-PTY tests demonstrated missing command delimiters, inspection commands, editing, completion and persistent history. Standard safe Rust does not supply a readline terminal editor; a maintained dependency avoids adding custom unsafe terminal control.
-* **Consequences**: Piped execution keeps its existing bounded state machine and quiet output. Type inspection has no runtime effects, Ctrl-C cancels pending input without losing prior state, and history import has explicit byte/entry limits and rejects nonregular inputs. Package the dependency notices. The C developer shell-command test overrides remain explicit bootstrap-only facilities; Rust executes source tests directly. Semantic LSP actions publish real versioned edits, reject ambiguous bindings and negotiate client support for documentChanges, prepareRename and literal actions. See docs/TOOLING_PARITY.md for the tested command matrix and limits.
-
 ### 121 Preserve bounded inline value-match arms
 * **Date**: 2026-09-12
 * **Status**: Accepted for executable source compatibility
@@ -39,6 +18,27 @@ This document tracks major architectural and technical decisions made during the
 * **Context**: The legacy seeded parser/formatter corpus begins with a valid tab-indented program. Rejecting every tab in Rust broke that executable C-source contract. Decision3 rejects mixed tabs/spaces rather than consistently tab-indented source.
 * **Consequences**: Significant code indentation must use one style per source and cannot mix tabs and spaces in a prefix. Blank/comment-only lines and ordinary delimiter continuation whitespace do not select the style; embedded suites do. Horizontal tabs between tokens remain whitespace. Source/token/layout bounds and string/comment contents remain intact. Both default Rust and explicit C reference run the original fuzz smoke corpus; the separate Rust mutation corpus remains required.
 
+### 119 Preserve lookup accountability across denied directory search
+* **Date**: 2026-09-12
+* **Status**: Adopted for the native bootstrap cache
+* **Decision**: I will record an explicit inaccessible-subtree inventory marker only when directory listing and effective-user search both fail with `EACCES`, and create cold-worker artifacts under a private `umask 077`.
+* **Context**: Linux's ordinary `umask 002` made generated metadata group-writable and therefore correctly rejected by the private-cache validator. After isolating the worker mask, recursive library inventories reached `/usr/lib/ssl/private`, whose root-owned target denied search. Rejecting that unrelated subtree prevented the quality checker from starting; silently ignoring unreadable directories would hide headers that a compiler can still open by known name.
+* **Consequences**: Use `faccessat` with `AT_EACCESS` on Linux and macOS. Re-evaluate the marker on every cache lookup so gained access changes the inventory. Unreadable-but-searchable directories and other access errors still reject; fixed traversal bounds and cycle checks remain. Worker-only permissions do not alter the final checker's caller mask. Red-first permission-transition tests pass with private debug, release and sanitizer helpers on both platforms; cold-cache and caller-mask regressions cover `002` and `000`/`002`/`027` respectively.
+
+### 118 Retain separate measured compiler budgets during default migration
+* **Date**: 2026-09-12
+* **Status**: Accepted; both platform release budgets verified
+* **Decision**: I will retain the C reference compiler's 1,500,000-byte ceiling and require the expanded Rust default to fit 4 MiB, with the existing 150-second build and 100-ms startup-p95 ceilings unchanged. Use ThinLTO and one codegen unit with normal release optimization.
+* **Context**: The full typed frontend, Result proof engine, native testing, editor tools and terminal editor measured about 4.3 MiB with stock release settings, 3.6 MiB with ThinLTO, and 3.1 MiB with size optimization plus ThinLTO on macOS arm64. The original compiler-size ceiling measured the narrower C compiler, not generated Fern applications. Removing implemented language guarantees to match that earlier compiler would defeat the migration.
+* **Consequences**: Both compiler budgets remain enforced independently by mise run perf-budget. Prefer normal optimization over the smaller size-optimized build; measure actual frontend/native workflows and validate both platform releases before promotion. These compiler budgets make no new claim about generated-program size, static linking, or universal performance. Cargo source dependencies and native components remain visible in the release and notices.
+
+### 117 Ship the Rust compiler as fern with explicit native components
+* **Date**: 2026-09-12
+* **Status**: Accepted; default promotion verified on macOS/Linux arm64
+* **Decision**: I will make the verified Rust frontend the default `fern`, retain the C frontend as `fern-c`, and distribute the QBE helper, native test supervisor and shared runtime beside them. A `fern-package.json` marker disables implicit development-checkout fallback for installed packages.
+* **Context**: Decision96 authorizes the compiler migration after compatibility and platform gates. Replacing one executable without installing its required native helpers would produce a package that only works inside the checkout. Existing release recipes and installation tests describe the older C-only bundle.
+* **Consequences**: Build, install, uninstall, archive and CI contracts must cover every component and execute real Rust-language applications outside the checkout. Missing helpers fail visibly even when a development checkout exists. Explicit component overrides remain supported. C bootstrap and legacy ABI tests remain separate required references. This compiler migration does not imply rewriting QBE, the runtime, supervisor or editor parser in Rust, or completing unrelated future language features. Switch defaults only after executable language/API/tooling acceptance, Result proofs and Linux/macOS release gates pass.
+
 ### 116 Preserve executable C source operations through typed Rust lowering
 * **Date**: 2026-09-12
 * **Status**: Accepted for migration compatibility
@@ -46,9 +46,16 @@ This document tracks major architectural and technical decisions made during the
 * **Context**: A complete 212-name registration inventory and C lowering audit found these concrete executable compatibility gaps. Parser-only constructs and known C miscompilations are not valid native-output references.
 * **Consequences**: Indexing shares List.get fault, full-width transport and Result-obligation rules; formatting canonicalizes it to List.get. Membership keeps IEEE comparisons and scalar Contains requirements. Native tests cover both backends, exact C reference outputs where valid, source order and deferred fault cleanup. Rust retains documented JSON, Option and error-handling corrections. Full future-language features remain distinct from compiler migration acceptance; see docs/LANGUAGE_PARITY.md.
 
+### 115 Complete CLI and interactive-tool compatibility with safe Rust
+* **Date**: 2026-09-12
+* **Status**: Accepted; compiler/tooling platform acceptance verified
+* **Decision**: I will preserve public fern identity, literal source operands, default documentation discovery and REPL inspection/editing behavior in the Rust default. Use exactly pinned Rustyline18.0.1 with only file-history support enabled for terminal editing.
+* **Context**: Failing compatibility and real-PTY tests demonstrated missing command delimiters, inspection commands, editing, completion and persistent history. Standard safe Rust does not supply a readline terminal editor; a maintained dependency avoids adding custom unsafe terminal control.
+* **Consequences**: Piped execution keeps its existing bounded state machine and quiet output. Type inspection has no runtime effects, Ctrl-C cancels pending input without losing prior state, and history import has explicit byte/entry limits and rejects nonregular inputs. Package the dependency notices. The C developer shell-command test overrides remain explicit bootstrap-only facilities; Rust executes source tests directly. Semantic LSP actions publish real versioned edits, reject ambiguous bindings and negotiate client support for documentChanges, prepareRename and literal actions. See docs/TOOLING_PARITY.md for the tested command matrix and limits.
+
 ### 114 Prove bounded recursive Result builder contracts
 * **Date**: 2026-09-12
-* **Status**: Accepted for implementation and soundness verification
+* **Status**: Accepted; bounded contracts and platform gates verified
 * **Decision**: I will prove finite fresh-output and complete-input-retention contracts for recursive Result builders, preserving exact aliases first and never granting provisional handling credit.
 * **Context**: Alias-only recursive summaries reject useful finite recursive values. Assuming recursive calls consume their inputs would instead permit silent error loss. Inductive retention summaries allow construction without assuming handling.
 * **Consequences**: Successful exits must retain all promised duties; fresh obligations remain separate. List and nominal accumulators, optional payloads, generics and mutual recursion share a bounded proof engine. Widened groups rebuild dependent summaries within the original 400,000-step budget. Opaque nominal cuts do not prove descent or nonempty collections. Unknown-key Map overwrite, consuming/replacing accumulators and arbitrary higher-order equations remain conservatively rejected. See docs/RESULT_HANDLING.md.

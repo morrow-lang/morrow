@@ -69,7 +69,7 @@ fn component(variable: &str, filename: &str) -> Result<PathBuf, String> {
     component_at(directory, &development, filename, variable)
 }
 
-/// A preview marker makes sibling selection closed even when its contents are damaged.
+/// Package markers make sibling selection closed even when their contents are damaged.
 fn component_at(
     directory: &Path,
     development: &Path,
@@ -80,12 +80,17 @@ fn component_at(
     if candidate.is_file() {
         return Ok(candidate);
     }
-    match fs::symlink_metadata(directory.join("fern-rust-preview.json")) {
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        _ => {
-            return Err(format!(
-                "missing {filename} in Rust preview package; restore the sibling component or set {variable}"
-            ));
+    for (marker, label) in [
+        ("fern-package.json", "installed package"),
+        ("fern-rust-preview.json", "Rust preview package"),
+    ] {
+        match fs::symlink_metadata(directory.join(marker)) {
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+            _ => {
+                return Err(format!(
+                    "missing {filename} in {label}; restore the sibling component or set {variable}"
+                ));
+            }
         }
     }
     if development.is_file() {
@@ -332,6 +337,33 @@ pub mod capture;
 mod preview_tests {
     use super::{component_at, Workspace};
     use std::fs;
+
+    #[test]
+    fn installed_marker_blocks_development_fallback_for_every_helper() {
+        let workspace = Workspace::new(&std::env::temp_dir()).unwrap();
+        let package = workspace.file("installed");
+        fs::create_dir(&package).unwrap();
+        let checkout = workspace.file("development-component");
+        fs::write(&checkout, b"valid development fixture").unwrap();
+        for marker in [b"".as_slice(), b"invalid json", b"{}"] {
+            fs::write(package.join("fern-package.json"), marker).unwrap();
+            for (name, variable) in [
+                ("fern-qbe", "FERN_QBE"),
+                ("fern-test-supervisor", "FERN_TEST_SUPERVISOR"),
+                ("libfern_runtime.a", "FERN_RUNTIME_LIB"),
+            ] {
+                let error = component_at(&package, &checkout, name, variable).unwrap_err();
+                assert!(error.contains("installed package"), "{error}");
+                assert!(error.contains(name) && error.contains(variable), "{error}");
+            }
+        }
+        let sibling = package.join("fern-qbe");
+        fs::write(&sibling, b"installed helper").unwrap();
+        assert_eq!(
+            component_at(&package, &checkout, "fern-qbe", "FERN_QBE").unwrap(),
+            sibling
+        );
+    }
 
     #[test]
     fn preview_marker_blocks_existing_checkout_fallback() {

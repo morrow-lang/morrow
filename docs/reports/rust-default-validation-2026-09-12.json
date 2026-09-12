@@ -1,0 +1,466 @@
+{
+  "date": "2026-09-12",
+  "status": "accepted",
+  "scope": "Rust compiler default migration; native runtime, QBE, supervisor and editor parser retain their implementation languages.",
+  "notes": [
+    "The complete Rust gates preceded test-only documentation-opener and supervisor-clock fixture fixes. Final full quality gates and targeted fixture matrices passed afterward. Linux repeated its full Cranelift gate with the opener fix; macOS repeated both opener tests. Linux also passed six full parallel binary-suite runs (three default and three Cranelift).",
+    "Linux ran natively in an isolated ARM64 Lima/VZ Ubuntu VM on the same macOS host. These are local verification runs, not a claim about remote CI or x86-64.",
+    "305 independent native backend cases and ten migration programs passed per platform; migration programs were checked through both QBE and Cranelift.",
+    "The unmodified source generator also passed 512 fixed-seed cases against both compilers on macOS; each platform final smoke runs 64 cases per compiler."
+  ],
+  "platforms": {
+    "macos-arm64": {
+      "gates": [
+        {
+          "task": "check",
+          "exit": 0,
+          "log": "/tmp/fern-final-clock-macos-check.log",
+          "log_sha256": "5ee766618290848bfc675f2f9964da508773e1c433bd1de49c06d2fc0c528d5e"
+        },
+        {
+          "task": "rust-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-rust-check.log",
+          "log_sha256": "0975b8ae78cd7db9ee3a806e4b5ce888d9b69c139125b18122c6c5202f8e09b3",
+          "cargo_tests_passed": 1621
+        },
+        {
+          "task": "rust-cranelift-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-rust-cranelift-check.log",
+          "log_sha256": "cd40b7e76ff8d7453d20cc7326c192c6e32c9bbe2b11bba2543e9c170cd8d772",
+          "cargo_tests_passed": 1633
+        },
+        {
+          "task": "docs-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-docs-macos.log",
+          "log_sha256": "42409036c5659d2d82a6f2090946663f7c3faa72f4333f65553bb4e6ef63719a",
+          "note": "Final migration documentation; existing measured release binaries, dependencies skipped."
+        },
+        {
+          "task": "fuzz-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-fuzz-smoke.log",
+          "log_sha256": "4ef03deaece5f94c400286f95b236e13339603e9bca1019b1dfe8dd40c143569"
+        },
+        {
+          "task": "lsp-rpc-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-lsp-rpc-smoke.log",
+          "log_sha256": "19ef8c8aae4e10ff7c0204ac52f6ee556fae046f829970ee8e6ca50c569579f2"
+        },
+        {
+          "task": "style-launcher-check",
+          "exit": 0,
+          "log": "/tmp/fern-migration-style-launcher-check-final.log",
+          "log_sha256": "1ea8f42e85cbda8348fc93f4cefd991af6caee10dd83b40fae1690d711dbcdc5"
+        },
+        {
+          "task": "rust-lint-policy",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-rust-lint-policy.log",
+          "log_sha256": "f09b0aea590724cc999dc7bfd1b50cdd6359e10ade5495e22a6840cee43282e9"
+        },
+        {
+          "task": "rust-bench-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-macos-rust-bench-smoke.log",
+          "log_sha256": "9ff28045178755d2eaf8ace3e57f263e0664387315a722b581f9631b373d3055"
+        }
+      ],
+      "performance": {
+        "combined_release_build_seconds": 44.21,
+        "c_compiler_bytes": 548488,
+        "rust_compiler_bytes": 3823744,
+        "c_startup_p95_ms": 2.58,
+        "rust_startup_p95_ms": 6.62
+      },
+      "release": {
+        "platform": "macos-arm64",
+        "host": "macOS-26.5.1-arm64-arm-64bit-Mach-O",
+        "logical_cpus": 10,
+        "cargo_build_jobs": "default",
+        "release_target": "compiler-rs/target/aarch64-apple-darwin/release",
+        "release_cache_existed_before_measurement": false,
+        "notes": [
+          "Native outputs cleaned by perf-budget; downloaded dependencies retained.",
+          "Platforms measured sequentially with other task compiler jobs idle; no CPU isolation.",
+          "Release profile uses normal optimization, ThinLTO and one codegen unit."
+        ],
+        "steps": [
+          {
+            "name": "perf-budget",
+            "command": [
+              "mise",
+              "run",
+              "perf-budget"
+            ],
+            "exit": 0,
+            "seconds": 45.061,
+            "log": "release-macos-arm64-perf-budget.log",
+            "log_sha256": "fa7202748592bff611005fec41c1fba6208f3b4c0534b1ffc8b0f9a7b7c759e0"
+          },
+          {
+            "name": "frontend-evaluation",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/evaluate_rust_frontend.py",
+              "--c-compiler",
+              "bin/fern-c",
+              "--rust-compiler",
+              "bin/fern",
+              "--qbe",
+              "bin/fern-qbe",
+              "--samples",
+              "30",
+              "--build-samples",
+              "10",
+              "--output",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern/dist/frontend-evaluation-macos-arm64.json"
+            ],
+            "exit": 0,
+            "seconds": 6.562,
+            "log": "release-macos-arm64-frontend-evaluation.log",
+            "log_sha256": "8b23977eaf5c66b28184c0a4b1fe4ea6da8db1f1598cdfd14a4c3ba9557161ab"
+          },
+          {
+            "name": "case-studies",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/publish_benchmarks.py",
+              "--skip-release-build",
+              "--startup-runs",
+              "30",
+              "--case-runs",
+              "10",
+              "--output",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern/dist/benchmark-case-studies-macos-arm64.md"
+            ],
+            "exit": 0,
+            "seconds": 1.193,
+            "log": "release-macos-arm64-case-studies.log",
+            "log_sha256": "67eb1793bc929fb75bb919fd4af51ce5fb289773bbadd8ea023e5124df829993"
+          },
+          {
+            "name": "policy",
+            "command": [
+              "mise",
+              "run",
+              "release-policy-check"
+            ],
+            "exit": 0,
+            "seconds": 0.124,
+            "log": "release-macos-arm64-policy.log",
+            "log_sha256": "d1d77943bc0f8cad0856cd75b06a49e3991b9f0899a0f9ed65c40415cd5daa4e"
+          },
+          {
+            "name": "version-workflow",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/test_default_ci_workflow.py"
+            ],
+            "exit": 0,
+            "seconds": 0.069,
+            "log": "release-macos-arm64-version-workflow.log",
+            "log_sha256": "b6a161abed43b9a0dba9259cd451b39b20b10425ac13cc14786554c0e6fac7f1"
+          },
+          {
+            "name": "notices",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/test_third_party_notices.py"
+            ],
+            "exit": 0,
+            "seconds": 0.183,
+            "log": "release-macos-arm64-notices.log",
+            "log_sha256": "6745558e6ded2bb2dc402101cac307a4bdf00f16c5255c6cd09c39a4edeea57c"
+          },
+          {
+            "name": "layout",
+            "command": [
+              "mise",
+              "run",
+              "release-package-check"
+            ],
+            "exit": 0,
+            "seconds": 0.129,
+            "log": "release-macos-arm64-layout.log",
+            "log_sha256": "329d0e36b299c5af27bcb86ee838e2e5c6b6783420568bdaa299f80f19a29b59"
+          },
+          {
+            "name": "package",
+            "command": [
+              "mise",
+              "run",
+              "--skip-deps",
+              "release-package"
+            ],
+            "exit": 0,
+            "seconds": 0.403,
+            "log": "release-macos-arm64-package.log",
+            "log_sha256": "0b80ed12c26691cbe1aeeb31e59caa817639371fd26715f04416d0667c652ee1"
+          },
+          {
+            "name": "installation",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "tests/integration/test_installation.py"
+            ],
+            "exit": 0,
+            "seconds": 5.141,
+            "log": "release-macos-arm64-installation.log",
+            "log_sha256": "366182e5df882e7b3f570d3b2e90742d7ac583b32d0855b8615dc680e699ef90"
+          },
+          {
+            "name": "archive-smoke",
+            "command": [
+              "/Users/nheer/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "/tmp/fern-release-archive-smoke.py",
+              "--repo",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern",
+              "--archive",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern/dist/fern-0.1.0-macos-arm64.tar.gz",
+              "--checksum",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern/dist/fern-0.1.0-macos-arm64.tar.gz.sha256",
+              "--report",
+              "/Users/nheer/Projects/github.com/niklas-heer/fern/dist/release-archive-smoke-macos-arm64.json"
+            ],
+            "exit": 0,
+            "seconds": 1.667,
+            "log": "release-macos-arm64-archive-smoke.log",
+            "log_sha256": "170b2d7a0820637b55212095c6db768b246a4970189330224ddd8ba51fa725db"
+          }
+        ],
+        "source_and_test_tree_sha256": "15f79384e71bfaabd6d4b15e985d23975de4799a1759aaae425026bb5cd3e26d"
+      }
+    },
+    "linux-arm64": {
+      "gates": [
+        {
+          "task": "check",
+          "exit": 0,
+          "log": "/tmp/fern-final-clock-linux-check.log",
+          "log_sha256": "b552e8d3a729133c3c1017caa015c620e1cc4e9ddd40271e648e435bac170b8b"
+        },
+        {
+          "task": "rust-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-linux-rust-check.log",
+          "log_sha256": "9db11b40435a10acb8878bf55e6b62b13e54143e675936200a43b8bda64ff19e",
+          "cargo_tests_passed": 1624
+        },
+        {
+          "task": "rust-cranelift-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-fix-linux-rust-cranelift-check.log",
+          "log_sha256": "d8f655ad905056ecf31e1f0c090a1234b6b5f39daa6beecde6d8c7925ae0006a",
+          "cargo_tests_passed": 1636
+        },
+        {
+          "task": "docs-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-docs-linux.log",
+          "log_sha256": "796b9a9ae8a6ff18bcc96e1c2be0ae7243549f031b21dbb0175658d997ea0d16",
+          "note": "Final migration documentation; existing measured release binaries, dependencies skipped."
+        },
+        {
+          "task": "fuzz-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-fix-linux-fuzz-smoke.log",
+          "log_sha256": "b2e72f81272125bc73fc032468bb380b2532d632bde85c5e8fffb3a31f92c3c7"
+        },
+        {
+          "task": "lsp-rpc-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-fix-linux-lsp-rpc-smoke.log",
+          "log_sha256": "23c5d20cd9f639fe85900dfa21f2e53706cfb18ab5e7836f8655a0683a51a6f6"
+        },
+        {
+          "task": "style-launcher-check",
+          "exit": 0,
+          "log": "/tmp/fern-final-linux-style-launcher-check.log",
+          "log_sha256": "ca8b6a97c0724a558077b8bc35f89356774146bbc917c3e3c0d0a0ecf3a7d8e8"
+        },
+        {
+          "task": "rust-lint-policy",
+          "exit": 0,
+          "log": "/tmp/fern-final-linux-rust-lint-policy.log",
+          "log_sha256": "f09b0aea590724cc999dc7bfd1b50cdd6359e10ade5495e22a6840cee43282e9"
+        },
+        {
+          "task": "rust-bench-smoke",
+          "exit": 0,
+          "log": "/tmp/fern-final-linux-rust-bench-smoke.log",
+          "log_sha256": "3841298c30977b18d42652e58d7cb59aeb232b2f6b559bbe4c224a3abaeb645d"
+        }
+      ],
+      "performance": {
+        "combined_release_build_seconds": 44.01,
+        "c_compiler_bytes": 651976,
+        "rust_compiler_bytes": 3806232,
+        "c_startup_p95_ms": 0.32,
+        "rust_startup_p95_ms": 0.41
+      },
+      "release": {
+        "platform": "linux-arm64",
+        "host": "Linux-7.0.0-27-generic-aarch64-with-glibc2.43",
+        "logical_cpus": 4,
+        "cargo_build_jobs": "2",
+        "release_target": "/home/nheer.guest/fern-migration-cargo/aarch64-unknown-linux-gnu/release",
+        "release_cache_existed_before_measurement": false,
+        "notes": [
+          "Native outputs cleaned by perf-budget; downloaded dependencies retained.",
+          "Platforms measured sequentially with other task compiler jobs idle; no CPU isolation.",
+          "Release profile uses normal optimization, ThinLTO and one codegen unit."
+        ],
+        "steps": [
+          {
+            "name": "perf-budget",
+            "command": [
+              "mise",
+              "run",
+              "perf-budget"
+            ],
+            "exit": 0,
+            "seconds": 44.886,
+            "log": "release-linux-arm64-perf-budget.log",
+            "log_sha256": "445b169c4e44012c3e77aaae2f3c76fad1c9aab44c8b4931c06f90fe892e0afc"
+          },
+          {
+            "name": "frontend-evaluation",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/evaluate_rust_frontend.py",
+              "--c-compiler",
+              "bin/fern-c",
+              "--rust-compiler",
+              "bin/fern",
+              "--qbe",
+              "bin/fern-qbe",
+              "--samples",
+              "30",
+              "--build-samples",
+              "10",
+              "--output",
+              "/tmp/fern-migration-run/fern/dist/frontend-evaluation-linux-arm64.json"
+            ],
+            "exit": 0,
+            "seconds": 0.969,
+            "log": "release-linux-arm64-frontend-evaluation.log",
+            "log_sha256": "4ae9b131ca9d218ae356fef6a1651c302736decee51b93c07af53930001899d1"
+          },
+          {
+            "name": "case-studies",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/publish_benchmarks.py",
+              "--skip-release-build",
+              "--startup-runs",
+              "30",
+              "--case-runs",
+              "10",
+              "--output",
+              "/tmp/fern-migration-run/fern/dist/benchmark-case-studies-linux-arm64.md"
+            ],
+            "exit": 0,
+            "seconds": 0.165,
+            "log": "release-linux-arm64-case-studies.log",
+            "log_sha256": "2cded5115d8b7204cf9af98fe34ce0c80173325161bb49b484e505372fe7649f"
+          },
+          {
+            "name": "policy",
+            "command": [
+              "mise",
+              "run",
+              "release-policy-check"
+            ],
+            "exit": 0,
+            "seconds": 0.064,
+            "log": "release-linux-arm64-policy.log",
+            "log_sha256": "d1d77943bc0f8cad0856cd75b06a49e3991b9f0899a0f9ed65c40415cd5daa4e"
+          },
+          {
+            "name": "version-workflow",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/test_default_ci_workflow.py"
+            ],
+            "exit": 0,
+            "seconds": 0.065,
+            "log": "release-linux-arm64-version-workflow.log",
+            "log_sha256": "af55efa5c3ceb122f8184c380aa405d3f3b4e7e0c1e892773d0eff31d0645c8a"
+          },
+          {
+            "name": "notices",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "scripts/test_third_party_notices.py"
+            ],
+            "exit": 0,
+            "seconds": 0.115,
+            "log": "release-linux-arm64-notices.log",
+            "log_sha256": "be00dda77487c03c3af30e10a109ed9838a32a8e60f139736f385340508b5aca"
+          },
+          {
+            "name": "layout",
+            "command": [
+              "mise",
+              "run",
+              "release-package-check"
+            ],
+            "exit": 0,
+            "seconds": 0.064,
+            "log": "release-linux-arm64-layout.log",
+            "log_sha256": "329d0e36b299c5af27bcb86ee838e2e5c6b6783420568bdaa299f80f19a29b59"
+          },
+          {
+            "name": "package",
+            "command": [
+              "mise",
+              "run",
+              "--skip-deps",
+              "release-package"
+            ],
+            "exit": 0,
+            "seconds": 0.491,
+            "log": "release-linux-arm64-package.log",
+            "log_sha256": "ebf55b514314b9e1ea8d04b9f111a1dcd99fc7be2cc7ac69213a4db4d749af01"
+          },
+          {
+            "name": "installation",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "tests/integration/test_installation.py"
+            ],
+            "exit": 0,
+            "seconds": 0.867,
+            "log": "release-linux-arm64-installation.log",
+            "log_sha256": "8fd6141006b93683f1e7fe314946f8110a619582fd85d52e86578d278f7e9dda"
+          },
+          {
+            "name": "archive-smoke",
+            "command": [
+              "/home/nheer.guest/.local/share/mise/installs/python/3.14.7/bin/python3",
+              "/tmp/fern-release-archive-smoke.py",
+              "--repo",
+              "/tmp/fern-migration-run/fern",
+              "--archive",
+              "/tmp/fern-migration-run/fern/dist/fern-0.1.0-linux-arm64.tar.gz",
+              "--checksum",
+              "/tmp/fern-migration-run/fern/dist/fern-0.1.0-linux-arm64.tar.gz.sha256",
+              "--report",
+              "/tmp/fern-migration-run/fern/dist/release-archive-smoke-linux-arm64.json"
+            ],
+            "exit": 0,
+            "seconds": 0.271,
+            "log": "release-linux-arm64-archive-smoke.log",
+            "log_sha256": "df708d3e24a544bcc0e299bbd8d377e6973b3cb89f04a76aa1e07146e6467215"
+          }
+        ],
+        "source_and_test_tree_sha256": "15f79384e71bfaabd6d4b15e985d23975de4799a1759aaae425026bb5cd3e26d"
+      }
+    }
+  },
+  "source_tree_hash_method": "SHA-256 over sorted unique git ls-files --cached --others --exclude-standard paths in compiler-rs/, src/, runtime/, lib/, include/, deps/, scripts/, tests/, plus mise.toml and rust-toolchain.toml, excluding tests/fuzz/failures/. For each regular file: UTF-8 relative path, NUL, one byte for owner executable permission (0 or 1), then the raw SHA-256 digest of its contents. Top-level documentation and docs/ are excluded."
+}

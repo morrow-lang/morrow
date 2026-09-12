@@ -1,25 +1,49 @@
-module stdlib_doc_examples
+module stdlib_modules
 
 @doc """
-Smoke coverage for the stabilized stdlib API surface.
+Typechecked coverage of the default compiler's stdlib contracts.
+Handle fallible operations explicitly, including opaque JSON values and errors.
 
 # Examples
 
 ```fern
-fs.read("config.txt")
-fs.write("out.txt", "hello")
-fs.exists("out.txt")
-json.parse("json-text")
-json.stringify("ok")
-http.get("http://example.com")
-http.post("http://example.com", "payload")
-sql.open("app.db")
-sql.execute(1, "SELECT 1")
-actors.start("worker")
-actors.post(1, "ping")
-actors.next(1)
-File.read("compat.txt")
-File.exists("compat.txt")
+let content: Result(String, Int) = fs.read("config.txt")
+println(Result.is_ok(content))
+let written: Result(Int, Int) = fs.write("out.txt", "hello")
+println(Result.is_ok(written))
+let exists: Bool = fs.exists("out.txt")
+println(exists)
+
+let parsed: Result(json.Value, json.Error) = json.parse("null")
+match parsed:
+    Ok(value) ->
+        let encoded: Result(String, json.Error) = json.stringify(value)
+        println(Result.is_ok(encoded))
+    Err(_) -> println("invalid JSON")
+
+let fetched: Result(String, Int) = http.get("https://example.invalid")
+println(Result.is_ok(fetched))
+let posted: Result(String, Int) = http.post("https://example.invalid", "payload")
+println(Result.is_ok(posted))
+
+let opened: Result(Int, Int) = sql.open(":memory:")
+match opened:
+    Ok(database) ->
+        let executed: Result(Int, Int) = sql.execute(database, "SELECT 1")
+        println(Result.is_ok(executed))
+        let closed: Result(Int, Int) = sql.close(database)
+        println(Result.is_ok(closed))
+    Err(_) -> println("database unavailable")
+
+let worker: Int = actors.start("worker")
+let delivered: Result(Int, Int) = actors.post(worker, "ping")
+println(Result.is_ok(delivered))
+let message: Result(String, Int) = actors.next(worker)
+println(Result.is_ok(message))
+let compatible: Result(String, Int) = File.read("compat.txt")
+println(Result.is_ok(compatible))
+let compatible_exists: Bool = File.exists("compat.txt")
+println(compatible_exists)
 ```
 """
 fn stdlib_doc_smoke_examples() -> Int:

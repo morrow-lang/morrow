@@ -1947,10 +1947,10 @@ point.x  # 10
 
 Fern uses an **actor-based concurrency model** inspired by Erlang/Elixir, with type-safe message passing.
 
-**Implementation boundary:** the opt-in Rust frontend executes the bounded native
+**Implementation boundary:** the default Rust frontend executes the bounded native
 subset in [Decision105A](docs/RUST_ACTORS.md). Generalized suspension, typed
 supervision, isolated heaps and actor REPL/FernSim parity remain planned. The
-default C frontend retains its separate [mailbox/supervision contract](docs/ACTOR_RUNTIME.md).
+explicit C reference frontend retains its separate [mailbox/supervision contract](docs/ACTOR_RUNTIME.md).
 
 ### Lightweight Processes
 
@@ -2656,6 +2656,8 @@ Functions for list operations:
 # Length and access
 let len = List.len([1, 2, 3])              # 3
 let first = List.get([1, 2, 3], 0)         # 1
+let same = [1, 2, 3][0]                  # Bracket syntax uses List.get semantics
+let member = 2 in [1, 2, 3]             # Scalar membership, equivalent result to List.contains
 let head = List.head([1, 2, 3])            # 1
 let tail = List.tail([1, 2, 3])            # [2, 3]
 

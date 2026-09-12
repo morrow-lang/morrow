@@ -15,7 +15,7 @@ def main():
     parser.add_argument("--compiler", type=Path, action="append")
     parser.add_argument("--backend", choices=["qbe", "cranelift"])
     args = parser.parse_args()
-    compilers = args.compiler or [ROOT / "bin/fern", ROOT / "compiler-rs/target/debug/fern-rs"]
+    compilers = args.compiler or [ROOT / "bin/fern-c", ROOT / "compiler-rs/target/debug/fern-rs"]
     env = dict(os.environ, FERN_QBE=str(ROOT / "bin/fern-qbe"),
                FERN_RUNTIME_LIB=str(ROOT / "bin/libfern_runtime.a"))
     env.pop("LIBRARY_PATH", None)

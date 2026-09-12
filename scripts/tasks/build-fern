@@ -35,6 +35,6 @@ for src in $(/bin/bash scripts/build_config qbe_sources); do
   qbe_objs+=("$obj")
 done
 "$cc" ${linenoise[@]+"${linenoise[@]}"} -c deps/linenoise/linenoise.c -o build/linenoise.o
-"$cc" ${base[@]+"${base[@]}"} ${mode_flags[@]+"${mode_flags[@]}"} -o bin/fern \
+"$cc" ${base[@]+"${base[@]}"} ${mode_flags[@]+"${mode_flags[@]}"} -o bin/fern-c \
   ${src_objs[@]+"${src_objs[@]}"} ${lib_objs[@]+"${lib_objs[@]}"} ${qbe_objs[@]+"${qbe_objs[@]}"} build/linenoise.o -lm
-echo "✓ Built fern compiler: bin/fern"
+echo "✓ Built C reference compiler: bin/fern-c"

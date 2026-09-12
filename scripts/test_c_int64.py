@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run full-width integer regressions through the shipping C compiler and native runtime."""
+"""Run full-width integer regressions through the explicit C reference compiler and native runtime."""
 import argparse
 from pathlib import Path
 import subprocess
@@ -28,7 +28,7 @@ def run_case(compiler, source, directory):
 def main():
     """Report every independent failure so one regression cannot mask other integer boundaries."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--compiler', type=Path, default=ROOT / 'bin/fern')
+    parser.add_argument('--compiler', type=Path, default=ROOT / 'bin/fern-c')
     args = parser.parse_args()
     failures = []
     cases = sorted((ROOT / 'tests/int64').glob('*.fn'))
