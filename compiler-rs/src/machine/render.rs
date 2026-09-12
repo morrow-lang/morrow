@@ -52,6 +52,11 @@ fn operand(value: &Operand) -> String {
         Operand::Temp(name) => format!("%{}", bare(name)),
         Operand::Symbol(name) => format!("${}", bare(name)),
         Operand::Int(value) => value.to_string(),
+        // Decimal NaN spelling discards sign, payload and signaling bits. QBE
+        // integer constants carry raw bits even when consumed as F64 values.
+        Operand::Float(bits) if f64::from_bits(*bits).is_nan() => {
+            i64::from_ne_bytes(bits.to_ne_bytes()).to_string()
+        }
         Operand::Float(bits) => format!("d_{:.17e}", f64::from_bits(*bits)),
     }
 }

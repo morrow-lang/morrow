@@ -551,3 +551,120 @@ fn sole_native_pointer_stays_visible_to_boehm_across_collecting_calls() {
         b"-9223372036854775717\n"
     );
 }
+
+/// Build the vendored reference in isolation so this test needs no installed QBE.
+fn build_reference_qbe(directory: &std::path::Path) -> std::path::PathBuf {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .unwrap();
+    let mut sources = vec![root.join("compiler-rs/backend/qbe_driver.c")];
+    for folder in [
+        "deps/qbe",
+        "deps/qbe/amd64",
+        "deps/qbe/arm64",
+        "deps/qbe/rv64",
+    ] {
+        for entry in std::fs::read_dir(root.join(folder)).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|extension| extension == "c") {
+                sources.push(path);
+            }
+        }
+    }
+    sources.sort();
+    let binary = directory.join("qbe-reference");
+    let result = std::process::Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()))
+        .args([
+            "-std=c99",
+            "-Wno-unused-parameter",
+            "-Wno-sign-compare",
+            "-I",
+        ])
+        .arg(root.join("deps/qbe"))
+        .args(sources)
+        .args(["-lm", "-o"])
+        .arg(&binary)
+        .env_remove("LIBRARY_PATH")
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "reference QBE build: {result:?}");
+    binary
+}
+
+/// Quiet/signaling NaNs retain sign and payload across constants, loads and bitcasts.
+#[test]
+fn exact_ieee_bits_survive_both_backends_without_decimal_canonicalization() {
+    use Scalar::{F64, I64};
+    let patterns: [u64; 9] = [
+        0x0000_0000_0000_0000, // positive zero
+        0x8000_0000_0000_0000, // negative zero
+        0x0000_0000_0000_0001, // smallest subnormal
+        0x7fef_ffff_ffff_ffff, // largest finite value
+        0x7ff0_0000_0000_0000, // infinity
+        0xfff0_0000_0000_0000, // negative infinity
+        0x7ff8_0000_0000_0123, // quiet NaN with payload
+        0xfff8_0000_0000_0456, // negative quiet NaN
+        0x7ff0_0000_0000_0789, // signaling NaN
+    ];
+    let mut program = Program::default();
+    let mut declarations = String::new();
+    let mut calls = String::new();
+    let mut expected = String::new();
+    for (index, bits) in patterns.into_iter().enumerate() {
+        let data = format!("float_data{index}");
+        program.data.push(Data {
+            name: data.clone(),
+            values: vec![DataValue::Word(Operand::Float(bits))],
+        });
+        for (kind, operation) in [
+            (
+                "constant",
+                Operation::Unary(UnaryOp::Copy, Operand::Float(bits)),
+            ),
+            ("loaded", Operation::Load(LoadKind::F64, symbol(&data))),
+        ] {
+            let name = format!("{kind}{index}");
+            program.functions.push(Function {
+                name: name.clone(),
+                export: true,
+                result: Some(I64),
+                params: vec![],
+                body: vec![
+                    Statement::Label("start".into()),
+                    assign("float", F64, operation),
+                    assign("bits", I64, Operation::Unary(UnaryOp::Cast, temp("float"))),
+                    Statement::Return(Some(temp("bits"))),
+                ],
+            });
+            declarations.push_str(&format!("extern uint64_t {name}(void);\n"));
+            calls.push_str(&format!("printf(\"%016\" PRIx64 \"\\n\", {name}());\n"));
+            expected.push_str(&format!("{bits:016x}\n"));
+        }
+    }
+    let harness = format!("#include <stdio.h>\n#include <stdint.h>\n#include <inttypes.h>\n{declarations}\nint main(void) {{ {calls} return 0; }}\n");
+    let fixture = NativeFixture::new();
+    assert_eq!(fixture.execute(&program, &harness), expected.as_bytes());
+    let qbe = build_reference_qbe(&fixture.0);
+    let ir = fixture.0.join("reference.ssa");
+    let assembly = fixture.0.join("reference.s");
+    std::fs::write(&ir, program.to_qbe()).unwrap();
+    let result = std::process::Command::new(qbe)
+        .args([&ir, &assembly])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "QBE translation: {result:?}");
+    let binary = fixture.0.join("reference");
+    let result = std::process::Command::new(std::env::var_os("CC").unwrap_or_else(|| "cc".into()))
+        .arg(assembly)
+        .arg(fixture.0.join("harness.c"))
+        .arg("-o")
+        .arg(&binary)
+        .env_remove("LIBRARY_PATH")
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "QBE native link: {result:?}");
+    let actual = std::process::Command::new(binary).output().unwrap();
+    assert!(actual.status.success(), "{actual:?}");
+    assert!(actual.stderr.is_empty(), "{actual:?}");
+    assert_eq!(String::from_utf8(actual.stdout).unwrap(), expected);
+}

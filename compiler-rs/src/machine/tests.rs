@@ -337,3 +337,25 @@ fn oversized_machine_stack_offsets_fail_before_native_layout() {
         .unwrap_err()
         .contains("stack allocation limit"));
 }
+
+#[test]
+fn nan_serialization_preserves_sign_payload_and_signaling_bits() {
+    for (bits, raw) in [
+        (0x7ff8_0000_0000_0123, "9221120237041090851"),
+        (0xfff8_0000_0000_0456, "-2251799813684138"),
+        (0x7ff0_0000_0000_0789, "9218868437227407241"),
+    ] {
+        let mut buffer = Buffer::new();
+        buffer.data("bits", vec![DataValue::Word(Operand::Float(bits))]);
+        buffer.begin("nan", Some(Scalar::F64), vec![], true);
+        buffer.statement(Statement::Label("start".into()));
+        buffer.statement(Statement::Return(Some(Operand::Float(bits))));
+        buffer.end();
+        let text = buffer.finish().unwrap().to_qbe();
+        assert!(
+            text.starts_with(&format!("data $bits = {{ l {raw} }}\n")),
+            "{text}"
+        );
+        assert!(text.contains(&format!("    ret {raw}\n")), "{text}");
+    }
+}
