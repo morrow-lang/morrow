@@ -158,6 +158,7 @@ impl Engine<'_> {
             Region::RecursiveCut { layout, .. } => Region::RecursiveCut {
                 layout: *layout,
                 origin: None,
+                retained: Vec::new(),
             },
             Region::Nominal { layout, .. } => Region::Nominal {
                 layout: *layout,

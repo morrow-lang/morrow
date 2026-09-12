@@ -1,0 +1,20 @@
+type Tree:
+    Empty
+    Leaf(Result(Int,String))
+    Branch(Tree,Tree)
+fn walk(tree:Tree)->Unit:
+    match tree:
+        Empty->()
+        Leaf(value)->println(Result.is_err(value))
+        Branch(left,right)->
+            walk(left)
+            walk(right)
+fn grow(depth:Int,tree:Tree)->Tree:
+    if depth<=0:tree
+    else:grow(depth-1,Branch(tree,Leaf(Err("new"))))
+fn append(depth:Int,values:List(Result(Int,String)))->List(Result(Int,String)):
+    if depth<=0:values
+    else:append(depth-1,List.push(values,Err("new")))
+fn main():
+    walk(grow(2,Leaf(Ok(1))))
+    for result in append(2,[Ok(1)]):println(Result.is_err(result))

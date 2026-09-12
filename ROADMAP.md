@@ -72,6 +72,8 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ### Rust Migration Completion
 
+- [x] Complete bounded recursive builder contracts and mutual-summary widening without unproved handling credit (90 focused integrations, 76 internal obligation checks; independent empty-subtree cardinality exploit rejected; conservative equations documented in docs/RESULT_HANDLING.md, Decision114).
+
 User authorization: continue through every migration milestone without stopping
 for approval between milestones. C remains the default until the parity gates pass.
 

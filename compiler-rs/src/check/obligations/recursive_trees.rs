@@ -33,6 +33,7 @@ impl Engine<'_> {
             Region::RecursiveCut {
                 layout,
                 origin: Some(origin),
+                retained: Vec::new(),
             },
             span,
         )?;
@@ -63,7 +64,12 @@ pub(super) fn candidate(
     Ok(found)
 }
 /// Follow real storage edges with finite identity tracking, excluding unresolved callable interfaces.
-fn storage(program: &ir::Program, ty: &Type, work: &mut usize, span: Span) -> Checked<bool> {
+pub(super) fn storage(
+    program: &ir::Program,
+    ty: &Type,
+    work: &mut usize,
+    span: Span,
+) -> Checked<bool> {
     enum Edge<'a> {
         Enter(&'a Type),
         Exit(usize),

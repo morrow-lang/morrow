@@ -67,6 +67,8 @@ mod partitions;
 mod patterns;
 #[path = "obligations/recursive.rs"]
 mod recursive;
+#[path = "obligations/recursive_builders.rs"]
+mod recursive_builders;
 #[path = "obligations/recursive_callables.rs"]
 mod recursive_callables;
 #[path = "obligations/recursive_handlers.rs"]

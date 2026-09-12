@@ -104,9 +104,21 @@ branch conditions; equal layouts, unrelated captures and reconstructed nodes do
 not establish descent. An iterative dependency graph and ancestor certificates
 use the same aggregate proof budget.
 
-Recursive builders, groups requiring non-structural recursive summaries and richer
-recursive higher-order equations remain completion work. Origin-free recursive JSON
-payloads are supported; their enclosing codec Result still requires handling.
+Recursive builders use bounded inductive contracts for fresh closed outputs and
+complete retention of Result-bearing inputs in List or nominal accumulators.
+Aggregate subtree obligations and duty-free accumulator elements never prove a
+returned list is nonempty. This can conservatively reject flattening opaque
+recursive children, even when a human can prove actual leaf duties are present.
+Exact alias contracts take priority; widening a mutually recursive group rebuilds
+dependent summaries within the original shared work budget. A provisional
+contract grants no handling credit, and each successful exit must retain every
+promised input duty. Generic and mutually recursive builders share these rules.
+
+The checker deliberately rejects equations it cannot prove: unknown-key Map
+overwrite/freshness, consuming or replacing accumulators, and arbitrary recursive
+higher-order transformations. These are conservative proof boundaries, not
+permission to ignore a Result. Origin-free recursive JSON payloads are supported;
+their enclosing codec Result still requires handling.
 
 Typed child traversals also preserve transparent newtype wrappers, including nested
 wrappers. Projecting the stored child retains its identity; constructing a wrapper

@@ -39,6 +39,7 @@ pub(super) enum Region {
     RecursiveCut {
         layout: usize,
         origin: Option<usize>,
+        retained: Vec<Value>,
     },
     Nominal {
         layout: usize,
@@ -290,9 +291,15 @@ impl Engine<'_> {
         }
         match &value.node.kind {
             Region::RecursiveCut {
-                origin: Some(id), ..
+                origin, retained, ..
             } if !outer => {
-                result.insert(*id, Predicate::TRUE);
+                if let Some(id) = origin {
+                    result.insert(*id, Predicate::TRUE);
+                }
+                for child in retained {
+                    let found = self.coverage(child, false, span, depth + 1, cache)?;
+                    self.merge_coverage(&mut result, found, Predicate::TRUE, span)?;
+                }
             }
             Region::Nominal { expanded, .. } => {
                 if let Some(value) = expanded.borrow().as_ref() {
@@ -348,7 +355,11 @@ impl Engine<'_> {
 /// Borrow unconditionally included product/container children without allocating a work queue.
 pub(super) fn children(region: &Region) -> Box<dyn Iterator<Item = &Value> + '_> {
     match region {
-        Region::Product(values) | Region::List { items: values, .. } => Box::new(values.iter()),
+        Region::Product(values)
+        | Region::List { items: values, .. }
+        | Region::RecursiveCut {
+            retained: values, ..
+        } => Box::new(values.iter()),
         Region::Map { entries, .. } => Box::new(entries.iter().map(|(_, value)| value)),
         Region::Union { value, .. } => Box::new(std::iter::once(value)),
         _ => Box::new(std::iter::empty()),

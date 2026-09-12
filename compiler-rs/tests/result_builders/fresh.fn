@@ -1,0 +1,14 @@
+type Tree:
+    Empty
+    Leaf(Result(Int,String))
+    Branch(Tree,Tree)
+fn walk(tree:Tree)->Unit:
+    match tree:
+        Empty->()
+        Leaf(value)->println(Result.is_err(value))
+        Branch(left,right)->
+            walk(left)
+            walk(right)
+fn first(depth:Int)->Tree:if depth<=0:Leaf(Ok(1)) else:Branch(second(depth-1),second(depth-1))
+fn second(depth:Int)->Tree:if depth<=0:Leaf(Err("leaf")) else:first(depth-1)
+fn main():walk(first(3))

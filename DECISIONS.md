@@ -4,6 +4,13 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 114 Prove bounded recursive Result builder contracts
+* **Date**: 2026-09-12
+* **Status**: Accepted for implementation and soundness verification
+* **Decision**: I will prove finite fresh-output and complete-input-retention contracts for recursive Result builders, preserving exact aliases first and never granting provisional handling credit.
+* **Context**: Alias-only recursive summaries reject useful finite recursive values. Assuming recursive calls consume their inputs would instead permit silent error loss. Inductive retention summaries allow construction without assuming handling.
+* **Consequences**: Successful exits must retain all promised duties; fresh obligations remain separate. List and nominal accumulators, optional payloads, generics and mutual recursion share a bounded proof engine. Widened groups rebuild dependent summaries within the original 400,000-step budget. Opaque nominal cuts do not prove descent or nonempty collections. Unknown-key Map overwrite, consuming/replacing accumulators and arbitrary higher-order equations remain conservatively rejected. See docs/RESULT_HANDLING.md.
+
 ### 113 Close SQLite handles explicitly and bound live connections
 * **Date**: 2026-09-12
 * **Status**: Accepted for the shared native runtime and both compiler frontends

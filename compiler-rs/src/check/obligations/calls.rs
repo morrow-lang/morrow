@@ -101,20 +101,62 @@ pub(super) fn extend(
         work,
         root.body.span,
     )?;
-    for function in order {
-        let mut engine = Engine::new(program);
-        engine.work = *work;
-        engine.summaries = Some(summaries);
-        engine.relevance = relevance;
-        engine.mode = mode;
-        let mut summary = analyze_body(engine, function)?;
-        if let Some(contract) = summaries.recursive_defaults.get(&function.id.0) {
-            recursive::verify(contract, &mut summary, function.body.span)?;
+    build_order(
+        program,
+        &order,
+        relevance,
+        mode,
+        summaries,
+        work,
+        root.body.span,
+    )
+}
+/// Rebuild every dependent provisional summary after widening, without refunding failed proof work.
+fn build_order(
+    program: &ir::Program,
+    order: &[&ir::Function],
+    relevance: Option<&HashSet<usize>>,
+    mode: Mode,
+    summaries: &mut Summaries,
+    work: &mut usize,
+    span: Span,
+) -> Checked<()> {
+    // Each backedge can widen at most once; all dependent provisional summaries must be rebuilt.
+    for _ in 0..=order.len() {
+        charge(work, order.len(), span)?;
+        let mut widened = false;
+        for function in order {
+            let mut engine = Engine::new(program);
+            engine.work = *work;
+            engine.summaries = Some(summaries);
+            engine.relevance = relevance;
+            engine.mode = mode;
+            let mut summary = analyze_body(engine, function)?;
+            if let Some(contract) = summaries.recursive_defaults.get(&function.id.0) {
+                if let Err(error) = recursive::verify(contract, &mut summary, function.body.span) {
+                    *work = summary.work;
+                    if let Some(next) = recursive::widen(program, function, contract, work)? {
+                        summaries.recursive_defaults.insert(function.id.0, next);
+                        widened = true;
+                        break;
+                    }
+                    return Err(error);
+                }
+            }
+            *work = summary.work;
+            summaries.ready.insert(function.id.0, Rc::new(summary));
         }
-        *work = summary.work;
-        summaries.ready.insert(function.id.0, Rc::new(summary));
+        if !widened {
+            return Ok(());
+        }
+        for function in order {
+            summaries.ready.remove(&function.id.0);
+        }
     }
-    Ok(())
+    Err(Diagnostic::new(
+        span,
+        "Result obligation builder widening limit exceeded",
+    ))
 }
 /// A bounded graph walk orders declarations independently of their textual order.
 fn dependency_order<'a>(

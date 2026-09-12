@@ -4,6 +4,7 @@ use super::*;
 pub(super) enum Contract {
     Fresh,
     Alias(usize),
+    Builder(Vec<usize>),
     Handler(usize),
     TreeHandler(usize),
     Callables(recursive_callables::Contract),
@@ -18,7 +19,7 @@ pub(super) fn contract(
     let span = function.body.span;
     if mode == Mode::Template
         && (matches!(function.return_type, Type::Generic(_))
-            || closed_type(&function.return_type, true, work, span)?)
+            || recursive_builders::template_output(program, &function.return_type, work, span)?)
     {
         // No input is handled or transferred by this approximation; concrete bodies are proved too.
         return Ok(Contract::Fresh);
@@ -28,12 +29,14 @@ pub(super) fn contract(
     gate::type_cost(&function.return_type, work, span)?;
     for (index, param) in function.params.iter().chain(&function.captures).enumerate() {
         charge(work, 1, span)?;
-        closed_inputs &= closed_type(&param.ty, false, work, span)?;
+        closed_inputs &= recursive_builders::closed_data(program, &param.ty, false, work, span)?;
         if param.ty == function.return_type {
             aliases.push(index);
         }
     }
-    if closed_inputs && closed_type(&function.return_type, true, work, span)? {
+    if closed_inputs
+        && recursive_builders::closed_data(program, &function.return_type, true, work, span)?
+    {
         return Ok(Contract::Fresh);
     }
     if super::nominal::closed_signature(program, function, work)? {
@@ -50,6 +53,9 @@ pub(super) fn contract(
     }
     if let [index] = aliases.as_slice() {
         return Ok(Contract::Alias(*index));
+    }
+    if let Some(indices) = recursive_builders::inputs(program, function, work)? {
+        return Ok(Contract::Builder(indices));
     }
     Err(Diagnostic::new(
         span,
@@ -100,6 +106,9 @@ pub(super) fn apply(
         Contract::TreeHandler(index) => {
             recursive_trees::apply(engine, function, *index, args, span)
         }
+        Contract::Builder(indices) => {
+            recursive_builders::apply(engine, function, indices, args, span)
+        }
         Contract::Fresh => engine.fresh(&function.return_type, None, span, 0),
         Contract::Callables(contract) => recursive_callables::apply(engine, contract, args, span),
         Contract::Handler(index) => {
@@ -113,6 +122,9 @@ pub(super) fn apply(
 }
 /// Every actual terminating return must retain the exact candidate input, including guarded returns.
 pub(super) fn verify(contract: &Contract, summary: &mut Summary, span: Span) -> Checked<()> {
+    if let Contract::Builder(indices) = contract {
+        return recursive_builders::verify(indices, summary, span);
+    }
     if let Contract::Callables(contract) = contract {
         return recursive_callables::verify(contract, summary, span);
     }
@@ -165,4 +177,19 @@ pub(super) fn verify(contract: &Contract, summary: &mut Summary, span: Span) -> 
         }
     }
     Ok(())
+}
+
+/// Alias precision is kept until its proof fails; widening adds fresh output duties and a retention proof.
+pub(super) fn widen(
+    program: &ir::Program,
+    function: &ir::Function,
+    contract: &Contract,
+    work: &mut usize,
+) -> Checked<Option<Contract>> {
+    if matches!(contract, Contract::Alias(_)) {
+        if let Some(indices) = recursive_builders::inputs(program, function, work)? {
+            return Ok(Some(Contract::Builder(indices)));
+        }
+    }
+    Ok(None)
 }

@@ -724,7 +724,11 @@ impl<'a> Substitution<'a> {
                 Region::Product(self.value_list(engine, values, span, depth + 1)?)
             }
             Region::Sum { .. } => self.sum_kind(engine, kind, span, depth + 1)?,
-            Region::RecursiveCut { layout, origin } => self.cut_kind(*layout, *origin, span)?,
+            Region::RecursiveCut {
+                layout,
+                origin,
+                retained,
+            } => self.cut_kind(engine, *layout, *origin, retained, span, depth + 1)?,
             Region::Nominal { layout, expanded } => {
                 self.nominal_kind(engine, *layout, expanded, span, depth + 1)?
             }
@@ -779,7 +783,15 @@ impl<'a> Substitution<'a> {
         }
     }
     /// Fresh returned cuts receive fresh origins, never a copied structural descent certificate.
-    fn cut_kind(&self, layout: usize, origin: Option<usize>, span: Span) -> Checked<Region> {
+    fn cut_kind(
+        &mut self,
+        engine: &mut Engine<'_>,
+        layout: usize,
+        origin: Option<usize>,
+        retained: &[Value],
+        span: Span,
+        depth: usize,
+    ) -> Checked<Region> {
         let origin = origin
             .map(|id| {
                 self.local_origins
@@ -788,7 +800,11 @@ impl<'a> Substitution<'a> {
                     .ok_or_else(|| Diagnostic::new(span, "missing recursive subtree origin"))
             })
             .transpose()?;
-        Ok(Region::RecursiveCut { layout, origin })
+        Ok(Region::RecursiveCut {
+            layout,
+            origin,
+            retained: self.value_list(engine, retained, span, depth)?,
+        })
     }
     /// Rebuild branch alternatives with the same substituted source predicates.
     fn choice_kind(

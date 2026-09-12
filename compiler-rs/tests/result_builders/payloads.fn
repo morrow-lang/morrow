@@ -1,0 +1,7 @@
+fn replicate(depth:Int,value:a)->List(a):
+    if depth<=0:[value]
+    else:other(depth-1,value)
+fn other(depth:Int,value:a)->List(a):List.push(replicate(depth,value),value)
+fn main():
+    let value:Result(Int,String)=Err("kept")
+    for result in replicate(3,value):println(Result.is_err(result))

@@ -1,0 +1,13 @@
+type Node(a):
+    Leaf(a)
+    Branch(Node(a),Node(a))
+fn replicate(depth:Int,value:a)->Node(a):
+    if depth<=0:Leaf(value)
+    else:Branch(replicate(depth-1,value),replicate(depth-1,value))
+fn walk(node:Node(Result(Int,String)))->Unit:
+    match node:
+        Leaf(value)->println(Result.is_err(value))
+        Branch(a,b)->
+            walk(a)
+            walk(b)
+fn main():walk(replicate(2,Err("kept")))
