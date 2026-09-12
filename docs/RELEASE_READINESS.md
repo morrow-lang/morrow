@@ -12,6 +12,16 @@ See the [standard library reference](STDLIB_API_REFERENCE.md) and [roadmap](../R
 
 ## Remaining language work
 
+The active product direction is supervised native actors plus a reactive Fern
+WebAssembly browser application over a typed WebSocket protocol (Decision124).
+The [full-stack architecture](FULL_STACK_ARCHITECTURE.md) defines its staged
+acceptance. Actor-owned heaps, fair resumable scheduling, external-event liveness,
+typed supervision, a browser ABI/backend and bounded reconnect semantics must be
+proved before claiming an Elixir/Phoenix alternative. The first browser/server
+demo is single-node and explicitly ephemeral; durability and distributed recovery
+are separate gates. Generated browser interop is permitted build output, while
+implementation remains Rust-authored and application logic remains Fern.
+
 The rewrite preserves supported behavior; it does not implement every proposal
 in [DESIGN.md](../DESIGN.md). Open work includes generalized actor suspension and
 typed supervision, actor REPL parity, deeper JSON union discrimination and custom

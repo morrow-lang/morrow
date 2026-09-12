@@ -43,7 +43,10 @@ are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
 The direction is a practical language for command-line tools and applications:
 readable code, predictable behavior and a useful standard library. The
 [design](DESIGN.md) describes that larger vision; the [roadmap](ROADMAP.md)
-tracks its implementation.
+tracks its implementation. The full-stack direction combines supervised native
+actors with a reactive Fern WebAssembly client over typed WebSocket connections.
+That browser/server framework is planned; the
+[architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the next milestones.
 
 ## Try it
 

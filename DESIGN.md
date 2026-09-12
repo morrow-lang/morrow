@@ -6,6 +6,23 @@
 **CLI tool:** `fern`  
 **File extension:** `.fn`
 
+## Active full-stack direction
+
+Decision124 selects supervised native actors plus a reactive Fern application
+compiled to WebAssembly, connected through a typed WebSocket protocol. Shared
+Fern types and pure functions cross compilation targets; heaps, authority and
+runtime handles do not. The server owns business state and the browser owns local
+interaction and rendering. A first-party framework supplies the application
+experience while small CLI programs retain a focused dependency surface.
+
+Memory remains automatic: actor-owned tracing heaps and fair scheduling are the
+server target; precise linear-memory tracing is the initial browser baseline,
+with WasmGC evaluated before ABI stabilization. Borrow inference and reuse are
+internal optimizations. These are planned changes, not current capabilities.
+The [full-stack architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the current
+direction and supersedes conflicting older proposals below. The
+[roadmap](ROADMAP.md) distinguishes implemented features from acceptance gates.
+
 ## Design Philosophy
 
 ### The Four Pillars
@@ -4462,7 +4479,8 @@ All tests passed! (3/3)
 
 These belong in the package ecosystem:
 
-- ❌ Web frameworks (Rails/Django-style)
+- Web framework implementation: a first-party package under Decision124, rather
+  than special compiler syntax or a mandatory CLI runtime dependency
 - ❌ ORMs (ActiveRecord-style)
 - ❌ Specific database drivers (Postgres, MySQL, MongoDB)
 - ❌ GraphQL servers/clients
@@ -4472,9 +4490,11 @@ These belong in the package ecosystem:
 - ❌ AWS/Cloud SDKs
 - ❌ Machine learning libraries
 - ❌ Game engines
-- ❌ GUI frameworks
+- Native desktop GUI frameworks (the first-party browser UI is in Decision124)
 
-**Rationale:** These are either too specialized, too large, evolve too quickly, or better served by focused community packages.
+**Rationale:** These features belong in focused packages so they can evolve
+without expanding every program's core runtime. Decision124 makes the web/UI
+framework first-party; the other specialized integrations remain ecosystem work.
 
 ### Package Ecosystem
 
@@ -4517,8 +4537,10 @@ values used by both the REPL and native runtime.
 
 Native memory uses a Rust-owned nonmoving tracing collector with stack/register
 scanning, interior pointers, explicit temporary roots and finalized Rust values.
-Reference metadata remains bookkeeping; Perceus reuse analysis and WASM remain
-planned. See [runtime memory](docs/MEMORY_MANAGEMENT.md).
+Reference metadata remains bookkeeping. Decision124 prioritizes actor-owned heaps,
+precise safepoint roots and a separate WebAssembly ABI; borrowing and reuse remain
+internal optimization work. See [runtime memory](docs/MEMORY_MANAGEMENT.md) and
+the [full-stack target architecture](docs/FULL_STACK_ARCHITECTURE.md).
 
 Fern-authored code and development tooling are Rust. Mature third-party native
 libraries may be used through Rust wrappers: SQLite uses rusqlite; HTTP uses

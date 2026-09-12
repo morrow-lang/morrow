@@ -7,6 +7,23 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 ## Current Status Snapshot
 
 - Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows pass on macOS/Linux ARM64. [Current scope and evidence](docs/RUST_WORKSPACE.md).
+- Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). This architecture is adopted; the browser backend, web framework and scalable actor runtime remain implementation work.
+
+### Full-stack Actor and Browser Milestones
+
+The [architecture and acceptance plan](docs/FULL_STACK_ARCHITECTURE.md) defines
+ownership, scheduling, browser ABI and protocol contracts. Server and browser
+work can proceed in parallel after shared target contracts are established.
+
+- [x] Adopt automatic memory without mandatory application borrow checking, actor-owned tracing heaps, a separate browser ABI and a Rust-authored first-party web/UI framework (Decision124).
+- [ ] Establish portable typed-IR/layout and target capability contracts: preserve i64 language integers, distinguish pointers/handles, and reject browser-unavailable APIs through imported code.
+- [ ] Isolate actor heaps with precise roots and bounded, atomic message/capture graph copying. Verify suspended roots, cycles, cross-actor independence, resource cleanup and reusable identities with generations.
+- [ ] Implement resumable work-budget safepoints through loops and helper calls, an external-event scheduler, bounded blocking-service workers and supervision of actual typed actors. Prove unrelated progress and failure isolation on one worker before adding parallel execution.
+- [ ] Compile Fern to wasm32 with a precise linear-memory runtime and tested Rust host imports, initialization and allocator ownership. Verify native/browser semantic parity and evaluate WasmGC before stabilizing the browser ABI.
+- [ ] Build the Rust browser host and Fern model/update/view API with keyed accessible DOM updates, responsive local drafts, bounded events and subscription/handle cleanup.
+- [ ] Add HTTP/WebSocket serving and a typed command/snapshot protocol with authentication, authorization, backpressure, revision conflicts, bounded deduplication and explicit reconnect/reset outcomes.
+- [ ] Deliver the two-browser collaborative checklist with bounded ephemeral state and reproducible compiled WASM artifacts. Pass the architecture's real-browser acceptance cases; label a single-worker preview explicitly.
+- [ ] Prove sustained multi-worker fairness, lifecycle churn, memory bounds and observability. Add transactional durable recovery before claiming persistent application guarantees; multi-node ownership and failover remain a separate gate.
 
 ### Rust Workspace Completion
 
@@ -337,7 +354,7 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Verify the library-path/inline-codec checkpoint on macOS and Linux: full Rust/native/C/docs gates, 1470/1472 nextest tests without skips, separate doctests and all ten Criterion smoke phases.
 - [ ] Complete deeper union discrimination and general/custom Json traits (J6c–J7).
 - [x] Reassess QBE/Cranelift using current primary sources and an independent native AOT experiment; correct the original QBE rationale (Decision109).
-- [ ] Trial a supported Cranelift backend through shared lowering and complete native/ABI/debug/performance gates before a default decision.
+- [x] Trial Cranelift through shared lowering and promote it as the sole native backend under the Rust workspace migration (Decision122). ARM64 native/ABI and recorded performance acceptance pass; source debugging, controlled optimization comparisons and x86-64 execution remain separate work.
 - [x] Extract shared typed machine lowering and replace handwritten QBE helper text with structured Rust builders; preserve existing QBE boundary tests (Decision112).
 - [x] Add canonical native signatures, fixed Float runtime boundaries and explicit Cranelift build/run selection; selected builds emit objects without invoking QBE or an assembler.
 - [x] Preserve the complete default Rust/QBE gate on macOS/Linux ARM64 after shared lowering (1,548/1,551 Cargo tests, native and packaging/workflow oracles, 192 fuzz mutations).
@@ -351,14 +368,15 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [ ] Complete remaining planned traits/constraints and private-signature inference beyond the verified function, label, alias/newtype and union checkpoints.
 - [ ] Complete Sets and the specified standard modules, including data formats, testing/utilities, IO/system, cryptography and compression.
 - [ ] Audit all specified syntax and stdlib calls for complete typecheck-to-native behavior; reject unsupported execution paths.
-- [ ] Complete ownership analysis and the planned WASM backend.
+- [ ] Implement the actor-owned tracing and browser WASM foundations above. Inferred ownership/reuse remains an optimization, not a mandatory application borrow checker (Decision124).
 
 ## Next Session Start Here
 
-The Rust-only workspace migration is the active task. Earlier compiler-default
-acceptance is historical; current acceptance must use the Rust runtime and
-Cranelift through `cargo xtask check`.
+The Rust-only workspace migration is complete within its recorded acceptance
+scope. The active direction is the full-stack actor/browser plan above. Continue
+using the Rust runtime and Cranelift through `cargo xtask check`; historical
+compiler-default evidence does not validate new runtime or browser features.
 
-1. Extend bounded native actors toward generalized suspension, typed supervision and REPL/FernSim parity while preserving mailbox, ownership and lifecycle contracts.
-2. Close remaining language and stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), including advanced JSON traits and server/database APIs; retain explicit diagnostics for unsupported execution.
-3. Maintain the Rust LSP and complete remaining Cranelift debugger, performance and architecture coverage. Tree-sitter has been removed by request.
+1. Establish target/layout contracts and independent actor isolation/continuation tests, then implement actor-owned heaps and resumable scheduling. Preserve full-width values, bounded resources and deterministic lifecycle contracts.
+2. In parallel after those contracts, prove a minimal Fern wasm32 program calling a Rust browser host with collection-safe roots. Grow it into the collaborative checklist through the listed UI and protocol gates.
+3. Close supporting language/stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), maintain the Rust LSP, and collect fresh native/browser correctness and performance evidence. Tree-sitter remains removed.

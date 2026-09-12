@@ -32,3 +32,26 @@ pointer held only by Cranelift-generated code across collection.
 Run `cargo xtask test` for native integration and `cargo test -p fern-runtime`
 for runtime tests. See [the previous memory plan](history/MEMORY_MANAGEMENT_PLAN.md)
 for historical proposals, and [the roadmap](../ROADMAP.md) for remaining work.
+
+## Adopted direction: actor isolation and browser execution
+
+Decision124 prioritizes actor-owned tracing heaps with precise roots over a
+universal reference-counting replacement. Ordinary Fern code keeps automatic
+memory management. Compiler-inferred ownership, borrowing and reuse may optimize
+it without adding mandatory lifetime or move rules to the language.
+
+The server target gives each actor an independently reclaimable heap and copies
+message/capture graphs across ownership boundaries. GC, copying and mailbox work
+must be budgeted alongside resumable execution. Shared immutable binaries may
+later use explicit reference counting. The present TLS heap and retained message
+pointers do not implement this isolation and must not simply be marked thread-safe.
+
+The initial browser target is wasm32 linear memory with a precise collector and
+compiler-maintained roots, preserving 64-bit language integers while separating
+pointer and handle representations. WasmGC must be evaluated before stabilizing
+the browser ABI. Native stack/register scanning cannot discover browser locals.
+Both targets require explicit host-resource ownership and callback cleanup.
+
+These are adopted design requirements, not changes already made to allocation or
+collection. The [full-stack architecture](FULL_STACK_ARCHITECTURE.md) defines
+migration gates and the [roadmap](../ROADMAP.md) tracks their implementation.
