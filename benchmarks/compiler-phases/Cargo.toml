@@ -8,7 +8,7 @@ publish = false
 [workspace]
 
 [dependencies]
-fern-prototype = { path = "../../compiler-rs" }
+fern = { path = "../../crates/fern" }
 
 [dev-dependencies]
 criterion = { version = "=0.5.1", default-features = false, features = ["cargo_bench_support"] }
@@ -16,3 +16,11 @@ criterion = { version = "=0.5.1", default-features = false, features = ["cargo_b
 [[bench]]
 name = "phases"
 harness = false
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

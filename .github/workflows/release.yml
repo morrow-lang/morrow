@@ -3,118 +3,40 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    tags:
-      - "v*.*.*"
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: read
 
 jobs:
-  release-readiness:
-    name: Release Readiness
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang pkg-config libgc-dev libsqlite3-dev libssl-dev
-
-      - name: Install pinned mise tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
-        with:
-          version: 2026.9.1
-          install: true
-
-      - name: Verify managed and native tools
-        run: mise run tool-versions
-
-      - name: Build release binary
-        run: mise run clean && mise run release
-
-      - name: Validate release staging layout
-        run: mise run release-package-check
-
-      - name: Validate compatibility policy
-        run: mise run release-policy-check
-
-      - name: Validate release versions and dependency notices
-        run: |
-          python3 scripts/test_default_ci_workflow.py
-          python3 scripts/test_third_party_notices.py
-
-      - name: Enforce performance budgets
-        run: PERF_BUDGET_FLAGS=--skip-build mise run perf-budget
-
-      - name: Generate benchmark + case-study report
-        run: BENCHMARK_FLAGS="--skip-release-build --output dist/benchmark-case-studies.md" mise run benchmark-report
-
-      - name: Package verified readiness bundle
-        run: mise run --skip-deps release-package
-
-      - name: Upload readiness bundle artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: fern-release-readiness-linux
-          path: |
-            dist/*.tar.gz
-            dist/*.tar.gz.sha256
-          if-no-files-found: error
-
-      - name: Upload benchmark report artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: fern-benchmark-case-studies
-          path: dist/benchmark-case-studies.md
-          if-no-files-found: error
-
-  package-bundles:
-    name: Package Release Bundles
-    needs: release-readiness
+  verified-bundles:
+    name: Verify and package (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
     strategy:
+      fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            platform: linux
-          - os: macos-latest
-            platform: macos
-
+        os: [ubuntu-latest, macos-latest]
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang pkg-config libgc-dev libsqlite3-dev libssl-dev
-
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          brew install bdw-gc sqlite openssl pkg-config
-          clang --version
-
-      - name: Install pinned mise tools
+      - name: Install pinned Rust toolchain
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
           version: 2026.9.1
           install: true
-
-      - name: Verify managed and native tools
-        run: mise run tool-versions
-
-      - name: Build and package release bundle
-        run: mise run clean && mise run release-package
-
-      - name: Verify packaged dependency notices
-        run: python3 scripts/test_third_party_notices.py
-
-      - name: Upload packaged artifacts
+      - name: Verify release compiler and native runtime
+        run: cargo xtask check --release
+      - name: Build and verify complete Rust release archive
+        run: cargo xtask package
+      - name: Upload verified archive and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: fern-release-${{ matrix.platform }}
+          name: fern-release-${{ matrix.os }}
           path: |
             dist/*.tar.gz
             dist/*.tar.gz.sha256

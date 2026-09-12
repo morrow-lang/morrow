@@ -1,0 +1,27 @@
+[workspace]
+members = ["crates/*", "xtask"]
+exclude = ["benchmarks/compiler-phases"]
+resolver = "3"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.100"
+license = "MIT"
+repository = "https://github.com/niklas-heer/fern"
+
+[workspace.dependencies]
+libc = "=0.2.189"
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

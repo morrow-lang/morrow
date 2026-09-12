@@ -2,16 +2,17 @@
 
 This document defines the native parser/accessor foundation. J2 adds immutable
 builders and collection adapters, exposed by the [Rust native API](JSON_RUST_API.md).
-The existing `fern_json_parse` and `fern_json_stringify` string-copy ABI and C
-source signatures remain unchanged. The Rust REPL implements the same dynamic
+The legacy `fern_json_parse` and `fern_json_stringify` string-copy entry points
+were removed during the Rust workspace migration. The Rust REPL implements the same dynamic
 profile with additional interactive aggregate/retention limits; typed codecs remain
 separate. See [the Rust API](JSON_RUST_API.md).
 
 ## ABI and ownership
 
-`runtime/fern_runtime.h` declares opaque `FernJsonValue` and `FernJsonError`
-pointers. All allocations use Fern's existing scanned runtime allocator and are
-retained by the GC; callers must not free them individually. Values are immutable.
+`crates/fern-runtime/src/json.rs` exports opaque value/error pointers through
+the native ABI. Handles are owned by Fern's Rust collector; finalized handles
+release their shared Rust JSON storage. Callers must not free them individually.
+Values are immutable.
 The C API requires valid, non-NULL opaque pointers returned by this API. It does
 not validate forged C pointers or provide mutable access to internal fields.
 
@@ -38,9 +39,9 @@ All functions below use the `fern_json_value_` prefix:
 Every Result is the existing full-width heap Result returned as `int64_t`.
 Success/failure tags are read with `fern_result_is_ok`; the full-width payload is
 read with `fern_result_unwrap`. Pointer payloads convert through `intptr_t`.
-Float success payloads are binary64 bits copied with `memcpy`, not an integer
-numeric conversion. These are ordinary Result failures, not hidden fault-context
-errors; normal source Result handling will apply after the vertical migration.
+Float success payloads are binary64 bit patterns, not integer numeric
+conversions. These are ordinary Result failures, and normal source Result
+handling applies.
 
 ## Format profile
 
@@ -73,10 +74,10 @@ trailing fractional zeros, negative zero, and arbitrary precision within limits.
 `as_int` analyzes decimal digits/exponents exactly, accepts mathematically
 integral values, and rejects fractions or signed64 overflow. Exponents saturate
 for analysis, so their magnitude never controls loop counts. `as_float` explicitly
-rounds to binary64 in a private C locale; finite subnormals are accepted, while
+rounds to binary64 using locale-independent Rust conversion; finite subnormals are accepted, while
 nonfinite overflow and mathematically nonzero values rounded to zero return
-code8. Negative zero retains its sign. Locale handles are released after use;
-no process-global locale changes or fault state are introduced.
+code8. Negative zero retains its sign. No process-global locale changes or fault state
+are introduced.
 
 Encoding is compact, preserves object order and number spelling, and emits UTF-8
 with JSON escapes for controls, quotes and backslashes. It is not a canonical
@@ -107,8 +108,7 @@ Code12 belongs to strict [typed record decoding](JSON_TYPED_CODECS.md); existing
 dynamic operations keep their codes and empty error paths.
 
 Code11 is used by the Float builder for NaN/infinity. The parser rejects those
-spellings as syntax; numeric conversion overflow uses code8. Host failure to create the
-private conversion locale returns code4. Actual allocation exhaustion follows
+spellings as syntax; numeric conversion overflow uses code8. Actual allocation exhaustion follows
 the existing runtime allocator contract, not a promised recoverable JSON OOM.
 
 ## Bounds and testing
@@ -139,12 +139,17 @@ tests exercise those ceilings directly without exposing a public limit override.
 Builders enforce cached depth, expanded-node and encoded-byte metadata when
 sealing; the parser also enforces depth/nodes during descent/allocation.
 
-Run `env -u LIBRARY_PATH python3 scripts/test_runtime_json.py` after building the
-runtime archive in the selected checkout. It compiles fresh JSON objects for
-three variants (debug, release and ASan/UBSan), and tests the actual runtime GC
-and Result ABI. Temporary objects/binaries are isolated; it never starts a shared
-runtime build. Boehm owns its heap, so sanitizer success complements explicit
-bounds checks rather than claiming instrumentation of every GC allocation.
+The shared `fern-json` crate implements parsing, indexing, conversion and
+encoding for both native execution and the REPL. Runtime integration tests
+exercise opaque ownership, malformed byte input and the full-width Result ABI.
+The Rust collector has separate root, pressure, cycle and finalizer tests.
+
+```sh
+cargo test -p fern-json
+cargo test -p fern-runtime --test json_values
+cargo test -p fern-runtime --release
+cargo xtask native json
+```
 
 ## J2 builders and collection ABI
 
@@ -159,7 +164,7 @@ offset-1. Every input list dimension is checked before reading its data.
 
 `elements` returns Result(List(Value*), Error*). `members` returns
 Result(List(FernJsonMember*), Error*); each member record has exactly two64-bit
-fields, `key` at offset0 and `value` at offset8. Static C assertions check this
+fields, `key` at offset0 and `value` at offset8. Rust ABI tests and compiler adapter tests check this
 layout. The Rust emitter converts successful member results to tagged three-word
 source tuples; it preserves Err pointers without reading them as lists.
 `limit_error()` is an internal adapter preflight helper, never a source function.
@@ -170,6 +175,7 @@ then charges repeated indexing comparisons against64 *100,000 units. Expanded
 child metadata is checked without traversing shared subtrees. Existing storage is
 not mutated. A maximum16 MiB encoded value may exceed the1 MiB parse-input cap.
 
-The JSON native test runner now includes248 builder/collection checks per build,
-including actual exact/above16 MiB encodings from shared children, depth/expanded
-node limits, invalid Unicode, locale-independent numbers and immutable copies.
+Rust engine/runtime/source tests cover builder and collection behavior, large
+encodings, depth/expanded-node limits, invalid Unicode, locale-independent
+numbers and immutable copies. Historical C sanitizer counts are not Rust
+acceptance counts; see [workspace acceptance](RUST_WORKSPACE.md).

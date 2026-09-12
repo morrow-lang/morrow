@@ -1,0 +1,672 @@
+[
+  {
+    "name": "test_rust_closures/wrong_predicate",
+    "source": "fn main(): List.filter([1], (x) -> x + 1)\n"
+  },
+  {
+    "name": "test_rust_closures/wrong_argument",
+    "source": "fn main(): ((x: Int) -> x)(true)\n"
+  },
+  {
+    "name": "test_rust_closures/recursive_type",
+    "source": "fn main(): let f = (x) -> x(x)\n"
+  },
+  {
+    "name": "test_rust_closures/missing_capture",
+    "source": "fn main(): let f = () -> unavailable\n"
+  },
+  {
+    "name": "test_rust_closures/wrong_fold",
+    "source": "fn main(): List.fold([1], 0, (total, x) -> \"wrong\")\n"
+  },
+  {
+    "name": "test_rust_closures/wrong_error",
+    "source": "fn fail() -> Result(Int, String): Err(\"bad\")\nfn other() -> Result(Int, Bool): Err(false)\nfn main(): println(Result.is_ok(Result.and_then(fail(), (x) -> other())))\n"
+  },
+  {
+    "name": "test_rust_collections/missing_none",
+    "source": "fn main():\n    match Some(1):\n        Some(n) -> println(n)\n"
+  },
+  {
+    "name": "test_rust_collections/missing_err",
+    "source": "fn f(r: Result(Int, String)) -> Int:\n    match r:\n        Ok(n) -> n\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_collections/mixed_list",
+    "source": "fn main():\n    let values = [1, true]\n"
+  },
+  {
+    "name": "test_rust_collections/wrong_payload",
+    "source": "fn f() -> Option(String): Some(1)\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_collections/wrong_constructor",
+    "source": "fn f() -> Option(Int): Ok(1)\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_collections/escaped_binding",
+    "source": "fn main():\n    match Some(1):\n        Some(n) -> println(n)\n        None -> println(0)\n    println(n)\n"
+  },
+  {
+    "name": "test_rust_collections/unresolved_none",
+    "source": "fn main():\n    let value = None\n"
+  },
+  {
+    "name": "test_rust_collections/unresolved_list",
+    "source": "fn main():\n    let value = []\n"
+  },
+  {
+    "name": "test_rust_collections/ignored_result",
+    "source": "fn f() -> Result(Int, String): Ok(1)\nfn main():\n    f()\n    println(\"ignored\")\n"
+  },
+  {
+    "name": "test_rust_collections/ignored_last_result",
+    "source": "fn f() -> Result(Int, String): Ok(1)\nfn main(): f()\n"
+  },
+  {
+    "name": "test_rust_collections/unused_result_binding",
+    "source": "fn f() -> Result(Int, String): Ok(1)\nfn main():\n    let ignored = f()\n"
+  },
+  {
+    "name": "test_rust_collections/unused_result_parameter",
+    "source": "fn ignore(value: Result(Int, String)) -> Unit: ()\nfn main(): ignore(Err(\"lost\"))\n"
+  },
+  {
+    "name": "test_rust_collections/unused_result_pattern",
+    "source": "fn main():\n    let nested: Option(Result(Int, String)) = Some(Err(\"lost\"))\n    match nested:\n        Some(result) -> println(\"ignored\")\n        None -> println(\"empty\")\n"
+  },
+  {
+    "name": "test_rust_collections/compound_equality",
+    "source": "fn main(): println([1] == [1])\n"
+  },
+  {
+    "name": "test_rust_collections/nested_contains",
+    "source": "fn main(): println(List.contains([[1]], [1]))\n"
+  },
+  {
+    "name": "test_rust_collections/unreachable_arm",
+    "source": "fn main():\n    match true:\n        _ -> println(0)\n        true -> println(1)\n"
+  },
+  {
+    "name": "test_rust_collections/branch_type",
+    "source": "fn main():\n    let value = match true:\n        true -> 1\n        false -> \"no\"\n"
+  },
+  {
+    "name": "test_rust_collections/incomplete_nested_pattern",
+    "source": "fn main():\n    match Some(Some(1)):\n        Some(Some(n)) -> println(n)\n        None -> println(0)\n"
+  },
+  {
+    "name": "test_rust_collections/incomplete_guard",
+    "source": "fn main():\n    match 1:\n        n if n > 0 -> println(n)\n"
+  },
+  {
+    "name": "test_rust_collections/try_outside_result",
+    "source": "fn value() -> Result(Int, String): Ok(1)\nfn main(): println(value()?)\n"
+  },
+  {
+    "name": "test_rust_collections/try_wrong_error",
+    "source": "fn value() -> Result(Int, String): Err(\"failure\")\nfn other() -> Result(Int, Int): Ok(value()?)\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_collections/try_non_result",
+    "source": "fn value() -> Result(Int, String): Ok(1?)\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_control/wrong_return",
+    "source": "fn bad() -> Int: return true\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_control/unreachable",
+    "source": "fn main():\n    return ()\n    println(\"never\")\n"
+  },
+  {
+    "name": "test_rust_control/non_unit_cleanup",
+    "source": "fn main(): defer 1\n"
+  },
+  {
+    "name": "test_rust_control/return_from_cleanup",
+    "source": "fn main(): defer return ()\n"
+  },
+  {
+    "name": "test_rust_control/propagate_from_cleanup",
+    "source": "fn main(): defer println(Ok(1)?)\n"
+  },
+  {
+    "name": "test_rust_control/let_else_continues",
+    "source": "fn main():\n    let Some(x) = Some(1) else: ()\n    println(x)\n"
+  },
+  {
+    "name": "test_rust_control/let_else_failure_scope",
+    "source": "fn bad(value: Option(Int)) -> Int:\n    let Some(x) = value else: return x\n    x\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_control/condition_no_fallback",
+    "source": "fn main():\n    match:\n        true -> ()\n"
+  },
+  {
+    "name": "test_rust_control/condition_wrong_type",
+    "source": "fn main():\n    match:\n        1 -> ()\n        _ -> ()\n"
+  },
+  {
+    "name": "test_rust_control/ignored_result_cleanup",
+    "source": "fn main():\n    let result: Result(Int, String) = Ok(1)\n    defer println(\"cleanup\")\n    ()\n"
+  },
+  {
+    "name": "test_rust_functions/missing_case",
+    "source": "fn f(0: Int) -> 1\nfn main(): println(f(0))\n"
+  },
+  {
+    "name": "test_rust_functions/guard_only",
+    "source": "fn f(n: Int) if n > 0 -> n\nfn main(): println(f(1))\n"
+  },
+  {
+    "name": "test_rust_functions/unreachable",
+    "source": "fn f(n: Int) -> n\nfn f(0: Int) -> 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/separated",
+    "source": "fn f(0: Int) -> 1\nfn other(): ()\nfn f(n: Int) -> n\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/arity",
+    "source": "fn f(0: Int) -> 1\nfn f(n: Int, x: Int) -> n\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/types",
+    "source": "fn f(0: Int) -> 1\nfn f(n: String) -> 2\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/returns",
+    "source": "fn f(0: Int) -> Int: 1\nfn f(n: Int) -> String: \"x\"\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/visibility",
+    "source": "pub fn f(0: Int) -> Int: 1\nfn f(n: Int) -> Int: n\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/discard_result",
+    "source": "fn f(_: Result(Int, String)) -> 1\nfn main(): println(f(Ok(2)))\n"
+  },
+  {
+    "name": "test_rust_functions/discard_nested",
+    "source": "fn f([_, .._]: List(Result(Int, String))) -> 1\nfn f([]: List(Result(Int, String))) -> 0\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_functions/guard_type",
+    "source": "fn f(n: Int) if n -> n\nfn f(n: Int) -> n\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/nominal_map_key",
+    "source": "type Bag(a):\n    values: Map(a, Int)\nfn bad(bag: Bag(Float), phantom: a) -> a: phantom\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/unknown_name",
+    "source": "fn bad(x: a) -> a: missing\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/universal_literal",
+    "source": "fn bad(x: a) -> a: 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/universal_conversion",
+    "source": "fn bad(x: a) -> b: x\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/concrete_return",
+    "source": "fn bad(x: a) -> Int: x\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/branch_mismatch",
+    "source": "fn bad(x: a, flag: Bool) -> a: if flag: x else: \"wrong\"\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/callback_return",
+    "source": "fn bad(x: a) -> List(a): List.map([x], (item) -> 0)\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/compound_contains",
+    "source": "fn bad(x: a) -> Bool: List.contains([[1]], [1])\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/unused_result",
+    "source": "fn bad(x: a) -> a:\n    let ignored: Result(Int, String) = Ok(1)\n    x\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/nested_coverage",
+    "source": "fn bad(x: a, ys: List(Bool)) -> a:\n    match ys:\n        [] -> x\n        [true, .._] -> x\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/clause_returns",
+    "source": "fn bad(Some(x): Option(a)) -> a: 1\nfn bad(None: Option(a)) -> a: \"wrong\"\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/boolean_numeric",
+    "source": "fn square(x: a) -> a: x * x\nfn main(): println(square(true))\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/function_numeric",
+    "source": "fn square(x: a) -> a: x * x\nfn main():\n    let callback: (Bool) -> Bool = square\n    println(callback(true))\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/callback_numeric",
+    "source": "fn square(x: a) -> a: x * x\nfn main(): println(List.len(List.map([true], square)))\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/compound_display",
+    "source": "fn describe(x: a) -> String: \"value={x}\"\nfn main(): println(describe([1]))\n"
+  },
+  {
+    "name": "test_rust_generic_schemes/map_key",
+    "source": "fn lookup(key: k) -> Option(Int): Map.get(%{key: 1}, key)\nfn main(): println(Option.unwrap_or(lookup(1.5), 0))\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/unknown_record",
+    "source": "fn read(value) -> value.field\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/unknown_tuple",
+    "source": "fn read((first, ..tail)) -> first\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/unknown_iterable",
+    "source": "fn visit(items): for item in items: println(item)\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/missing_field",
+    "source": "type Box:\n    value: Int\nfn consume(x: Box) -> Unit: ()\nfn read(x):\n    let value = x.missing\n    consume(x)\n    value\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/invalid_update",
+    "source": "type Box:\n    value: Int\nfn consume(x: Box) -> Unit: ()\nfn read(x):\n    let changed = %{x | value: true}\n    consume(x)\n    changed\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/invalid_suffix",
+    "source": "fn read((first, ..tail)) -> Int: tail + first\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/ignored_result",
+    "source": "type Box:\n    value: Result(Int, String)\nfn consume(x: Box) -> Unit: match x.value:\n    Ok(_) -> ()\n    Err(_) -> ()\nfn read(x):\n    let ignored = x.value\n    consume(x)\n    ()\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_inference_shapes/captured_result",
+    "source": "type Box:\n    value: Result(Int, String)\nfn consume(x: Box) -> Unit: match x.value:\n    Ok(_) -> ()\n    Err(_) -> ()\nfn read(x):\n    let callback = () -> x.value\n    consume(x)\n    callback\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_iteration/break_outside",
+    "source": "fn main(): break\n"
+  },
+  {
+    "name": "test_rust_iteration/continue_outside",
+    "source": "fn main(): continue\n"
+  },
+  {
+    "name": "test_rust_iteration/cross_lambda_break",
+    "source": "fn main():\n    for n in 0..3:\n        let f = () -> break\n        f()\n"
+  },
+  {
+    "name": "test_rust_iteration/defer_break",
+    "source": "fn main():\n    for n in 0..3:\n        defer break\n"
+  },
+  {
+    "name": "test_rust_iteration/float_range",
+    "source": "fn main(): for n in 1.0..2.0: println(n)\n"
+  },
+  {
+    "name": "test_rust_iteration/refutable_iteration",
+    "source": "fn main(): for Some(n) in [Some(1)]: println(n)\n"
+  },
+  {
+    "name": "test_rust_iteration/scalar_iteration",
+    "source": "fn main(): for n in 1: println(n)\n"
+  },
+  {
+    "name": "test_rust_iteration/with_plain_value",
+    "source": "fn main(): with x <- 1 do println(x)\n"
+  },
+  {
+    "name": "test_rust_iteration/with_impossible_ok",
+    "source": "fn main(): with x <- Ok(1) do println(x) else Ok(_) -> ()\n"
+  },
+  {
+    "name": "test_rust_iteration/with_nonexhaustive",
+    "source": "fn failure() -> Result(Int, Bool): Err(false)\nfn main(): with x <- failure() do println(x) else Err(true) -> ()\n"
+  },
+  {
+    "name": "test_rust_iteration/with_success_scope",
+    "source": "fn failure() -> Result(Int, Int): Err(0)\nfn main(): with x <- failure() do println(x) else Err(_) -> println(x)\n"
+  },
+  {
+    "name": "test_rust_iteration/with_wrong_return",
+    "source": "fn failure() -> Result(Int, Int): Err(0)\nfn main(): with x <- failure() do println(x) else Err(_) -> true\n"
+  },
+  {
+    "name": "test_rust_iteration/stray_bind",
+    "source": "fn main(): let x <- Ok(1)\n"
+  },
+  {
+    "name": "test_rust_iteration/loop_result_drop",
+    "source": "fn main(): for value in [Ok(1)]: println(1)\n"
+  },
+  {
+    "name": "test_rust_maps/float_keys",
+    "source": "fn main(): let values = %{1.0: 1}\n"
+  },
+  {
+    "name": "test_rust_maps/compound_keys",
+    "source": "fn main(): let values = %{[1]: 1}\n"
+  },
+  {
+    "name": "test_rust_maps/wrong_key",
+    "source": "fn main(): println(Map.contains(%{1: 2}, true))\n"
+  },
+  {
+    "name": "test_rust_maps/wrong_value",
+    "source": "fn main(): let changed = Map.put(%{1: 2}, 1, \"wrong\")\n"
+  },
+  {
+    "name": "test_rust_maps/unresolved_empty",
+    "source": "fn main(): let empty = Map.new()\n"
+  },
+  {
+    "name": "test_rust_maps/duplicate_update",
+    "source": "type Item:\n    value: Int\nfn main(): let changed = %{Item(1) | value: 2, value: 3}\n"
+  },
+  {
+    "name": "test_rust_maps/wrong_update",
+    "source": "type Item:\n    value: Int\nfn main(): let changed = %{Item(1) | value: \"wrong\"}\n"
+  },
+  {
+    "name": "test_rust_maps/unknown_update",
+    "source": "type Item:\n    value: Int\nfn main(): let changed = %{Item(1) | missing: 2}\n"
+  },
+  {
+    "name": "test_rust_maps/ignored_result",
+    "source": "fn fail() -> Result(Int, String): Err(\"bad\")\nfn main(): let hidden = %{1: fail()}\n"
+  },
+  {
+    "name": "test_rust_numeric/bad_binary_digit",
+    "source": "fn main(): println(0b102)\n"
+  },
+  {
+    "name": "test_rust_numeric/bad_octal_digit",
+    "source": "fn main(): println(0o8)\n"
+  },
+  {
+    "name": "test_rust_numeric/missing_digits",
+    "source": "fn main(): println(0x)\n"
+  },
+  {
+    "name": "test_rust_numeric/overflow_hex",
+    "source": "fn main(): println(0x8000000000000000)\n"
+  },
+  {
+    "name": "test_rust_numeric/overflow_negative",
+    "source": "fn main(): println(-0x8000000000000001)\n"
+  },
+  {
+    "name": "test_rust_numeric/bad_separator",
+    "source": "fn main(): println(1__2)\n"
+  },
+  {
+    "name": "test_rust_numeric/float_bits",
+    "source": "fn main(): println(1.0 &&& 2.0)\n"
+  },
+  {
+    "name": "test_rust_numeric/float_complement",
+    "source": "fn main(): println(~~~1.0)\n"
+  },
+  {
+    "name": "test_rust_numeric/mixed_power",
+    "source": "fn main(): println(2 ** 3.0)\n"
+  },
+  {
+    "name": "test_rust_numeric/open_comment",
+    "source": "fn main(): () /* unfinished\n"
+  },
+  {
+    "name": "test_rust_numeric/open_triple",
+    "source": "fn main(): println(\"\"\"unfinished)\n"
+  },
+  {
+    "name": "test_rust_numeric/orphan_doc",
+    "source": "@doc \"\"\"No declaration\"\"\"\n"
+  },
+  {
+    "name": "test_rust_parameters/public_pattern",
+    "source": "pub fn f(0) -> Int: 0\npub fn f(n) -> Int: n\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_parameters/mixed_scalars",
+    "source": "fn f(0) -> 0\nfn f(true) -> 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_parameters/mixed_payloads",
+    "source": "fn f(Some(0)) -> 0\nfn f(Some(true)) -> 1\nfn f(None) -> 2\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_parameters/annotation_conflict",
+    "source": "fn f(0) -> 0\nfn f(n: Bool) -> 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_parameters/tuple_conflict",
+    "source": "fn f((0, true)) -> 0\nfn f((n, flag, x)) -> 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_parameters/unanchored_rest",
+    "source": "fn f((head, ..tail)) -> head\nfn main(): println(f((1, true)))\n"
+  },
+  {
+    "name": "test_rust_parameters/discard_result",
+    "source": "fn f(Ok(0)) -> 0\nfn f(Err(\"missing\")) -> 1\nfn f(_) -> 2\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_sequences/rest_middle",
+    "source": "fn main(): match [1, 2]:\n    [..rest, last] -> println(last)\n"
+  },
+  {
+    "name": "test_rust_sequences/rest_constructor",
+    "source": "fn main(): match [1]:\n    [..Some(x)] -> println(x)\n"
+  },
+  {
+    "name": "test_rust_sequences/rest_twice",
+    "source": "fn main(): match [1]:\n    [..a, ..b] -> println(0)\n"
+  },
+  {
+    "name": "test_rust_sequences/missing_empty",
+    "source": "fn main(): match [1]:\n    [x, .._] -> println(x)\n"
+  },
+  {
+    "name": "test_rust_sequences/only_fixed",
+    "source": "fn main(): match [1]:\n    [] -> println(0)\n    [x] -> println(x)\n"
+  },
+  {
+    "name": "test_rust_sequences/guard_not_coverage",
+    "source": "fn main(): match [1]:\n    [] -> println(0)\n    [x, .._] if x > 0 -> println(x)\n"
+  },
+  {
+    "name": "test_rust_sequences/missing_false",
+    "source": "fn main(): match [true]:\n    [] -> println(0)\n    [true, .._] -> println(1)\n"
+  },
+  {
+    "name": "test_rust_sequences/tuple_arity",
+    "source": "fn main(): let (a, b, ..rest) = (1,)\n"
+  },
+  {
+    "name": "test_rust_sequences/refutable_let",
+    "source": "fn main(): let [first, ..rest] = [1]\n"
+  },
+  {
+    "name": "test_rust_sequences/refutable_for",
+    "source": "fn main(): for [first, ..rest] in [[1]]: println(first)\n"
+  },
+  {
+    "name": "test_rust_sequences/refutable_with",
+    "source": "fn main() -> Result((), String):\n    with\n        [first, ..rest] <- Ok([1])\n    do\n        Ok(())\n"
+  },
+  {
+    "name": "test_rust_sequences/discard_result_prefix",
+    "source": "fn main():\n    let items: List(Result(Int, String)) = [Ok(1)]\n    match items:\n        [] -> println(0)\n        [_, ..rest] -> println(List.len(rest))\n"
+  },
+  {
+    "name": "test_rust_sequences/discard_result_rest",
+    "source": "fn main():\n    let items: List(Result(Int, String)) = [Ok(1)]\n    match items:\n        [.._] -> println(0)\n"
+  },
+  {
+    "name": "test_rust_sequences/discard_result_tuple",
+    "source": "fn main():\n    let item: (Int, Result(Int, String)) = (1, Ok(2))\n    let (head, .._) = item\n    println(head)\n"
+  },
+  {
+    "name": "test_rust_sequences/wide_pattern",
+    "source": "fn main(): match [1]:\n    [_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _] -> println(0)\n    _ -> println(1)\n"
+  },
+  {
+    "name": "test_rust_types/missing_nested",
+    "source": "fn main():\n    match Some(true):\n        Some(true) -> println(1)\n        None -> println(0)\n"
+  },
+  {
+    "name": "test_rust_types/guard_not_total",
+    "source": "fn main():\n    match true:\n        x if x -> println(1)\n"
+  },
+  {
+    "name": "test_rust_types/duplicate_bindings",
+    "source": "type Pair:\n    P(Int, Int)\nfn main():\n    match P(1, 2):\n        P(x, x) -> println(x)\n"
+  },
+  {
+    "name": "test_rust_types/unknown_type",
+    "source": "fn value(x: Missing) -> Missing: x\nfn main(): 0\n"
+  },
+  {
+    "name": "test_rust_types/generic_mismatch",
+    "source": "fn add(x: a, y: a) -> a: x\nfn main(): println(add(x: 1, y: true))\n"
+  },
+  {
+    "name": "test_rust_types/nominal_mismatch",
+    "source": "type A:\n    value: Int\ntype B:\n    value: Int\nfn main():\n    let a: A = B(1)\n"
+  },
+  {
+    "name": "test_rust_types/escaping_guard",
+    "source": "fn main():\n    match Some(1):\n        Some(x) if x > 0 -> println(x)\n        _ -> println(x)\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/public_omission",
+    "source": "pub fn identity(value) -> Int: value\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/rigid_return",
+    "source": "fn bad(value: a) -> a: 1\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/rigid_collapse",
+    "source": "fn bad(value: a, other: b) -> a: other\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/unanchored_recursion",
+    "source": "fn forever(value) -> forever(value)\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/growing_recursion",
+    "source": "fn grow(value) -> grow([value])\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/self_application",
+    "source": "fn apply(value) -> value(value)\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/local_monomorphic",
+    "source": "fn identity(value) -> value\nfn main():\n    let callback = identity\n    println(callback(1))\n    println(callback(\"wrong\"))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/bool_add",
+    "source": "fn add(left, right) -> left + right\nfn main(): println(add(true, false))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/list_add",
+    "source": "fn add(left, right) -> left + right\nfn main(): println(List.len(add([1], [2])))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/callback_numeric",
+    "source": "fn square(value) -> value * value\nfn main(): println(List.len(List.map([true], square)))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/compound_display",
+    "source": "fn describe(value) -> \"value={value}\"\nfn main(): println(describe([1]))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/float_key",
+    "source": "fn lookup(key) -> Map.get(%{key: 1}, key)\nfn main(): println(Option.unwrap_or(lookup(1.5), 0))\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/unused_unknown",
+    "source": "fn broken(value) -> unknown\nfn main(): ()\n"
+  },
+  {
+    "name": "test_rust_whole_signatures/unused_result",
+    "source": "fn broken(value) ->\n    let ignored: Result(Int, String) = Ok(1)\n    value\nfn main(): ()\n"
+  },
+  {
+    "name": "global-identity/0",
+    "source": "import model as m\nfn main():\n    let m=3\n    println(m.value(1))\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "diagnostic": "error:",
+    "absent_diagnostic": ""
+  },
+  {
+    "name": "global-identity/1",
+    "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println(m.value(model))\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "diagnostic": "String",
+    "absent_diagnostic": "field access"
+  },
+  {
+    "name": "global-identity/2",
+    "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println(model |> m.value())\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "diagnostic": "String",
+    "absent_diagnostic": "field access"
+  },
+  {
+    "name": "global-identity/3",
+    "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println((() -> m.value(model))())\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "diagnostic": "String",
+    "absent_diagnostic": "field access"
+  },
+  {
+    "name": "frontend/0",
+    "source": "fn main():\n    missing\n",
+    "diagnostic": "unknown",
+    "no_artifact": true
+  },
+  {
+    "name": "frontend/1",
+    "source": "fn main():\n    let n: Int = true\n",
+    "diagnostic": "Int",
+    "no_artifact": true
+  },
+  {
+    "name": "frontend/2",
+    "source": "fn main():\n    if 1: 2 else: 3\n",
+    "diagnostic": "Bool",
+    "no_artifact": true
+  },
+  {
+    "name": "frontend/3",
+    "source": "fn main():\n    [1, true]\n",
+    "diagnostic": "error:",
+    "no_artifact": true
+  },
+  {
+    "name": "frontend/4",
+    "source": "fn main():\n    9223372036854775808\n",
+    "diagnostic": "error:",
+    "no_artifact": true
+  }
+]

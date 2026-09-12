@@ -1,2 +1,0 @@
-fn fnλ()->Int:1
-fn main()->Int:fnλ()

@@ -8,7 +8,7 @@ local types, and explicit errors. This guide uses the working compiler surface.
 ## Build and say hello
 
 Follow [BUILD.md](../BUILD.md) to install the build dependencies, then run
-`mise run debug` in the checkout. Save this program as `hello.fn`:
+`cargo xtask build` in the checkout. Save this program as `hello.fn`:
 
 ```fern
 fn main():
@@ -25,11 +25,10 @@ The four-space indentation introduces the function body. A `main` without a
 return annotation finishes with exit code zero. Use `fn main() -> Int` when you
 need to choose a process exit code.
 
-For a local installation, run `PREFIX="$HOME/.local" mise run install`, then add
-`$HOME/.local/bin` to `PATH`. Both `fern` and its companion `libfern_runtime.a`
-are installed there. Keep the pair together when moving an installation.
-Compilation still needs the host C toolchain and native libraries listed in the
-build guide.
+For a local installation, run `cargo xtask install "$HOME/.local"`, then add
+`$HOME/.local/bin` to `PATH`. Keep `fern`, `fern-test-supervisor`,
+`libfern_runtime.a` and `fern-package.json` together when moving an installation.
+Compilation still needs the host linker and SDK described in the build guide.
 
 ## Values and functions
 
@@ -129,10 +128,9 @@ locations and hints; fix the earliest error first, then check again. Use
 - [Terminal project view](../examples/tui_project.fn): tree and log formatting.
 - [File operations](../examples/file_io.fn): reads, writes, and Result matching.
 
-The four runnable programs above and the first three canonical examples run
-with exact output assertions in `mise run test-user-workflows` and `mise run test`.
+The examples have executable regression coverage in `cargo xtask check`.
 The default Rust compiler exposes the deterministic mailbox/lifecycle model used
 by these examples and runs [bounded typed native actors](RUST_ACTORS.md). The
-C frontend remains an explicit `fern-c` reference command. Generalized suspension,
+compiler and runtime are implemented in Rust. Generalized suspension,
 typed supervision and actor REPL/FernSim parity remain open. The [readiness checklist](RELEASE_READINESS.md)
 records the remaining language work.

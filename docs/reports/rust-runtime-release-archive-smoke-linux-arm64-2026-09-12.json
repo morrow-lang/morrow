@@ -1,0 +1,112 @@
+{
+  "utc": "2026-09-12T14:03:28Z",
+  "host": {
+    "system": "Linux",
+    "machine": "aarch64",
+    "release": "7.0.0-27-generic",
+    "distribution": "Ubuntu 26.04",
+    "virtual_machine": "Lima, 4 vCPU, 6 GiB RAM"
+  },
+  "version": "0.1.0",
+  "identity": {
+    "format": 2,
+    "compiler": "rust",
+    "backend": "cranelift",
+    "runtime": "rust"
+  },
+  "artifact_scope": "Final Rust workspace release components packaged after the complete Linux debug quality gate and selected optimized runtime/ABI/native acceptance. Component hashes match the release performance record and extracted archive.",
+  "archive": {
+    "bytes": 8275826,
+    "sha256": "8eaeb07b7dc810d90e83d942401403cef324456fe75528cd1006f16b6adcf411"
+  },
+  "checksum": {
+    "bytes": 96,
+    "sha256": "61d586e8eba2d96b410f4b3e57c86421c4704d979a21604f235ea2ca51ac31b6"
+  },
+  "components": {
+    "fern": {
+      "bytes": 5903432,
+      "sha256": "f4434d20386b9a05ae5ab630949b95f76b794fd0322f06bd46fa23e71d0e8abc",
+      "mode": "0o755"
+    },
+    "fern-test-supervisor": {
+      "bytes": 332736,
+      "sha256": "2cf156b5a487860637ac08cebb61febd6d37d83da50949304bd717980764f4e6",
+      "mode": "0o755"
+    },
+    "libfern_runtime.a": {
+      "bytes": 21767898,
+      "sha256": "344fc7836f368017ba6fa631599c0de042233cccbf960600b023d163ec8e30bd",
+      "mode": "0o644"
+    },
+    "fern-package.json": {
+      "bytes": 70,
+      "sha256": "1e9a49d8fd36cad0bcff12c089ecace27c379b4df94ab8dce9e383c519dad8b5",
+      "mode": "0o644"
+    },
+    "LICENSE": {
+      "bytes": 1068,
+      "sha256": "e465ddb23e74dabf12737eae721de5800cefd806354c52e7750f49e1a5e7367f",
+      "mode": "0o644"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 135413,
+      "sha256": "76c3b36e53d33850da8b795584edc178bd91c76ba874ce70023a38bb5c9bd19f",
+      "mode": "0o644"
+    },
+    "README.md": {
+      "bytes": 3237,
+      "sha256": "4f04956cadf4ddb523ff4a05b81c16e9a55cf5890e009c9c92a20ced255adce9",
+      "mode": "0o644"
+    }
+  },
+  "native_source": "benchmarks/sum_fern.fn copied to a private source path containing spaces",
+  "test_source": "fn test_release(): ()\n",
+  "checks": [
+    {
+      "name": "package, checksum and closed bounded archive verification",
+      "result": "passed"
+    },
+    {
+      "name": "relocated and installed version/check/build/native/run/docs",
+      "result": "passed",
+      "native_stdout": "50005000\n",
+      "exit": 0
+    },
+    {
+      "name": "relocated archive source tests through packaged supervisor",
+      "result": "passed",
+      "stdout": "tests: 1/1 passed\n",
+      "exit": 0
+    },
+    {
+      "name": "installed prefix source tests through packaged supervisor",
+      "result": "passed",
+      "stdout": "tests: 1/1 passed\n",
+      "exit": 0
+    },
+    {
+      "name": "relocated package directory, source and executable paths containing spaces",
+      "result": "passed"
+    },
+    {
+      "name": "missing packaged runtime rejects build without checkout fallback or output publication",
+      "result": "passed"
+    },
+    {
+      "name": "generated documentation contains no script",
+      "result": "passed"
+    },
+    {
+      "name": "uninstall removes Fern components and preserves unrelated user file",
+      "result": "passed"
+    }
+  ],
+  "isolation": "Archive and installation used private directories outside the checkout. Relocated build/test were repeated after moving the package directory to a path containing spaces. Source and executable paths also contained spaces.",
+  "contract_tests": {
+    "distribution": 26,
+    "lint_negative": 18,
+    "lint_positive": 2
+  },
+  "size_observation": "ELF inspection found retained DWARF debug sections and symbol tables in generated native programs. This acceptance preserves the verified linker settings; removing debug/symbol data is a separate policy and optimization choice."
+}

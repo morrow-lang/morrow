@@ -1,4 +1,0 @@
-type User derive(Json):
-    id: Int
-    name: String
-fn encode() -> Result(String, json.Error): json.encode(User(1, "fern"))

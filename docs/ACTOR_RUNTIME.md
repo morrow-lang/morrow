@@ -1,16 +1,13 @@
 # Actor runtime status and contracts
 
-This page describes the legacy C mailbox and supervision runtime. It does not
-execute spawned Fern functions. The default Rust compiler separately supports
-[bounded typed native actor execution](RUST_ACTORS.md); the two runtimes do not
-yet share a complete supervision or FernSim execution model. For the explicit C
-reference compiler, native build, run and IR emission reject `spawn`, `spawn_link` and
-`receive` with an explicit diagnostic directing users to mailbox APIs.
-`fern-c check` accepts their syntax and type signatures for tooling; a successful
-check does not imply execution support. [DESIGN.md](../DESIGN.md) describes the
-broader target language.
+This page describes the Rust mailbox and supervision runtime in
+`crates/fern-runtime/src/actors`. These mailbox APIs do not themselves execute
+spawned Fern functions. [Typed native actors](RUST_ACTORS.md) use a separate
+bounded cooperative scheduler; the two interfaces do not yet share a complete
+typed supervision or FernSim execution model. The broader target language is
+recorded in [DESIGN.md](../DESIGN.md).
 
-## Legacy C behavior
+## Mailbox behavior
 
 `actors.start(name)` creates a process-local integer ID and an empty mailbox.
 `actors.post(pid, message)` and `send(pid, message)` copy a string into its FIFO mailbox
@@ -38,8 +35,7 @@ codegen, and runtime implementations.
   error, even if the replacement has subsequently died. Restart the latest PID.
 - Monitor registrations, linked-parent identity, and the child's own supervision
   policy survive restart. Its original supervising owner must still be alive;
-  restarting a dead owner does not reparent old children. Name-copy and replacement
-  monitor-storage failures publish no live record or replacement ID. This baseline deliberately preserves monitors across
+  restarting a dead owner does not reparent old children. This baseline preserves monitors across
   replacements; it does not implement Erlang monitor-reference semantics.
 - A supervised child has one owner. Registration rejects self-supervision, cycles,
   and changing the owner to a different supervisor. Rejected registration leaves
@@ -70,49 +66,25 @@ codegen, and runtime implementations.
 
 ## Regression coverage
 
-`tests/fixtures/runtime_actor_scenarios.c` links the actual runtime with FernSim,
-not a separate implementation of supervision. The normal `mise run check` suite
-runs it through `test_runtime_actor_seeded_lifecycle_invariants`:
-
-- Zero-time restart-window exhaustion and exact window-boundary recovery.
-- Single-use replacement lineage and permanent rejection of stale PIDs.
-- Nested supervision registration, cycle rejection, and conflicting-owner rejection.
-- Invalid PID handling and normally terminated siblings remaining stopped.
-- Compiled `send` preserves both runtime errors and the successful `Ok(0)` payload.
-- C native builds reject unsupported actor execution instead of generating placeholder
-  worker/receive behavior.
-- Eight reproducible seeds across all three strategies, with 64 crash steps each
-  (1,536 total). Every step checks affected-child membership, notification counts,
-  replacement IDs, empty replacement mailboxes, dead-PID rejection, and scheduler
-  cleanup. Repeated replacement also exercises registry capacity growth.
-
-For a focused replay after `mise run debug`:
+Rust runtime tests exercise FIFO messages and round-robin tickets, forest
+cycle/owner rejection, stale identities and single-use restart lineage,
+zero-time restart windows, both sibling restart strategies, and descendant
+notification order. They call the actual runtime implementation.
 
 ```sh
-cc -std=c11 -Wall -Wextra -Werror -Iruntime -Iinclude \
-  tests/fixtures/runtime_actor_scenarios.c lib/fernsim.c lib/arena.c \
-  bin/libfern_runtime.a $(pkg-config --libs bdw-gc sqlite3 openssl) \
-  -pthread -o /tmp/fern-actor-scenarios
-FERN_ACTOR_SCENARIO=simulation /tmp/fern-actor-scenarios
+cargo test -p fern-runtime actors::tests
+cargo test -p fern-runtime --release actors::tests
+cargo xtask native actors/
 ```
 
-Other scenario names are `time-zero`, `single-replacement`, `forest`,
-`invalid-pid`, and `terminated-sibling`. A simulation failure prints the seed and
-strategy so the same case can be reproduced.
-
-The additional `scripts/test_runtime_actor_subtree.py` gate compiles the actual
-actor implementation in debug, release and AddressSanitizer/UndefinedBehaviorSanitizer
-modes. Ten groups cover normal/abnormal/shutdown trees, registration order independent
-of PID order, notification allocation/send failures, already-stopped branches,
-unrelated current context, strategy-driven descendant shutdown, 2,048-level trees,
-dead-owner restarts and atomic name/monitor allocation failures. The same builds
-rerun all six prior scenarios, including their 1,536 seeded crash steps. Both C and
-Rust quality gates run this suite; it is verified on macOS and Linux arm64.
+The retired C/FernSim harness and sanitizer totals describe earlier
+implementation evidence. The [workspace acceptance](RUST_WORKSPACE.md) records
+verification of the Rust runtime; those earlier totals are not silently reused.
 
 ## Work still required before concurrency is ready for applications
 
-The legacy scheduler does not execute actor functions or suspend/resume them.
-The default Rust scheduler provides those capabilities within the [105A limits](RUST_ACTORS.md),
+The mailbox scheduler does not execute actor functions or suspend/resume them.
+The typed native scheduler provides those capabilities within the [105A limits](RUST_ACTORS.md),
 but generalized suspension, isolated per-actor heaps, synchronous request/reply,
 typed supervision and REPL/FernSim parity remain open. Legacy supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
@@ -120,17 +92,8 @@ Automatic ancestor escalation and descendant subtree recreation after supervisor
 restart remain incomplete. Linked exits are notifications rather than full
 bidirectional Erlang exit propagation. Neither contract promises parallel workers.
 
-The C compiler rejects `spawn(worker)`; the Rust frontend executes supported
-forms and diagnoses unsupported ones. The legacy tests establish mailbox and
-supervision-policy behavior. Together with the bounded Rust execution tests,
-they still do not establish the complete actor model or the planned million-step
-reliability target.
-See [ROADMAP.md](../ROADMAP.md) for the remaining milestone work and
+The compiler executes supported typed actor forms and diagnoses unsupported
+ones. The mailbox and bounded execution tests establish their stated contracts;
+they do not establish the complete actor model or the planned million-step
+reliability target. See [ROADMAP.md](../ROADMAP.md) for remaining work and
 [COMPATIBILITY_POLICY.md](COMPATIBILITY_POLICY.md) for project-wide guarantees.
-
-## Rust native execution
-
-The default Rust compiler has a separate [typed native actor contract](RUST_ACTORS.md)
-with cooperative execution, selective receive, monotonic deadlines and bounded
-continuations. The C mailbox/supervision APIs above retain their current behavior.
-Generalized suspension, typed supervision and REPL/FernSim parity remain open.

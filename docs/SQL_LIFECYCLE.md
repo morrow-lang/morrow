@@ -1,8 +1,8 @@
 # SQL connection lifecycle
 
-Both native frontends expose `sql.open(path)`, `sql.execute(handle, query)`, and
+Fern exposes `sql.open(path)`, `sql.execute(handle, query)`, and
 `sql.close(handle)`. Each returns `Result(Int, Int)`. Connections are backed by
-local SQLite; remote libSQL connections and row-query APIs remain planned.
+local SQLite through rusqlite; remote libSQL connections and row-query APIs remain planned.
 
 `sql.open` returns a positive opaque handle. Treat it as a process-local token,
 not an address or a predictable index. `sql.execute` preserves its existing
@@ -46,13 +46,12 @@ The Rust REPL intentionally reports SQL as available only in native programs.
 This change does not add an interpreter database backend or pretend that an
 interactive close succeeded.
 
-Verification includes exact C/Rust native output; invalid full-width IDs;
-double-close and stale-handle isolation; 768 sequential cycles; the 256/257 live
-boundary with no rejected-open file creation; independent connection use; and
-unfinished-transaction rollback and lock release. The direct runtime cases run
-in debug, release, and AddressSanitizer/UndefinedBehaviorSanitizer builds.
+Rust runtime tests cover statement execution, double-close, stale-handle isolation,
+the 256/257 live boundary, capacity recovery and monotonic handle identities.
+Native source fixtures exercise the public calls and full-width Result transport.
 
 ```sh
-python3 scripts/test_runtime_sql.py
-python3 scripts/test_sql_frontends.py
+cargo test -p fern-runtime services::sql
+cargo test -p fern-runtime --release services::sql
+cargo xtask native sql
 ```

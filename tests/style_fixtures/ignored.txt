@@ -1,2 +1,0 @@
-void not_c_source(void) {
-}

@@ -1,0 +1,102 @@
+{
+  "utc": "2026-09-12T13:57:13+00:00",
+  "host": {
+    "system": "Darwin",
+    "machine": "arm64",
+    "release": "25.5.0"
+  },
+  "version": "0.1.0",
+  "identity": {
+    "format": 2,
+    "compiler": "rust",
+    "backend": "cranelift",
+    "runtime": "rust"
+  },
+  "artifact_scope": "Final Rust workspace release components, staged after the complete macOS quality gate. This smoke packaged those exact components without rebuilding them, then verified relocation, native execution, installation and uninstall.",
+  "archive": {
+    "bytes": 7362589,
+    "sha256": "7eb4a568e2b2687513bdf00359f317cb1ef705f1af3882f406080f9addb74828"
+  },
+  "checksum": {
+    "bytes": 96,
+    "sha256": "99f3df849c0baed4ff6f113527d7d6e5d522d4e85233cac04f13c77af7d97326"
+  },
+  "components": {
+    "fern": {
+      "bytes": 5964016,
+      "sha256": "312bd766a1843e07dcf01b37c910fafd6bc0edaca6da3713a5736554a2a6841b",
+      "mode": "0o755"
+    },
+    "fern-test-supervisor": {
+      "bytes": 358000,
+      "sha256": "0dcb56c218af980a09cfa6070bbb6eb2741613d1891340df39b37b2eb5927eae",
+      "mode": "0o755"
+    },
+    "libfern_runtime.a": {
+      "bytes": 13322176,
+      "sha256": "6fcc287d9d01cbd2c9a18fb46976f9f7707a72fa35cdbd6606f900f7a2282c09",
+      "mode": "0o644"
+    },
+    "fern-package.json": {
+      "bytes": 70,
+      "sha256": "1e9a49d8fd36cad0bcff12c089ecace27c379b4df94ab8dce9e383c519dad8b5",
+      "mode": "0o644"
+    },
+    "LICENSE": {
+      "bytes": 1068,
+      "sha256": "e465ddb23e74dabf12737eae721de5800cefd806354c52e7750f49e1a5e7367f",
+      "mode": "0o644"
+    },
+    "THIRD_PARTY_NOTICES.md": {
+      "bytes": 135413,
+      "sha256": "76c3b36e53d33850da8b795584edc178bd91c76ba874ce70023a38bb5c9bd19f",
+      "mode": "0o644"
+    },
+    "README.md": {
+      "bytes": 3237,
+      "sha256": "4f04956cadf4ddb523ff4a05b81c16e9a55cf5890e009c9c92a20ced255adce9",
+      "mode": "0o644"
+    }
+  },
+  "source": "fn test_release():\n    ()\nfn main():\n    println(\"rust archive\")\n",
+  "checks": [
+    {
+      "name": "package, checksum and closed bounded archive verification",
+      "result": "passed"
+    },
+    {
+      "name": "relocated archive build and native execution",
+      "result": "passed",
+      "stdout": "rust archive\n",
+      "exit": 0
+    },
+    {
+      "name": "relocated archive source tests",
+      "result": "passed",
+      "stdout": "tests: 1/1 passed\n",
+      "exit": 0
+    },
+    {
+      "name": "installed prefix build and native execution",
+      "result": "passed",
+      "stdout": "rust archive\n",
+      "exit": 0
+    },
+    {
+      "name": "installed prefix source tests",
+      "result": "passed",
+      "stdout": "tests: 1/1 passed\n",
+      "exit": 0
+    },
+    {
+      "name": "safe uninstall preserves unrelated user file",
+      "result": "passed"
+    }
+  ],
+  "isolation": "Archive and installation were moved to private paths containing spaces. FERN_RUNTIME_LIB and FERN_TEST_SUPERVISOR overrides were removed. Native commands ran through each distribution's Rust supervisor with 60-second bounds (10 seconds for the produced executable).",
+  "contract_tests": {
+    "distribution": 26,
+    "lint_negative": 18,
+    "lint_positive": 2
+  }
+}

@@ -1,5 +1,0 @@
-; AUTO-GENERATED from scripts/editor/outline.scm.in. Edit the authored template.
-(function_definition name: (identifier) @name) @item
-(type_definition name: (type_identifier) @name) @item
-(type_alias name: (type_identifier) @name) @item
-(newtype_definition name: (type_identifier) @name) @item

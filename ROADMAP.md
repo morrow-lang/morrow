@@ -6,7 +6,27 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 
 ## Current Status Snapshot
 
-- Rust compiler migration: complete on macOS arm64 and Linux arm64. Build, install and release workflows select Rust as `fern`; `fern-c` remains the explicit C bootstrap/reference. [Acceptance evidence](docs/RUST_DEFAULT_MIGRATION.md).
+- Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows pass on macOS/Linux ARM64. [Current scope and evidence](docs/RUST_WORKSPACE.md).
+
+### Rust Workspace Completion
+
+- [x] Organize the Cargo workspace under `crates/` with compiler, core runtime, startup archive, shared JSON engine and supervisor boundaries; keep repository automation in `xtask`.
+- [x] Port full-width values, strings/lists, Unicode16 decimal classification, JSON/codecs, IO, HTTP/SQL/regex, terminal widgets and actors to Rust.
+- [x] Replace Boehm with a Rust-owned nonmoving collector. Root/interior-pointer, cycle, pressure and finalized-value checks pass, including a pointer retained only by Cranelift-generated code across collection.
+- [x] Root all managed strings held only by a Rust Vec before allocating copies. The regression reproduced corruption before the fix and passes debug/release with forced collection.
+- [x] Use Cranelift for all native compilation, including source tests and doctests. Independent output fixtures and optimized ABI/GC tests pass on both ARM64 platforms.
+- [x] Replace native process supervision with Rust retained-identity cleanup and a shared bounded parent protocol. Lifecycle, cancellation, descriptor, descendant and terminal tests pass.
+- [x] Move building, checking, fuzzing, measurement, packaging, installation and uninstall to Rust tooling. Retire C/Python bootstrap, style and maintenance implementations; preserve executable compatibility assertions in Rust.
+- [x] Remove Tree-sitter and its Zed grammar package; keep the Rust LSP. Use static accessible generated documentation with browser Find, removing the authored JavaScript filter.
+- [x] Prefer native Rust dependencies while allowing Rust wrappers around third-party native libraries, as explicitly authorized. Preserve SQLite through rusqlite and certificate-verifying HTTP through ureq/rustls; retain complete notices.
+- [x] Pass final debug quality gates: 1,752/1,754 standard workspace tests plus five custom IO/PTY cases per macOS/Linux host; 305 independent native fixtures, 18 examples, 63 dynamic applications, 295 atomic rejections, unit-test continuation and 64+192 fuzz cases on each.
+- [x] Pass targeted optimized runtime/JSON/supervisor checks (92 standard tests plus five custom protocols per host) and 12 separate object/ABI/GC tests. This does not claim the entire compiler integration suite was run optimized.
+- [x] Preserve 26 Rust distribution contracts and 18 negative/two positive lint policy probes. Both platforms pass three compiler-phase fixture tests and ten benchmark smoke phases.
+- [x] Complete refreshed release artifact, relocation/install/source-test/uninstall and performance records for both ARM64 platforms. Archive and performance reports identify matching component hashes; no x86-64 execution, complete optimized compiler suite or 1.0 release is implied.
+
+### Previous Compiler-Default Acceptance
+
+- Rust compiler migration: complete on macOS arm64 and Linux arm64. Build, install and release workflows select Rust as `fern`; `fern-c` remains the explicit C bootstrap/reference. [Acceptance evidence](docs/history/RUST_DEFAULT_MIGRATION.md).
 - Compiler gates: Rust/QBE passes 1,621/1,624 Cargo tests on macOS/Linux; Cranelift passes 1,633/1,636. Both platforms pass 305 independent backend native-output cases and ten migration programs.
 - Quality gate: full clean quality gates pass, including 574 C tests, 18 examples, runtime/native oracles, strict style and 66 workflow parity cases; documentation and real-server LSP checks pass on both platforms.
 - Fuzz gate: unchanged 64-case `0xC0FFEE` smoke passes for both compilers on both platforms; the 512-case compatibility stretch passes for Rust and C on macOS. Rust's separate 192-mutation corpus passes on both platforms.
@@ -42,7 +62,7 @@ Status: Historical bounded prototype checkpoint. Its quality, Rust and documenta
 - [x] Generate QBE exclusively from typed IR and reuse the C runtime/backend (17 emitter tests and native execution).
 - [x] Add check/emit/build/run commands and specification-grounded differential tests (51 Rust tests, 32 native programs, 5 invalid inputs, literal paths).
 - [x] Measure clean/incremental frontend builds, check/emit latency, binary sizes, and native execution.
-- [x] Record evidence, gaps, and a migration recommendation before expanding scope ([evaluation](docs/RUST_FRONTEND_EVALUATION.md)): continue Rust incrementally; require parity before switching defaults.
+- [x] Record evidence, gaps, and a migration recommendation before expanding scope ([evaluation](docs/history/RUST_FRONTEND_EVALUATION.md)): continue Rust incrementally; require parity before switching defaults.
 
 ## Active Priorities
 
@@ -190,7 +210,7 @@ Status: Verified expanded-language checkpoint, incorporated into the Rust defaul
 
 ### Rust Migration: Collections and Error Values
 
-Status: Complete and incorporated into the Rust default compiler. Decisions 45–46 describe the historical collections/error-value checkpoint; see [completed migration acceptance](docs/RUST_DEFAULT_MIGRATION.md).
+Status: Complete and incorporated into the Rust default compiler. Decisions 45–46 describe the historical collections/error-value checkpoint; see [completed migration acceptance](docs/history/RUST_DEFAULT_MIGRATION.md).
 
 - [x] Parse recursive List/Option/Result types, list literals, and match expressions (24 isolated parser tests, including all native fixtures).
 - [x] Infer constructor/empty-list types and resolve compound values to concrete typed IR.
@@ -296,7 +316,7 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Repin the locally verified Zed package to the numeric-literal grammar and rerun package/actual-editor checks.
 - [x] Format explicit source directories and check all dirty paths without writes; validate all inputs and stage all replacements before publication (Decision99).
 - [x] Expose canonical full-document formatting through Rust LSP over current unsaved buffers, with UTF-16 edits, no server-side publication and explicit syntax/parameter errors (Decision100).
-- [ ] Complete Tree-sitter parity for remaining Rust syntax and publish a fetchable matching grammar revision when release is authorized.
+- [x] Retire Tree-sitter integration under the explicit Rust-only scope; retain Rust LSP. Historical grammar parity/publication work is no longer planned.
 - [x] Execute bounded Rust native actor functions with typed mailboxes, selective receive/timeouts, explicit continuation frames, invocation-owned quotas and fault cleanup (Decision105A; native20-program and independent lifecycle/sanitizer gates).
 - [ ] Extend actor execution to generalized suspension, typed ancestor escalation/descendant subtree reconstruction, REPL and FernSim parity.
 - [x] Immutable native JSON parser/accessors/stringifier with exact numbers, Unicode validation and bounded resources (14,309 API checks, 24 budget checks and 6,000 numeric oracle cases in debug/release/sanitizer builds).
@@ -334,10 +354,10 @@ Do not interpret the historical Gate A–D labels as language completion.
 
 ## Next Session Start Here
 
-The Rust compiler migration is complete. Preserve the cross-platform compiler,
-native-output, tooling and distribution gates in
-[default migration acceptance](docs/RUST_DEFAULT_MIGRATION.md).
+The Rust-only workspace migration is the active task. Earlier compiler-default
+acceptance is historical; current acceptance must use the Rust runtime and
+Cranelift through `cargo xtask check`.
 
 1. Extend bounded native actors toward generalized suspension, typed supervision and REPL/FernSim parity while preserving mailbox, ownership and lifecycle contracts.
 2. Close remaining language and stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), including advanced JSON traits and server/database APIs; retain explicit diagnostics for unsupported execution.
-3. Complete editor grammar parity and a publishable matching revision. Keep Cranelift debugger, performance, architecture and promotion decisions separate from compiler migration.
+3. Maintain the Rust LSP and complete remaining Cranelift debugger, performance and architecture coverage. Tree-sitter has been removed by request.

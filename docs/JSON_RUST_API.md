@@ -1,9 +1,8 @@
 # Rust native JSON API
 
 The Rust frontend now checks and compiles immutable JSON values through the
-validating native runtime. The C frontend retains its legacy string-copy source
-API. The REPL evaluates the same dynamic API using immutable Rust values and the
-same format/error profile. Values and closures persist across successful entries;
+validating Rust runtime. The native runtime and REPL share the safe `fern-json`
+engine and its format/error profile. Values and closures persist across successful entries;
 failed evaluations do not commit new bindings.
 
 Use `json` or the compatibility spelling `Json`. Qualified annotations
@@ -45,14 +44,14 @@ json.from_object(Map(String, json.Value)) -> Result(json.Value, json.Error)
 This is an explicit unreleased Rust-source migration. `parse` now returns a Value
 and an opaque Error, replacing the former String/Int payloads. `stringify("[]")`
 is a type error: parse `"[]"` for an array, or use `from_string("[]")` for a JSON
-string that encodes as `"\"[]\""`. Both legacy C ABI symbols remain unchanged.
-The canonical source API reference labels the C signatures separately.
+string that encodes as `"\"[]\""`. The legacy String-copy native entry points
+have been removed.
 
 Parsing preserves exact number spelling, validates Unicode, rejects duplicate
 decoded keys, and preserves object insertion order. `as_int` never rounds through
 Float. `as_float` performs explicit binary64 rounding, rejecting overflow and
 nonzero values rounded to zero. `from_float` rejects NaN/infinity and uses a
-private thread-local C-locale `%.17g` conversion, preserving negative zero.
+locale-independent Rust formatter with 17 significant digits, preserving negative zero.
 `from_number_text` accepts exactly one JSON number token without whitespace/BOM.
 
 `length` counts arrays or object members. `elements` and `members` copy collection
@@ -77,7 +76,7 @@ strings contain many escaped controls. The maximum 16 MiB output is therefore no
 a promise that every encoded value can be parsed again under the input cap.
 
 The native boundary uses full-width opaque pointers and heap Results. Float builder
-arguments use QBE `d`/C `double`. Member records use two native pointer fields;
+arguments use native `f64`. Member records use two native pointer fields;
 the compiler checks Result success before converting them into tagged Fern tuples.
 The Map argument is evaluated once, then copied in one bounded pass to parallel
 native lists. No C object is reinterpreted as an unrelated Fern tuple or Map.
@@ -122,11 +121,15 @@ subtrees; independent graphs consume storage separately. Existing output bufferi
 local file effects and failed-entry commit rules are unchanged. This does not make
 external file writes transactional, or add invalid-byte support to REPL File.read.
 
-Six REPL integration tests reuse all ten native JSON output oracles and cover
-cross-entry closures, offsets, rollback and shared storage. Fifteen private engine
-tests cover resource boundaries, cleanup budgets, exact 16 MiB encoding, DAG limits,
-and 6,000 decimal/binary64 plus 6,000 Float formatting oracles. The independent
-checksum generator is `scripts/json_repl_oracles.py`; it is test tooling, never
-called by JSON evaluation. Typed codecs and default-command migration remain
-future work. Decision96 retains the old C source API only for the explicitly
-selected bootstrap/reference compiler after the verified Rust default switch.
+The Rust integration and private engine suites cover native/REPL output,
+cross-entry closures, offsets, rollback, shared storage, cleanup budgets, exact
+16 MiB encoding and decimal/binary64 conversion. Numeric oracle checksums are
+retained as independent test data; evaluation uses no external generator.
+Typed codecs are implemented within their [documented bounds](JSON_TYPED_CODECS.md).
+
+```sh
+cargo test -p fern-json
+cargo test -p fern-runtime --test json_values
+cargo xtask native json
+cargo xtask check
+```

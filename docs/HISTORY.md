@@ -14,4 +14,6 @@ This file is a curated, non-actionable history summary. For active work, use [`.
 - Decision log: [`../DECISIONS.md`](../DECISIONS.md)
 - Benchmark artifact: [`reports/benchmark-case-studies-2026-02-06.md`](reports/benchmark-case-studies-2026-02-06.md)
 - Memory comparison artifact: [`reports/memory-path-comparison-2026-02-06.md`](reports/memory-path-comparison-2026-02-06.md)
-- Frozen legacy archive pointer: [`ROADMAP_ARCHIVE_2026-02-06.md`](ROADMAP_ARCHIVE_2026-02-06.md)
+- Frozen legacy archive pointer: [`ROADMAP_ARCHIVE_2026-02-06.md`](history/ROADMAP_ARCHIVE_2026-02-06.md)
+
+- 2026-09-12: Fern-owned implementation moved to a Rust Cargo workspace. Cranelift replaced QBE, the native runtime and supervisor were rewritten in Rust, Rust xtask replaced legacy scripts, and Tree-sitter was removed while retaining the Rust LSP. Earlier implementation reports are archived under `history/`.

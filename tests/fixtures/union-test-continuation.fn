@@ -1,0 +1,14 @@
+fn append(text: String) -> Unit:
+    match fs.append("events", text):
+        Ok(_) -> ()
+        Err(_) -> ()
+fn test_good() -> Result(Unit, Int | String):
+    let value: Int | String = "fern"
+    match value:
+        s: String -> if s == "fern": Ok(()) else: Err(s)
+        n: Int -> Err(n)
+fn test_failed() -> Result(Unit, Int | String): Err(4294967296)
+fn test_exit() -> Result(Unit, Int | String):
+    System.exit(0)
+    Err("must not pass")
+fn test_after(): append("after")

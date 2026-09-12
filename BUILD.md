@@ -1,254 +1,107 @@
-# Building Fern Compiler
+# Build and develop Fern
+
+Fern is a Cargo workspace. The Rust compiler uses Cranelift for native code,
+and links generated objects with the Rust runtime archive using the host linker.
 
 ## Prerequisites
 
-- Rust toolchain selected by mise (see the dated nightly below)
-- C compiler (clang or gcc) for native components and linking
-- mise 2026.9.1 or newer (CI pins 2026.9.1)
-- Boehm GC development library (`bdw-gc`)
-- SQLite development library (`sqlite3`)
-- OpenSSL development library (`openssl`)
-- `pkg-config` for native library discovery
-- Clang 14+ and Bash 3.2+ for the native quality-checker launcher
-- Python 3.11+ and `uv` for integration/reference tests and documentation tooling
-- macOS, Linux, or other Unix-like OS
+- Rustup, with the toolchain selected by `rust-toolchain.toml`:
+  **nightly-2026-09-06**, including rustfmt, Clippy and rust-src.
+- Linux or macOS on a supported 64-bit host.
+- A host C compiler/linker and platform SDK. Linux build-essential or Clang and
+  the macOS Xcode command-line tools provide these.
 
-Install the native development dependencies:
+Cargo builds SQLite through `rusqlite`'s bundled feature and the TLS provider
+through its Rust wrapper. These third-party dependencies can compile native code.
+Separate SQLite or OpenSSL development packages are not required. Runtime and
+compiler dependencies are locked in root `Cargo.lock`.
 
-```sh
-# macOS (with Xcode command line tools installed)
-brew install mise bdw-gc sqlite openssl pkg-config
+Mise is optional; its configuration selects the same Rust toolchain. Direct Cargo
+commands use the root toolchain file. The numeric `rust-version` is Cargo's minimum
+version check, not a promise of support for an untested stable compiler.
 
-# Ubuntu/Debian (install mise using its official installation instructions)
-sudo apt-get install clang pkg-config libgc-dev libsqlite3-dev libssl-dev
-```
-
-The repository pins Rust **nightly-2026-09-06**, Python 3.14.7 and uv 0.12.5
-in `mise.toml`. A matching root `rust-toolchain.toml` selects the same Rust
-compiler for direct Cargo commands.
-Run `mise install`, then `mise run tool-versions`. Review and trust this checkout
-when mise requests it; no global configuration or activation hook is needed.
-The native packages above are host-managed, not a fully pinned OS image.
-See [the task and tool environment](docs/DEVELOPMENT_ENVIRONMENT.md) for lockfiles,
-optional runners, nightly update policy and the remaining reproducibility boundary.
-
-## Quick Start
-
-```bash
-# Build the compiler (debug mode)
-mise run debug
-# Run tests
-mise run test
-
-# Build release version
-mise run release
-
-# Clean build artifacts
-mise run clean
-```
-
-## Build Targets
-
-### Default Rust compiler
-
-`mise run debug` and `mise run release` build the Rust compiler as `bin/fern`
-and retain `bin/fern-rs` as a development alias. They also build the explicit
-C reference compiler `bin/fern-c`, QBE helper `bin/fern-qbe`, native test supervisor
-`bin/fern-test-supervisor`, runtime archive `bin/libfern_runtime.a`, and
-`bin/fern-package.json` component marker.
+## Build and run
 
 ```sh
-mise run debug
-./bin/fern run compiler-rs/tests/corpus/hello.fn
-./bin/fern-c check examples/tiny_cli.fn  # Explicit C reference
-mise run rust-check
-```
-
-`mise run rust-build` and `rust-release` remain compatibility tasks for compiler
-development. `mise run rust-cranelift-build` produces the separate
-`bin/fern-rs-cranelift`; select its optional backend with `--backend=cranelift`.
-Ordinary `fern` builds use QBE. See the [compiler guide](compiler-rs/README.md)
-for language and backend boundaries, and [migration progress](docs/RUST_MIGRATION.md)
-for acceptance status.
-
-### Development
-
-- `mise run debug` - Build debug version with symbols and assertions
-- `mise run test` - Build and run C reference, native runtime and default-command integration tests
-- `mise run rust-check` - Check formatting, Clippy, Rust tests and native language oracles
-- `mise run clean` - Remove native build outputs; Cargo retains its incremental cache
-
-Full Rust/backend suites produce many test executables. On constrained machines,
-use the same settings as CI: `CARGO_INCREMENTAL=0`, `CARGO_PROFILE_DEV_DEBUG=0`
-and `CARGO_PROFILE_TEST_DEBUG=0`. Keep Cargo targets and `TMPDIR` on a disk with
-adequate space rather than a small RAM filesystem. `cargo clean --manifest-path
-compiler-rs/Cargo.toml` clears generated Rust artifacts when needed.
-
-### Production
-
-- `mise run release` - Build optimized release version
-
-### Installation
-
-- `mise run install` - Install `fern`, `fern-c`, `fern-qbe`, `fern-test-supervisor`, `libfern_runtime.a`, and `fern-package.json` together under `/usr/local/bin`; install license notices under `/usr/local/share/fern`
-- `PREFIX="$HOME/.local" mise run install` - Install locally without administrator privileges
-- `DESTDIR=/tmp/package PREFIX=/usr/local mise run install` - Stage an installation for packaging
-- `mise run uninstall` - Remove the installed component set and license notices (use the same `PREFIX`/`DESTDIR`)
-
-### Debugging
-
-- `mise run memcheck` - Run with Valgrind for memory leak detection
-
-### Code Quality
-
-- `mise run fmt` - Format C code with clang-format
-- `mise run rust-fmt` - Check Rust formatting with rustfmt
-- `mise run check` - Native build/test/examples/style workflow plus explicit Python integration gates
-- `mise run style` - Native style checks without Python or Cargo
-- `mise run style-parity` - Compare source-compiled and cached native checkers with Python
-- `mise run style-launcher-check` - Native launcher/cache/process infrastructure tests
-
-See [native checker configuration and cache cleanup](docs/NATIVE_STYLE_CHECKER.md).
-
-## Project Structure
-
-```
-fern/
-├── compiler-rs/ # Default Rust compiler, editor tooling and compiler tests
-├── src/         # C reference compiler entry point and native adapters
-├── runtime/     # Native C runtime
-├── deps/        # Vendored QBE and other native dependencies
-├── lib/         # C reference frontend and internal safety libraries
-├── include/     # Header files
-├── tests/       # Test suite
-├── build/       # Build artifacts (generated)
-├── bin/         # Compiled binaries (generated)
-└── examples/    # Example Fern programs
-```
-
-## Running the Compiler
-
-```bash
-# After building
+cargo xtask build
 ./bin/fern run examples/tiny_cli.fn
 ./bin/fern build examples/tiny_cli.fn -o hello
 ./hello
+cargo xtask build --release
 ```
 
-## Running Tests
+The staged `bin/` directory contains `fern`, `fern-test-supervisor`,
+`libfern_runtime.a` and `fern-package.json`. The archive includes native startup
+and the Rust runtime. Cargo's separate core runtime archive is for ABI/collector
+probes and is not a substitute for the staged startup archive.
 
-```bash
-mise run test
+## Checks
+
+| Command | Purpose |
+| --- | --- |
+| `cargo xtask check` | Formatting, Clippy, workspace tests and native acceptance |
+| `cargo xtask test` | Workspace tests and native acceptance |
+| `cargo xtask native` | Execute expected-output native fixtures using staged binaries |
+| `cargo xtask examples` | Typecheck public examples using staged binaries |
+| `cargo xtask fmt` | Format the Rust workspace |
+| `cargo xtask lint` | Check formatting and deny Clippy warnings |
+| `cargo test -p fern --lib` | Focused compiler library tests |
+| `cargo test -p fern-runtime` | Runtime unit tests |
+
+Build before running `native` or `examples` directly. The combined `check` and
+`test` commands prepare their own binaries and Rust supervisor fixtures. Run
+focused tests first while developing, then the complete check before committing.
+
+The workspace disables incremental compilation and debug symbols in development
+and test profiles to bound artifacts from the large test suite. Keep the Cargo
+target and temporary directories on a disk with adequate free space. Use
+`cargo clean` only when a deliberate generated-artifact reset is needed.
+
+## Install and relocate
+
+```sh
+cargo xtask install "$HOME/.local"
+cargo xtask uninstall "$HOME/.local"
 ```
 
-All tests should pass. If any test fails, please report it as a bug.
+Installation builds release components. Executables, the startup archive and
+marker live under `<prefix>/bin`; license notices and the optional README live
+under `<prefix>/share/fern`. Uninstall removes only these known component names.
+Literal spaces, quotes and Unicode are supported. Installation preflights every
+destination, prepares complete private copies, and atomically replaces each file.
+It rejects symlink components in the destination path; use the actual directory
+path when a system alias such as macOS `/tmp` resolves through a symlink.
 
-## Development Workflow
+The compiler locates native components beside its actual executable, including
+when invoked through `PATH` or a symlink. An installed package marker prevents
+fallback to a development checkout. `FERN_RUNTIME_LIB` and
+`FERN_TEST_SUPERVISOR` are explicit component overrides; `CC` selects one linker
+driver executable and does not accept a shell command.
 
-### First Time Setup
+## Release archives
 
-```bash
-# Install git hooks for automatic quality checks
-./scripts/install-hooks.sh
+```sh
+cargo xtask package
+cargo xtask package /absolute/output/directory
+cargo xtask verify dist/fern-0.1.0-linux-arm64.tar.gz dist/fern-0.1.0-linux-arm64.tar.gz.sha256
 ```
 
-This installs a pre-commit hook that automatically:
-- Compiles code with strict warnings
-- Runs all tests
-- Checks for common mistakes (malloc/free, manual unions, etc.)
-- Reminds you to update ROADMAP.md
+Archive names include the workspace version and actual host OS/architecture.
+Verification checks the SHA-256 record, complete tar/gzip framing, exact component
+inventory, marker, regular-file types, permissions and byte limits without
+extracting files. Packaging verifies private output before publication. Generated
+programs still depend on platform system libraries; bundles are platform-specific.
 
-### Daily Development
+## Workspace layout
 
-1. Make changes to source code
-2. Run focused tests, then `mise run test` and `mise run rust-check` to verify
-3. Update ROADMAP.md to track verified progress
-4. Run `mise run check`, then commit (pre-commit hook runs automatically)
+- `crates/fern`: compiler, formatter, REPL, docs, LSP and language tests.
+- `crates/fern-runtime`: allocation, native value ABI and services.
+- `crates/fern-runtime-native`: compiled-program startup archive.
+- `crates/fern-json`: shared bounded JSON implementation.
+- `crates/fern-test-supervisor`: retained-child native test capture and protocol.
+- `xtask`: build, acceptance, distribution and installation commands.
+- `examples` and `docs`: language examples and reference material.
 
-**Note:** The pre-commit hook will prevent commits if tests fail or code doesn't compile.
-
-## Compiler Profiles
-
-The Rust compiler uses Cargo debug and release profiles. Its release profile
-enables thin LTO, one codegen unit and stripped symbols. The following flags apply
-to the C reference compiler and native C components.
-
-### C Debug Build
-
-- `-std=c11` - C11 standard
-- `-Wall -Wextra -Wpedantic -Werror` - All warnings as errors
-- `-g` - Debug symbols
-- `-O0` - No optimization
-- `-DDEBUG` - Debug mode defines
-
-### C Release Build
-
-- `-std=c11` - C11 standard
-- `-Wall -Wextra -Wpedantic -Werror` - All warnings as errors
-- `-O2` - Optimization level 2
-- `-DNDEBUG` - Release mode (disables asserts)
-
-## Troubleshooting
-
-### "clang: command not found"
-
-Install clang:
-```bash
-# macOS
-xcode-select --install
-
-# Ubuntu/Debian
-sudo apt-get install clang
-
-# Fedora
-sudo dnf install clang
-```
-
-### "mise: command not found"
-
-Install mise using [its official instructions](https://mise.jdx.dev/installing-mise.html),
-then run `mise install` from this checkout. On macOS, `brew install mise` is supported.
-No shell activation is required for `mise run` or `mise exec`.
-
-### Tests fail
-
-1. Run `mise run clean` to remove stale build artifacts
-2. Run `mise run test` again
-3. If still failing, check the error message and report a bug
-
-### "ld: cannot find -lsqlite3" (or sqlite link errors)
-
-Install SQLite development headers/libraries:
-```bash
-# macOS
-brew install sqlite
-
-# Ubuntu/Debian
-sudo apt-get install libsqlite3-dev
-
-# Fedora
-sudo dnf install sqlite-devel
-```
-
-## Relocatable installations
-
-`fern` locates its native components beside the actual compiler executable,
-including when invoked through `PATH` or a symlink. Move `fern`, `fern-qbe`,
-`fern-test-supervisor`, `libfern_runtime.a`, and `fern-package.json` together; keep
-`fern-c` alongside them when retaining the reference compiler. The package marker
-disables implicit development-checkout fallback. Explicit `FERN_QBE`,
-`FERN_RUNTIME_LIB`, and `FERN_TEST_SUPERVISOR` overrides select individual components.
-Keep the native development libraries installed for subsequent compilation.
-Generated executables may depend on platform shared libraries; the release is not universally static.
-
-`fern run` uses a private temporary directory, so simultaneous runs cannot collide
-with another source file's basename. Build output paths can contain spaces,
-quotes, and literal dollar signs.
-
-If a quality check reports a nonexistent linker search directory, inspect the
-shell's `LIBRARY_PATH`. Remove stale entries for that invocation (for example,
-`env -u LIBRARY_PATH mise run check`); do not suppress compiler warnings globally.
-
-## Next Steps
-
-See [ROADMAP.md](ROADMAP.md) for active priorities and [docs/README.md](docs/README.md) for the full documentation map.
+See [CLAUDE.md](CLAUDE.md), [FERN_STYLE.md](FERN_STYLE.md) and
+[ROADMAP.md](ROADMAP.md) before making changes. Dated reports describe their
+original implementation and must not be relabeled as measurements of a new build.

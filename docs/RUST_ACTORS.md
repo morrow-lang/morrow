@@ -4,11 +4,11 @@ Status: accepted bounded implementation. Typed native execution is 105A; general
 
 ## Try the native example
 
-Build the default compiler and run the [two-message example](../compiler-rs/tests/actors/receive_continues.fn):
+Build the default compiler and run the [two-message example](../crates/fern/tests/actors/receive_continues.fn):
 
 ```sh
-mise run debug
-./bin/fern run compiler-rs/tests/actors/receive_continues.fn
+cargo xtask build
+./bin/fern run crates/fern/tests/actors/receive_continues.fn
 ```
 
 It prints `one`, then `two`. The worker keeps its local state while waiting for the
@@ -24,15 +24,15 @@ Mailbox schemes are inferred from the owned receive patterns, with no arbitrary 
 
 Receiving functions return Unit and may suspend in tail position, block statements/initializers, If/Match branches, and explicit returns. Direct receiving calls in tail position update a continuation frame. Receiving-call Result arguments currently retain their caller duties; an otherwise valid callee-based discharge may be conservatively rejected until receiving-call summaries are proved. Non-tail receiving calls, receive inside For/With or strict operands, arbitrary indirect receiving calls, and receiving functions owning defer are diagnosed as unsupported. Ordinary pure spawned functions retain ordinary function-exit defer behavior. Calls into ordinary helpers retain their normal cleanup behavior. An actor suspension never runs defer.
 
-The REPL rejects 105A actor programs before effects or retained definitions change. Legacy C source actor APIs and runtime supervision remain separate; no cross-frontend or FernSim parity is claimed.
+The REPL rejects 105A actor programs before effects or retained definitions change. Mailbox actor APIs and their supervision policies remain separate; complete FernSim parity is not claimed.
 
 ## Execution ABI and provenance
 
 Ordinary generated ABI remains `(environment, fault, source arguments)` with an exactly 8-byte fault slot. Context-requiring direct entries use `(environment, fault, execution context, source arguments)`. Context is never captured into a source closure, stored in a global current-actor variable, or read from beyond the fault slot. First-class context-requiring ordinary helpers are rejected except an immediate spawn entry; pure first-class callbacks keep the ordinary ABI.
 
-The native step callback is `int64_t(exec*, frame*)`; selectors are `void*(exec*, frame*, int64_t payload)`. QBE uses `l` for both native status and payload. Immutable function descriptors bind exact code identity, capture count/types, callback kind, and mailbox type. Type descriptors have four 64-bit words: kind, count, child pointers, and sum arities. Public IR is validated before private CPS conversion; caller-created IR cannot construct the opaque private lowered operations. Original and inactive signatures, actor metadata, closure identities, and capture arity/types are checked before cloning. Unknown identities have no fallback.
+The native step callback is `int64_t(exec*, frame*)`; selectors are `void*(exec*, frame*, int64_t payload)`. Cranelift transports both native status and payload as 64-bit words. Immutable function descriptors bind exact code identity, capture count/types, callback kind, and mailbox type. Type descriptors have four 64-bit words: kind, count, child pointers, and sum arities. Public IR is validated before private CPS conversion; caller-created IR cannot construct the opaque private lowered operations. Original and inactive signatures, actor metadata, closure identities, and capture arity/types are checked before cloning. Unknown identities have no fallback.
 
-A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains until the invocation is collected. The runtime uses the existing GC heap for retained source values. Small bounded temporary graph indices use calloc/free and are reclaimed on all paths; this is an explicit internal native allocator boundary.
+A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains until the invocation is collected. The runtime uses the existing GC heap for retained source values. Small bounded temporary graph indices use Rust-owned collections and are reclaimed on all paths.
 
 ## Ownership, quotas, and failures
 
@@ -64,6 +64,18 @@ Existing fault codes 1..7 and their first-failure behavior remain unchanged. Act
 
 ## Validation scope
 
-Native source oracles cover scheduling, full-width values, selective order, zero/positive timeout, explicit context helper transitions, Result duties held across suspension, PID equality, failure cleanup, quotas, and GC pressure. Independent normally exiting C fixtures inspect spent-root retirement, cancellation, atomic failed enqueue, foreign identity graphs, aggregate metadata/capture budgets, timely/late delivery, timeout ordering, and clock failure rollback. Debug, optimized NDEBUG, and ASan/UBSan variants run independently of source code generation. Source/public-IR/REPL tests reject unsupported effects before execution. Linux integration and the latest-base full compiler gates must pass before this checkpoint is published.
+Native source oracles cover scheduling, full-width values, selective order,
+zero/positive timeout, explicit helper contexts, Result duties held across
+suspension, PID equality, cleanup, quotas and GC pressure. Rust runtime tests
+exercise descriptor rejection, root retirement, cancellation, atomic failed send,
+foreign identities, retained graph limits, timely/late delivery, timeout order
+and clock failure rollback. Source/public-IR/REPL tests reject unsupported effects
+before execution.
 
-The final native corpus contains 20 programs, including 100,000 direct tail-continuation transitions under one actor identity and 64 MiB of intervening GC pressure while a receiver retains live values. Sixteen parsed semantic-negative fixtures also preserve an existing output file on build rejection. The Python source-oracle runner bounds only its directly owned child and never signals a numerical process group; native fixture programs spawn no OS children. Compiler-tool descendants are outside that runner's cleanup scope. This fixture policy is distinct from the retained-identity native test supervisor used by production test execution.
+The native actor fixtures include 100,000 direct tail-continuation transitions
+under one actor identity and collection pressure while a receiver retains live
+values. Atomic rejection tests retain existing output files for unsupported
+actor programs. Current runners are Rust and use the retained-identity supervisor
+for bounded subprocess cleanup. The former C/FernSim/sanitizer totals remain
+historical evidence; [workspace acceptance](RUST_WORKSPACE.md) identifies the
+actual debug and optimized Rust checks.

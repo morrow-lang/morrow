@@ -39,7 +39,7 @@ arguments. Imported functions and reexports retain their original interfaces.
 
 Labels erase when a function becomes a structural function value. Those values,
 lambdas, runtime/compiler builtins and constructors use positional calls and reject
-labels. The C frontend is not an oracle for source label semantics.
+labels. These source interfaces are checked by Fern's Rust frontend.
 
 Formatting roundtrips labels, external pattern names and labeled pipe holes.
 LSP definition requests on labels select the original parameter interface, independently
@@ -49,12 +49,9 @@ current source graph to check successfully. Imports, reexports and unsaved depen
 buffers retain exact source and UTF-16 identities. Incomplete-member recovery also
 preserves mandatory-label validation in unaffected functions.
 
-The editor grammar verifies labeled patterns, reordered calls, multiline arguments
-and pipe holes, with distinct external-label highlights. The verified profile uses
-ASCII labels; complete Unicode grammar syntax remains open.
-
-`scripts/test_rust_labels.py` executes five native programs and checks eight invalid
-programs preserve an existing output's bytes, permissions and modification time.
+The Rust LSP uses the compiler parser for label navigation and completion.
+`cargo xtask compatibility` executes the native label programs and verifies that
+invalid programs preserve existing outputs, permissions and modification times.
 Rust tests cover modules, contextual callback types, source spans, formatting,
 presentation and hostile AST budgets.
 Public AST labels share the parser's identifier/keyword rules and reject reversed

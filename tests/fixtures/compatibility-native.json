@@ -1,0 +1,455 @@
+[
+  {
+    "name": "test_rust_boundaries/main_ok",
+    "source": "fn main() -> Result((), String):\n    defer println(\"done\")\n    Ok(())\n",
+    "exit": 0,
+    "stdout": "done\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/main_err",
+    "source": "fn main() -> Result((), String):\n    defer println(\"done\")\n    Err(\"missing\")\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: main returned Err\n"
+  },
+  {
+    "name": "test_rust_boundaries/main_custom",
+    "source": "type Problem:\n    Missing(String)\n    Invalid(Int)\nfn main() -> Result((), Problem): Err(Missing(\"file\"))\n",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fern: main returned Err\n"
+  },
+  {
+    "name": "test_rust_boundaries/main_propagate",
+    "source": "fn read() -> Result(Int, Int): Err(9223372036854775807)\nfn main() -> Result((), Int):\n    defer println(\"done\")\n    let value = read()?\n    println(value)\n    Ok(())\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: main returned Err\n"
+  },
+  {
+    "name": "test_rust_boundaries/main_fault",
+    "source": "fn main() -> Result((), String):\n    defer println(1 / 0)\n    Err(\"original\")\n",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fern: runtime error: integer division by zero\n"
+  },
+  {
+    "name": "test_rust_boundaries/infer_forward",
+    "source": "fn answer(): twice(21)\nfn twice(x: Int): x * 2\nfn main(): println(answer())\n",
+    "exit": 0,
+    "stdout": "42\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/infer_recursive",
+    "source": "fn identity(x: a, n: Int):\n    if n > 0: identity(x, n - 1)\n    else: x\nfn main():\n    println(identity(2.5, 3))\n    println(identity(7, 2))\n",
+    "exit": 0,
+    "stdout": "2.5\n7\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/infer_update",
+    "source": "type Box:\n    value: Int\nfn read(): %{make() | value: 43}\nfn make(): Box(42)\nfn main(): println(read().value)\n",
+    "exit": 0,
+    "stdout": "43\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/index_negative",
+    "source": "fn main():\n    defer println(\"done\")\n    println(List.get([7], -1))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: list index out of bounds\n"
+  },
+  {
+    "name": "test_rust_boundaries/index_high",
+    "source": "fn main():\n    defer println(\"done\")\n    let at: (List(Float), Int) -> Float = List.get\n    println(at([7.0], 9223372036854775807))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: list index out of bounds\n"
+  },
+  {
+    "name": "test_rust_boundaries/head_empty",
+    "source": "fn main():\n    defer println(\"done\")\n    let first: (List(String)) -> String = List.head\n    println(first([]))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: head of empty list\n"
+  },
+  {
+    "name": "test_rust_boundaries/repeat_overflow",
+    "source": "fn main():\n    defer println(\"done\")\n    println(String.repeat(\"abcd\", 4611686018427387904))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: string size limit exceeded\n"
+  },
+  {
+    "name": "test_rust_boundaries/repeat_indirect",
+    "source": "fn main():\n    defer println(\"done\")\n    let repeat: (String, Int) -> String = String.repeat\n    println(repeat(\"x\", 16777217))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: string size limit exceeded\n"
+  },
+  {
+    "name": "test_rust_boundaries/repeat_empty",
+    "source": "fn main():\n    println(String.len(String.repeat(\"\", 9223372036854775807)))\n    println(String.len(String.repeat(\"abc\", -1)))\n    println(String.len(String.repeat(\"🌿\", 3)))\n",
+    "exit": 0,
+    "stdout": "0\n0\n12\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/valid_access",
+    "source": "fn main():\n    println(List.get([0.0, 9.25], 1))\n    println(List.head([9223372036854775807]))\n    println(List.get([\"a\", \"🌿\"], 1))\n",
+    "exit": 0,
+    "stdout": "9.25\n9223372036854775807\n🌿\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/callback_fault",
+    "source": "fn take(xs: List(Int)) -> Int:\n    defer println(\"callback\")\n    List.head(xs)\nfn main():\n    defer println(\"main\")\n    println(List.len(List.map([[], [7]], take)))\n",
+    "exit": 1,
+    "stdout": "callback\nmain\n",
+    "stderr": "fern: runtime error: head of empty list\n"
+  },
+  {
+    "name": "test_rust_boundaries/slice_boundary",
+    "source": "fn main():\n    defer println(\"done\")\n    println(String.slice(\"é\", 0, 1))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: String.slice indices must be UTF-8 character boundaries\n"
+  },
+  {
+    "name": "test_rust_boundaries/slice_indirect",
+    "source": "fn main():\n    defer println(\"done\")\n    let slice: (String, Int, Int) -> String = String.slice\n    println(slice(\"é\", 1, 1))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: String.slice indices must be UTF-8 character boundaries\n"
+  },
+  {
+    "name": "test_rust_boundaries/slice_clamp",
+    "source": "fn main():\n    println(String.slice(\"aé🌿z\", 1, 7))\n    println(String.slice(\"é\", -9, 99))\n    println(String.len(String.slice(\"é\", 99, -9)))\n",
+    "exit": 0,
+    "stdout": "é🌿\né\n0\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/split_scalars",
+    "source": "fn main():\n    for part in String.split(\"aé🌿é\", \"\"): println(part)\n    println(List.len(String.split(\"\", \"\")))\n",
+    "exit": 0,
+    "stdout": "a\né\n🌿\ne\ń\n0\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/read_invalid_text",
+    "source": "fn main():\n    defer println(\"done\")\n    match File.read(\"invalid-utf8.txt\"):\n        Ok(_) -> println(-1)\n        Err(code) -> println(code)\n",
+    "exit": 0,
+    "stdout": "3\ndone\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_boundaries/split_invalid_bytes",
+    "source": "fn main():\n    defer println(\"done\")\n    let text = System.arg(1)\n    println(List.len(String.split(text, \"\")))\n",
+    "exit": 1,
+    "stdout": "done\n",
+    "stderr": "fern: runtime error: String.split requires valid UTF-8 input\n"
+  },
+  {
+    "name": "test_rust_stdlib/files",
+    "source": "fn workflow() -> Result(Int, Int):\n    let written = fs.write(\"data.txt\", \"Fern 🌿\")?\n    println(written > 0)\n    println(fs.read(\"data.txt\")?)\n    println(fs.size(\"data.txt\")?)\n    let appended = fs.append(\"data.txt\", \"!\")?\n    println(appended > 0)\n    println(fs.read(\"data.txt\")?)\n    fs.delete(\"data.txt\")\nfn main():\n    println(Result.is_ok(workflow()))\n    println(fs.exists(\"data.txt\"))\n    println(Result.is_err(fs.read(\"missing.txt\")))\n",
+    "exit": 0,
+    "stdout": "true\nFern 🌿\n9\ntrue\nFern 🌿!\ntrue\nfalse\ntrue\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_stdlib/strings",
+    "source": "fn main():\n    let pieces = String.split(\"a,🌿,c\", \",\")\n    println(List.len(pieces))\n    println(String.join(List.reverse(pieces), \"/\"))\n    println(List.head(String.lines(\"first\\nsecond\")))\n    println(String.to_upper(String.trim(\" fern \")))\n    println(Option.unwrap_or(String.index_of(\"hello fern\", \"fern\"), -1))\n    println(Option.is_none(String.index_of(\"hello\", \"missing\")))\n    println(Option.unwrap_or(String.char_at(\"abc\", 1), -1))\n    println(Option.is_none(String.char_at(\"abc\", 9)))\n    println(Option.unwrap_or(String.char_at(\"🌿\", 0), -1))\n    println(Option.is_none(String.char_at(\"abc\", -1)))\n    println(Option.unwrap_or(String.index_of(\"abc\", \"\"), -1))\n",
+    "exit": 0,
+    "stdout": "3\nc/🌿/a\nfirst\nFERN\n6\ntrue\n98\ntrue\n240\ntrue\n0\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_stdlib/regex",
+    "source": "fn main():\n    println(Regex.is_match(\"a42\", \"[0-9]+\"))\n    println(String.join(Regex.find_all(\"a12b34\", \"[0-9]+\"), \":\"))\n    println(String.join(Regex.split(\"a,b,c\", \"[,]\"), \"/\"))\n    println(Regex.replace_all(\"a12b34\", \"[0-9]+\", \"x\"))\n",
+    "exit": 0,
+    "stdout": "true\n12:34\na/b/c\naxbx\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_stdlib/arguments",
+    "source": "fn main():\n    println(System.args_count())\n    println(System.arg(1))\n    println(List.get(System.args(), 2))\n",
+    "exit": 0,
+    "stdout": "3\nliteral ; $ value\n🌿\n",
+    "stderr": ""
+  },
+  {
+    "name": "test_rust_stdlib/services",
+    "source": "fn database() -> Result(Int, Int):\n    let db = sql.open(\":memory:\")?\n    sql.execute(db, \"create table example (value integer)\")\nfn mailbox() -> Result(String, Int):\n    let pid = actors.start(\"test\")\n    let sent = actors.post(pid, \"hello mailbox\")?\n    println(sent >= 0)\n    actors.next(pid)\nfn main():\n    println(Result.is_ok(database()))\n    println(Result.unwrap_or(mailbox(), \"failure\"))\n    println(Result.is_ok(json.parse(\"[]\")))\n",
+    "exit": 0,
+    "stdout": "true\ntrue\nhello mailbox\ntrue\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/0",
+    "source": "fn main():\n    let original = [-134520900211000, 676892301417408, -794969874611556, -387786065288198]\n    let changed = List.push(original, 0)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "-134520900211000\n0\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/1",
+    "source": "fn main():\n    let original = [-464008368702074, 987204348198121, -387460917843635, -318809718828868]\n    let changed = List.push(original, 1)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "-464008368702074\n1\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/2",
+    "source": "fn main():\n    let original = [904139803026475, -350637966757212, -128424279284555, -562605630208767]\n    let changed = List.push(original, 2)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "904139803026475\n2\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/3",
+    "source": "fn main():\n    let original = [675833951840699, -569374907208306, -46040336101092, 869735866097382]\n    let changed = List.push(original, 3)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "675833951840699\n3\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/4",
+    "source": "fn main():\n    let original = [582547550691696, -7509055907848, 589603369814605, 118150279796199]\n    let changed = List.push(original, 4)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "582547550691696\n4\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/5",
+    "source": "fn main():\n    let original = [128671051828159, 742591085703718, 839215468759253, -520532904686174]\n    let changed = List.push(original, 5)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "128671051828159\n5\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/6",
+    "source": "fn main():\n    let original = [368964275110692, 429573812313885, -1078843116209675, -969763042008354]\n    let changed = List.push(original, 6)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "368964275110692\n6\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/7",
+    "source": "fn main():\n    let original = [391642120062104, -627399796844154, 354098797141209, -934558292312858]\n    let changed = List.push(original, 7)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "391642120062104\n7\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/8",
+    "source": "fn main():\n    let original = [334191518790716, 354329687136193, -403587717846213, -813045867349712]\n    let changed = List.push(original, 8)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "334191518790716\n8\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/9",
+    "source": "fn main():\n    let original = [-364001998992764, -694303591887778, 972797130397161, 196127235567144]\n    let changed = List.push(original, 9)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "-364001998992764\n9\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/10",
+    "source": "fn main():\n    let original = [-5183673719110, -923010801598846, 905641029119880, -896307640030998]\n    let changed = List.push(original, 10)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "-5183673719110\n10\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-list-c011ec7/11",
+    "source": "fn main():\n    let original = [-446958457886275, 16907670026867, 352170575934643, -502044520799705]\n    let changed = List.push(original, 11)\n    println(Option.unwrap_or(Some(List.head(original)), 0))\n    println(List.head(List.reverse(changed)))\n    println(List.len(original))\n",
+    "exit": 0,
+    "stdout": "-446958457886275\n11\n4\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/0",
+    "source": "fn main():\n    println((6 + 38) * 27)\n",
+    "exit": 0,
+    "stdout": "1188\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/1",
+    "source": "fn main():\n    println((16 + 48) * 32)\n",
+    "exit": 0,
+    "stdout": "2048\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/2",
+    "source": "fn main():\n    println((41 + 39) * 29)\n",
+    "exit": 0,
+    "stdout": "2320\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/3",
+    "source": "fn main():\n    println((9 + 6) * 7)\n",
+    "exit": 0,
+    "stdout": "105\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/4",
+    "source": "fn main():\n    println((29 + 32) * 20)\n",
+    "exit": 0,
+    "stdout": "1220\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/5",
+    "source": "fn main():\n    println((43 + 40) * 4)\n",
+    "exit": 0,
+    "stdout": "332\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/6",
+    "source": "fn main():\n    println((6 + 6) * 14)\n",
+    "exit": 0,
+    "stdout": "168\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/7",
+    "source": "fn main():\n    println((23 + 19) * 34)\n",
+    "exit": 0,
+    "stdout": "1428\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/8",
+    "source": "fn main():\n    println((15 + 46) * 35)\n",
+    "exit": 0,
+    "stdout": "2135\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/9",
+    "source": "fn main():\n    println((36 + 1) * 49)\n",
+    "exit": 0,
+    "stdout": "1813\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/10",
+    "source": "fn main():\n    println((38 + 30) * 2)\n",
+    "exit": 0,
+    "stdout": "136\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/11",
+    "source": "fn main():\n    println((10 + 18) * 33)\n",
+    "exit": 0,
+    "stdout": "924\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/12",
+    "source": "fn main():\n    println((13 + 49) * 33)\n",
+    "exit": 0,
+    "stdout": "2046\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/13",
+    "source": "fn main():\n    println((13 + 10) * 34)\n",
+    "exit": 0,
+    "stdout": "782\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/14",
+    "source": "fn main():\n    println((45 + 13) * 13)\n",
+    "exit": 0,
+    "stdout": "754\n",
+    "stderr": ""
+  },
+  {
+    "name": "generated-arithmetic-fe12/15",
+    "source": "fn main():\n    println((26 + 19) * 15)\n",
+    "exit": 0,
+    "stdout": "675\n",
+    "stderr": ""
+  },
+  {
+    "name": "global-identity/0",
+    "source": "import model as m\nfn main():\n    let model=41\n    let direct=m.value(model)\n    let callable=m.value\n    let piped=model |> m.value()\n    let capture=() -> m.value(model)\n    println(direct+callable(piped)+capture())\n",
+    "files": {
+      "model.fn": "pub fn value(x:a)->a:x\n"
+    },
+    "exit": 0,
+    "stdout": "123\n",
+    "stderr": ""
+  },
+  {
+    "name": "global-identity/1",
+    "source": "import model as m\nfn caller(model):m.value(model)\nfn main():println(caller(3))\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "exit": 0,
+    "stdout": "4\n",
+    "stderr": ""
+  },
+  {
+    "name": "global-identity/2",
+    "source": "import model as m\ntype Callbacks:\n    value: fn(Int)->Int\nfn main():\n    let m=Callbacks((x)->x+2)\n    println(m.value(1))\n",
+    "files": {
+      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+    },
+    "exit": 0,
+    "stdout": "3\n",
+    "stderr": ""
+  },
+  {
+    "name": "global-identity/3",
+    "source": "import model as m\ntype Number=Int\nfn main():\n    let model=3\n    println(m.apply((x:Number)->x+1,model))\n    println(model |> m.apply((x:Number)->x+2,_))\n",
+    "files": {
+      "model.fn": "pub fn apply(f:fn(Int)->Int,x:Int)->Int:f(x)\n"
+    },
+    "exit": 0,
+    "stdout": "4\n5\n",
+    "stderr": ""
+  },
+  {
+    "name": "union-entry/0",
+    "source": "fn main() -> Result(Unit, Int | String): Ok(())\n",
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "name": "union-entry/1",
+    "source": "fn main() -> Result(Unit, Int | String): Err(4294967296)\n",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fern: main returned Err\n"
+  },
+  {
+    "name": "union-entry/2",
+    "source": "fn main() -> Result(Unit, Int | String): Err(\"fern\")\n",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fern: main returned Err\n"
+  },
+  {
+    "name": "literal-paths",
+    "source": "fn main():\n    println(\"literal paths\")\n",
+    "exit": 0,
+    "stdout": "literal paths\n",
+    "stderr": ""
+  }
+]

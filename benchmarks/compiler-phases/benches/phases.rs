@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use fern_compiler::{check, lowering, parse, Span};
 use fern_phase_benchmarks::{codec_plan, fixtures};
-use fern_prototype::{check, parse, qbe, Span};
 use std::{hint::black_box, time::Duration};
 
 fn phases(c: &mut Criterion) {
@@ -21,10 +21,12 @@ fn phases(c: &mut Criterion) {
             |b, ast| b.iter(|| black_box(check::check(black_box(ast)).expect("preverified check"))),
         );
         group.bench_with_input(
-            BenchmarkId::new("qbe", "checked_ir"),
+            BenchmarkId::new("lowering", "checked_ir"),
             &fixture.program,
             |b, program| {
-                b.iter(|| black_box(qbe::emit(black_box(program)).expect("preverified emission")))
+                b.iter(|| {
+                    black_box(lowering::emit(black_box(program)).expect("preverified emission"))
+                })
             },
         );
         group.finish();

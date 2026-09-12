@@ -1,6 +1,0 @@
-name = "Fern"
-grammar = "fern"
-path_suffixes = ["fn"]
-line_comments = ["# "]
-block_comment = ["/*", "*/"]
-

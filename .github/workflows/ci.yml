@@ -6,135 +6,29 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
-    name: Build and Test
+  rust-workspace:
+    name: Rust workspace (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
     env:
-      # Keep full native/backend test artifacts within hosted runner disk budgets.
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang pkg-config libgc-dev libsqlite3-dev libssl-dev
-
-      - name: Install dependencies (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          # Xcode command line tools should be pre-installed
-          brew install bdw-gc sqlite openssl pkg-config
-          clang --version
-
-      - name: Install pinned mise tools
+      - name: Install pinned Rust toolchain
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
         with:
           version: 2026.9.1
           install: true
-
-      - name: Verify managed and native tools
-        run: mise run tool-versions
-
-      - name: Build (Debug)
-        run: mise run clean && mise run debug
-
-      - name: Run tests
-        run: mise run test
-
-      - name: Validate native checker diagnostics
-        run: mise run style-parity
-
-      - name: Validate native checker launcher
-        run: mise run style-launcher-check
-
-      - name: Validate examples
-        run: mise run test-examples
-
-      - name: Run fuzz smoke test
-        if: matrix.os == 'ubuntu-latest'
-        run: ITERS=64 SEED=0xC0FFEE mise run fuzz-smoke
-
-      - name: Check performance budgets
-        if: matrix.os == 'ubuntu-latest'
-        run: mise run perf-budget
-
-      - name: Validate task migration
-        run: |
-          mise run mise-workflow-check
-          python3 scripts/test_default_ci_workflow.py
-
-      - name: Validate default Rust frontend
-        run: mise run rust-check
-
-      - name: Validate Cranelift backend and native output
-        run: mise run rust-cranelift-check
-
-      - name: Verify Rust lint policy and phase benchmarks
-        run: |
-          mise run rust-lint-policy
-          mise run rust-bench-smoke
-
-      - name: Build (Release)
-        if: matrix.os == 'macos-latest'
-        run: mise run clean && mise run release
-
-      - name: Check binary size (macOS)
-        if: matrix.os == 'macos-latest'
-        run: |
-          ls -lh bin/fern
-          size bin/fern || echo "size command not available"
-
-  lint:
-    name: Code Quality
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang clang-format pkg-config libgc-dev libsqlite3-dev libssl-dev
-
-      - name: Install pinned mise tools
-        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
-        with:
-          version: 2026.9.1
-          install: true
-
-      - name: Verify managed and native tools
-        run: mise run tool-versions
-
-      - name: Check docs consistency
-        run: mise run docs-consistency
-
-      - name: Check FERN_STYLE compliance
-        run: |
-          echo "Checking FERN_STYLE compliance..."
-          ./scripts/check_style lib/ src/
-          echo "✓ All files pass FERN_STYLE checks"
-
-      - name: Check formatting (if clang-format config exists)
-        run: |
-          if [ -f .clang-format ]; then
-            find src include lib tests \( -name '*.c' -o -name '*.h' \) -exec clang-format --dry-run --Werror {} +
-          else
-            echo "No .clang-format file, skipping format check"
-          fi
-
-      - name: Compile with all warnings
-        run: mise run clean && mise run debug
-
-      - name: Validate compatibility policy
-        run: mise run release-policy-check
+      - name: Check compiler, runtime, tooling and native programs
+        run: cargo xtask check

@@ -69,7 +69,7 @@ native codec limit.
 
 Concrete compiler plans contain at most 4,096 entries. Plan validation shares
 400,000 work units across an executable program; repeated immutable plan identities
-are reused. QBE descriptor output has a separate aggregate 16 MiB limit. These
+are reused. Native descriptor output has a separate aggregate 16 MiB limit. These
 bounds also apply to independently supplied executable IR, including inactive
 function bodies. Source type targets never enter executable IR.
 

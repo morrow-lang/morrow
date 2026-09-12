@@ -4,9 +4,8 @@ This separate, unpublished workspace measures the actual Rust frontend with
 Criterion 0.5.1. It adds no dependencies to the production compiler. Current
 commands use the repository's **nightly-2026-09-06** pin; the numeric Cargo floor
 is 1.100, with no stable MSRV promise. Always use `--locked`. The independent
-lock was originally built and tested on Rust 1.75.0 during Decision107 on
-2026-09-06. Its clap 4.5.4 and half 2.4.1 pins remain unchanged; the original
-unlocked resolution selected an edition-2024 clap_lex and failed on 1.75.
+lock follows the current Rust compiler workspace. The Rust 1.75 dependency
+pins used in the historical Decision107 measurements no longer apply.
 No Cargo install is needed. Historical measurements below are not measurements
 of the new nightly; compare compiler changes on the same pinned toolchain.
 
@@ -30,7 +29,8 @@ component instantiated at two types, and a derived JSON record. Each is parsed,
 checked and emitted before timing starts. Tests also verify its REPL behavior,
 generic specialization, entry ABI, and actual codec/storage graph. Nine cases
 measure parsing source bytes, checking a pre-parsed AST, or emitting already
-checked IR. A tenth validates the actual JSON record codec plan. The proof case
+checked IR into inspection text through the shared lowering module. This does
+not measure Cranelift object emission. A tenth validates the actual JSON record codec plan. The proof case
 measures validation, not JSON encoding throughput or native runtime execution.
 
 Inputs and returned results cross `std::hint::black_box`; allocation and drop
@@ -54,9 +54,8 @@ Other agents were using the host during measurement. Re-measure before/after
 changes on the same quiet machine/toolchain and inspect distributions before
 claiming improvement. CI uses the deterministic smoke run, not timing thresholds.
 
-These measurements complement `scripts/evaluate_rust_frontend.py`, which measures
-subprocess cold/warm compilation and backend comparison. They do not replace
-native correctness, memory/resource, platform, or backend evaluation gates.
+Native correctness, memory/resource and platform acceptance are separate
+from these phase measurements; run `cargo xtask check` for those gates.
 
 ## Actor preparation review
 

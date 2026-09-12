@@ -1,0 +1,57 @@
+{
+  "arch": "aarch64",
+  "compiler_startup": {
+    "median_ms": 0.357922,
+    "p95_ms": 0.535466,
+    "samples": 30
+  },
+  "components": {
+    "fern": {
+      "bytes": 5903432,
+      "sha256": "f4434d20386b9a05ae5ab630949b95f76b794fd0322f06bd46fa23e71d0e8abc"
+    },
+    "fern-test-supervisor": {
+      "bytes": 332736,
+      "sha256": "2cf156b5a487860637ac08cebb61febd6d37d83da50949304bd717980764f4e6"
+    },
+    "libfern_runtime.a": {
+      "bytes": 21767898,
+      "sha256": "344fc7836f368017ba6fa631599c0de042233cccbf960600b023d163ec8e30bd"
+    }
+  },
+  "measurement": "local wall clock, process startup included; host contention is not controlled",
+  "os": "linux",
+  "programs": [
+    {
+      "compile_ms": 47.587944,
+      "executable_bytes": 3656280,
+      "execution": {
+        "median_ms": 107.682882,
+        "p95_ms": 110.264399,
+        "samples": 10
+      },
+      "name": "fib"
+    },
+    {
+      "compile_ms": 47.541276,
+      "executable_bytes": 3656280,
+      "execution": {
+        "median_ms": 0.2785665,
+        "p95_ms": 0.413881,
+        "samples": 10
+      },
+      "name": "sum"
+    },
+    {
+      "compile_ms": 47.579818,
+      "executable_bytes": 3649736,
+      "execution": {
+        "median_ms": 0.242191,
+        "p95_ms": 0.370839,
+        "samples": 10
+      },
+      "name": "startup"
+    }
+  ],
+  "version": "0.1.0"
+}

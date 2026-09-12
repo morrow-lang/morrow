@@ -1,68 +1,23 @@
-# Build artifacts
-build/
-build2/
-bin/
-bin2/
-dist/staging/
-dist/bench/
-dist/*.tar.gz
-dist/*.tar.gz.sha256
-dist/*.md
+# Cargo and local build/distribution products
+/target/
+**/target/
+/bin/
+/share/
+/dist/
+/.fern-task-*/
 
-# Editor and IDE files
-.vscode/
-.idea/
+# Developer-local files
+.DS_Store
 *.swp
 *.swo
-*~
+*.bak
+/.env
+/.env.*
+/.venv/
 
-# OS files
-.DS_Store
-Thumbs.db
+# Optional benchmark output and fuzz reproducers
+/fuzz/failures/
+/benchmarks/results/
 
-# Debug files
-*.dSYM/
-vgcore.*
-
-# Test outputs
-*.log
-*.ssa
-# Compiler-owned QBE helpers are source, not generated output.
-!compiler-rs/src/qbe/*.ssa
-
-# Compiled test binaries (created during benchmarks/testing)
-hello
-string_ops
-fib_fern
-startup_fern
-sum_fern
-
-# Python
-__pycache__/
-*.pyc
-.venv/
-
-# Claude Code local settings
-.claude/settings.local.json
-
-# Misc test files
-check_style_simple
-test_file_read
-test_simple_str
-
-# Generated documentation site
-docs/generated/
-
-# Rust frontend experiment build artifacts
-compiler-rs/target/
-
-# Authored backend ABI regression input.
-!tests/fixtures/qbe_apple_registers.ssa
-
-# Personal mise overrides and developer runner state
-mise.local.toml
-mise.local.lock
-compiler-rs/.bacon-locations
-
-# Independently locked compiler phase benchmark output
-benchmarks/compiler-phases/target/
+# Per-user assistant permissions
+/.claude/

@@ -3,6 +3,7 @@
   "packages": {
     ".": {
       "release-type": "simple",
+      "version-file": ".github/release-version.txt",
       "initial-version": "0.1.0",
       "bump-minor-pre-major": true,
       "package-name": "fern",
@@ -10,23 +11,54 @@
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
         {
-          "type": "generic",
-          "path": "include/version.h"
+          "type": "toml",
+          "path": "Cargo.toml",
+          "jsonpath": "$.workspace.package.version"
         },
         {
           "type": "toml",
-          "path": "compiler-rs/Cargo.toml",
-          "jsonpath": "$.package.version"
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
         },
         {
           "type": "toml",
-          "path": "compiler-rs/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-prototype')].version"
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-runtime')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-runtime-native')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'xtask')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/compiler-phases/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-prototype')].version"
+          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/compiler-phases/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/compiler-phases/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
         }
       ]
     }

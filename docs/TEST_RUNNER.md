@@ -1,6 +1,6 @@
 # Rust unit tests and documentation examples
 
-`fern-rs test` runs ordinary `test_` functions and documentation examples in the
+`fern test` runs ordinary `test_` functions and documentation examples in the
 current directory. Supply a source file or directory to select a smaller suite.
 `--doc` selects only documentation examples, including when ordinary helper
 functions happen to use the test naming convention.
@@ -44,4 +44,4 @@ run reports 0/0 explicitly. Source files are never rewritten.
 Assertion libraries and structural assertion messages, benchmarks, coverage and
 watch mode remain separate implementation work. Unsupported options are rejected.
 Documentation expectations continue to use ordinary checked patterns after `# =>`.
-See [the Rust frontend guide](../compiler-rs/README.md) for documentation details.
+See [the Rust frontend guide](../crates/fern/README.md) for documentation details.

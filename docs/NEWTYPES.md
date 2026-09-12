@@ -49,4 +49,4 @@ work limit. The backend validates concrete layout shape and references before
 selecting widths or emitting code, including caller-created IR.
 
 This feature is available in the default Rust compiler, `fern`. The explicit
-C reference compiler, `fern-c`, does not implement this contract.
+C reference compiler was removed during the Rust-only migration.

@@ -1,5 +1,5 @@
+use fern_compiler::{ir, json_codec::Kind, Type};
 use fern_phase_benchmarks::{codec_plan, fixtures};
-use fern_prototype::{ir, json_codec::Kind, Type};
 #[test]
 fn fixtures_are_prechecked_and_preserve_their_distinct_workloads() {
     let cases = fixtures();
@@ -16,8 +16,8 @@ fn fixtures_are_prechecked_and_preserve_their_distinct_workloads() {
             .find(|f| f.name == "main")
             .unwrap();
         assert_eq!(main.return_type, Type::Unit);
-        assert!(fixture.qbe.contains("export function w $fern_main()"));
-        assert!(!fixture.qbe.contains("json_codec_") || fixture.name == "json_record");
+        assert!(fixture.lowering.contains("export function w $fern_main()"));
+        assert!(!fixture.lowering.contains("json_codec_") || fixture.name == "json_record");
     }
     assert!(
         cases[1].program.functions.len() >= 5,
@@ -41,14 +41,14 @@ fn codec_proof_benchmark_uses_actual_checked_graph_and_storage_metadata() {
         .types
         .iter()
         .any(|layout| layout.storage == ir::LayoutStorage::Tagged));
-    plan.validate(&fixture.program.types, fern_prototype::Span::default())
+    plan.validate(&fixture.program.types, fern_compiler::Span::default())
         .unwrap();
 }
 
 #[test]
 fn fixture_source_behavior_is_verified_before_benchmarking_compiler_work() {
     for (fixture, expected) in fixtures().into_iter().zip(["42\n", "42\nFern\n", ""]) {
-        let mut session = fern_prototype::repl::Session::default();
+        let mut session = fern_compiler::repl::Session::default();
         session
             .evaluate(&fixture.source.replace("fn main(", "fn benchmark_entry("))
             .unwrap();

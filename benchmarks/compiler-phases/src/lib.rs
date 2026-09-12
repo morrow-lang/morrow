@@ -1,5 +1,5 @@
 //! Prepared fixtures keep parsing, checking, emission and proof timing boundaries explicit.
-use fern_prototype::{ast, check, ir, json_codec::Plan, parse, qbe};
+use fern_compiler::{ast, check, ir, json_codec::Plan, lowering, parse};
 
 /// One independently checked input and its reusable outputs for subsequent phases.
 pub struct Fixture {
@@ -7,7 +7,7 @@ pub struct Fixture {
     pub source: String,
     pub ast: ast::Program,
     pub program: ir::Program,
-    pub qbe: String,
+    pub lowering: String,
 }
 
 /// Prepare every fixture outside measured loops; invalid or changed inputs fail immediately.
@@ -28,13 +28,13 @@ pub fn fixtures() -> Vec<Fixture> {
     .map(|(name, source)| {
         let ast = parse::parse(&source).expect("benchmark source must parse");
         let program = check::check(&ast).expect("benchmark source must check");
-        let qbe = qbe::emit(&program).expect("benchmark IR must emit");
+        let lowering = lowering::emit(&program).expect("benchmark IR must emit");
         Fixture {
             name,
             source,
             ast,
             program,
-            qbe,
+            lowering,
         }
     })
     .collect()

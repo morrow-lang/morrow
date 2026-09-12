@@ -63,11 +63,11 @@ a competing reaper or change that policy during the call. SIG_IGN and SA_NOCLDWA
 are rejected before spawning. The implementation never signals an inherited group
 or an identity whose reaping ownership was lost.
 
-The C frontend consumes the shared heap Result and native process tuple. Rust
-adapts only the successful tuple into its tagged representation. All pointers,
+The Rust compiler consumes the native heap Result and adapts only a successful
+process tuple into its tagged representation. All pointers,
 parameters and Result payloads retain 64 bits. Legacy System.exec and
 System.exec_args retain their existing compatibility behavior. Interactive process
-execution and changing the default compiler/checker are separate milestones.
+execution remains unsupported.
 
 On macOS, a group containing only the retained exited child can report EPERM
 when signaled. The runtime accepts this only after confirming exit and obtaining

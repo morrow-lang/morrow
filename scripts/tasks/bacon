@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# Use the optional local developer executable without changing the project toolchain.
-set -euo pipefail
-cd "$(dirname "$0")/../../compiler-rs"
-if [[ ! -x target/dev-tools/bacon-3.25.0/bin/bacon ]]; then
-    printf '%s\n' 'Run mise run rust-bacon-install once to install the optional Bacon UI.' >&2
-    exit 1
-fi
-exec target/dev-tools/bacon-3.25.0/bin/bacon "$@"

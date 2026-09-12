@@ -83,13 +83,6 @@ json.parse(text: String) -> Result(json.Value, json.Error)
 json.stringify(value: json.Value) -> Result(String, json.Error)
 ```
 
-The explicit `fern-c` reference retains its legacy String-copy source contract:
-
-```fern
-json.parse(text: String) -> Result(String, Int)
-json.stringify(text: String) -> Result(String, Int)
-```
-
 ### `http`
 
 ```fern
@@ -119,11 +112,11 @@ actors.post(actor_id: Int, message: String) -> Result(Int, Int)
 actors.next(actor_id: Int) -> Result(String, Int)
 ```
 
-## Runtime Readiness (2026-02-06)
+## Runtime implementation
 
 1. `fs`, `json`, and `actors` have concrete runtime behavior covered by regression tests.
 2. `sql` signatures are stable and backed by a concrete SQLite runtime (`sql.open`, `sql.execute`).
-3. `http` signatures are stable and backed by a civetweb client runtime for HTTP/HTTPS requests (`http.get`, `http.post`), returning `Err(FERN_ERR_IO)` for invalid URLs/network failures/non-`2xx` responses.
+3. `http` uses ureq/rustls for HTTP/HTTPS with certificate verification, a 30-second deadline and a 16 MiB body limit. Invalid URLs, redirects, transport errors, invalid text and non-2xx responses return `Err(3)`.
 4. `File.*` is maintained for compatibility and maps to the same runtime surface as `fs.*`.
 
 ### `File` compatibility alias
@@ -139,13 +132,7 @@ File.size(path: String) -> Result(Int, Int)
 
 ## Stability Enforcement
 
-These API contracts are enforced by type-checker tests:
-
-1. `test_check_fs_api_signatures`
-2. `test_check_json_api_signatures`
-3. `test_check_http_api_signatures`
-4. `test_check_sql_api_signatures`
-5. `test_check_actors_api_signatures`
-6. `test_check_file_alias_api_signatures`
-
-See `tests/test_checker.c`.
+Rust registry/checker tests verify signatures and alias identities. Independent
+native output fixtures, runtime tests and `cargo xtask compatibility` exercise
+execution and rejection before output mutation. See the
+[workspace acceptance](RUST_WORKSPACE.md) for the exact platform verification.

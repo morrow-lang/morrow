@@ -1,0 +1,24 @@
+[package]
+name = "fern-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[dependencies]
+fern-json = { path = "../fern-json" }
+libc.workspace = true
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
+ureq = { version = "=3.4.0", default-features = false, features = ["rustls"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[[test]]
+name = "io_protocols"
+harness = false
