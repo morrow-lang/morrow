@@ -46,6 +46,7 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ## Active Priorities
 
+- [x] Promote expired actor timers at every cooperative boundary, preserve deadline/identity wake ordering after timely unmatched or late sends, and retire cached timers without spurious clock faults (2,048 deterministic FernSim timeout dispatches per debug/release/sanitizer mode).
 - [x] Preserve NaN sign, payload and signaling bits in QBE machine transport, matching Cranelift without decimal canonicalization (18 independently specified native bit-pattern outputs and serializer regression).
 - [x] Showcase native string interpolation in the README greeting; exact `Hello, Fern!` output verified on both C and Rust compilers.
 

@@ -32,13 +32,15 @@ def main():
     }
     with tempfile.TemporaryDirectory(prefix="fern-managed-runtime-") as temporary:
         for mode, flags in variants.items():
-            for fixture in ("scheduler", "ownership"):
+            for fixture in ("scheduler", "ownership", "timers"):
                 binary = Path(temporary) / f"{fixture}-{mode}"
                 command = [args.cc, "-std=c11", "-Wall", "-Wextra", "-Werror",
                            "-Wno-unused-function", "-Iruntime", *flags,
                            ROOT / f"tests/actors105/{fixture}.c"]
                 if fixture == "scheduler":
                     command.append(ROOT / "runtime/fern_managed.c")
+                if fixture == "timers":
+                    command.extend(["-Iinclude", ROOT / "lib/arena.c", ROOT / "lib/fernsim.c"])
                 execute([*command, "-o", binary], environment)
                 output = execute([binary], environment)
                 if not output.endswith(": ok\n"):

@@ -127,6 +127,10 @@ static void overdue_timer_order(void) {
     assert(managed_idle(root->session));
     assert(managed_dequeue(root->session)==second);
     assert(managed_dequeue(root->session)==first);
+    /* Promotion now installs ready successors, so arm fresh receives for the tie case. */
+    assert(!first->waiting && !second->waiting);
+    assert(fern_managed_receive(&first->exec,frame((void*)unmatched),frame((void*)done),600000)==FERN_MANAGED_SUSPENDED);
+    assert(fern_managed_receive(&second->exec,frame((void*)unmatched),frame((void*)done),600000)==FERN_MANAGED_SUSPENDED);
     first->deadline=now; second->deadline=now;
     assert(managed_idle(root->session));
     assert(managed_dequeue(root->session)==first);
@@ -236,7 +240,60 @@ static void enqueue_commit_clock(void) {
     fern_managed_stop(root);
 }
 
+static unsigned timer_step, timer_observed;
+static void* timer_spin_frame;
+
+/** Every continuation yields; an elapsed timer must not wait for this actor to complete. */
+static int64_t timer_spin(FernManagedExec* exec,void* env) {
+    (void)env;
+    fake_milliseconds++;
+    if(++timer_step==20) return FERN_MANAGED_COMPLETE;
+    return fern_managed_continue(exec,timer_spin_frame);
+}
+
+/** Record the quantum at which the timeout continuation actually runs. */
+static int64_t timer_record(FernManagedExec* exec,void* env) {
+    (void)exec; (void)env;
+    timer_observed=timer_step;
+    return FERN_MANAGED_COMPLETE;
+}
+
+/** Runnable actors cannot starve an elapsed timer while repeatedly yielding continuations. */
+static void timer_fairness_with_runnable_actor(void) {
+    fake_clock=true; fake_milliseconds=0; timer_step=0; timer_observed=0;
+    FernManagedFunction spin={(void*)timer_spin,timer_spin,NULL,0,NULL,&scalar};
+    FernManagedFunction record={(void*)timer_record,timer_record,NULL,0,NULL,&scalar};
+    const FernManagedFunction* table[]={&done_descriptor,&selector_descriptor,&spin,&record};
+    int64_t fault=0; FernManagedExec* root=fern_managed_new(&fault,table,4);
+    fern_managed_spawn(root,frame((void*)done),&scalar);
+    ManagedActor* receiver=managed_dequeue(root->session);
+    assert(fern_managed_receive(&receiver->exec,frame((void*)unmatched),
+        frame((void*)timer_record),3)==FERN_MANAGED_SUSPENDED);
+    timer_spin_frame=frame((void*)timer_spin);
+    fern_managed_spawn(root,timer_spin_frame,&scalar);
+    fern_managed_run(root);
+    assert(fault==0 && timer_step==20);
+    assert(timer_observed>=3 && timer_observed<=5);
+    fern_managed_stop(root); fake_clock=false;
+}
+
+/** A selected zero-duration timeout is retired before its runnable successor is dispatched. */
+static void retired_timer_does_not_read_clock(void) {
+    fake_clock=true; fake_milliseconds=0;
+    int64_t fault=0; FernManagedExec* root=context(&fault);
+    fern_managed_spawn(root,frame((void*)done),&scalar);
+    ManagedActor* actor=managed_dequeue(root->session);
+    assert(fern_managed_receive(&actor->exec,frame((void*)unmatched),
+        frame((void*)done),0)==FERN_MANAGED_RUNNABLE);
+    assert(!actor->waiting && actor->queued);
+    fail_clock=true;
+    fern_managed_run(root);
+    assert(fault==0 && root->session->live==0);
+    fern_managed_stop(root); fail_clock=false; fake_clock=false;
+}
+
 int main(void) {
+    retired_timer_does_not_read_clock(); timer_fairness_with_runnable_actor();
     enqueue_commit_clock(); timely_message_deadline(); late_message_deadline(); descriptor_edge_budget(); timeout_descriptor_atomicity(); identity_lookup_budget();
     string_scan_budget(); overdue_timer_order(); pid_graph_provenance(); descriptor_aggregate_budget(); suspension_roots(); failure_precedence(); mailbox_atomicity();
     for(size_t i=0;i<allocation_count;i++) free(allocations[i]);

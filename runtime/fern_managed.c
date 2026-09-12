@@ -49,6 +49,7 @@ struct ManagedSession {
     const FernManagedFunction* const* functions;
     size_t function_count, live, next_id, messages, retained;
     bool stopped;
+    uint64_t next_deadline;
     ManagedActor** identities;
     ManagedActor* first;
     ManagedActor* last;
@@ -141,12 +142,32 @@ static void managed_clear_messages(ManagedActor* actor) {
     actor->last=NULL;
 }
 
+/** Recompute the earliest timer after its owner retires it, without reading the host clock.
+ * @param s Invocation whose active receive deadlines are authoritative.
+ */
+static void managed_refresh_deadline(ManagedSession* s) {
+    assert(s!=NULL);
+    assert(s->next_id<=MANAGED_IDS);
+    s->next_deadline=UINT64_MAX;
+    for(size_t i=0;i<s->next_id;i++) {
+        ManagedActor* actor=s->identities[i];
+        if(actor->alive && actor->waiting && actor->deadline<s->next_deadline) {
+            s->next_deadline=actor->deadline;
+        }
+    }
+}
+
 /** Retire receive closures and their deadline together. @param actor Owned record. */
 static void managed_clear_receive(ManagedActor* actor) {
     assert(actor!=NULL);
     managed_release(actor->exec.session,actor->selector_cost+actor->timeout_cost);
     actor->selector=NULL; actor->timeout_frame=NULL; actor->selector_cost=0; actor->timeout_cost=0;
+    uint64_t retired_deadline=actor->deadline;
     actor->deadline=UINT64_MAX; actor->waiting=false;
+    ManagedSession* s=actor->exec.session;
+    if(!s->stopped && retired_deadline!=UINT64_MAX && retired_deadline==s->next_deadline) {
+        managed_refresh_deadline(s);
+    }
 }
 
 /** Retire all strong actor roots; IDs remain permanently dead within their owning session. @param actor Record. */
@@ -177,6 +198,7 @@ FernManagedExec* fern_managed_new(int64_t* fault,const FernManagedFunction* cons
     s->identities=fern_alloc(MANAGED_IDS*sizeof(*s->identities)); memset(s->identities,0,MANAGED_IDS*sizeof(*s->identities));
     s->retained=sizeof(*s)+MANAGED_IDS*sizeof(*s->identities);
     s->functions=functions; s->function_count=(size_t)count;
+    s->next_deadline=UINT64_MAX;
     s->root=(FernManagedExec){s,NULL,fault}; return &s->root;
 }
 
@@ -216,7 +238,8 @@ int64_t fern_managed_send(FernManagedExec* exec,void* identity,int64_t value,con
     *message=(ManagedMessage){NULL,value,cost+sizeof(*message),now};
     if(actor->last) actor->last->next=message; else actor->first=message;
     actor->last=message; actor->messages++; s->messages++;
-    if(actor->waiting) managed_enqueue(actor);
+    /* Late messages stay queued, but timer promotion determines their receiver's wake order. */
+    if(actor->waiting && (actor->deadline==UINT64_MAX || now<actor->deadline)) managed_enqueue(actor);
     return fern_result_ok(0);
 }
 
@@ -282,20 +305,42 @@ int64_t fern_managed_receive(FernManagedExec* exec,void* selector,void* timeout,
     /* Selection/timeout closures now own all values that can survive this suspension. */
     managed_release(s,actor->frame_cost); actor->frame=NULL; actor->frame_cost=0;
     actor->deadline=deadline;
+    if(deadline<s->next_deadline) s->next_deadline=deadline;
     bool selected=managed_poll(actor,true);
     if(actor->fault) return FERN_MANAGED_FAILED;
     return selected ? FERN_MANAGED_RUNNABLE : FERN_MANAGED_SUSPENDED;
 }
 
-/** Wake due receives in stable actor-ID order and sleep only while no actor is runnable. @param s Owner. @return Work can continue. */
-static bool managed_idle(ManagedSession* s) {
-    assert(s!=NULL && s->first==NULL);
-    uint64_t earliest=UINT64_MAX,now=0;
+/** Remove due receivers from their old message wake positions before sorting timer wakes.
+ * @param s Invocation owner. @param now Checked monotonic milliseconds.
+ */
+static void managed_unqueue_due(ManagedSession* s,uint64_t now) {
+    assert(s!=NULL);
+    assert(s->live<=MANAGED_LIVE);
+    ManagedActor* previous=NULL; ManagedActor* actor=s->first;
+    for(size_t i=0;i<MANAGED_LIVE && actor;i++) {
+        ManagedActor* next=actor->next;
+        if(actor->waiting && actor->deadline!=UINT64_MAX && actor->deadline<=now) {
+            if(previous) previous->next=next; else s->first=next;
+            if(s->last==actor) s->last=previous;
+            actor->queued=false; actor->next=NULL;
+        } else previous=actor;
+        actor=next;
+    }
+    assert(actor==NULL);
+}
+
+/** Promote elapsed timers in deadline/identity order at a cooperative scheduling boundary.
+ * @param s Invocation owner. @param now Checked monotonic milliseconds.
+ */
+static void managed_wake_due(ManagedSession* s,uint64_t now) {
+    assert(s!=NULL);
+    assert(s->live<=MANAGED_LIVE);
+    uint64_t earliest=UINT64_MAX;
     ManagedActor* due[MANAGED_LIVE]; size_t count=0;
-    if(!managed_now(&now)) { managed_fail(&s->root,FAULT_CLOCK); return false; }
     for(size_t i=0;i<s->next_id;i++) {
         ManagedActor* actor=s->identities[i];
-        if(!actor->alive || !actor->waiting) continue;
+        if(!actor->alive || !actor->waiting || actor->deadline==UINT64_MAX) continue;
         if(actor->deadline<=now) {
             assert(count<MANAGED_LIVE);
             size_t index=count++;
@@ -307,10 +352,34 @@ static bool managed_idle(ManagedSession* s) {
         }
         else if(actor->deadline<earliest) earliest=actor->deadline;
     }
-    for(size_t i=0;i<count;i++) managed_enqueue(due[i]);
+    if(count) managed_unqueue_due(s,now);
+    /* Due timers are consumed below; pure selectors cannot register new timer deadlines. */
+    s->next_deadline=earliest;
+    for(size_t i=0;i<count;i++) {
+        /* Publish the successor now: a later after-0 must not bypass a pending selector quantum. */
+        if(!managed_poll(due[i],false) && !due[i]->fault && due[i]->deadline<earliest) {
+            earliest=due[i]->deadline;
+        }
+        if(due[i]->fault) {
+            if(!*s->root.fault) *s->root.fault=due[i]->fault;
+            break;
+        }
+    }
+    s->next_deadline=earliest;
+}
+
+/** Wake due receives and sleep only while no actor is runnable.
+ * @param s Owner. @return Work can continue.
+ */
+static bool managed_idle(ManagedSession* s) {
+    assert(s!=NULL && s->first==NULL);
+    uint64_t now=0;
+    if(!managed_now(&now)) { managed_fail(&s->root,FAULT_CLOCK); return false; }
+    managed_wake_due(s,now);
+    if(*s->root.fault) return false;
     if(s->first) return true;
-    if(earliest==UINT64_MAX) { managed_fail(&s->root,FAULT_DEADLOCK); return false; }
-    uint64_t delay=earliest-now;
+    if(s->next_deadline==UINT64_MAX) { managed_fail(&s->root,FAULT_DEADLOCK); return false; }
+    uint64_t delay=s->next_deadline-now;
     struct timespec sleep={(time_t)(delay/1000u),(long)(delay%1000u)*1000000L};
     if(nanosleep(&sleep,NULL)!=0 && errno!=EINTR) { managed_fail(&s->root,FAULT_CLOCK); return false; }
     return true;
@@ -321,6 +390,13 @@ void fern_managed_run(FernManagedExec* exec) {
     if(!exec || !exec->session) return;
     ManagedSession* s=exec->session;
     while(s->live && !*s->root.fault && !s->stopped) {
+        /* Check only the cached earliest timer; scan identities once it becomes due. */
+        if(s->next_deadline!=UINT64_MAX) {
+            uint64_t now=0;
+            if(!managed_now(&now)) { managed_fail(&s->root,FAULT_CLOCK); break; }
+            if(now>=s->next_deadline) managed_wake_due(s,now);
+            if(*s->root.fault) break;
+        }
         ManagedActor* actor=managed_dequeue(s);
         if(!actor) { if(!managed_idle(s)) break; continue; }
         if(!actor->alive) continue;
@@ -345,6 +421,6 @@ void fern_managed_run(FernManagedExec* exec) {
 void fern_managed_stop(FernManagedExec* exec) {
     if(!exec || !exec->session) return;
     ManagedSession* s=exec->session; if(s->stopped) return;
-    s->stopped=true; s->first=NULL; s->last=NULL;
+    s->stopped=true; s->first=NULL; s->last=NULL; s->next_deadline=UINT64_MAX;
     for(size_t i=0;i<s->next_id;i++) { ManagedActor* a=s->identities[i]; a->queued=false; a->next=NULL; managed_finish(a); }
 }

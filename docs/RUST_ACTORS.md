@@ -38,6 +38,18 @@ A selected frame is allocated only after the complete pattern and guard succeed.
 
 One invocation owns a FIFO cooperative scheduler, immutable PID identities, and mailboxes. Main executes first. Successful main drains actors; main faults or returned Err stop pending actors without running their bodies. The first actor fault stops the session after any active ordinary helper cleanup. A waiting session without a runnable actor or pending timer reports deadlock. Blocking host calls and nonyielding source computation can delay scheduling;105A does not promise preemption or arbitrary wall-clock bounds.
 
+Elapsed timers resolve to ready successor frames at every cooperative scheduling
+boundary, even while other actors remain runnable. Receivers already queued by
+messages are reinserted once in deadline/identity order when overdue; timely
+matching messages remain eligible. Promotion evaluates only validated pure
+selectors and prepares continuations; it does not execute source actor bodies.
+Later zero-duration receives cannot overtake an older promoted frame. Retiring the
+cached earliest timer recomputes the minimum without an extra clock read.
+Deterministic FernSim arrival traces exercise these rules through
+the native scheduler, including timely unmatched messages and late arrivals.
+This timer coverage does not establish generalized actor, supervision, or REPL
+simulation parity.
+
 Limits are 1024 live actors,65536 lifetime identities,4096 messages per actor,65536 queued messages globally, and 64 MiB aggregate logical retained ownership. Descriptor tables and value graph indices each contain at most 4096 entries, with 128 payload-depth limit. Descriptor registration shares 1,048,576 work units across identity and metadata inspection; each enqueue/frame graph attempt shares the same finite allowance across descriptor work, identity lookup, graph traversal, and 64-byte String scan units. Immutable DAGs share within one owner graph; separate enqueues are charged separately. Unknown native object graphs are not treated as scalar pointers. PID graphs must belong to the same session and exact mailbox identity.
 
 Enqueue validates the graph and reserves bytes before allocating. Its monotonic timestamp is read at commit after potentially expensive validation/allocation; a clock failure rolls back the reservation and leaves the mailbox unchanged. Failed sends never remove or reorder messages. Receive validates duration, selector, timeout mailbox, and clock before publishing roots. Checked clocks reject invalid/overflowing time representations. GC storage is distinct from this logical retained quota; retiring roots makes values collectible but does not claim immediate memory reclamation.
