@@ -7,13 +7,14 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 ## Current Status Snapshot
 
 - Quality gate: `mise run check` passing (574 C tests, 16 full-width Int programs, native file/process/stderr/workflow/string/print tests, 13 TUI tests, 18 examples, strict style); validated with stale host `LIBRARY_PATH` excluded
-- Perf gate: `mise run perf-budget` passing on macOS arm64 (7.49 s build, 549,384-byte compiler, 2.82 ms startup p95)
+- Perf gate: `mise run perf-budget` passing on macOS arm64 (4.39 s build, 548,488-byte compiler, 3.92 ms startup p95; 2026-09-12)
 - Fuzz gate: `mise run fuzz-smoke` passing (64 cases, seed `0xC0FFEE`)
 - Docs gate: `mise run docs-check` passing (consistency, generation, doc tests); LSP RPC smoke passing
 - Release readiness: `mise run release-package` and `mise run release-package-check` passing; full-language blockers remain in `docs/RELEASE_READINESS.md`
-- Sanitizer gate: AddressSanitizer/UndefinedBehaviorSanitizer passing on six actor scenarios and three TUI scenarios (GC leak reporting excluded).
+- Sanitizer gate: AddressSanitizer/UndefinedBehaviorSanitizer passing on SQL lifecycle/quotas/transactions, managed scheduler/ownership/timers, six prior actor scenarios and three TUI scenarios (GC leak reporting excluded).
 - Bootstrap gate: Fern-native default checker, exact native/Python diagnostic and 66 workflow parity cases, bounded content cache and native supervision verified on macOS/Linux; ordinary style checks need no Python/Cargo
-- Rust migration: `mise run rust-check` passing (1515 Rust checks on nightly-2026-09-06 (1518 on Linux; bounded native actors and relocatable previews), 4 measurement-harness tests, 197 core native programs, 13 newtype programs, 12 namespace programs, 5 labeled-call programs, 27 union programs, 22 entry/access programs, 9 controlled-fault cases, 241 invalid inputs, dual-frontend directory/Result contracts, 192 mutations); expanded frontend remains opt-in; process/stdio and full C/Rust gates also pass on Linux arm64
+- Rust migration: `mise run rust-check` passing (1551 Rust checks on macOS with nightly-2026-09-06 (earlier Linux checkpoint: 1518; bounded native actors and relocatable previews), 4 measurement-harness tests, 197 core native programs, 13 newtype programs, 12 namespace programs, 5 labeled-call programs, 27 union programs, 22 entry/access programs, 9 controlled-fault cases, 241 invalid inputs, dual-frontend directory/Result contracts, 192 mutations); expanded frontend remains opt-in; earlier process/stdio and full C/Rust checkpoints passed on Linux arm64
+- Backend gate: `mise run rust-cranelift-check` passing on macOS arm64 (1563 Rust checks, 295 independent native-output cases; 2026-09-12), including SQL lifecycle, optional regex captures and exact NaN bit transport
 - Rust developer tooling: pinned mise environment and incremental lint-policy checks verified; nextest passes 1511 tests on macOS and 1513 on Linux without skips; Criterion fixtures and all 10 smoke cases pass on both. Actor20-program/16-rejection, managed-runtime sanitizer and moved-preview gates pass on both.
 
 ## Canonical Documents
@@ -46,9 +47,11 @@ Status: Complete for the bounded prototype; `mise run check`, `mise run rust-che
 
 ## Active Priorities
 
+- [x] Add explicit SQLite close with bounded live connections, stale-handle rejection and rollback/lock release (debug/release/sanitizer groups and exact C/Rust native outputs; Decision113).
 - [x] Preserve optional regex capture positions, including absent versus empty groups and later participating groups (seven shared-runtime native cases; Rust source oracle added).
 - [x] Promote expired actor timers at every cooperative boundary, preserve deadline/identity wake ordering after timely unmatched or late sends, and retire cached timers without spurious clock faults (2,048 deterministic FernSim timeout dispatches per debug/release/sanitizer mode).
 - [x] Preserve NaN sign, payload and signaling bits in QBE machine transport, matching Cranelift without decimal canonicalization (18 independently specified native bit-pattern outputs and serializer regression).
+
 - [x] Showcase native string interpolation in the README greeting; exact `Hello, Fern!` output verified on both C and Rust compilers.
 
 - [x] Refresh the public README around runnable onboarding, accurate feature boundaries and a dedicated Fern logo; greeting and quickstart outputs verified on both compilers, with light/dark presentation checked.

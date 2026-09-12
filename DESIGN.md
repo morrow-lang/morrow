@@ -2218,6 +2218,14 @@ let results = parallel_map(items, expensive_computation)
 
 Fern includes **libSQL** (a SQLite-compatible embedded database) for zero-dependency data persistence.
 
+The currently executable native surface is `sql.open(String)`,
+`sql.execute(Int, String)`, and `sql.close(Int)`, each returning `Result(Int, Int)`.
+Close returns `Ok(0)`, invalid or closed handles return `Err(3)`, and the 256-live-
+connection quota returns `Err(4)` before an additional open. Closed IDs are never
+reused. [Connection lifecycle](docs/SQL_LIFECYCLE.md) documents cleanup and
+transaction semantics. The remote, parameterized, query, and migration examples
+below describe the broader intended database design.
+
 ### Opening a Database
 
 ```

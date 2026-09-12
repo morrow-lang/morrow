@@ -96,7 +96,14 @@ http.post(url: String, body: String) -> Result(String, Int)
 ```fern
 sql.open(path: String) -> Result(Int, Int)
 sql.execute(handle: Int, query: String) -> Result(Int, Int)
+sql.close(handle: Int) -> Result(Int, Int)
 ```
+
+`sql.close` returns `Ok(0)` after releasing the connection. Invalid or already
+closed handles return `Err(3)`. At most 256 connections may remain open; attempting
+to exceed this quota returns `Err(4)` before opening a database. Closing releases
+quota immediately and never makes an old handle valid again. See
+[SQL connection lifecycle](SQL_LIFECYCLE.md) for transaction behavior and limits.
 
 ### `actors`
 

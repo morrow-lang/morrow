@@ -1138,6 +1138,14 @@ int64_t fern_sql_open(const char* path);
 int64_t fern_sql_execute(int64_t handle, const char* query);
 
 /**
+ * Close a live SQL connection, releasing its native resources and handle quota.
+ * @param handle Positive opaque connection ID returned by sql.open.
+ * @return Result: Ok(0), or Err(FERN_ERR_IO) for invalid, closed, or busy handles.
+ * Failed SQLite close keeps the handle live. Closed IDs are never reused.
+ */
+int64_t fern_sql_close(int64_t handle);
+
+/**
  * Allocate an actor mailbox record and return its id.
  * This API does not execute a function or start an autonomous process.
  * @param name Actor name.

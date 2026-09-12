@@ -630,6 +630,7 @@ const ENTRIES: &[Entry] = &[
         "fern_http_post",
     ),
     entry(&["sql.open"], &[String], ResultII, "fern_sql_open"),
+    entry(&["sql.close"], &[Int], ResultII, "fern_sql_close"),
     entry(
         &["sql.execute"],
         &[Int, String],

@@ -201,3 +201,19 @@ fn audited_option_and_string_list_adapters_have_checked_contracts() {
     );
     fern_prototype::qbe::emit(&p).unwrap();
 }
+
+#[test]
+fn sql_close_checks_the_handle_and_requires_result_handling() {
+    let program = checked("fn close(handle: Int) -> Result(Int, Int): sql.close(handle)\nfn main(): println(Result.is_ok(close(0)))\n").unwrap();
+    let qbe = fern_prototype::qbe::emit(&program).unwrap();
+    assert!(qbe.contains("$fern_sql_close"));
+    rejects("fn main(): sql.close(1)\n", "Result value must be handled");
+    rejects(
+        "fn main(): println(Result.is_ok(sql.close(\"bad\")))\n",
+        "expected Int",
+    );
+    rejects(
+        "fn main(): println(Result.is_ok(sql.close()))\n",
+        "argument",
+    );
+}

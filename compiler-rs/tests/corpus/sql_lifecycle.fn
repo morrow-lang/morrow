@@ -1,0 +1,26 @@
+fn error_code(result: Result(Int, Int)) -> Int:
+    match result:
+        Ok(value) -> value
+        Err(code) -> -code
+
+fn database() -> Result(Int, Int):
+    let first = sql.open(":memory:")?
+    let second = sql.open(":memory:")?
+    let created = sql.execute(first, "create table data (n integer)")?
+    println(created)
+    println(sql.close(first)?)
+    println(error_code(sql.close(first)))
+    println(error_code(sql.execute(first, "select 1")))
+    let third = sql.open(":memory:")?
+    println(third > second)
+    println(error_code(sql.close(first)))
+    println(sql.execute(second, "create table data (n integer)")?)
+    println(sql.execute(third, "create table data (n integer)")?)
+    println(sql.close(second)?)
+    sql.close(third)
+
+fn main():
+    println(error_code(sql.close(0)))
+    println(error_code(sql.close(-1)))
+    println(error_code(sql.close(9223372036854775807)))
+    println(error_code(database()))

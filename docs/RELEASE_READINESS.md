@@ -12,7 +12,7 @@ engineering milestones; they do not certify the entire language.
 | Native strings | Quotes, backslashes, control bytes, Unicode, long literals; typed user-function print results | String and print codegen execution regressions |
 | Files | Bounded complete UTF-8 read/write/append with Result errors, plus delete/size | Native fault/limit tests on macOS/Linux and interactive text tests |
 | HTTP | GET/POST clients, response bodies on 2xx, integer errors otherwise | Local HTTP/TLS runtime tests; offline error example |
-| SQLite | Open a handle and execute statements | Runtime database regression tests |
+| SQLite | Open, execute statements and explicitly close; 256 live connections with stale-handle protection | Native lifecycle/quota/transaction tests through C and Rust, plus sanitizers |
 | Actor foundation | String FIFO mailboxes, lifecycle/monitor/restart, three deterministic strategies | Six invariant scenarios and 1,536 seeded strategy crash steps |
 | Rust native actors | Typed Pid, cooperative execution, selective receive/deadlines and bounded continuation frames | Twenty native programs, semantic rejections, independent IR and lifecycle/sanitizer gates |
 | Rust preview | Opt-in relocatable bundle of explicit compiler, helper and runtime inputs; C remains default | Bounded archive tests and moved-package execution gates |

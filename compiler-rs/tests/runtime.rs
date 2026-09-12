@@ -23,6 +23,12 @@ fn gate_c_service_signatures_use_heap_results_and_exact_symbols() {
             "fern_http_post",
         ),
         (
+            "sql.close",
+            vec![Type::Int],
+            Type::Result(Box::new(Type::Int), Box::new(Type::Int)),
+            "fern_sql_close",
+        ),
+        (
             "sql.execute",
             vec![Type::Int, Type::String],
             Type::Result(Box::new(Type::Int), Box::new(Type::Int)),

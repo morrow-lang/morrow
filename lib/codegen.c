@@ -2208,6 +2208,13 @@ String* codegen_expr(Codegen* cg, Expr* expr) {
 
                     /* ===== sql module ===== */
                     if (strcmp(module, "sql") == 0) {
+                        if (strcmp(func, "close") == 0 && call->args->len == 1) {
+                            String* handle = codegen_expr(cg, call->args->data[0].value);
+                            emit(cg, "    %s =l call $fern_sql_close(l %s)\n",
+                                string_cstr(result), string_cstr(handle));
+                            return result;
+                        }
+
                         /* sql.open(path) -> Result(Int, Int) */
                         if (strcmp(func, "open") == 0 && call->args->len == 1) {
                             String* path = codegen_expr(cg, call->args->data[0].value);

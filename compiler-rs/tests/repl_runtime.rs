@@ -215,3 +215,13 @@ fn file_reads_bound_allocation_and_reject_unrepresentable_bytes() {
     assert_eq!(Session::default().evaluate(&source).unwrap(), "bad\n");
     std::fs::remove_file(path).unwrap();
 }
+
+#[test]
+fn sql_close_preserves_the_explicit_native_only_boundary() {
+    let error = output("Result.is_ok(sql.close(1))").unwrap_err();
+    assert!(
+        error.contains("sql.close is available in native programs"),
+        "{error}"
+    );
+    assert!(!error.contains("fern_sql_close"), "{error}");
+}

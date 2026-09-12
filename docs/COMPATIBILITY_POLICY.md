@@ -57,10 +57,12 @@ Gate C runtime behavior is stabilized as:
    - `Ok(response_body)` for successful (`2xx`) HTTP responses.
    - `Err(FERN_ERR_IO)` for invalid URLs, non-`2xx` responses, and transport/read failures.
    - Current runtime build uses civetweb with TLS enabled for both `http://` and `https://` URLs.
-4. `sql.open(path)` / `sql.execute(handle, query)`:
+4. `sql.open(path)` / `sql.execute(handle, query)` / `sql.close(handle)`:
    - `sql.open(path)` returns `Ok(handle)` for valid paths and `Err(FERN_ERR_IO)` for invalid input/open failure.
    - `sql.execute(handle, query)` returns `Ok(rows_affected)` for valid handles/statements and `Err(FERN_ERR_IO)` for invalid handles/input/SQL errors.
-   - SQLite-backed runtime behavior is regression-tested in `tests/test_runtime_surface.c`.
+   - `sql.close(handle)` returns `Ok(0)` after closure and `Err(FERN_ERR_IO)` for invalid/already-closed handles; SQLite close failures leave the handle live.
+   - At most 256 native connections may be live. The next open returns `Err(FERN_ERR_OUT_OF_MEMORY)` before filesystem effects; closure releases capacity, and handle IDs are never reused.
+   - SQLite behavior is regression-tested in `tests/test_runtime_surface.c` and the debug/release/sanitized [lifecycle gate](../scripts/test_runtime_sql.py).
 5. `actors.start(name)`:
    - Returns deterministic, process-local, monotonic actor ids.
 6. `actors.post(actor_id, msg)`:

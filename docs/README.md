@@ -32,6 +32,7 @@ This folder contains project-level reference documents. Use this file as the can
 - [`STDLIB_API_REFERENCE.md`](STDLIB_API_REFERENCE.md): stable stdlib API signatures
 - [`LABELED_CALLS.md`](LABELED_CALLS.md): source interfaces, evaluation order and enforcement progress
 - [`STRING_DECIMAL.md`](STRING_DECIMAL.md): pinned Unicode decimal classification and resource limits
+- [`SQL_LIFECYCLE.md`](SQL_LIFECYCLE.md): explicit database closure, stale-handle safety and bounded live connections
 - [`FILE_TEXT_IO.md`](FILE_TEXT_IO.md): complete bounded UTF-8 reads and fallible write completion
 - [`PROCESS_EXECUTION.md`](PROCESS_EXECUTION.md): bounded literal argv, stream limits and process cleanup
 - [`MEMORY_MANAGEMENT.md`](MEMORY_MANAGEMENT.md): memory model plan and rationale

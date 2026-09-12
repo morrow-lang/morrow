@@ -133,6 +133,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_spinner_render"
         | "fern_spinner_tick"
         | "fern_sql_open"
+        | "fern_sql_close"
         | "fern_status_debug"
         | "fern_status_error"
         | "fern_status_info"
