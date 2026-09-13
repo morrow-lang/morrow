@@ -22,6 +22,12 @@ impl System {
 }
 
 #[derive(Serialize)]
+struct Memory {
+    resident_bytes: Option<u64>,
+    peak_resident_bytes: Option<u64>,
+}
+
+#[derive(Serialize)]
 struct Status {
     schema_version: u8,
     version: &'static str,
@@ -31,6 +37,7 @@ struct Status {
     available_parallelism: usize,
     uptime_seconds: u64,
     executable_bytes: Option<u64>,
+    memory: Memory,
     durability: &'static str,
     embedded_asset_bytes: usize,
     websocket_connections: usize,
@@ -43,6 +50,7 @@ struct Status {
 }
 impl Status {
     fn read(app: &App) -> Self {
+        let memory = fern_web_app::system::process_memory();
         Self {
             schema_version: 1,
             version: env!("CARGO_PKG_VERSION"),
@@ -52,6 +60,10 @@ impl Status {
             available_parallelism: app.system.parallelism,
             uptime_seconds: app.system.started.elapsed().as_secs(),
             executable_bytes: app.system.executable_bytes,
+            memory: Memory {
+                resident_bytes: memory.resident_bytes,
+                peak_resident_bytes: memory.peak_resident_bytes,
+            },
             durability: if app.config.data_dir.is_some() {
                 "checkpointed"
             } else {
@@ -162,6 +174,13 @@ fn bytes(value: usize) -> String {
     format!("{:.2} MiB", value as f64 / 1_048_576.0)
 }
 
+fn optional_bytes(value: Option<u64>) -> String {
+    value.map_or_else(
+        || "Unavailable".into(),
+        |bytes| format!("{:.2} MiB", bytes as f64 / 1_048_576.0),
+    )
+}
+
 fn render(status: &Status) -> String {
     let mut body = String::from(
         "<main><section class=intro><div><p class=eyebrow>ROOTED. RUNNING. OBSERVABLE.</p><h1>A little clarity<br>for your system.</h1><p>A snapshot of the server behind your shared garden.</p></div><nav aria-label=\"Dashboard actions\"><a class=button href=/admin>Refresh snapshot</a><a href=/admin/status>JSON status ↗</a></nav></section>",
@@ -170,15 +189,14 @@ fn render(status: &Status) -> String {
     let rooms: usize = workers.iter().map(|worker| worker.rooms).sum();
     let _ = write!(
         body,
-        "<section class=metrics aria-label=\"System summary\"><article><p class=eyebrow>UPTIME</p><strong>{}h {:02}m {:02}s</strong><p>Since this server started</p></article><article><p class=eyebrow>ACTOR WORKERS</p><strong>{}</strong><p>Independently pinned threads</p></article><article><p class=eyebrow>OPEN WEBSOCKETS</p><strong>{}<small> / {}</small></strong><p>Includes sockets awaiting a room</p></article><article><p class=eyebrow>LOADED ROOMS</p><strong>{}<small> / {}</small></strong><p>Last observed across workers</p></article></section>",
+        "<section class=metrics aria-label=\"System summary\"><article><p class=eyebrow>UPTIME</p><strong>{}h {:02}m {:02}s</strong><p>Since this server started</p></article><article><p class=eyebrow>ACTOR WORKERS</p><strong>{}</strong><p>Independently pinned threads</p></article><article><p class=eyebrow>OPEN WEBSOCKETS</p><strong>{}<small> / {}</small></strong><p>Includes sockets awaiting a room</p></article><article><p class=eyebrow>RESIDENT MEMORY</p><strong>{}</strong><p>Server process · OS snapshot</p></article></section>",
         status.uptime_seconds / 3600,
         status.uptime_seconds / 60 % 60,
         status.uptime_seconds % 60,
         workers.len(),
         status.websocket_connections,
         status.websocket_limit,
-        rooms,
-        status.room_limit
+        optional_bytes(status.memory.resident_bytes)
     );
     body.push_str("<section class=panel><div class=section-heading><div><p class=eyebrow>ACTOR RUNTIME</p><h2>Workers, at a glance.</h2></div><span class=badge>Native Fern</span></div><div class=table-scroll tabindex=0 role=region aria-label=\"Worker observations\"><table><caption>Counts from each worker’s last completed observation; busy work may change them.</caption><thead><tr><th scope=col>Worker</th><th scope=col>State</th><th scope=col>Rooms</th><th scope=col>Namespaces</th><th scope=col>Connections</th><th scope=col>Subscriptions</th></tr></thead><tbody>");
     for worker in workers {
@@ -198,10 +216,7 @@ fn render(status: &Status) -> String {
         );
     }
     body.push_str("</tbody></table></div></section><div class=details><section class=panel><p class=eyebrow>HOST &amp; BUILD</p><h2>One running binary.</h2><dl>");
-    let executable = status.executable_bytes.map_or_else(
-        || "Unavailable".into(),
-        |size| format!("{:.2} MiB", size as f64 / 1_048_576.0),
-    );
+    let executable = optional_bytes(status.executable_bytes);
     for (name, value) in [
         ("Fern version", status.version.to_owned()),
         (
@@ -214,6 +229,14 @@ fn render(status: &Status) -> String {
             status.available_parallelism.to_string(),
         ),
         ("Executable size", executable),
+        (
+            "Resident memory (RSS)",
+            optional_bytes(status.memory.resident_bytes),
+        ),
+        (
+            "Peak resident memory",
+            optional_bytes(status.memory.peak_resident_bytes),
+        ),
         (
             "Embedded browser assets",
             bytes(status.embedded_asset_bytes),
@@ -228,6 +251,7 @@ fn render(status: &Status) -> String {
     body.push_str("</dl></section><section class=panel><p class=eyebrow>CAPACITY &amp; RECOVERY</p><h2>Explicit boundaries.</h2><dl>");
     for (name, value) in [
         ("Room storage", status.durability.to_owned()),
+        ("Loaded rooms", format!("{rooms} / {}", status.room_limit)),
         (
             "Retained sessions",
             format!(

@@ -15,6 +15,9 @@ Its navigation link is included in the browser asset bundle.
   ID and available CPU parallelism.
 - Executable size and embedded browser asset bytes; these are file/asset sizes,
   not process memory usage.
+- Current resident process memory (RSS) and peak resident memory, displayed in MiB
+  and exposed as byte counts in JSON. These include the whole server process,
+  not just Fern-managed heaps; browser memory belongs to a separate process.
 - Open WebSocket admission slots, including sockets that have not joined a room,
   and their configured limit.
 - Each pinned actor worker’s activity and last observed rooms, namespaces,
@@ -32,10 +35,18 @@ Snapshots from different owners and admission counters are independent observati
 not a globally atomic view. Dashboard authentication still uses bounded normal
 ingress and can return HTTP 503 under saturation.
 
-The page does not currently sample CPU usage, resident memory, individual actor
+The page does not currently sample CPU usage, individual actor
 heaps, GC pauses or per-room traffic. It has no mutation, restart, arbitrary-code
 execution or remote node controls. It is a view of this server, not a cluster
 management interface.
+
+Memory is sampled directly from the operating system on each snapshot, without a
+subprocess or new dependency. macOS supplies resident bytes through its process
+task information API; Linux supplies an approximate resident-page count through
+bounded `/proc/self/statm` reads. Peak RSS comes from process resource accounting,
+with each platform’s units normalized to bytes. Readings are independent OS
+observations. A failed or unsupported reading is `null` in JSON and **Unavailable**
+on the page, never a fabricated zero.
 
 ## Access and caching
 
@@ -68,12 +79,28 @@ scrolls within its panel. The browser gate uncovered an initial-document race;
 a red/green transition regression now requires the requested URL and completed
 load within the existing deadline before a new test page is used.
 
-This build is 2,917,424 bytes, with SHA-256
+The original dashboard build at `f76fd57` is 2,917,424 bytes, with SHA-256
 `843a594f6891d72af558d91f1a688bed6d40e9274ac6d785e69904cf115e6a94`
 and browser asset revision
 `552de9b0a8ca81ba9ec70c71acc15526b66b78baf87aad0a48021368de953c8c`.
 Earlier cross-platform artifact measurements describe their own checkpoints.
 
-The final macOS `cargo xtask check` passes formatting, notices, workspace Clippy,
+That checkpoint’s macOS `cargo xtask check` passes formatting, notices, workspace Clippy,
 1,933 Rust tests across 254 suites, 305 native fixtures, 19 examples, 63 dynamic
 compatibility programs, 295 atomic rejections and 64+192 fuzz cases.
+
+The subsequent memory addition passed three sampler tests on native macOS and
+Linux, plus Clippy on both platforms and the dashboard HTTP regressions. An
+isolated process touches a 32 MiB allocation to verify that measured RSS rises;
+the Linux run observed 4,411,392 → 37,969,920 resident bytes. Parser and unit tests
+independently check malformed data, overflow and platform-specific peak units.
+The rebuilt macOS ARM64 demo reports both memory fields in its authenticated
+dashboard and preserves its checkpointed tasks. Its server is 2,917,536 bytes,
+with SHA-256
+`b1f11c1dab1a5afdc566682c58bfedbd8c96b79983633193bdc04fbe6c19df7b`;
+the browser asset revision is unchanged.
+
+The memory addition’s complete macOS `cargo xtask check` passes formatting,
+notices, workspace Clippy, 1,936 Rust tests across 254 suites, 305 native fixtures,
+19 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192
+fuzz cases.

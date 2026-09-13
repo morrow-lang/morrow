@@ -37,6 +37,8 @@ async fn dashboard_requires_a_live_session_and_never_caches_system_information()
             assert!(valid.contains("script-src 'none'"));
             assert!(valid.contains("frame-ancestors 'none'"));
             assert!(body(&valid).contains("Fern system"));
+            assert!(body(&valid).contains("Resident memory (RSS)"));
+            assert!(body(&valid).contains("Peak resident memory"));
             assert!(body(&valid).contains("/admin/status"));
             assert!(body(&valid).contains("/admin/style.css"));
         }
@@ -85,6 +87,16 @@ async fn dashboard_reports_the_real_server_configuration_and_socket_occupancy() 
     assert_eq!(initial["runtime"]["workers"].as_array().unwrap().len(), 2);
     assert!(initial["available_parallelism"].as_u64().unwrap() >= 1);
     assert!(initial["executable_bytes"].as_u64().unwrap() > 0);
+    assert!(
+        initial["memory"]["resident_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
+    assert!(
+        initial["memory"]["peak_resident_bytes"]
+            .as_u64()
+            .is_some_and(|bytes| bytes > 0)
+    );
     let mut socket = server.socket(&cookie, &csrf).await;
     join(&mut socket, None).await;
     let connected = server.http("GET", "/admin/status", &headers, "").await;

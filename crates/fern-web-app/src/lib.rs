@@ -1,6 +1,7 @@
 //! Native actor ownership for the compiled shared Fern application.
 mod checkpoint;
 mod host;
+pub mod system;
 use fern_web_protocol::{Decimal, Domain, DomainChange, Error, Mutation, Status, Task};
 use serde::Deserialize;
 use std::{

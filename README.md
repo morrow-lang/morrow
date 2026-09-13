@@ -111,7 +111,7 @@ for room placement, revocation and durable-write behavior.
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
 
-Open **`/admin`** after signing in to inspect uptime, platform, workers, rooms,
+Open **`/admin`** after signing in to inspect uptime, resident memory, workers, rooms,
 connections and resource limits. The [system dashboard](docs/ADMIN_DASHBOARD.md)
 also provides authenticated JSON snapshots.
 
