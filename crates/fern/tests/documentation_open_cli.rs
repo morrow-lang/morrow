@@ -2,7 +2,7 @@
 use std::{
     ffi::OsString,
     fs,
-    os::unix::{ffi::OsStringExt, fs::symlink},
+    os::unix::{ffi::OsStringExt, fs::symlink, process::CommandExt},
     path::PathBuf,
     process::{Command, Output},
     sync::atomic::{AtomicUsize, Ordering},
@@ -48,6 +48,10 @@ impl Directory {
             .env("PATH", self.0.join("tools"))
             .env("CALLS", self.0.join("calls"))
             .env("SEEN", self.0.join("seen"))
+            .env(
+                "FERN_OPENER_FIXTURE_EXIT_FILE",
+                self.0.join("tools/exit-code"),
+            )
             .output()
             .unwrap()
     }
@@ -117,6 +121,25 @@ fn parse_check_write_and_option_failures_never_launch() {
     assert!(!dir.0.join("fern-docs.html").exists());
 }
 #[test]
+fn opener_fixture_exit_configuration_does_not_depend_on_argv_zero() {
+    let dir = Directory::new();
+    dir.opener_failure(7);
+    // Linux PATH launches commonly preserve only the executable basename in
+    // argv[0]. Force that behavior on every Unix platform for this regression.
+    let result = Command::new(dir.0.join("tools/xdg-open"))
+        .arg0("xdg-open")
+        .arg(dir.0.join("library.fn"))
+        .current_dir(&dir.0)
+        .env(
+            "FERN_OPENER_FIXTURE_EXIT_FILE",
+            dir.0.join("tools/exit-code"),
+        )
+        .output()
+        .unwrap();
+    assert_eq!(result.status.code(), Some(7), "{result:?}");
+}
+
+#[test]
 fn failed_or_missing_opener_is_visible_even_when_quiet_and_keeps_artifact() {
     let dir = Directory::new();
     dir.opener_failure(7);
@@ -124,7 +147,10 @@ fn failed_or_missing_opener_is_visible_even_when_quiet_and_keeps_artifact() {
         let result = dir.run(&["doc", "library.fn", "--open", flag]);
         assert!(result.status.success(), "{result:?}");
         assert!(String::from_utf8_lossy(&result.stderr).contains("open"));
-        assert!(String::from_utf8_lossy(&result.stderr).contains('7'));
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains('7'),
+            "{result:?}"
+        );
         assert!(dir.0.join("fern-docs.html").exists());
     }
     fs::remove_dir_all(dir.0.join("tools")).unwrap();

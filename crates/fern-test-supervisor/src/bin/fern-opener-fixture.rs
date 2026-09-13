@@ -11,8 +11,11 @@ fn main() -> ExitCode {
         std::thread::sleep(Duration::from_secs(60));
         return ExitCode::SUCCESS;
     }
-    let exit = executable.parent().unwrap().join("exit-code");
-    if let Ok(code) = fs::read_to_string(exit) {
+    // argv[0] may be only a basename when launched through PATH. The test
+    // supplies its owned configuration path explicitly instead of deriving it.
+    if let Some(exit) = env::var_os("FERN_OPENER_FIXTURE_EXIT_FILE")
+        && let Ok(code) = fs::read_to_string(exit)
+    {
         return ExitCode::from(code.parse::<u8>().unwrap());
     }
     if let (Some(calls), Some(seen)) = (env::var_os("CALLS"), env::var_os("SEEN")) {

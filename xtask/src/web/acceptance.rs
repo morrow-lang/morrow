@@ -56,6 +56,23 @@ impl Browser {
         Ok(Self { socket, next: 0 })
     }
     fn call(&mut self, session: Option<&str>, method: &str, params: Value) -> Result<Value> {
+        self.call_until(session, method, params, Instant::now() + WAIT)
+    }
+    fn call_until(
+        &mut self,
+        session: Option<&str>,
+        method: &str,
+        params: Value,
+        deadline: Instant,
+    ) -> Result<Value> {
+        let remaining = deadline
+            .checked_duration_since(Instant::now())
+            .ok_or_else(|| format!("DevTools {method} exceeded response budget"))?;
+        if let MaybeTlsStream::Plain(stream) = self.socket.get_mut() {
+            stream
+                .set_write_timeout(Some(remaining.min(Duration::from_secs(2))))
+                .map_err(|error| error.to_string())?;
+        }
         self.next += 1;
         let mut request = json!({"id":self.next,"method":method,"params":params});
         if let Some(session) = session {
@@ -64,10 +81,14 @@ impl Browser {
         self.socket
             .send(Message::Text(request.to_string().into()))
             .map_err(|error| error.to_string())?;
-        let start = Instant::now();
         for _ in 0..10_000 {
-            if start.elapsed() > WAIT {
+            let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
                 break;
+            };
+            if let MaybeTlsStream::Plain(stream) = self.socket.get_mut() {
+                stream
+                    .set_read_timeout(Some(remaining))
+                    .map_err(|error| error.to_string())?;
             }
             let message = self
                 .socket
@@ -88,6 +109,25 @@ impl Browser {
             }
         }
         Err(format!("DevTools {method} exceeded response budget"))
+    }
+    fn capture(&mut self, session: &str, beyond_viewport: bool) -> Result<Value> {
+        // Creating the second client can background the first compositor surface.
+        // Activation, font/layout readiness and capture share one existing budget.
+        let deadline = Instant::now() + WAIT;
+        self.call_until(Some(session), "Page.bringToFront", json!({}), deadline)?;
+        let ready = self.call_until(Some(session), "Runtime.evaluate", json!({
+            "expression":"document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve(document.visibilityState === 'visible' && document.readyState === 'complete')))))",
+            "awaitPromise":true, "returnByValue":true
+        }), deadline)?;
+        if !ready["exceptionDetails"].is_null() || ready["result"]["value"] != true {
+            return Err("screenshot target did not become visible and ready to paint".into());
+        }
+        self.call_until(
+            Some(session),
+            "Page.captureScreenshot",
+            json!({"format":"png", "captureBeyondViewport":beyond_viewport}),
+            deadline,
+        )
     }
     fn page(&mut self, origin: &str) -> Result<String> {
         let target = self.call(None, "Target.createTarget", json!({"url":origin}))?;
@@ -131,6 +171,16 @@ impl Browser {
             "browser condition timed out: {expression}\nPage: {state}"
         ))
     }
+}
+
+fn screenshot_png(screenshot: &Value) -> Result<Vec<u8>> {
+    let bytes = base64::engine::general_purpose::STANDARD
+        .decode(screenshot["data"].as_str().ok_or("missing screenshot")?)
+        .map_err(|error| error.to_string())?;
+    if !bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Err("DevTools screenshot is not PNG data".into());
+    }
+    Ok(bytes)
 }
 
 fn readiness(path: &Path, predicate: impl Fn(&str) -> Option<String>) -> Result<String> {
@@ -331,15 +381,13 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     if browser.eval(&first, "document.querySelector('#draft').value")? != "My offline draft" {
         return Err("reconnect lost the offline draft".into());
     }
-    let screenshot = browser.call(
-        Some(&first),
-        "Page.captureScreenshot",
-        json!({"format":"png"}),
-    )?;
+    let previous_visibility = browser.eval(&first, "document.visibilityState")?;
+    let screenshot = browser.capture(&first, false)?;
+    let bytes = screenshot_png(&screenshot)?;
+    println!(
+        "Screenshot readiness passed: previous visibility {previous_visibility}; activated, painted, PNG signature verified"
+    );
     if let Some(path) = env::var_os("FERN_WEB_SCREENSHOT") {
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(screenshot["data"].as_str().ok_or("missing screenshot")?)
-            .map_err(|error| error.to_string())?;
         fs::write(path, bytes).map_err(|error| error.to_string())?;
     }
     browser.call(
@@ -351,18 +399,8 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         return Err("mobile layout overflows or leaves no usable draft field".into());
     }
     if let Some(path) = env::var_os("FERN_WEB_MOBILE_SCREENSHOT") {
-        let screenshot = browser.call(
-            Some(&first),
-            "Page.captureScreenshot",
-            json!({"format":"png","captureBeyondViewport":true}),
-        )?;
-        let bytes = base64::engine::general_purpose::STANDARD
-            .decode(
-                screenshot["data"]
-                    .as_str()
-                    .ok_or("missing mobile screenshot")?,
-            )
-            .map_err(|error| error.to_string())?;
+        let screenshot = browser.capture(&first, true)?;
+        let bytes = screenshot_png(&screenshot)?;
         fs::write(path, bytes).map_err(|error| error.to_string())?;
     }
     browser.eval(&first, "document.querySelector('#logout').click(); true")?;
@@ -376,4 +414,90 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     );
     drop(server_process);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::net::TcpListener;
+
+    fn capture_peer(ready: bool) -> (Browser, std::thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let peer = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut socket = tungstenite::accept(stream).unwrap();
+            let mut foreground = false;
+            let mut painted = false;
+            let mut methods = Vec::new();
+            while let Ok(Message::Text(text)) = socket.read() {
+                let request: Value = serde_json::from_str(&text).unwrap();
+                assert_eq!(request["sessionId"], "background-page");
+                let method = request["method"].as_str().unwrap();
+                methods.push(method.into());
+                let mut response = json!({"id":request["id"],"result":{}});
+                match method {
+                    "Page.bringToFront" => foreground = true,
+                    "Runtime.evaluate" => {
+                        assert!(
+                            foreground,
+                            "readiness cannot await frames on a background target"
+                        );
+                        assert_eq!(request["params"]["awaitPromise"], true);
+                        let expression = request["params"]["expression"].as_str().unwrap();
+                        assert!(expression.contains("requestAnimationFrame"));
+                        assert!(expression.contains("document.visibilityState"));
+                        painted = ready;
+                        response["result"] = json!({"result":{"value":ready}});
+                    }
+                    "Page.captureScreenshot" => {
+                        if foreground && painted {
+                            assert_eq!(request["params"]["captureBeyondViewport"], true);
+                            response["result"] = json!({"data":"ready-image"});
+                        } else {
+                            response = json!({"id":request["id"],"error":{"message":"background surface is not ready"}});
+                        }
+                    }
+                    _ => panic!("unexpected capture command: {method}"),
+                }
+                socket
+                    .send(Message::Text(response.to_string().into()))
+                    .unwrap();
+                if method == "Page.captureScreenshot" || (method == "Runtime.evaluate" && !ready) {
+                    break;
+                }
+            }
+            methods
+        });
+        (Browser::connect(&format!("ws://{address}")).unwrap(), peer)
+    }
+
+    #[test]
+    fn screenshot_foregrounds_the_target_and_waits_for_its_painted_frame() {
+        let (mut browser, peer) = capture_peer(true);
+        let result = browser.capture("background-page", true);
+        let methods = peer.join().unwrap();
+        assert_eq!(result.unwrap()["data"], "ready-image");
+        assert_eq!(
+            methods,
+            [
+                "Page.bringToFront",
+                "Runtime.evaluate",
+                "Page.captureScreenshot"
+            ]
+        );
+    }
+
+    #[test]
+    fn screenshot_readiness_failure_never_captures_or_retries() {
+        let (mut browser, peer) = capture_peer(false);
+        assert!(browser.capture("background-page", true).is_err());
+        assert_eq!(
+            peer.join().unwrap(),
+            ["Page.bringToFront", "Runtime.evaluate"]
+        );
+    }
 }

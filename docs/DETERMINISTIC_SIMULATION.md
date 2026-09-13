@@ -76,6 +76,7 @@ On 2026-09-13, macOS ARM64 with the pinned toolchain:
 | Seed `0xc0ffee`, 3,000 decisions over 30 virtual days, default durable faults | 12,283 events; 2,039 native commits; 28 server restarts; 56 room recoveries | Passed and replayed byte-for-byte |
 | Seed `42`, 1,000 decisions, 16 clients in one room, forced duplication, no delay/drop/restart, ephemeral | 71,018 events; 727 native commits; 68,067 checked snapshots | Passed in 11.409 seconds in a debug build |
 | Native actors, seed `0xc0ffee`, 5,000 rounds, optimized build | 48,362 scheduler turns; 2,434 restarts; 10,037 churn actors; 1,685,305,546 virtual milliseconds | Passed in 1.22 seconds; exact replay in 0.77 seconds; final managed counts zero |
+| Native actors, seed `0xc0ffee`, 100,000 rounds, optimized build | 965,734 scheduler turns; 50,051 restarts; 199,769 churn actors; 390.7 virtual days | Passed in 18.27 seconds; exact replay in 17.90 seconds; final managed counts zero |
 
 These timings are individual observations under shared host load, not throughput budgets.
 Neither count estimates production years. To reproduce its workload:
@@ -124,6 +125,23 @@ workspace Clippy, 1,924 Rust tests across 254 suites, 305 native-output fixtures
 64 grammar plus 192 mutation fuzz cases. No oracle was skipped or weakened.
 This includes the independent typed-decoder collection, compiled map transfer,
 empty checkpoint recovery, virtual-clock and failure-sentry regressions.
+
+Code checkpoint `3be4025be551758fee4f0e250e152c137a83890e` also passed 138
+optimized tests on actual ARM64 Linux: 84 core runtime/simulation tests, eight
+checkpoint/host-clock tests, 17 simulator tests and all 29 native backend
+oracles. The macOS application and actor reports replayed byte-for-byte on Linux.
+The checksum-matched static ARM64 server passed the complete browser suite;
+desktop and mobile screenshots were inspected and the validation VM was stopped.
+x86-64 has static binary validation here; GitHub browser execution is tracked
+separately from this local ARM64 acceptance.
+
+The CI follow-up fixes two independently reproduced harness defects: opener
+failure configuration no longer depends on the platform's `argv[0]`, and browser
+screenshots activate their target and await painted readiness under one unchanged
+15-second budget. The final local gate passed 1,927 Rust tests across 254 suites
+and the same full native/example/compatibility/fuzz tail. Updated real-browser
+acceptance passed from an observed hidden page, with valid PNGs and visual checks.
+GitHub Actions execution remains a separate result from these local checks.
 
 ## Demo artifacts
 
