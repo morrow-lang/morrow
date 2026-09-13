@@ -193,6 +193,10 @@ and an application-independent build manifest are also separate work.
 
 ## Verification
 
+See the [application and worker acceptance record](WEB_APPLICATION_ACCEPTANCE.md)
+for current source/artifact identities, sizes and execution evidence. The
+historical measurements further below belong to their explicitly dated builds.
+
 The 2026-09-13 worker/lifecycle checkpoint passed the complete macOS ARM64
 `cargo xtask check`: 1,890 Rust tests, 305 native-output fixtures, 18 examples,
 63 dynamic compatibility programs, 295 atomic rejections, 64 grammar and 192

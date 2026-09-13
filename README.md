@@ -173,6 +173,9 @@ passed; Linux ARM64 completed equivalent coverage across resumed runs after a
 storage interruption. The [web guide](docs/WEB_PREVIEW.md#verification) records
 the exact native scope and real-browser checks, including offline worker restart,
 cache integrity, mobile layout and static ARM64 server execution.
+The [application and worker acceptance record](docs/WEB_APPLICATION_ACCEPTANCE.md)
+adds the complete 1,890-test gate, actor lifecycle/progress checks and measured
+static servers of 2.75 MiB (ARM64) and 3.06 MiB (x86-64).
 
 Fern is ready to explore, build small programs with and contribute to. It remains
 an early preview: general actor preemption, generalized supervision, work
