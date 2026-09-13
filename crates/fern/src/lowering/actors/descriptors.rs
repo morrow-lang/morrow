@@ -19,7 +19,11 @@ impl Emitter<'_> {
             let mailbox = function
                 .mailbox
                 .as_ref()
-                .or_else(|| self.actors.steps.get(&id))
+                .or_else(|| {
+                    (!self.actors.generic_steps.contains(&id))
+                        .then(|| self.actors.steps.get(&id))
+                        .flatten()
+                })
                 .or_else(|| self.actors.selectors.get(&id))
                 .cloned();
             let mailbox = mailbox
@@ -63,7 +67,13 @@ impl Emitter<'_> {
     /// Bridge only validated step/selector signatures; unrelated callable entries cannot be spawned.
     fn actor_callback(&mut self, function: &Function, selector: bool) {
         let id = function.id.0;
-        let target = self.actors.entries.get(&id).copied().unwrap_or(id);
+        let target = self
+            .actors
+            .entries
+            .get(&id)
+            .or_else(|| self.actors.helpers.get(&id))
+            .copied()
+            .unwrap_or(id);
         let generated = self.actors.steps.contains_key(&target);
         let mut params = vec![(Scalar::I64, "%exec".into()), (Scalar::I64, "%env".into())];
         if selector {

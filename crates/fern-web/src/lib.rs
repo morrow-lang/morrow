@@ -14,11 +14,13 @@ use axum::{
 pub use listener::BoundedListener;
 use serde::{Deserialize, Serialize};
 use std::{sync::Arc, time::Duration};
-use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::sync::{Semaphore, oneshot};
 
 /// Explicit preview authentication and admission settings.
 #[derive(Clone)]
 pub struct Config {
+    /// Fixed number of pinned Fern room workers. Room state never migrates live.
+    pub workers: usize,
     /// Optional single-writer checkpoint directory. Omit for ephemeral rooms.
     pub data_dir: Option<std::path::PathBuf>,
     pub origin: String,
@@ -33,6 +35,7 @@ pub struct Config {
 impl Config {
     pub fn new(origin: String, access_key: String) -> Self {
         Self {
+            workers: std::thread::available_parallelism().map_or(1, |count| count.get().min(4)),
             data_dir: None,
             origin,
             access_key,
@@ -52,7 +55,7 @@ include!(concat!(env!("OUT_DIR"), "/assets.rs"));
 #[derive(Clone)]
 pub(crate) struct App {
     config: Arc<Config>,
-    requests: mpsc::Sender<owner::Request>,
+    requests: owner::Pool,
     sockets: Arc<Semaphore>,
     http: Arc<Semaphore>,
     assets: Assets,
@@ -79,6 +82,7 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
         || !(1..=2048).contains(&config.max_tcp_connections)
         || config.handshake_timeout.is_zero()
         || config.handshake_timeout > Duration::from_secs(30)
+        || !(1..=32).contains(&config.workers)
     {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,

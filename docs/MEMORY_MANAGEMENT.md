@@ -2,7 +2,7 @@
 
 Fern keeps ordinary application memory management automatic. Native values use
 a nonmoving tracing collector implemented in Rust. The browser backend has its
-own representation and a bounded precise String heap. Neither target requires
+own representation and a bounded precise aggregate heap. Neither target requires
 application borrow checking, move syntax or lifetime annotations.
 
 ## Native ownership
@@ -22,10 +22,17 @@ still terminate the process.
 
 The native ABI remains in `crates/fern-runtime/src/abi.rs`. PIDs identify
 invocation-owned actors; copying a PID does not transfer actor-control storage.
-Actor-owned payload storage
-does not make the current scheduler multicore or provide failure isolation:
-callbacks remain cooperative, and recoverable actor fault handling still needs
-to replace invocation-wide termination paths. See [actor contracts](RUST_ACTORS.md).
+Reusable actor-table slots are separate from immutable u64 generations. A copied
+PID carries an explicit edge to its exact invocation control record. Control
+collection reads those metadata edges without tracing another actor's payload;
+sweeping the PID wrapper or retiring its heap removes the edge. A dead identity
+can therefore remain valid as a value without keeping its payload alive or
+becoming a valid send target after slot reuse.
+The web host pins independent runtimes to multiple worker threads; native actor
+pointers never cross threads. Typed supervision restarts supported recoverable
+actor faults from fresh captures. Callbacks remain cooperative, and arbitrary
+synchronous helpers can still occupy their worker. See
+[actor contracts](RUST_ACTORS.md) and [web workers](WEB_WORKERS.md).
 
 ## Roots and collection
 
@@ -89,7 +96,7 @@ counting with ownership and byte accounting.
 Per-actor heaps alone do not bound scheduler latency. Collection, copying, mailbox
 search and execution must share measured work budgets, with resumable
 continuations keeping roots valid at every yield. Precise native heap layouts,
-complete root coverage, multi-worker ownership and reliable host-resource
+complete root coverage, general resumable execution and reliable host-resource
 cancellation remain acceptance gates. The browser ABI has independent nested-value, stale-handle and pressured-root
 execution tests; broader capabilities and a WasmGC comparison remain open before
 stabilization.

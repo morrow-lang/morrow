@@ -11,7 +11,8 @@ mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
 pub(crate) use heaps::{
-    create as create_actor_heap, enter as enter_heap, owns as heap_owns, retire as retire_heap,
+    control_edge, create as create_actor_heap, enter as enter_heap, owns as heap_owns,
+    retire as retire_heap,
 };
 pub use heaps::{fern_gc_frame_enter, fern_gc_frame_leave};
 pub use rc::{
@@ -36,6 +37,8 @@ struct Block {
     marked: bool,
     external: usize,
     finalizer: Option<unsafe fn(*mut u8)>,
+    // Exact outgoing edge from a PID wrapper into invocation control storage.
+    control: usize,
 }
 impl Block {
     unsafe fn destroy(&self, address: usize) {
@@ -98,6 +101,7 @@ impl Heap {
                 marked: false,
                 external: 0,
                 finalizer: None,
+                control: 0,
             },
         );
         pointer
@@ -247,7 +251,7 @@ pub unsafe fn managed<T: 'static>(value: T, retained_bytes: usize) -> *mut T {
 #[inline(never)]
 pub fn collect() -> Stats {
     let roots = platform::snapshot();
-    heaps::with_mut(|heap| heap.trace(&roots))
+    heaps::collect(&roots)
 }
 
 /// Current physical managed storage, independently of actor logical quotas.
@@ -271,9 +275,7 @@ pub unsafe fn shutdown() {
 /// its registered roots; unregistered native stack/register words are ignored.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fern_gc_collect_precise() {
-    heaps::with_mut(|heap| {
-        heap.trace(&[]);
-    });
+    heaps::collect(&[]);
 }
 
 /// Native allocation entry point; returned storage is zeroed and stable.

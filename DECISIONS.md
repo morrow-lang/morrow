@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 129 Reuse actor slots and suspend recursive Unit-tail paths
+* **Date**: 2026-09-13
+* **Status**: Adopted; independent runtime and native progress oracles pass
+* **Decision**: Separate reusable actor-table slots from immutable nonwrapping u64 generations. Retain exact dead control identities while PIDs reference them, including PID wrappers in other actor heaps, without retaining dead actor payloads. Compile eligible recursive Unit-returning tail paths into separate resumable actor callbacks while preserving ordinary function/closure calls and the no-actor CLI path.
+* **Context**: A 65,536-identity lifetime cap stopped otherwise bounded long-running sessions. Reusing an old control object could revive a stale PID; tracing only the invocation heap could instead free a control identity still referenced by another actor. Explicit PID-to-control metadata edges preserve the immutable identity until the wrapper is swept or its heap retires. Separately, counting callbacks did not interrupt a recursive helper that never returned to the scheduler.
+* **Consequences**: Actor completion releases active logical storage and its occupied slot. Old supervision handles resolve their retained lineage without redirecting sends to replacement actors. Churn beyond the former cap, generation exhaustion, stale sends, foreign roots and eventual reclamation have independent tests. Recursive Unit-tail paths through supported blocks, branches, matches and receive arms/timeouts can hand off between callbacks with copied, rooted arguments; native tests cover aliases, mutual recursion, full-width integers and collection at every handoff. Finite helpers and ordinary calls keep their prior behavior. Non-tail/numeric recursion, collection loops, deferred cleanup, `with` and unsupported capture types remain synchronous. Collection and copying are bounded but not yet resumable or charged as instruction work; this is not general preemption.
+
+### 128 Pin room runtimes to workers with shared admission and durable ownership
+* **Date**: 2026-09-13
+* **Status**: Adopted; deterministic worker and real WebSocket tests pass
+* **Decision**: Route rooms by a stable hash to independently owned native runtimes on 1–32 pinned OS threads. Default to available parallelism capped at four. Keep authentication in a separate owner and pass revocable, expiring capabilities to workers. Share one ingress semaphore and RAII room, namespace and connection quotas across all workers. Share durable checkpoints through a Rust-owned locked writer, comparing expected state before each commit.
+* **Context**: A single owner serialized all room execution and delayed logout behind application work. Sharing native pointers between threads would violate the collector contract. Independent runtimes allow unrelated room progress while preserving thread ownership; global leases prevent worker count from multiplying process limits. Concurrent checkpoint handles must preserve every room and reject stale owners that could overwrite acknowledged state.
+* **Consequences**: Commands within a room retain their owner order. Tests hold one domain callback at a deterministic gate and require another worker and authentication to progress. Logout rejects queued work; an already executing command may finish. Cross-worker reconnect waits for old connection removal, including at capacity. Durable writes serialize at the shared writer and may delay other commits. This establishes bounded room sharding, not general actor preemption, work stealing, live migration, replicated ownership or Erlang-style clustering.
+
 ### 126 Execute complete Fern application logic through explicit browser and native host boundaries
 * **Date**: 2026-09-13
 * **Status**: Adopted; focused native, WebSocket and browser acceptance passes, final integrated gates recorded in the roadmap

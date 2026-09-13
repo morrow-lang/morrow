@@ -7,6 +7,7 @@ struct Builder {
     source_count: usize,
     next_local: usize,
     mailbox: Type,
+    generic: bool,
     work: usize,
     targets: BTreeMap<usize, Function>,
 }
@@ -17,7 +18,10 @@ struct Continuation {
 }
 
 /// Convert receiving bodies once, retaining ordinary functions for their existing native ABI.
-pub(super) fn program(program: &ir::Program) -> Lowering<Plan> {
+pub(super) fn program(
+    program: &ir::Program,
+    layouts: &HashMap<Type, &ir::TypeLayout>,
+) -> Lowering<Plan> {
     let next = program
         .functions
         .iter()
@@ -32,27 +36,55 @@ pub(super) fn program(program: &ir::Program) -> Lowering<Plan> {
         source_count: program.functions.len(),
         next_local: 0,
         mailbox: Type::Unit,
+        generic: false,
         work: 0,
         targets: BTreeMap::new(),
     };
+    let helpers = tail_helpers::discover(program, layouts)?;
     for function in &program.functions {
+        if helpers.contains(&function.id.0) {
+            if function.body.ty != Type::Never {
+                expect_type(function.body.ty.clone(), Type::Unit, function.body.span)?;
+            }
+            let mut pending = vec![&function.body];
+            while let Some(expr) = pending.pop() {
+                control_types::expression(expr, function)?;
+                pending.extend(ir::children(expr));
+            }
+        }
         if function.mailbox.is_some() {
             let identity = builder.identity(function.body.span)?;
             builder.plan.entries.insert(function.id.0, identity);
             builder.targets.insert(function.id.0, function.clone());
+        } else if helpers.contains(&function.id.0) {
+            let identity = builder.identity(function.body.span)?;
+            builder.plan.helpers.insert(function.id.0, identity);
+            builder.targets.insert(function.id.0, function.clone());
         }
     }
     for function in &program.functions {
-        let Some(mailbox) = &function.mailbox else {
+        if function.mailbox.is_none() && !helpers.contains(&function.id.0) {
             continue;
-        };
-        builder.mailbox = mailbox.clone();
+        }
+        builder.generic = function.mailbox.is_none();
+        builder.mailbox = function.mailbox.clone().unwrap_or(Type::Unit);
         builder.next_local = function.local_count;
         let body = builder.expression(&function.body, None, 0)?;
         let mut step = builder.function(body, vec![], false)?;
         builder.plan.steps.remove(&step.id.0);
-        step.id = ir::FunctionId(builder.plan.entries[&function.id.0]);
-        builder.plan.steps.insert(step.id.0, mailbox.clone());
+        builder.plan.generic_steps.remove(&step.id.0);
+        step.id = ir::FunctionId(if builder.generic {
+            builder.plan.helpers[&function.id.0]
+        } else {
+            builder.plan.entries[&function.id.0]
+        });
+        builder
+            .plan
+            .steps
+            .insert(step.id.0, builder.mailbox.clone());
+        if builder.generic {
+            builder.plan.generic_steps.insert(step.id.0);
+        }
         step.captures = function
             .captures
             .iter()
@@ -79,6 +111,12 @@ impl Builder {
         match &expr.kind {
             ExprKind::Block(stmts) => self.block(stmts, next, expr.span, depth + 1),
             ExprKind::Return(value) => self.expression(value, None, depth + 1),
+            ExprKind::Call {
+                target: CallTarget::Function(function),
+                args,
+            } if next.is_none() && self.plan.helpers.contains_key(&function.0) => {
+                self.helper_call(*function, args, expr.span)
+            }
             ExprKind::Actor(ir::ActorExpr::Call {
                 function,
                 args,
@@ -134,6 +172,28 @@ impl Builder {
                 Ok(finish(expr.clone(), next))
             }
         }
+    }
+
+    /// A Unit tail call needs no value-return continuation. Its typed argument
+    /// frame becomes the actor's next callback, after this native frame returns.
+    fn helper_call(&self, function: ir::FunctionId, args: &[Expr], span: Span) -> Lowering<Expr> {
+        let target = &self.targets[&function.0];
+        if !target.captures.is_empty() || args.len() != target.params.len() {
+            return Err(invalid(span, "invalid resumable helper argument signature"));
+        }
+        for (arg, param) in args.iter().zip(&target.params) {
+            atomic(arg)?;
+            expect_type(arg.ty.clone(), param.ty.clone(), arg.span)?;
+        }
+        let entry = node(
+            ExprKind::Closure {
+                function: ir::FunctionId(self.plan.helpers[&function.0]),
+                captures: args.to_vec(),
+            },
+            Type::Function(vec![], Box::new(Type::Int)),
+            span,
+        );
+        Ok(operation(Operation::Continue(Box::new(entry)), span))
     }
 
     /// Evaluate tail-call arguments before publishing the exact receiving entry's parameter frame.
@@ -309,6 +369,9 @@ impl Builder {
             self.plan.selectors.insert(id.0, self.mailbox.clone());
         } else {
             self.plan.steps.insert(id.0, self.mailbox.clone());
+            if self.generic {
+                self.plan.generic_steps.insert(id.0);
+            }
         }
         Ok(Function {
             mailbox: None,
@@ -418,7 +481,7 @@ fn unit(span: Span) -> Expr {
 }
 
 /// Detect only execution-owned control; lifted callable bodies are separate functions.
-fn needs(expr: &Expr) -> bool {
+pub(super) fn needs(expr: &Expr) -> bool {
     matches!(
         expr.kind,
         ExprKind::Return(_)

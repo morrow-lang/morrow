@@ -73,9 +73,15 @@ pub unsafe extern "C" fn fern_managed_supervise(
 
 unsafe fn retire(s: *mut Session, supervisor: *mut Supervisor) {
     unsafe {
+        if (*supervisor).heap == 0 {
+            return;
+        }
         (*supervisor).current = null_mut();
         (*supervisor).initializer = null_mut();
-        release(s, (*supervisor).initializer_cost);
+        release(
+            s,
+            (*supervisor).initializer_cost + std::mem::size_of::<Supervisor>(),
+        );
         (*supervisor).initializer_cost = 0;
         memory::retire_heap((*supervisor).heap);
         (*supervisor).heap = 0;
@@ -144,12 +150,7 @@ pub unsafe extern "C" fn fern_managed_supervised_current(
         }
         let s = (*exec).session;
         let pid = original.cast::<Pid>();
-        if (*pid).session != s
-            || (*pid).id == 0
-            || (*pid).id > (*s).next_id as u64
-            || *(*s).identities.add((*pid).id as usize - 1) != (*pid).actor
-            || (*s).stopped
-        {
+        if !valid_pid(s, pid) || (*s).stopped {
             return abi::result_err(3);
         }
         let supervisor = (*(*pid).actor).supervisor;
@@ -163,13 +164,7 @@ pub unsafe extern "C" fn fern_managed_supervised_current(
         // This temporary wrapper belongs to the caller heap. Any retained
         // continuation/message charges its own copied PID graph; lookup itself
         // must not consume an irreversible lifetime quota on every request.
-        let current = allocate::<Pid>();
-        *current = Pid {
-            session: s,
-            actor: a,
-            id: (*a).id,
-            mailbox: (*a).mailbox,
-        };
+        let current = new_pid(a);
         abi::result_ok(current as i64)
     }
 }

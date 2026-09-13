@@ -102,6 +102,12 @@ Set `FERN_WEB_DATA_DIR=./fern-data` to checkpoint acknowledged room changes and
 recover them after a restart. Authentication and command namespaces start fresh;
 uncertain commands are never blindly replayed into a new incarnation.
 
+Rooms run on independent actor worker threads: by default, up to four available
+CPU cores. Set `FERN_WEB_WORKERS=1` through `32` to choose the worker count.
+Authentication stays responsive while a room executes, and admission limits
+remain shared across workers. See the [worker contract](docs/WEB_WORKERS.md)
+for room placement, revocation and durable-write behavior.
+
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
 
@@ -169,8 +175,8 @@ the exact native scope and real-browser checks, including offline worker restart
 cache integrity, mobile layout and static ARM64 server execution.
 
 Fern is ready to explore, build small programs with and contribute to. It remains
-an early preview: fair resumable actors, generalized supervision, multicore
-scheduling, clustering and a general application packaging API remain open.
+an early preview: general actor preemption, generalized supervision, work
+stealing, clustering and a general application packaging API remain open.
 The current checklist executes its complete typed model/update/view and native
 actor path, with optional durable room checkpoints. WASM supports bounded
 records, tagged sums, lists, tuples, Option/Result and UTF-8 strings with precise

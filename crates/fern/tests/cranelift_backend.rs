@@ -870,6 +870,257 @@ fn compiled_supervision_recovers_regex_output_limit_without_process_exit() {
 }
 
 #[test]
+fn unit_tail_helper_yields_to_sibling_through_the_native_host_poll_boundary() {
+    unit_tail_poll(
+        "    let first: Pid(()) = spawn(() -> busy(2048, reply))\n    ()",
+        1,
+    );
+}
+
+#[test]
+fn unit_tail_helper_in_a_receive_arm_yields_before_completing() {
+    unit_tail_poll(
+        "    let first: Pid(()) = spawn(() ->\n        receive:\n            () -> busy(2048, reply)\n    )\n    match send(first, ()):\n        Ok(()) -> ()\n        Err(_) -> ()",
+        2,
+    );
+}
+
+#[test]
+fn unit_tail_helper_in_a_receive_timeout_yields_before_completing() {
+    unit_tail_poll(
+        "    let first: Pid(()) = spawn(() ->\n        receive:\n            () -> ()\n            _ after 0 -> busy(2048, reply)\n    )\n    ()",
+        2,
+    );
+}
+
+fn unit_tail_poll(setup: &str, warmup: usize) {
+    use fern_compiler::native_library::{self, Export};
+    let source = format!(
+        r#"
+fn busy(remaining: Int, reply: Pid(String)):
+    if remaining == 0:
+        match send(reply, "finished"):
+            Ok(()) -> ()
+            Err(_) -> ()
+    else:
+        busy(remaining - 1, reply)
+fn sibling(reply: Pid(String)):
+    match send(reply, "sibling"):
+        Ok(()) -> ()
+        Err(_) -> ()
+pub fn start(reply: Pid(String)) -> ():
+{setup}
+pub fn queue_sibling(reply: Pid(String)) -> ():
+    let second: Pid(()) = spawn(() -> sibling(reply))
+    ()
+"#
+    );
+    let checked =
+        fern_compiler::check::check_library(&fern_compiler::parse::parse(&source).unwrap())
+            .unwrap();
+    let program = native_library::lower(
+        &checked,
+        &[
+            Export::new("start", "start"),
+            Export::new("queue_sibling", "queue_sibling"),
+        ],
+    )
+    .unwrap();
+    let harness = r#"
+unsafe extern "C" {
+    fn fern_library_open(fault: *mut i64) -> usize;
+    fn fern_library_string_port(exec: usize) -> usize;
+    fn fern_export_start(fault: *mut i64, exec: usize, port: usize) -> i32;
+    fn fern_export_queue_sibling(fault: *mut i64, exec: usize, port: usize) -> i32;
+    fn fern_managed_poll(exec: usize, steps: i64) -> i64;
+    fn fern_managed_port_peek_len(exec: usize, port: usize) -> i64;
+    fn fern_managed_port_read(exec: usize, port: usize, output: *mut u8, capacity: usize) -> i64;
+    fn fern_managed_close(exec: usize);
+    fn fern_gc_frame_enter(slots: *const usize, words: usize) -> usize;
+    fn fern_gc_frame_leave(token: usize);
+}
+fn main() {
+    let mut fault = Box::new(0);
+    unsafe {
+        let exec = fern_library_open(&mut *fault);
+        assert_ne!(exec, 0);
+        let port = fern_library_string_port(exec);
+        let root = fern_gc_frame_enter(&port, 1);
+        fern_export_start(&mut *fault, exec, port);
+        assert_eq!(*fault, 0);
+        for _ in 0..WARMUP {
+            assert_eq!(fern_managed_poll(exec, 1), 2);
+            assert_eq!(fern_managed_port_peek_len(exec, port), -1, "the busy helper must suspend before it finishes");
+        }
+        fern_export_queue_sibling(&mut *fault, exec, port);
+        for _ in 0..3 {
+            assert_eq!(fern_managed_poll(exec, 1), 2);
+            if fern_managed_port_peek_len(exec, port) >= 0 { break; }
+        }
+        let mut bytes = [0u8; 16];
+        let count = fern_managed_port_read(exec, port, bytes.as_mut_ptr(), bytes.len());
+        assert_eq!(count, 7, "sibling must make progress within four callbacks");
+        assert_eq!(&bytes[..count as usize], b"sibling");
+        assert_eq!(*fault, 0);
+        fern_managed_close(exec);
+        fern_gc_frame_leave(root);
+    }
+    println!("sibling progressed before busy helper completed");
+}
+"#.replace("WARMUP", &warmup.to_string());
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            &harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling progressed before busy helper completed\n"
+    );
+}
+
+#[test]
+fn unit_tail_helper_behind_a_local_entry_alias_yields_without_changing_ordinary_calls() {
+    use fern_compiler::native_library::{self, Export};
+    let source = r#"
+fn busy(remaining: Int):
+    if remaining == 0: println("finished")
+    else: busy(remaining - 1)
+pub fn start() -> ():
+    let entry = () -> busy(2048)
+    let first: Pid(()) = spawn(entry)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check_library(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = native_library::lower(&checked, &[Export::new("start", "start")]).unwrap();
+    let harness = r#"
+unsafe extern "C" {
+    fn fern_library_open(fault: *mut i64) -> usize;
+    fn fern_export_start(fault: *mut i64, exec: usize) -> i32;
+    fn fern_managed_poll(exec: usize, steps: i64) -> i64;
+    fn fern_managed_close(exec: usize);
+}
+fn main() {
+    let mut fault = Box::new(0);
+    unsafe {
+        let exec = fern_library_open(&mut *fault);
+        assert_ne!(exec, 0);
+        fern_export_start(&mut *fault, exec);
+        assert_eq!(fern_managed_poll(exec, 1), 2);
+        println!("yielded");
+        assert_eq!(fern_managed_poll(exec, 1), 2);
+        assert_eq!(*fault, 0);
+        fern_managed_close(exec);
+    }
+}
+"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"yielded\nsibling\n"
+    );
+}
+
+#[test]
+fn unit_tail_helpers_preserve_full_width_roots_across_a_hundred_thousand_transitions() {
+    let source = r#"
+fn left(remaining: Int, text: String, boundary: Int):
+    if remaining == 0:
+        println(text)
+        println(boundary)
+    else:
+        return right(remaining: remaining - 1, text: text, boundary: boundary)
+fn right(remaining: Int, text: String, boundary: Int):
+    match remaining:
+        0 ->
+            println(text)
+            println(boundary)
+        _ -> left(remaining: remaining - 1, text: text, boundary: boundary)
+fn main():
+    let ordinary = left
+    ordinary(2, "ordinary", 9223372036854775807)
+    let text = String.repeat("fern", 2)
+    let busy: Pid(Int) = spawn(() -> left(remaining: 100000, text: text, boundary: -9223372036854775808))
+    let sibling: Pid(String) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let mut safepoints = 0;
+    for function in &mut program.functions {
+        let mut body = Vec::new();
+        for statement in std::mem::take(&mut function.body) {
+            if matches!(&statement, Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. } if machine::bare(name) == "fern_managed_continue")
+            {
+                body.push(Statement::Effect(Operation::Call {
+                    callee: Operand::Symbol("fern_gc_collect_precise".into()),
+                    args: vec![],
+                    variadic: None,
+                }));
+                safepoints += 1;
+            }
+            body.push(statement);
+        }
+        function.body = body;
+    }
+    assert!(
+        safepoints >= 3,
+        "root oracle must cover the entry and both mutual helpers"
+    );
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"ordinary\n9223372036854775807\nsibling\nfernfern\n-9223372036854775808\n"
+    );
+}
+
+#[test]
+fn unit_tail_helpers_preserve_synchronous_cleanup_non_tail_calls_and_numeric_results() {
+    let source = r#"
+fn leaf(value: Int): println(value)
+fn deferred():
+    defer println("cleanup")
+    leaf(7)
+fn non_tail():
+    leaf(8)
+    println("after")
+fn numeric(value: Int) -> Int:
+    if value == 0: 0
+    else: 1 + numeric(value - 1)
+fn main():
+    let callback = leaf
+    callback(3)
+    deferred()
+    println(numeric(3))
+    let first: Pid(()) = spawn(deferred)
+    let second: Pid(()) = spawn(non_tail)
+    let third: Pid(()) = spawn(() -> leaf(9))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"3\n7\ncleanup\n3\n7\ncleanup\n8\nafter\n9\n"
+    );
+}
+
+#[test]
 fn compiled_json_actor_capture_and_mailbox_use_a_distinct_descriptor() {
     let source = "fn main():\n    let captured = json.from_int(-9223372036854775808)\n    let first: Pid(()) = spawn(() ->\n        match json.as_int(captured):\n            Ok(value) -> println(value)\n            Err(_) -> println(0)\n    )\n    let target: Pid(json.Value) = spawn(() ->\n        receive:\n            message ->\n                match json.as_int(message):\n                    Ok(value) -> println(value)\n                    Err(_) -> println(0)\n    )\n    match send(target, json.from_int(9223372036854775807)):\n        Ok(()) -> ()\n        Err(_) -> println(0)\n";
     let checked =

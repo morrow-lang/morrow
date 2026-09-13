@@ -3,14 +3,57 @@ mod checkpoint;
 mod host;
 use fern_web_protocol::{Decimal, Domain, DomainChange, Error, Mutation, Status, Task};
 use serde::Deserialize;
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
+
+/// One Rust-owned checkpoint writer shared by independent actor threads.
+/// Only owned records cross threads; native heaps and PIDs remain in each domain.
+#[derive(Clone)]
+pub struct SharedCheckpoint(Arc<Mutex<checkpoint::Store>>);
+impl SharedCheckpoint {
+    pub fn open(directory: &std::path::Path) -> std::io::Result<Self> {
+        Ok(Self(Arc::new(Mutex::new(checkpoint::Store::open(
+            directory,
+        )?))))
+    }
+    fn state(&self, room: &str) -> Result<Option<checkpoint::State>, Error> {
+        Ok(self
+            .0
+            .lock()
+            .map_err(|_| Error::ResyncRequired)?
+            .get(room)
+            .cloned())
+    }
+    fn commit(
+        &self,
+        room: &str,
+        current: &[Task],
+        next_id: i64,
+        change: &DomainChange,
+    ) -> Result<(), Error> {
+        let mut store = self.0.lock().map_err(|_| Error::ResyncRequired)?;
+        let matches = store
+            .get(room)
+            .map_or(current.is_empty() && next_id == 1, |state| {
+                state.tasks == current && state.next_id == next_id
+            });
+        if !matches {
+            return Err(Error::IncarnationMismatch);
+        }
+        store
+            .commit(room, change)
+            .map_err(|_| Error::ResyncRequired)
+    }
+}
 
 /// Compiled Fern rooms whose heaps and execution contexts stay on this thread.
 /// Each room owns its state in a typed actor; gateway snapshots are checked copies.
 #[derive(Default)]
 pub struct NativeDomain {
     rooms: BTreeMap<String, host::Room>,
-    store: Option<checkpoint::Store>,
+    store: Option<SharedCheckpoint>,
 }
 impl NativeDomain {
     pub fn new() -> Self {
@@ -18,10 +61,15 @@ impl NativeDomain {
     }
     /// Exclusively own a checkpoint directory; acknowledged state survives restart.
     pub fn persistent(directory: &std::path::Path) -> std::io::Result<Self> {
-        Ok(Self {
+        Ok(Self::with_checkpoint(SharedCheckpoint::open(directory)?))
+    }
+    /// Construct a local native domain using a shared, serialized Rust writer.
+    /// Invoke on the worker that will own and eventually drop this domain.
+    pub fn with_checkpoint(checkpoint: SharedCheckpoint) -> Self {
+        Self {
             rooms: BTreeMap::new(),
-            store: Some(checkpoint::Store::open(directory)?),
-        })
+            store: Some(checkpoint),
+        }
     }
 }
 
@@ -109,7 +157,10 @@ impl Domain for NativeDomain {
             let initial = self
                 .store
                 .as_ref()
-                .and_then(|store| store.get(room))
+                .map(|store| store.state(room))
+                .transpose()?
+                .flatten()
+                .as_ref()
                 .map(checkpoint::State::native_json)
                 .transpose()?;
             self.rooms
@@ -126,11 +177,9 @@ impl Domain for NativeDomain {
         let change = decode(&actor.command(&input)?)?;
         change.validate(current, next_id, max_tasks, 256)?;
         if change.status == Status::Applied
-            && let Some(store) = &mut self.store
+            && let Some(store) = &self.store
         {
-            store
-                .commit(room, &change)
-                .map_err(|_| Error::ResyncRequired)?;
+            store.commit(room, current, next_id, &change)?;
         }
         Ok(change)
     }
@@ -142,7 +191,10 @@ impl Domain for NativeDomain {
         Ok(self
             .store
             .as_ref()
-            .and_then(|store| store.get(room))
+            .map(|store| store.state(room))
+            .transpose()?
+            .flatten()
+            .as_ref()
             .map(checkpoint::State::change))
     }
 }

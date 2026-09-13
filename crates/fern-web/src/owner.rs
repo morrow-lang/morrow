@@ -1,4 +1,4 @@
-//! A dedicated actor thread owns authentication, rooms and subscription publication.
+//! Each pinned actor worker owns its local Fern heaps, rooms and subscriptions.
 use crate::Config;
 use axum::http::StatusCode;
 use fern_web_protocol::{ClientMessage, Connected, Error, Hub, ServerMessage, Snapshot};
@@ -10,17 +10,12 @@ pub(crate) const INGRESS: usize = 256;
 pub(crate) const OUTCOMES: usize = 16;
 type Reply<T> = oneshot::Sender<Result<T, StatusCode>>;
 
-#[derive(Clone)]
-pub(crate) struct Authentication {
-    pub token: String,
-    pub csrf: String,
-    pub revoked: watch::Receiver<bool>,
-}
-struct Session {
-    csrf: String,
-    expires: Instant,
-    revoke: watch::Sender<bool>,
-}
+mod auth;
+mod pool;
+pub(crate) use auth::Authentication;
+use auth::Capability;
+pub(crate) use pool::{Pool, Route, start};
+
 struct Subscription {
     principal: String,
     room: String,
@@ -44,20 +39,24 @@ pub(crate) enum Request {
         reply: Reply<()>,
     },
     Join {
-        principal: String,
+        capability: Capability,
         room: String,
         resume: Option<String>,
-        previous: Option<String>,
         outcomes: mpsc::Sender<ServerMessage>,
         snapshots: watch::Sender<Option<Snapshot>>,
         reply: oneshot::Sender<Result<Connected, Error>>,
     },
     Command {
+        route: Route,
         principal: String,
         connection: String,
         message: ClientMessage,
     },
-    Disconnect(String),
+    Disconnect {
+        route: Route,
+        connection: String,
+        reply: Option<oneshot::Sender<()>>,
+    },
 }
 
 pub(crate) fn token() -> std::io::Result<String> {
@@ -82,10 +81,9 @@ fn same_secret(a: &str, b: &str) -> bool {
 }
 
 struct Owner {
-    config: Config,
     hub: Hub,
     started: Instant,
-    sessions: BTreeMap<String, Session>,
+    capabilities: BTreeMap<String, Capability>,
     subscriptions: BTreeMap<String, Subscription>,
 }
 impl Owner {
@@ -97,18 +95,20 @@ impl Owner {
             .unwrap_or(u64::MAX)
     }
     fn expire(&mut self) {
-        let now = Instant::now();
         let expired: Vec<_> = self
-            .sessions
-            .iter()
-            .filter(|(_, s)| s.expires <= now)
-            .map(|(token, _)| token.clone())
+            .capabilities
+            .values()
+            .filter(|capability| !capability.valid())
+            .map(|capability| capability.principal.clone())
             .collect();
-        for token in expired {
-            self.revoke(&token);
+        for principal in expired {
+            self.revoke(&principal);
         }
         let now_ms = self.now();
         let _ = self.hub.expire(now_ms);
+        self.capabilities.retain(|namespace, capability| {
+            capability.valid() && self.hub.namespace_is_live(namespace, now_ms)
+        });
         let disconnected: Vec<_> = self
             .subscriptions
             .iter()
@@ -124,86 +124,34 @@ impl Owner {
         self.hub.disconnect(id);
     }
     fn revoke(&mut self, token: &str) {
-        if let Some(session) = self.sessions.remove(token) {
-            session.revoke.send_replace(true);
-        }
         self.hub.revoke(token);
-        self.subscriptions.retain(|_, s| s.principal != token);
-    }
-    fn authentication(
-        &self,
-        token: &str,
-        csrf: Option<&str>,
-    ) -> Result<Authentication, StatusCode> {
-        let session = self.sessions.get(token).ok_or(StatusCode::UNAUTHORIZED)?;
-        if csrf.is_some_and(|csrf| !same_secret(csrf, &session.csrf)) {
-            return Err(StatusCode::FORBIDDEN);
-        }
-        Ok(Authentication {
-            token: token.into(),
-            csrf: session.csrf.clone(),
-            revoked: session.revoke.subscribe(),
-        })
-    }
-    fn login(&mut self, key: &str) -> Result<Authentication, StatusCode> {
-        if !same_secret(key, &self.config.access_key) {
-            return Err(StatusCode::UNAUTHORIZED);
-        }
-        if self.sessions.len() >= self.config.max_sessions {
-            return Err(StatusCode::TOO_MANY_REQUESTS);
-        }
-        let token = token().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        let csrf = self::token().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-        let (revoke, revoked) = watch::channel(false);
-        self.sessions.insert(
-            token.clone(),
-            Session {
-                csrf: csrf.clone(),
-                expires: Instant::now() + self.config.session_ttl,
-                revoke,
-            },
-        );
-        Ok(Authentication {
-            token,
-            csrf,
-            revoked,
-        })
+        self.capabilities
+            .retain(|_, capability| capability.principal != token);
+        self.subscriptions
+            .retain(|_, subscription| subscription.principal != token);
     }
     fn handle(&mut self, request: Request) {
         self.expire();
         match request {
-            Request::Login { key, reply } => {
-                let _ = reply.send(self.login(&key));
-            }
-            Request::Authenticate { token, csrf, reply } => {
-                let _ = reply.send(self.authentication(&token, csrf.as_deref()));
-            }
-            Request::Logout { token, csrf, reply } => {
-                let result = self
-                    .authentication(&token, Some(&csrf))
-                    .map(|_| self.revoke(&token));
-                let _ = reply.send(result);
-            }
             Request::Join {
-                principal,
+                capability,
                 room,
                 resume,
-                previous,
                 outcomes,
                 snapshots,
                 reply,
             } => {
-                if !self.sessions.contains_key(&principal) {
+                let principal = capability.principal.clone();
+                if !capability.valid() {
                     let _ = reply.send(Err(Error::Unauthorized));
                     return;
-                }
-                if let Some(previous) = previous {
-                    self.disconnect(&previous);
                 }
                 let result = self
                     .hub
                     .connect(&principal, &room, resume.as_deref(), self.now());
                 if let Ok(connected) = &result {
+                    self.capabilities
+                        .insert(connected.namespace.clone(), capability);
                     // A resumed namespace takes over its old physical connection.
                     self.subscriptions
                         .retain(|_, s| s.namespace != connected.namespace);
@@ -223,6 +171,7 @@ impl Owner {
                 }
             }
             Request::Command {
+                route: _,
                 principal,
                 connection,
                 message,
@@ -233,7 +182,12 @@ impl Owner {
                 let Some(subscription) = self.subscriptions.get(&connection) else {
                     return;
                 };
-                if subscription.principal != principal || !self.sessions.contains_key(&principal) {
+                if subscription.principal != principal
+                    || self
+                        .capabilities
+                        .get(&subscription.namespace)
+                        .is_none_or(|capability| !capability.valid())
+                {
                     self.disconnect(&connection);
                     return;
                 }
@@ -296,43 +250,19 @@ impl Owner {
                     subscription.snapshots.send_replace(Some(snapshot));
                 }
             }
-            Request::Disconnect(connection) => self.disconnect(&connection),
-        }
-    }
-}
-
-pub(crate) fn start(config: Config) -> std::io::Result<mpsc::Sender<Request>> {
-    let incarnation = token()?;
-    let (tx, mut rx) = mpsc::channel(INGRESS);
-    let (ready, started) = std::sync::mpsc::sync_channel(1);
-    std::thread::Builder::new().name("fern-actors".into()).spawn(move || {
-        let runtime = match tokio::runtime::Builder::new_current_thread().enable_time().build() {
-            Ok(runtime) => runtime,
-            Err(error) => { let _ = ready.send(Err(error)); return; }
-        };
-        runtime.block_on(async move {
-            // Construct and destroy the !Send native domain on its owning thread.
-            let domain = match config.data_dir.as_deref().map(fern_web_app::NativeDomain::persistent).transpose() {
-                Ok(domain) => domain.unwrap_or_default(),
-                Err(error) => { let _ = ready.send(Err(error)); return; }
-            };
-            let hub = match Hub::with_domain(incarnation, config.limits.clone(), domain) {
-                Ok(hub) => hub,
-                Err(error) => { let _ = ready.send(Err(std::io::Error::other(error))); return; }
-            };
-            let mut owner = Owner { config, hub, started: Instant::now(), sessions: BTreeMap::new(), subscriptions: BTreeMap::new() };
-            if ready.send(Ok(())).is_err() { return; }
-            let mut timer = tokio::time::interval(Duration::from_secs(1));
-            loop {
-                tokio::select! {
-                    request = rx.recv() => match request { Some(request) => owner.handle(request), None => break },
-                    _ = timer.tick() => owner.expire(),
+            Request::Disconnect {
+                route: _,
+                connection,
+                reply,
+            } => {
+                self.disconnect(&connection);
+                if let Some(reply) = reply {
+                    let _ = reply.send(());
                 }
             }
-        });
-    })?;
-    started.recv().map_err(std::io::Error::other)??;
-    Ok(tx)
+            _ => unreachable!("dispatcher sends only worker requests"),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -343,14 +273,14 @@ mod tests {
         let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());
         config.limits.namespace_ttl_ms = 1000;
         config.limits.outcome_ttl_ms = 500;
+        let mut authentication = auth::AuthenticationOwner::new(config.clone());
         let mut owner = Owner {
             hub: Hub::new("boot".into(), config.limits.clone()).unwrap(),
-            config,
             started: Instant::now(),
-            sessions: BTreeMap::new(),
+            capabilities: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
         };
-        let auth = owner.login("long-enough-test-key").unwrap();
+        let auth = authentication.login("long-enough-test-key").unwrap();
         let first = owner.hub.connect(&auth.token, "room", None, 0).unwrap();
         owner.hub.disconnect(&first.connection);
         tokio::time::advance(Duration::from_millis(900)).await;
@@ -358,10 +288,9 @@ mod tests {
         let (snapshots, snapshot_rx) = watch::channel(None);
         let (reply, response) = oneshot::channel();
         owner.handle(Request::Join {
-            principal: auth.token.clone(),
+            capability: auth.capability(),
             room: "room".into(),
             resume: Some(first.namespace),
-            previous: None,
             outcomes,
             snapshots,
             reply,
@@ -383,50 +312,56 @@ mod tests {
         assert!(outcome_rx.try_recv().is_err());
         assert!(snapshot_rx.has_changed().is_err());
         assert!(
-            owner.authentication(&auth.token, Some(&auth.csrf)).is_ok(),
+            authentication
+                .authentication(&auth.token, Some(&auth.csrf))
+                .is_ok(),
             "namespace expiry must not revoke unrelated authentication"
         );
     }
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn expired_session_revokes_watchers_and_command_namespaces() {
-        let config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        config.session_ttl = Duration::from_millis(1);
+        let mut authentication = auth::AuthenticationOwner::new(config.clone());
         let mut owner = Owner {
             hub: Hub::new("boot".into(), config.limits.clone()).unwrap(),
-            config,
             started: Instant::now(),
-            sessions: BTreeMap::new(),
+            capabilities: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
         };
-        let auth = owner.login("long-enough-test-key").unwrap();
-        owner.hub.connect(&auth.token, "room", None, 0).unwrap();
-        owner.sessions.get_mut(&auth.token).unwrap().expires = Instant::now();
+        let auth = authentication.login("long-enough-test-key").unwrap();
+        let connected = owner.hub.connect(&auth.token, "room", None, 0).unwrap();
+        owner
+            .capabilities
+            .insert(connected.namespace, auth.capability());
+        tokio::time::advance(Duration::from_millis(1)).await;
+        authentication.expire();
         owner.expire();
         assert!(*auth.revoked.borrow());
         assert_eq!(owner.hub.counts(), (1, 0, 0));
         assert!(matches!(
-            owner.authentication(&auth.token, Some(&auth.csrf)),
+            authentication.authentication(&auth.token, Some(&auth.csrf)),
             Err(StatusCode::UNAUTHORIZED)
         ));
     }
     #[tokio::test]
     async fn slow_reader_retains_only_latest_snapshot_and_bounded_outcomes() {
         let config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        let mut authentication = auth::AuthenticationOwner::new(config.clone());
         let mut owner = Owner {
             hub: Hub::new("boot".into(), config.limits.clone()).unwrap(),
-            config,
             started: Instant::now(),
-            sessions: BTreeMap::new(),
+            capabilities: BTreeMap::new(),
             subscriptions: BTreeMap::new(),
         };
-        let auth = owner.login("long-enough-test-key").unwrap();
+        let auth = authentication.login("long-enough-test-key").unwrap();
         let (outcomes, mut rx) = mpsc::channel(OUTCOMES);
         let (snapshots, snapshots_rx) = watch::channel(None);
         let (reply, response) = oneshot::channel();
         owner.handle(Request::Join {
-            principal: auth.token.clone(),
+            capability: auth.capability(),
             room: "room".into(),
             resume: None,
-            previous: None,
             outcomes,
             snapshots,
             reply,
@@ -434,6 +369,7 @@ mod tests {
         let connected = response.await.unwrap().unwrap();
         for sequence in 1..=OUTCOMES as i64 + 1 {
             owner.handle(Request::Command {
+                route: Route(0),
                 principal: auth.token.clone(),
                 connection: connected.connection.clone(),
                 message: ClientMessage::Command(fern_web_protocol::Command {
@@ -459,5 +395,54 @@ mod tests {
             assert!(matches!(rx.recv().await, Some(ServerMessage::Outcome(_))));
         }
         assert!(rx.recv().await.is_none());
+    }
+    #[tokio::test(start_paused = true)]
+    async fn cancelled_join_and_lost_disconnect_release_transport_admission() {
+        let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        config.limits.namespace_ttl_ms = 100;
+        config.limits.outcome_ttl_ms = 50;
+        let budget = fern_web_protocol::Budget::new(&config.limits).unwrap();
+        let mut authentication = auth::AuthenticationOwner::new(config.clone());
+        let auth = authentication.login("long-enough-test-key").unwrap();
+        let mut owner = Owner {
+            hub: Hub::with_budget("boot".into(), config.limits, budget.clone()).unwrap(),
+            started: Instant::now(),
+            capabilities: BTreeMap::new(),
+            subscriptions: BTreeMap::new(),
+        };
+        for cancelled in [true, false] {
+            let (outcomes, receiver) = mpsc::channel(OUTCOMES);
+            let (snapshots, _snapshots) = watch::channel(None);
+            let (reply, response) = oneshot::channel();
+            let response = if cancelled {
+                drop(response);
+                None
+            } else {
+                Some(response)
+            };
+            owner.handle(Request::Join {
+                capability: auth.capability(),
+                room: "room".into(),
+                resume: None,
+                outcomes,
+                snapshots,
+                reply,
+            });
+            if let Some(response) = response {
+                assert!(response.await.unwrap().is_ok());
+                assert_eq!(budget.used(), (1, 1, 1));
+            }
+            // The socket can lose its best-effort Disconnect during overload.
+            drop(receiver);
+            owner.expire();
+            assert_eq!(budget.used(), (1, 1, 0));
+            assert!(owner.subscriptions.is_empty());
+            tokio::time::advance(Duration::from_millis(100)).await;
+            owner.expire();
+            assert_eq!(budget.used(), (1, 0, 0));
+            assert!(owner.capabilities.is_empty());
+        }
+        drop(owner);
+        assert_eq!(budget.used(), (0, 0, 0));
     }
 }

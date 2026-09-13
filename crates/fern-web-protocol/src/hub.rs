@@ -30,7 +30,7 @@ impl Default for Limits {
     }
 }
 impl Limits {
-    fn validate(&self) -> Result<(), Error> {
+    pub(crate) fn validate(&self) -> Result<(), Error> {
         if self.max_frame_bytes != MAX_FRAME_BYTES
             || self.max_rooms == 0
             || self.max_rooms > 128
@@ -54,6 +54,7 @@ impl Limits {
     }
 }
 struct Room {
+    _lease: crate::budget::Lease,
     snapshot: Snapshot,
     next_task: i64,
     failed: bool,
@@ -64,6 +65,7 @@ struct Cached {
     expires: u64,
 }
 struct Namespace {
+    _lease: crate::budget::Lease,
     principal: String,
     room: String,
     expires: u64,
@@ -71,6 +73,7 @@ struct Namespace {
     outcomes: VecDeque<Cached>,
 }
 struct Connection {
+    lease: crate::budget::Lease,
     namespace: String,
 }
 
@@ -78,6 +81,7 @@ struct Connection {
 /// monotonically increasing time. IDs are routing identities, never credentials.
 /// The transport must authorize the selected room before every call, not just login.
 pub struct Hub {
+    budget: Budget,
     domain: Box<dyn Domain>,
     incarnation: String,
     limits: Limits,
@@ -99,13 +103,31 @@ impl Hub {
         limits: Limits,
         domain: impl Domain + 'static,
     ) -> Result<Self, Error> {
+        let budget = Budget::new(&limits)?;
+        Self::with_domain_and_budget(incarnation, limits, domain, budget)
+    }
+    /// Share global admission while using the reference domain implementation.
+    pub fn with_budget(incarnation: String, limits: Limits, budget: Budget) -> Result<Self, Error> {
+        Self::with_domain_and_budget(incarnation, limits, crate::domain::ReferenceDomain, budget)
+    }
+    /// Own domain state locally while sharing only process-wide resource leases.
+    pub fn with_domain_and_budget(
+        incarnation: String,
+        limits: Limits,
+        domain: impl Domain + 'static,
+        budget: Budget,
+    ) -> Result<Self, Error> {
         wire::identity(&incarnation)?;
         // Leave room for monotonic identity suffixes inside the wire identity bound.
         if incarnation.len() > 64 {
             return Err(Error::InvalidIdentity);
         }
         limits.validate()?;
+        if !budget.matches(&limits) {
+            return Err(Error::InvalidLimits);
+        }
         Ok(Self {
+            budget,
             domain: Box::new(domain),
             incarnation,
             limits,
@@ -155,8 +177,13 @@ impl Hub {
         if !self.rooms.contains_key(room) && self.rooms.len() >= self.limits.max_rooms {
             return Err(Error::RoomLimit);
         }
+        let room_lease = if self.rooms.contains_key(room) {
+            None
+        } else {
+            Some(self.budget.room()?)
+        };
         let resumed = resume_namespace.is_some();
-        let (namespace, next_sequence) = if let Some(id) = resume_namespace {
+        let (namespace, next_sequence, namespace_lease) = if let Some(id) = resume_namespace {
             let ns = self.namespaces.get(id).ok_or(Error::NamespaceExpired)?;
             if ns.principal != principal || ns.room != room {
                 return Err(Error::Unauthorized);
@@ -164,17 +191,23 @@ impl Hub {
             (
                 id.to_owned(),
                 ns.high_water.checked_add(1).ok_or(Error::Exhausted)?,
+                None,
             )
         } else {
             if self.namespaces.len() >= self.limits.max_namespaces {
                 return Err(Error::NamespaceLimit);
             }
-            (self.id()?, 1)
+            (self.id()?, 1, Some(self.budget.namespace()?))
         };
         let replacing = self.connections.values().any(|c| c.namespace == namespace);
         if self.connections.len() >= self.limits.max_connections && !replacing {
             return Err(Error::ConnectionLimit);
         }
+        let connection_lease = if replacing {
+            None
+        } else {
+            Some(self.budget.connection()?)
+        };
         let expires = now_ms
             .checked_add(self.limits.namespace_ttl_ms)
             .ok_or(Error::Exhausted)?;
@@ -185,6 +218,7 @@ impl Hub {
             self.rooms.insert(
                 room.into(),
                 Room {
+                    _lease: room_lease.expect("new room has an admission lease"),
                     snapshot: Snapshot {
                         version: VERSION,
                         room: room.into(),
@@ -203,6 +237,7 @@ impl Hub {
             self.namespaces.insert(
                 namespace.clone(),
                 Namespace {
+                    _lease: namespace_lease.expect("new namespace has an admission lease"),
                     principal: principal.into(),
                     room: room.into(),
                     expires,
@@ -211,10 +246,24 @@ impl Hub {
                 },
             );
         }
-        self.connections.retain(|_, c| c.namespace != namespace);
+        let lease = if let Some(lease) = connection_lease {
+            lease
+        } else {
+            let previous = self
+                .connections
+                .iter()
+                .find(|(_, connection)| connection.namespace == namespace)
+                .map(|(id, _)| id.clone())
+                .expect("resumed connection exists");
+            self.connections
+                .remove(&previous)
+                .expect("resumed connection exists")
+                .lease
+        };
         self.connections.insert(
             connection.clone(),
             Connection {
+                lease,
                 namespace: namespace.clone(),
             },
         );
@@ -434,6 +483,13 @@ impl Hub {
                         .get(&namespace.room)
                         .is_some_and(|room| !room.failed)
             })
+    }
+
+    /// Retained namespace liveness for expiring transport authorization witnesses.
+    pub fn namespace_is_live(&self, namespace: &str, now_ms: u64) -> bool {
+        self.namespaces
+            .get(namespace)
+            .is_some_and(|namespace| namespace.expires > now_ms)
     }
 
     /// Invalidate all namespaces and connections of a revoked principal immediately.

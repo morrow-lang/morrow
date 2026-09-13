@@ -50,6 +50,7 @@ struct Actor {
     exec: Exec,
     heap: usize,
     id: u64,
+    slot: usize,
     alive: bool,
     queued: bool,
     waiting: bool,
@@ -82,7 +83,8 @@ struct Session {
     functions: *const *const Function,
     function_count: usize,
     live: usize,
-    next_id: usize,
+    next_id: u64,
+    used_slots: usize,
     messages: usize,
     retained: usize,
     stopped: bool,
@@ -97,6 +99,73 @@ mod tests;
 
 fn allocate<T>() -> *mut T {
     memory::alloc(std::mem::size_of::<T>(), false).cast()
+}
+
+/// Find reusable storage without changing immutable actor generations.
+unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
+    unsafe {
+        if (*s).next_id == u64::MAX {
+            return None;
+        }
+        for slot in 0..(*s).used_slots {
+            if (*(*s).identities.add(slot)).is_null() {
+                return Some(slot);
+            }
+        }
+        ((*s).used_slots < IDS).then_some((*s).used_slots)
+    }
+}
+
+unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
+    unsafe {
+        (*s).next_id = (*s)
+            .next_id
+            .checked_add(1)
+            .expect("generation was admitted");
+        (*a).id = (*s).next_id;
+        (*a).slot = slot;
+        (*s).used_slots = (*s).used_slots.max(slot + 1);
+        *(*s).identities.add(slot) = a;
+        (*s).live += 1;
+    }
+}
+
+unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
+    unsafe {
+        let pid = allocate::<Pid>();
+        *pid = Pid {
+            session: (*a).exec.session,
+            actor: a,
+            id: (*a).id,
+            mailbox: (*a).mailbox,
+        };
+        memory::control_edge(pid.cast(), a.cast());
+        pid
+    }
+}
+
+/// Validate immutable identity even when its old slot now belongs to another actor.
+unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
+    unsafe {
+        !pid.is_null()
+            && (*pid).session == s
+            && !(*pid).actor.is_null()
+            && (*pid).id != 0
+            && (*pid).id <= (*s).next_id
+            && (*(*pid).actor).exec.session == s
+            && (*(*pid).actor).id == (*pid).id
+            && (*(*pid).actor).mailbox == (*pid).mailbox
+    }
+}
+
+unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
+    unsafe {
+        valid_pid(s, pid)
+            && !(*s).stopped
+            && (*(*pid).actor).alive
+            && (*(*pid).actor).slot < (*s).used_slots
+            && *(*s).identities.add((*(*pid).actor).slot) == (*pid).actor
+    }
 }
 
 // SAFETY for private helpers: callers supply live invocation-owned records and

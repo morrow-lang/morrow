@@ -33,9 +33,9 @@ pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
 unsafe fn refresh(s: *mut Session) {
     unsafe {
         (*s).next_deadline = u64::MAX;
-        for i in 0..(*s).next_id {
+        for i in 0..(*s).used_slots {
             let a = *(*s).identities.add(i);
-            if (*a).alive && (*a).waiting {
+            if !a.is_null() && (*a).alive && (*a).waiting {
                 (*s).next_deadline = (*s).next_deadline.min((*a).deadline);
             }
         }
@@ -80,6 +80,8 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
         (*s).live -= 1;
+        *(*s).identities.add((*a).slot) = null_mut();
+        release(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
         supervision::completed(a);
@@ -91,9 +93,9 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
         let mut due = [null_mut::<Actor>(); LIVE];
         let mut count = 0;
         let mut earliest = u64::MAX;
-        for i in 0..(*s).next_id {
+        for i in 0..(*s).used_slots {
             let a = *(*s).identities.add(i);
-            if !(*a).alive || !(*a).waiting || (*a).deadline == u64::MAX {
+            if a.is_null() || !(*a).alive || !(*a).waiting || (*a).deadline == u64::MAX {
                 continue;
             }
             if (*a).deadline <= now {
@@ -257,8 +259,11 @@ pub unsafe extern "C" fn fern_managed_stop(exec: *mut Exec) {
         (*s).first = null_mut();
         (*s).last = null_mut();
         (*s).next_deadline = u64::MAX;
-        for i in 0..(*s).next_id {
+        for i in 0..(*s).used_slots {
             let a = *(*s).identities.add(i);
+            if a.is_null() {
+                continue;
+            }
             (*a).queued = false;
             (*a).next = null_mut();
             finish(a);

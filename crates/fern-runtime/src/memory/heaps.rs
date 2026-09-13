@@ -70,6 +70,59 @@ pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
         f(&mut store.slots.get_mut(&active).unwrap().heap)
     })
 }
+
+/// Attach a PID's exact control edge without rooting another actor's payload.
+/// # Safety
+/// `pointer` is an allocation base in the active heap, and `control` is a live
+/// invocation-owned Actor whose immutable identity the initialized PID retains.
+pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
+    STORE.with(|store| {
+        let mut store = store.borrow_mut();
+        let active = store.active;
+        assert!(
+            store.slots[&0]
+                .heap
+                .blocks
+                .contains_key(&(control as usize))
+        );
+        if active != 0 {
+            store
+                .slots
+                .get_mut(&active)
+                .unwrap()
+                .heap
+                .blocks
+                .get_mut(&(pointer as usize))
+                .expect("PID allocation belongs to current heap")
+                .control = control as usize;
+        }
+    });
+}
+
+pub(super) fn collect(roots: &[usize]) -> Stats {
+    STORE.with(|store| {
+        let mut store = store.borrow_mut();
+        let active = store.active;
+        if active == 0 {
+            // Foreign payload is never scanned. Metadata survives exactly as long
+            // as its wrapper allocation, including until that heap's next sweep.
+            let mut controls = roots.to_vec();
+            for (&id, slot) in &store.slots {
+                if id != 0 {
+                    controls.extend(
+                        slot.heap
+                            .blocks
+                            .values()
+                            .filter_map(|block| (block.control != 0).then_some(block.control)),
+                    );
+                }
+            }
+            store.slots.get_mut(&0).unwrap().heap.trace(&controls)
+        } else {
+            store.slots.get_mut(&active).unwrap().heap.trace(roots)
+        }
+    })
+}
 fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root = heap
         .next_root

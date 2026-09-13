@@ -33,6 +33,25 @@ pub trait Domain {
     }
 }
 
+impl<T: Domain + ?Sized> Domain for Box<T> {
+    fn restore(&mut self, room: &str) -> Result<Option<DomainChange>, Error> {
+        (**self).restore(room)
+    }
+    fn reset(&mut self, room: &str) -> Result<(), Error> {
+        (**self).reset(room)
+    }
+    fn apply(
+        &mut self,
+        room: &str,
+        current: &[Task],
+        next_id: i64,
+        mutation: &Mutation,
+        max_tasks: usize,
+    ) -> Result<DomainChange, Error> {
+        (**self).apply(room, current, next_id, mutation, max_tasks)
+    }
+}
+
 /// Reference implementation for protocol tests and embedding without a compiler.
 pub(crate) struct ReferenceDomain;
 impl Domain for ReferenceDomain {

@@ -7,6 +7,8 @@ mod control_types;
 mod descriptors;
 #[path = "actors/lower.rs"]
 mod lower;
+#[path = "actors/tail_helpers.rs"]
+mod tail_helpers;
 #[path = "actors/validate.rs"]
 mod validate;
 
@@ -19,6 +21,10 @@ pub(super) struct Plan {
     steps: BTreeMap<usize, Type>,
     selectors: BTreeMap<usize, Type>,
     pub(super) entries: BTreeMap<usize, usize>,
+    // Ordinary callable identities remain executable; only their actor callback
+    // selects these separate resumable copies.
+    helpers: BTreeMap<usize, usize>,
+    generic_steps: BTreeSet<usize>,
 }
 
 /// Prepared original layouts remain unchanged when lowering appends private functions.
@@ -36,7 +42,7 @@ pub(super) fn prepare(program: &ir::Program) -> Lowering<Prepared<'_>> {
     union_validation::references(program, &layouts)?;
     validate::program(program, &layouts)?;
     let managed = crate::actors::contracts::validate(program)?;
-    let mut plan = lower::program(program)?;
+    let mut plan = lower::program(program, &layouts)?;
     if plan.functions.is_empty() {
         plan.active = !managed.is_empty();
         plan.managed = managed;

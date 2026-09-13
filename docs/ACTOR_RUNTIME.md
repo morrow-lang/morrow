@@ -24,9 +24,19 @@ conservatively; this is not yet a fully precise collector.
 
 The scheduler executes FIFO continuation callbacks on one thread. Supported
 receives and receiving tail calls suspend into explicit continuation frames.
-Ordinary native helpers, loops and recursion run synchronously inside their
-callback: they have no instruction budget or preemption. There are no parallel
-workers, cross-process PIDs or distributed scheduler guarantees.
+Statically known actor entries also use resumable copies of direct Unit tail-call
+paths that lead to recursive cycles. Each such call publishes its typed argument
+frame, returns from the native stack and queues the next callback, allowing
+siblings to progress. Ordinary calls to the same functions retain their ABI and
+synchronous behavior; finite helper chains keep their existing scheduling.
+
+This initial tail-call subset requires owned parameter/capture types and excludes
+bodies containing `defer`, `for` or `with`. Non-tail calls, numeric-result
+recursion, indirect calls and loops remain synchronous inside a callback, without
+an instruction budget or preemption. One native invocation has no parallel
+workers. The [web host](WEB_WORKERS.md) runs independent room invocations on
+pinned threads; native PIDs never cross those threads. Cross-process PIDs and
+distributed scheduler guarantees remain unimplemented.
 
 ## Typed failure and restart
 
@@ -73,11 +83,21 @@ it does not collect or invalidate another open invocation.
 
 Admission currently caps live actors at 1,024, mailbox messages at 4,096, total
 queued messages at 65,536 and logical retained actor storage at 64 MiB. Actor
-identities have a separate 65,536-per-invocation lifetime limit: dead control
-records are retained to keep stale copied PID and supervision lineage references
-safe. Reusing slots safely requires generation checks and explicit control-edge
-ownership; it is not implemented yet. Repeated reads of an existing port or
-lookups of a supervision lineage do not consume new actor identities.
+identity slots are reused after completion; each new actor receives a distinct,
+nonwrapping 64-bit generation. Exhausting that generation range fails admission
+without publishing an actor. Dead controls remain immutable while a PID retains
+them, so stale sends cannot reach a replacement and supervision lookup preserves
+the original lineage. Each PID in a foreign payload heap carries an explicit
+control edge. Invocation collection visits these edges without scanning foreign
+payload; sweeping the PID or retiring its heap removes the edge. Unreferenced dead
+controls then become collectible. Repeated port reads and supervision lookups do
+not consume generations. Actor and supervisor retirement release their active
+logical storage charges. The 64 MiB quota covers active controls and retained
+payload graphs; dead control records kept alive by stale PIDs remain physical
+collector storage after their active charge is released. It is not a hard bound
+on allocator bytes or collector metadata. Control collection visits allocated
+foreign block metadata linearly; it is not constant-time or a scheduler work
+budget guarantee.
 
 ## Compatibility mailbox behavior
 
@@ -143,6 +163,17 @@ atomic copying, stale PID rejection, fresh restart identity, bounded host reads,
 repeated port reuse and independently rooted host sessions. Native executable
 oracles compile real Fern programs and prove that supervised collection, Regex
 and terminal-layout failures preserve sibling progress and execute active cleanup.
+A native host oracle proves that a recursive Unit helper returns to the host
+before completing and allows a sibling reply within four callbacks. Mutual tail
+helpers complete 100,000 transitions with forced precise collection before each
+handoff, retaining a String and full-width integers. Separate oracles preserve
+ordinary calls, finite-helper scheduling and `defer` cleanup.
+
+Identity regressions complete 66,536 sequential spawn/exit operations with bounded
+managed storage and no accumulated logical charge. They also preserve a stale PID
+and its supervision lineage held only in another actor's heap across precise
+control collection and slot reuse, reclaim controls after payload sweep/retirement,
+and exercise the final `u64` generation without wrapping.
 
 ```sh
 cargo test -p fern-runtime --lib
@@ -169,12 +200,13 @@ verification of the Rust runtime; those earlier totals are not silently reused.
 The compatibility mailbox scheduler does not execute actor functions or
 suspend/resume them. The typed native scheduler executes real actor functions
 with isolated heaps and bounded single-child supervision, but generalized fair
-suspension, safe identity-slot recycling, typed supervisor trees, synchronous
+suspension, typed supervisor trees, synchronous
 request/reply and REPL/FernSim parity remain open. Compatibility supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
 Automatic ancestor escalation and descendant subtree recreation after supervisor
 restart remain incomplete. Linked exits are notifications rather than full
-bidirectional Erlang exit propagation. Neither contract promises parallel workers.
+bidirectional Erlang exit propagation. Neither contract promises parallel workers
+within one native invocation; the web host shards independent invocations.
 
 The compiler executes supported typed actor forms and diagnoses unsupported
 ones. The mailbox and bounded execution tests establish their stated contracts;

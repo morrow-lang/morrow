@@ -67,15 +67,18 @@ pub(crate) async fn run(
                             let response_deadline = if connection.is_none() {
                                 response_deadline.min(join_deadline)
                             } else { response_deadline };
+                            if let Some((route, old_connection)) = connection.take()
+                                && !matches!(tokio::time::timeout_at(response_deadline, app.requests.disconnect(route, old_connection)).await, Ok(Ok(()))) { break; }
                             let (outcome_tx, outcome_rx) = mpsc::channel(owner::OUTCOMES);
                             let (snapshot_tx, snapshot_rx) = watch::channel(None);
                             let (reply, rx) = oneshot::channel();
-                            let request = Request::Join { principal: auth.token.clone(), room, resume: resume_namespace,
-                                previous: connection.take(), outcomes: outcome_tx, snapshots: snapshot_tx, reply };
+                            let route = app.requests.route(&room);
+                            let request = Request::Join { capability: auth.capability(), room, resume: resume_namespace,
+                                outcomes: outcome_tx, snapshots: snapshot_tx, reply };
                             if app.requests.try_send(request).is_err() { break; }
                             match tokio::time::timeout_at(response_deadline, rx).await {
                                 Ok(Ok(Ok(connected))) => {
-                                    connection = Some(connected.connection.clone());
+                                    connection = Some((route, connected.connection.clone()));
                                     outcomes = outcome_rx;
                                     snapshots = snapshot_rx;
                                     if !publish(&mut socket, ServerMessage::Connected(connected), limit).await { break; }
@@ -85,11 +88,11 @@ pub(crate) async fn run(
                             }
                         }
                         Ok(message @ ClientMessage::Command(_)) => {
-                            let Some(connection) = &connection else {
+                            let Some((route, connection)) = &connection else {
                                 publish(&mut socket, ServerMessage::Error(Error::Unauthorized), limit).await;
                                 break;
                             };
-                            if app.requests.try_send(Request::Command { principal: auth.token.clone(), connection: connection.clone(), message }).is_err() { break; }
+                            if app.requests.try_send(Request::Command { route: *route, principal: auth.token.clone(), connection: connection.clone(), message }).is_err() { break; }
                         }
                         Err(error) => { publish(&mut socket, ServerMessage::Error(error), limit).await; break; }
                     },
@@ -105,8 +108,12 @@ pub(crate) async fn run(
             }
         }
     }
-    if let Some(connection) = connection {
-        let _ = app.requests.try_send(Request::Disconnect(connection));
+    if let Some((route, connection)) = connection {
+        let _ = app.requests.try_send(Request::Disconnect {
+            route,
+            connection,
+            reply: None,
+        });
     }
     let _ = write(&mut socket, Message::Close(None), limit).await;
 }

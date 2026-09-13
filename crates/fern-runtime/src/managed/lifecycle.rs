@@ -101,7 +101,8 @@ pub unsafe extern "C" fn fern_managed_spawn(
             return null_mut();
         }
         let cost = cost::frame(s, closure);
-        if (*s).stopped || (*s).live >= LIVE || (*s).next_id >= IDS || cost.is_none() {
+        let slot = vacant_slot(s);
+        if (*s).stopped || (*s).live >= LIVE || slot.is_none() || cost.is_none() {
             fail(exec, 9);
             return null_mut();
         }
@@ -123,8 +124,6 @@ pub unsafe extern "C" fn fern_managed_spawn(
             fault: &raw mut (*a).fault,
         };
         (*a).heap = memory::create_actor_heap(a.cast(), std::mem::size_of::<Actor>() / 8);
-        (*s).next_id += 1;
-        (*a).id = (*s).next_id as u64;
         (*a).alive = true;
         (*a).mailbox = mailbox;
         {
@@ -134,15 +133,8 @@ pub unsafe extern "C" fn fern_managed_spawn(
         }
         (*a).frame_cost = cost;
         (*a).deadline = u64::MAX;
-        *(*s).identities.add((*s).next_id - 1) = a;
-        (*s).live += 1;
-        let pid = allocate::<Pid>();
-        *pid = Pid {
-            session: s,
-            actor: a,
-            id: (*a).id,
-            mailbox,
-        };
+        publish_actor(s, a, slot.unwrap());
+        let pid = new_pid(a);
         enqueue(a);
         pid.cast()
     }
@@ -164,14 +156,7 @@ pub unsafe extern "C" fn fern_managed_send(
         }
         let s = (*exec).session;
         let pid = identity.cast::<Pid>();
-        if (*pid).session != s
-            || (*pid).id == 0
-            || (*pid).id > (*s).next_id as u64
-            || *(*s).identities.add((*pid).id as usize - 1) != (*pid).actor
-            || !(*(*pid).actor).alive
-            || (*pid).mailbox != ty
-            || (*s).stopped
-        {
+        if !live_pid(s, pid) || (*pid).mailbox != ty {
             return abi::result_err(3);
         }
         let a = (*pid).actor;

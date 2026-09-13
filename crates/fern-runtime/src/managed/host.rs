@@ -128,9 +128,10 @@ pub unsafe extern "C" fn fern_managed_port(exec: *mut Exec, string: *const Type)
             return null_mut();
         }
         let s = (*exec).session;
+        let slot = vacant_slot(s);
         if (*s).stopped
             || (*s).live >= LIVE
-            || (*s).next_id >= IDS
+            || slot.is_none()
             || !charge(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>())
         {
             fail(exec, 9);
@@ -146,21 +147,12 @@ pub unsafe extern "C" fn fern_managed_port(exec: *mut Exec, string: *const Type)
             fault: &raw mut (*a).fault,
         };
         (*a).heap = memory::create_actor_heap(a.cast(), std::mem::size_of::<Actor>() / 8);
-        (*s).next_id += 1;
-        (*a).id = (*s).next_id as u64;
         (*a).alive = true;
         (*a).host_port = true;
         (*a).mailbox = string;
         (*a).deadline = u64::MAX;
-        *(*s).identities.add((*s).next_id - 1) = a;
-        (*s).live += 1;
-        let pid = allocate::<Pid>();
-        *pid = Pid {
-            session: s,
-            actor: a,
-            id: (*a).id,
-            mailbox: string,
-        };
+        publish_actor(s, a, slot.unwrap());
+        let pid = new_pid(a);
         pid.cast()
     }
 }
@@ -172,12 +164,7 @@ unsafe fn port_actor(exec: *mut Exec, port: *mut c_void) -> Option<*mut Actor> {
         }
         let s = (*exec).session;
         let pid = port.cast::<Pid>();
-        if (*pid).session != s
-            || (*pid).id == 0
-            || (*pid).id > (*s).next_id as u64
-            || *(*s).identities.add((*pid).id as usize - 1) != (*pid).actor
-            || (*s).stopped
-        {
+        if !live_pid(s, pid) {
             return None;
         }
         let a = (*pid).actor;

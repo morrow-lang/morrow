@@ -158,7 +158,7 @@ authorization and operational administration remain application work.
 | [`fern-browser-worker`](../crates/fern-browser-worker) | Rust service worker: versioned static-asset caching and offline loading |
 | [`fern-web-protocol`](../crates/fern-web-protocol) | Rust wire schemas, authentication boundaries, deduplication, revisions and recovery |
 | [`fern-web-app`](../crates/fern-web-app) | Build-time native Fern object, thread-confined rooted host bridge and optional atomic checkpoints |
-| [`fern-web`](../crates/fern-web) | Axum/Tokio transport, authentication, dedicated actor owner thread and embedded assets |
+| [`fern-web`](../crates/fern-web) | Axum/Tokio transport, authentication, pinned actor workers and embedded assets |
 | [`fern/src/wasm`](../crates/fern/src/wasm.rs) | Separate compiler backend with precise aggregate tracing and managed host ABI |
 
 The compiler supports records, tagged sums, Option/Result, lists, tuples and
@@ -177,13 +177,29 @@ bounded budget. The host uses nonblocking scheduler polling and a bounded typed
 String reply port, with every retained native pointer rooted on its owning
 thread. No compiler or interpreter ships in the web binary.
 
-This owner thread currently serializes rooms. Continuation-step limits do not
-preempt arbitrary synchronous helper calls. General helper suspension, fair
-multicore work, complete native precise tracing and clustered ownership remain
+`FERN_WEB_WORKERS` selects 1–32 pinned actor threads, defaulting to available CPU
+parallelism capped at four. A stable room hash selects one owner, preserving
+per-room ordering. Workers share global admission, room, namespace and connection
+limits. A separate authentication owner revokes queued commands without waiting
+for application execution; an already executing command may finish. Durable
+commits share a serialized Rust checkpoint writer. The [worker contract](WEB_WORKERS.md)
+records independent progress and cancellation tests.
+
+Rooms on the same worker still share its execution time. Continuation-step limits
+do not preempt arbitrary synchronous helper calls. General helper suspension,
+work stealing, complete native precise tracing and clustered ownership remain
 open. The wire envelope is a Rust schema; automatic Fern-to-wire schema generation
 and an application-independent build manifest are also separate work.
 
 ## Verification
+
+The 2026-09-13 worker/lifecycle checkpoint passed the complete macOS ARM64
+`cargo xtask check`: 1,890 Rust tests, 305 native-output fixtures, 18 examples,
+63 dynamic compatibility programs, 295 atomic rejections, 64 grammar and 192
+mutation cases, formatting, dependency notices and workspace Clippy. Tests cover
+independent worker progress, global quotas and revocation, shared durable writes,
+66,536 actor lifecycles and recursive Unit-tail suspension. Deployment evidence
+below is dated separately; earlier artifact sizes do not measure this change.
 
 Run the reproducible browser check against a built server with a Chromium/Edge
 executable available:
@@ -228,11 +244,12 @@ static ELF validation; execution on x86-64 has not been verified. A CI job now
 builds the static x86-64 server and runs the browser acceptance, but no GitHub
 execution of that new job is claimed here.
 
-The final stripped release artifacts below include the application assets, full
+The **historical 2026-09-12** stripped release artifacts below include application assets, full
 Fern license and third-party notices. All three embed browser asset revision
 `0d084490cbb8ff2ae057124082f998bfd7f50aa003839cd10ca658d2dcacd0a2`.
-MiB uses 1,048,576 bytes. These are the complete preview server sizes, not compiler
-sizes or a general Fern application size guarantee.
+MiB uses 1,048,576 bytes. These sizes describe that earlier preview checkpoint;
+the paths are reused by later builds and do not identify the current files.
+They are not compiler sizes or a general Fern application size guarantee.
 
 | Artifact | Bytes | MiB | Verification |
 | --- | ---: | ---: | --- |

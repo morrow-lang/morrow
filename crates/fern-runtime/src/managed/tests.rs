@@ -15,6 +15,9 @@ pub(super) fn scalar() -> Type {
     }
 }
 
+#[path = "identity_tests.rs"]
+mod identities;
+
 #[test]
 fn entries_are_queued_and_drained_fifo_with_independent_fault_slots() {
     TRACE.with(|trace| trace.borrow_mut().clear());

@@ -347,7 +347,13 @@ async fn unauthorized_origin_and_malformed_messages_are_rejected() {
 async fn acknowledged_room_recovers_after_server_restart_with_a_fresh_incarnation() {
     let directory =
         std::env::temp_dir().join(format!("fern-transport-durable-{}", std::process::id()));
-    std::fs::create_dir(&directory).unwrap();
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .mode(0o700)
+            .create(&directory)
+            .unwrap();
+    }
     struct Cleanup(std::path::PathBuf);
     impl Drop for Cleanup {
         fn drop(&mut self) {

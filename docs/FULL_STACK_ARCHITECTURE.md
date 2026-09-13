@@ -47,8 +47,12 @@ The collaborative checklist runs its complete typed domain, local model,
 event update and keyed view in compiled Fern. A generic Rust browser host supplies
 DOM, storage and transport capabilities. On the server, a native compiled Fern
 actor owns each room, reached through explicitly rooted host sessions and typed
-reply ports on a dedicated owner thread. Optional local room checkpoints commit
-before acknowledgement and restore into actors under fresh incarnations.
+reply ports on pinned owner threads. Stable room placement shares global
+admission and resource limits across configurable workers; a separate
+authentication owner can revoke queued work while a room is busy. Optional local
+room checkpoints commit through one shared Rust writer before acknowledgement
+and restore into actors under fresh incarnations. See the
+[worker contract](WEB_WORKERS.md) for the implemented concurrency boundary.
 
 The bounded command/snapshot protocol implements revision conflicts, sequence
 high-water marks, retained duplicate outcomes, distinct resource/namespace/socket
@@ -139,8 +143,9 @@ Supervision must wrap the actors that actually execute typed Fern functions.
 Define child startup, failure, cancellation, restart policy, restart intensity,
 subtree shutdown and fresh identity explicitly. Recoverable actor failures do not
 stop unrelated actors. Ordinary recoverable native-runtime faults must propagate
-through actor failure handling instead of the current process-wide `abi::fault`
-exit path; a supervisor cannot recover after the whole process has exited.
+through actor failure handling. Generated checked source calls already carry an
+actor fault cell; legacy unchecked `abi::fault` entry points can still terminate
+the process. A supervisor cannot recover after the whole process has exited.
 Runtime corruption or an unsafe implementation defect may
 still terminate the OS process; native actors are not security sandboxes.
 
@@ -299,27 +304,29 @@ native code or WebAssembly alone is not evidence of a faster user experience.
 ## Current gaps and complete Fern application delivery
 
 Actor-owned payload heaps and copied messages are implemented. Native callbacks
-still run cooperatively; one actor fault can stop the invocation. Conservative
-root discovery, blocking services, lifetime identity limits and deadlock handling
-still require changes for long-lived supervised applications. The Rust web server
-does not establish those guarantees for native Fern actors. See
+still run cooperatively. Eligible recursive Unit-tail paths yield through rooted
+continuations; numeric/non-tail calls and collection loops remain synchronous.
+Opt-in typed supervision restarts supported checked faults while unsupervised
+faults can stop their invocation. Reusable slots preserve immutable generations
+and stale-PID semantics. Rooted native host sessions can remain idle for external
+input. General preemption, complete precise root/layout coverage and bounded
+blocking-service scheduling remain open. See
 [current actor contracts](RUST_ACTORS.md).
 
-Grow the working **two-browser collaborative checklist** into a full Fern
-application: a compiled domain actor owns the list, session gateways deliver
-authorized commands, and a complete Fern model/update/view program renders
-confirmed state plus local drafts through the Rust host. Keep one server node,
-bounded ephemeral in-memory state and snapshots for this integration milestone.
-Server or domain-actor restart creates a new resource incarnation and visibly
-resets the affected demo state; pending commands are not automatically replayed
-into that incarnation. Durable application recovery is a later release gate.
-The demo does not need clustering, hot code upgrades, a general ORM or a public
-package registry.
+The **two-browser collaborative checklist** now executes its compiled domain
+actor and complete Fern model/update/view. Pinned worker threads own independent
+room runtimes behind authorized gateways. The process shares admission and
+resource limits, and optionally commits room checkpoints before acknowledgement.
+Server or domain-actor restart creates a fresh incarnation; configured durable
+state is restored, while pending commands are not automatically replayed into
+the new incarnation. Transactional external effects and multi-node durable
+ownership remain later gates. The application-specific wire schema and build
+paths still need a general framework contract and packaging API.
 
 Implementation gates are ordered in the [roadmap](../ROADMAP.md). Browser and
 server foundations can progress independently after shared type/layout contracts.
-A single-worker preview may prove the browser protocol before multicore support;
-it must be labeled as such and cannot satisfy the scaling gate.
+Independent room-worker progress does not establish general actor preemption,
+work stealing or distributed execution. Sustained scaling retains its own gate.
 
 The complete Fern demo is accepted only when real browser tests demonstrate
 all of the following. The current preview covers part of this list; protocol unit

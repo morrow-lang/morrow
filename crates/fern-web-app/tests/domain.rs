@@ -169,3 +169,147 @@ fn long_lived_native_room_keeps_only_rooted_state_under_precise_host_collection(
         "completed requests retained an unbounded invocation heap"
     );
 }
+
+#[test]
+fn independent_actor_threads_share_only_the_durable_rust_checkpoint_writer() {
+    let path = std::env::temp_dir().join(format!("fern-shared-checkpoint-{}", std::process::id()));
+    std::fs::create_dir(&path).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
+    }
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(path.clone());
+    let checkpoint = fern_web_app::SharedCheckpoint::open(&path).unwrap();
+    let workers: Vec<_> = (0..2)
+        .map(|worker| {
+            let checkpoint = checkpoint.clone();
+            std::thread::spawn(move || {
+                // The !Send Fern domain and every native heap are created here.
+                let mut domain = NativeDomain::with_checkpoint(checkpoint);
+                let room = format!("worker-{worker}");
+                let mut tasks = Vec::new();
+                for id in 1..=10 {
+                    tasks = domain
+                        .apply(
+                            &room,
+                            &tasks,
+                            id,
+                            &Mutation::Add {
+                                label: format!("{room}-{id}"),
+                            },
+                            100,
+                        )
+                        .unwrap()
+                        .tasks;
+                }
+                assert_eq!(tasks.len(), 10);
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().unwrap();
+    }
+    drop(checkpoint);
+    let mut restored = NativeDomain::persistent(&path).unwrap();
+    for worker in 0..2 {
+        let state = restored
+            .restore(&format!("worker-{worker}"))
+            .unwrap()
+            .unwrap();
+        assert_eq!(state.tasks.len(), 10);
+        assert_eq!(state.next_id, 11);
+        assert_eq!(state.tasks[9].label, format!("worker-{worker}-10"));
+    }
+}
+
+#[test]
+fn a_stale_room_owner_cannot_overwrite_another_owners_acknowledged_checkpoint() {
+    let path = std::env::temp_dir().join(format!("fern-checkpoint-cas-{}", std::process::id()));
+    let mut builder = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(&path).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(path.clone());
+    let checkpoint = fern_web_app::SharedCheckpoint::open(&path).unwrap();
+    let mut first = NativeDomain::with_checkpoint(checkpoint.clone());
+    let seed = first
+        .apply(
+            "room",
+            &[],
+            1,
+            &Mutation::Add {
+                label: "acknowledged".into(),
+            },
+            100,
+        )
+        .unwrap();
+    let mut stale = NativeDomain::with_checkpoint(checkpoint);
+    let initial = stale
+        .apply(
+            "room",
+            &seed.tasks,
+            2,
+            &Mutation::Remove { id: Decimal(99) },
+            100,
+        )
+        .unwrap();
+    assert_eq!(initial.status, Status::NotFound);
+    let committed = first
+        .apply(
+            "room",
+            &seed.tasks,
+            2,
+            &Mutation::SetDone {
+                id: Decimal(1),
+                done: true,
+            },
+            100,
+        )
+        .unwrap();
+    assert!(
+        stale
+            .apply(
+                "room",
+                &seed.tasks,
+                2,
+                &Mutation::Add {
+                    label: "stale write".into()
+                },
+                100
+            )
+            .is_err()
+    );
+    let retained = first.restore("room").unwrap().unwrap();
+    assert_eq!(retained.tasks, committed.tasks);
+    assert!(retained.tasks[0].done);
+    stale.reset("room").unwrap();
+    let recovered = stale
+        .apply(
+            "room",
+            &retained.tasks,
+            2,
+            &Mutation::Add {
+                label: "after recovery".into(),
+            },
+            100,
+        )
+        .unwrap();
+    assert!(recovered.tasks[0].done);
+    assert_eq!(recovered.tasks.len(), 2);
+}

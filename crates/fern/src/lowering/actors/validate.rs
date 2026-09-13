@@ -185,7 +185,11 @@ fn actor_expr(
 }
 
 /// Follow concrete immutable layouts once, refusing unproved Result/function/native transfers.
-fn sendable(ty: &Type, layouts: &HashMap<Type, &ir::TypeLayout>, span: Span) -> Lowering<()> {
+pub(super) fn sendable(
+    ty: &Type,
+    layouts: &HashMap<Type, &ir::TypeLayout>,
+    span: Span,
+) -> Lowering<()> {
     let mut pending = vec![ty];
     let mut seen = BTreeSet::new();
     let mut work = 0;

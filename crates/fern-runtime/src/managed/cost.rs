@@ -239,10 +239,7 @@ impl Cost {
                 6 => {
                     let pid = pointer.cast::<Pid>();
                     let s = self.session;
-                    (*pid).session == s
-                        && (*pid).id > 0
-                        && (*pid).id <= (*s).next_id as u64
-                        && *(*s).identities.add((*pid).id as usize - 1) == (*pid).actor
+                    valid_pid(s, pid)
                         && (*pid).mailbox == *(*ty).children
                         && self.add(std::mem::size_of::<Pid>())
                 }

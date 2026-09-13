@@ -376,6 +376,71 @@ fn forged_no_else_never(inactive: bool) -> fern_compiler::ir::Program {
 }
 
 #[test]
+fn ordinary_recursive_cli_does_not_acquire_actor_descriptors_or_a_session() {
+    let program = checked(
+        "fn helper(n: Int):\n    if n == 0: ()\n    else: helper(n - 1)\nfn main(): helper(3)\n",
+    );
+    let native = lowering::emit(&program).unwrap();
+    assert!(!native.contains("fern_managed_"));
+    assert!(!native.contains("actor_descriptor"));
+    assert!(!native.contains("actor_callback"));
+}
+
+#[test]
+fn resumable_unit_helpers_validate_control_types_before_replacing_results() {
+    use fern_compiler::{Span, Type, ir::*};
+    for inactive in [false, true] {
+        let mut program = checked(
+            "fn helper(n: Int):\n    if n == 0: ()\n    else: helper(n - 1)\nfn main():\n    let pid: Pid(()) = spawn(() -> helper(3))\n    ()\n",
+        );
+        let function = program
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "helper")
+            .unwrap();
+        let mut conditional = match &function.body.kind {
+            ExprKind::Block(stmts) => match stmts.last().unwrap() {
+                Stmt::Expr(expr) => expr.clone(),
+                _ => panic!("conditional fixture"),
+            },
+            _ => function.body.clone(),
+        };
+        let ExprKind::If { then_branch, .. } = &mut conditional.kind else {
+            panic!("conditional fixture");
+        };
+        **then_branch = Expr {
+            kind: ExprKind::Int(42),
+            ty: Type::Int,
+            span: Span::default(),
+        };
+        function.body = if inactive {
+            Expr {
+                kind: ExprKind::Block(vec![
+                    Stmt::Expr(Expr {
+                        kind: ExprKind::Return(Box::new(Expr {
+                            kind: ExprKind::Unit,
+                            ty: Type::Unit,
+                            span: Span::default(),
+                        })),
+                        ty: Type::Never,
+                        span: Span::default(),
+                    }),
+                    Stmt::Expr(conditional),
+                ]),
+                ty: Type::Unit,
+                span: Span::default(),
+            }
+        } else {
+            conditional
+        };
+        assert!(
+            lowering::lower(&program).is_err(),
+            "Unit tail cloning cannot erase forged branch evidence, inactive={inactive}"
+        );
+    }
+}
+
+#[test]
 fn active_no_else_if_cannot_claim_divergence_when_its_condition_completes() {
     assert!(lowering::emit(&forged_no_else_never(false)).is_err());
 }

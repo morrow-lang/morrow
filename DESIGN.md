@@ -17,12 +17,13 @@ experience while small CLI programs retain a focused dependency surface.
 
 Memory remains automatic. Actor-owned payload heaps and copied messages are
 implemented; precise native root/layout coverage and fair resumable scheduling
-remain open. The separate WASM backend supports scalar values and a bounded
-precise String heap. WasmGC will be evaluated before ABI stabilization; borrow
+remain open. The separate WASM backend supports scalar values, strings and bounded
+aggregates with precise tracing. WasmGC will be evaluated before ABI stabilization; borrow
 inference and reuse remain internal optimizations. The working
-[web preview](docs/WEB_PREVIEW.md) executes Fern policy through a Rust browser
-host, with Rust-owned server state. Full Fern UI/domain actors and scaling remain
-integration goals.
+[web preview](docs/WEB_PREVIEW.md) executes a complete typed Fern model/update/view
+through a generic Rust browser host and native Fern room actors on pinned worker
+threads, with optional durable checkpoints. General application packaging,
+preemptive scheduling and clustered ownership remain integration goals.
 The [full-stack architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the current
 direction and supersedes conflicting older proposals below. The
 [roadmap](ROADMAP.md) distinguishes implemented features from acceptance gates.
@@ -1970,9 +1971,11 @@ Fern uses an **actor-based concurrency model** inspired by Erlang/Elixir, with t
 
 **Implementation boundary:** the default Rust frontend executes the bounded native
 subset in [the native actor contract](docs/RUST_ACTORS.md), now with actor-owned
-payload heaps and copied messages. Generalized resumable scheduling, typed
-supervision, multicore execution and complete actor REPL/FernSim parity remain
-planned. The old C reference implementation has been removed.
+payload heaps, copied messages, bounded typed supervision and recursive Unit-tail
+continuations. The web host pins independent room runtimes to multiple threads.
+Generalized resumable scheduling, per-invocation multicore execution and complete
+actor REPL/FernSim parity remain planned. The old C reference implementation has
+been removed.
 
 ### Lightweight Processes
 
@@ -2573,7 +2576,9 @@ fern fmt src/
 fern repl
 ```
 
-Output is a single statically-linked binary with no runtime dependencies.
+Output is a native executable that runs without the Fern compiler. Ordinary host
+builds retain platform system-library dependencies. The Linux musl web packaging
+path separately verifies a fully static executable with embedded browser assets.
 
 ---
 
@@ -3775,28 +3780,11 @@ pub fn find_user(id: Int) -> Option(User):
 
 ### Performance Escape Hatch
 
-If stdlib needs mutation for performance:
-
-```c
-// In C (stdlib/internal/fast_sum.c)
-int64_t sum_array_fast(const int64_t *arr, size_t len) {
-    int64_t total = 0;  // Mutation in C
-    for (size_t i = 0; i < len; i++) {
-        total += arr[i];
-    }
-    return total;
-}
-```
-
-```fern
-# In Fern stdlib
-foreign "C" fn c_sum_array(arr: *const Int, len: Int) -> Int
-
-pub fn sum_optimized(items: List(Int)) -> Int:
-    c_sum_array(items.as_ptr(), items.len())
-```
-
-Users get fast, safe API without seeing mutation.
+Runtime internals may use mutation in Rust behind the checked native ABI. A
+standard-library optimization must preserve Fern's immutable aliases, checked
+errors and collector roots. It needs an independent output/ABI regression and
+measurement showing the improvement. Fern-owned C implementations are retired;
+third-party native libraries may still be accessed through Rust wrappers.
 
 ---
 
@@ -4071,31 +4059,10 @@ fn sum_list(items: List(Int)) -> Int:
 
 ### Performance Escape Hatch
 
-For stdlib authors, use C FFI for performance-critical code:
-
-```c
-// stdlib/internal/fast_math.c
-int64_t sum_fast(const int64_t *arr, size_t len) {
-    int64_t total = 0;  // Mutation in C is fine
-    for (size_t i = 0; i < len; i++) {
-        total += arr[i];
-    }
-    return total;
-}
-```
-
-```fern
-# stdlib/list.fn
-foreign "C" fn c_sum_fast(arr: *const Int, len: Int) -> Int
-
-pub fn sum_optimized(items: List(Int)) -> Int:
-    c_sum_fast(items.as_ptr(), items.len())
-```
-
-**Users get:**
-- Fast performance (C-level)
-- Safe API (no mutation visible)
-- Immutable semantics
+Standard-library performance work belongs in Rust runtime helpers with explicit
+ABI, ownership and error contracts. Internal mutation must preserve immutable
+Fern semantics. Measure a real workload before adding a specialized helper;
+third-party native code remains permitted through Rust wrappers.
 
 ### Why No `mut`, `while`, or `loop` in v1
 
@@ -4536,7 +4503,8 @@ Fern source → typed Rust frontend → machine IR → Cranelift object → host
 
 The workspace separates `fern`, `fern-json`, `fern-runtime`,
 `fern-runtime-native`, `fern-test-supervisor` and `xtask`, with optional
-`fern-web-protocol`, `fern-web`, `fern-browser` and `fern-browser-worker` packages.
+`fern-web-protocol`, `fern-web-app`, `fern-web`, `fern-browser` and
+`fern-browser-worker` packages.
 Native startup is isolated
 from the runtime core so Rust tests can link its ABI without a duplicate main.
 The shared JSON crate implements bounded parsing, exact numbers and immutable
@@ -4547,8 +4515,9 @@ payload heaps, copied messages, compiler root frames, temporary roots and finali
 Rust values. Conservative stack/register and heap-word scanning remain enabled;
 reference metadata remains bookkeeping. The WASM backend branches from checked
 semantic IR before native lowering, preserving i64 integers and using a separate
-bounded precise heap for supported String operations. Complete precise native
-roots/layouts, broader browser values, borrowing and reuse remain implementation
+bounded precise heap for strings, records, sums, lists, tuples, Option/Result and
+rooted host handles. Complete precise native roots/layouts, browser closures/maps,
+inferred borrowing and reuse remain implementation
 work. See [runtime memory](docs/MEMORY_MANAGEMENT.md) and
 the [full-stack target architecture](docs/FULL_STACK_ARCHITECTURE.md).
 

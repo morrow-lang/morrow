@@ -38,6 +38,15 @@ Mailbox schemes are inferred from the owned receive patterns, with no arbitrary 
 
 Receiving functions return Unit and may suspend in tail position, block statements/initializers, If/Match branches, and explicit returns. Direct receiving calls in tail position update a continuation frame. Receiving-call Result arguments currently retain their caller duties; an otherwise valid callee-based discharge may be conservatively rejected until receiving-call summaries are proved. Non-tail receiving calls, receive inside For/With or strict operands, arbitrary indirect receiving calls, and receiving functions owning defer are diagnosed as unsupported. Ordinary pure spawned functions retain ordinary function-exit defer behavior. Calls into ordinary helpers retain their normal cleanup behavior. An actor suspension never runs defer.
 
+Statically known actor entries can also suspend direct Unit tail-call paths that
+lead to recursive helper cycles. The compiler retains ordinary callable entries
+and emits separate actor continuations; each recursive handoff returns from the
+native stack and queues its typed argument frame. This subset requires owned
+capture/parameter types and excludes bodies with `defer`, `for` or `with`.
+Ordinary calls, finite helper paths, non-tail calls, numeric-result recursion and
+indirect calls preserve synchronous behavior. This is cooperative recursion
+support, not an instruction budget for arbitrary source computation.
+
 The REPL rejects 105A actor programs before effects or retained definitions change. Mailbox actor APIs and their supervision policies remain separate; complete FernSim parity is not claimed.
 
 ## Execution ABI and provenance
@@ -46,7 +55,7 @@ Ordinary generated ABI remains `(environment, fault, source arguments)` with an 
 
 The native step callback is `int64_t(exec*, frame*)`; selectors are `void*(exec*, frame*, int64_t payload)`. Cranelift transports both native status and payload as 64-bit words. Immutable function descriptors bind exact code identity, capture count/types, callback kind, and mailbox type. Type descriptors have four 64-bit words: kind, count, child pointers, and sum arities. Public IR is validated before private CPS conversion; caller-created IR cannot construct the opaque private lowered operations. Original and inactive signatures, actor metadata, closure identities, and capture arity/types are checked before cloning. Unknown identities have no fallback.
 
-A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains until the invocation is collected. Each actor owns a payload heap for its captures, frames and messages; invocation control data remains separately owned. Small bounded temporary graph indices use Rust-owned collections and are reclaimed on all paths.
+A selected frame is allocated only after the complete pattern and guard succeed. Registration validates both selector and timeout identities before charging or publishing roots. Its new selector/timeout captures replace the spent entry root. Selection or timeout installs the successor before retiring old receive roots. Completion/cancellation clears frames, selectors, timeout state, messages, and queue links; dead identity metadata remains while a PID or supervision lineage retains it. Each actor owns a payload heap for its captures, frames and messages; invocation control data remains separately owned. Small bounded temporary graph indices use Rust-owned collections and are reclaimed on all paths.
 
 Spawn and send copy supported message/capture graphs into receiver-owned storage,
 preserving sharing within a copied graph. Collection cannot follow payloads into
@@ -66,7 +75,8 @@ bodies. An unsupervised actor fault stops the session after active ordinary
 helper cleanup. A supervised child instead uses its bounded restart policy.
 A waiting CLI session without runnable actors or a pending timer reports
 deadlock. Blocking host calls and nonyielding source computation can delay
-scheduling; ordinary helpers and loops have no preemption or instruction budget.
+scheduling; work outside supported continuation boundaries has no preemption or
+instruction budget.
 
 Native application hosts can instead retain an explicitly rooted invocation
 between calls. `fern_managed_poll` advances a bounded number of continuation
@@ -90,7 +100,24 @@ the native scheduler, including timely unmatched messages and late arrivals.
 This timer coverage does not establish generalized actor, supervision, or REPL
 simulation parity.
 
-Limits are 1024 live actors,65536 lifetime identities,4096 messages per actor,65536 queued messages globally, and 64 MiB aggregate logical retained ownership. Descriptor tables and value graph indices each contain at most 4096 entries, with 128 payload-depth limit. Descriptor registration shares 1,048,576 work units across identity and metadata inspection; each enqueue/frame graph attempt shares the same finite allowance across descriptor work, identity lookup, graph traversal, and 64-byte String scan units. Immutable DAGs share within one owner graph; separate enqueues are charged separately. Unknown native object graphs are not treated as scalar pointers. PID graphs must belong to the same session and exact mailbox identity.
+Limits are 1024 live actors, 4096 messages per actor, 65536 queued messages globally, and 64 MiB aggregate logical retained ownership. Actor slots are reusable; nonwrapping `u64` generations replace the old 65536-lifetime identity limit. Exhausted generations fail admission without charging storage. Descriptor tables and value graph indices each contain at most 4096 entries, with 128 payload-depth limit. Descriptor registration shares 1,048,576 work units across identity and metadata inspection; each enqueue/frame graph attempt shares the same finite allowance across descriptor work, identity lookup, graph traversal, and 64-byte String scan units. Immutable DAGs share within one owner graph; separate enqueues are charged separately. Unknown native object graphs are not treated as scalar pointers. PID graphs must belong to the same session and exact mailbox identity.
+
+An exited Actor control record is never overwritten when its slot is reused.
+PID wrappers retain the exact actor generation; send also checks the live slot,
+while supervision lookup follows the original immutable lineage. Foreign-heap
+PID allocations and copies record one explicit control edge in allocation
+metadata. Invocation collection visits those edges in time proportional to
+allocated foreign blocks, without reading their payload bytes. Payload sweep or
+heap retirement removes edges with their wrappers. The ordinary native collector
+still scans stack/register roots; this edge protocol does not claim fully precise
+collection for every native helper.
+
+The logical quota accounts for active actor/supervisor headers and retained
+payload graphs. Exiting releases the active header charge even if a stale PID
+keeps dead control metadata physically reachable. Collector byte accounting
+continues to include those allocations until their final roots disappear. The
+logical limit is therefore not a hard bound on allocator bytes, metadata or
+collection work.
 
 Enqueue validates the graph and reserves bytes before copying into the receiver's heap. Its monotonic timestamp is read at commit after potentially expensive validation/allocation; a clock failure rolls back the reservation and leaves the mailbox unchanged. Failed sends never remove or reorder messages or publish partial copies. Receive validates duration, selector, timeout mailbox, and clock before publishing roots. Checked clocks reject invalid/overflowing time representations. GC storage is distinct from this logical retained quota: retiring a message root makes its graph collectible; retiring an actor releases its payload heap after active scopes exit. Actual host allocator exhaustion is not a recoverable logical-quota failure.
 
@@ -127,6 +154,13 @@ for bounded subprocess cleanup. The former C/FernSim/sanitizer totals remain
 historical evidence; [workspace acceptance](RUST_WORKSPACE.md) identifies the
 actual debug and optimized Rust checks.
 
+Recursive Unit helper oracles independently assert bounded host-poll progress
+for a sibling and 100,000 mutual tail calls under forced precise collection,
+preserving String and full-width integer arguments. The same helpers remain
+callable through the ordinary native ABI. Additional oracles preserve finite
+helper scheduling, non-tail computation and cleanup, and reject forged control
+types even in inactive code before private continuation conversion.
+
 The ownership work adds independent cross-actor copy, root and heap-retirement
 oracles. Supervision tests prove pristine initializer replay, fresh identities,
 stale-send rejection and sibling progress after checked failures. Real compiled
@@ -138,5 +172,4 @@ The [web application](WEB_PREVIEW.md) now keeps each checklist room's state in a
 compiled native Fern actor through `fern-web-app`; the Rust gateway receives
 checked snapshot copies through a bounded reply port. Browser application logic
 is compiled Fern WebAssembly. This application evidence does not establish
-generalized native actor fairness, typed supervisor trees, safe identity-slot
-recycling or multicore scaling.
+generalized native actor fairness, typed supervisor trees or multicore scaling.
