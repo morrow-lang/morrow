@@ -1,12 +1,12 @@
 use super::*;
 use std::ptr::null;
-thread_local! { static TRACE: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) }; }
-unsafe extern "C" fn complete(_: *mut Exec, frame: *mut c_void) -> i64 {
+thread_local! { pub(super) static TRACE: std::cell::RefCell<Vec<i64>> = const { std::cell::RefCell::new(Vec::new()) }; }
+pub(super) unsafe extern "C" fn complete(_: *mut Exec, frame: *mut c_void) -> i64 {
     let value = unsafe { *frame.cast::<i64>().add(1) };
     TRACE.with(|trace| trace.borrow_mut().push(value));
     2
 }
-fn scalar() -> Type {
+pub(super) fn scalar() -> Type {
     Type {
         kind: 0,
         count: 0,
@@ -57,6 +57,176 @@ fn malformed_descriptor_rejected_before_publication() {
         assert!(fern_managed_new(&mut existing, null(), 0).is_null());
     }
     assert_eq!(existing, 7);
+}
+
+#[test]
+fn hosted_session_waits_for_external_input_without_fault_and_resumes_with_a_budget() {
+    TRACE.with(|trace| trace.borrow_mut().clear());
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = fern_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        assert!(!exec.is_null());
+        // The persistent host root, not a conservative stack word, owns Session.
+        memory::fern_gc_collect_precise();
+        assert_eq!(*(*exec).fault, 0);
+        let pid = f.spawn(exec, 99);
+        dequeue((*exec).session);
+        assert_eq!(f.receive(pid, 7, 42, 0, -1), 1);
+        assert_eq!(fern_managed_poll(exec, 1), 1);
+        assert_eq!(*(*exec).fault, 0);
+        let sent = fern_managed_send(exec, pid.cast(), 7, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!((*sent).tag, 0);
+        assert_eq!(fern_managed_poll(exec, 1), 2);
+        TRACE.with(|trace| assert!(trace.borrow().is_empty()));
+        assert_eq!(fern_managed_poll(exec, 1), 0);
+        TRACE.with(|trace| assert_eq!(*trace.borrow(), [42]));
+        fern_managed_close(exec);
+        fern_managed_close(exec);
+    }
+}
+
+#[test]
+fn host_reply_port_copies_utf8_atomically_and_never_executes_a_callback() {
+    let f = Fixture::new();
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let mut fault = 0;
+    unsafe {
+        let exec = fern_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let port = fern_managed_port(exec, &string);
+        assert!(!port.is_null());
+        let source = abi::string("🌿 reply");
+        let sent = fern_managed_send(exec, port, source as i64, &string) as *const abi::ResultValue;
+        assert_eq!((*sent).tag, 0);
+        assert_eq!(fern_managed_poll(exec, 1), 1);
+        let mut short = [0xa5; 2];
+        assert_eq!(
+            fern_managed_port_read(exec, port, short.as_mut_ptr(), short.len()),
+            -2
+        );
+        assert_eq!(short, [0xa5; 2]);
+        let mut output = [0; 32];
+        let length = fern_managed_port_read(exec, port, output.as_mut_ptr(), output.len());
+        assert_eq!(&output[..length as usize], "🌿 reply".as_bytes());
+        assert_eq!(
+            fern_managed_port_read(exec, port, output.as_mut_ptr(), output.len()),
+            -1
+        );
+        assert_eq!((*(*exec).session).messages, 0);
+        fern_managed_close(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn host_reply_churn_reuses_identity_and_close_preserves_other_rooted_sessions() {
+    let f = Fixture::new();
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let mut first_fault = 0;
+    let mut second_fault = 0;
+    unsafe {
+        let first = fern_managed_open(
+            &mut first_fault,
+            f.functions.as_ptr(),
+            f.functions.len() as i64,
+        );
+        let second = fern_managed_open(
+            &mut second_fault,
+            f.functions.as_ptr(),
+            f.functions.len() as i64,
+        );
+        let port = fern_managed_port(second, &string);
+        let roots = [port as usize];
+        let root = memory::root_range(roots.as_ptr(), roots.len());
+        let identities = (*(*second).session).next_id;
+        for _ in 0..2000 {
+            let sent = fern_managed_send(second, port, c"reply".as_ptr() as i64, &string)
+                as *const abi::ResultValue;
+            assert_eq!((*sent).tag, 0);
+            let mut output = [0; 5];
+            assert_eq!(
+                fern_managed_port_read(second, port, output.as_mut_ptr(), output.len()),
+                5
+            );
+            assert_eq!(&output, b"reply");
+        }
+        assert_eq!((*(*second).session).next_id, identities);
+        assert_eq!((*(*second).session).messages, 0);
+        fern_managed_close(first);
+        memory::fern_gc_collect_precise();
+        assert_eq!(fern_managed_poll(second, 1), 1);
+        assert_eq!(second_fault, 0);
+        fern_managed_close(second);
+        drop(root);
+    }
+}
+
+#[test]
+fn supervised_restart_retires_old_heap_and_requires_explicit_fresh_pid_lookup() {
+    TRACE.with(|trace| trace.borrow_mut().clear());
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut initializer = [complete as *const () as i64, 41];
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let original = fern_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
+            .cast::<Pid>();
+        let old = (*original).actor;
+        let old_heap = (*old).heap;
+        let old_frame = (*old).frame;
+        dequeue((*exec).session);
+        *(*old).frame.cast::<i64>().add(1) = 99;
+        (*old).fault = 1;
+        assert!(supervision::recover(old));
+        assert!(!memory::heap_owns(old_heap, old_frame));
+        let result =
+            fern_managed_supervised_current(exec, original.cast()) as *const abi::ResultValue;
+        assert_eq!((*result).tag, 0);
+        let replacement = (*result).value as *mut Pid;
+        assert_ne!((*original).id, (*replacement).id);
+        assert_ne!((*original).actor, (*replacement).actor);
+        assert_ne!(old_heap, (*(*replacement).actor).heap);
+        assert_eq!(*(*(*replacement).actor).frame.cast::<i64>().add(1), 41);
+        let stale =
+            fern_managed_send(exec, original.cast(), 1, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!(((*stale).tag, (*stale).value), (1, 3));
+        let live =
+            fern_managed_send(exec, replacement.cast(), 1, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!((*live).tag, 0);
+        fern_managed_run(exec);
+        TRACE.with(|trace| assert_eq!(*trace.borrow(), [41]));
+        assert_eq!(fault, 0);
+        let completed =
+            fern_managed_supervised_current(exec, original.cast()) as *const abi::ResultValue;
+        assert_eq!(((*completed).tag, (*completed).value), (1, 3));
+    }
+}
+
+#[test]
+fn invalid_supervision_budget_publishes_no_actor_or_initializer_heap() {
+    let f = Fixture::new();
+    for budget in [-1, 33, i64::MAX] {
+        let mut fault = 0;
+        let mut initializer = [complete as *const () as i64, 41];
+        unsafe {
+            let exec = f.exec(&mut fault);
+            let before = memory::stats().bytes;
+            assert!(
+                fern_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, budget)
+                    .is_null()
+            );
+            assert_eq!(memory::stats().bytes, before);
+            assert_eq!((*(*exec).session).live, 0);
+            assert_eq!(fault, 9);
+            fern_managed_stop(exec);
+        }
+    }
 }
 
 #[test]

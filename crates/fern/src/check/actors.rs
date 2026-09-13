@@ -139,8 +139,28 @@ impl Checker<'_> {
             ));
         }
         labels::positional(args)?;
-        if name == "spawn" {
-            return self.spawn(args, expected, span, depth);
+        if name == "spawn" || name == "supervise" {
+            return self.spawn(args, expected, span, depth, name == "supervise");
+        }
+        if name == "supervised_current" {
+            if args.len() != 1 {
+                return Err(Diagnostic::new(
+                    span,
+                    "supervised_current expects one typed Pid",
+                ));
+            }
+            let pid = self.expression(&args[0], depth)?;
+            let ty = self.inference.resolve(&pid.ty, span)?;
+            if !matches!(ty, Type::Pid(_)) {
+                return Err(Diagnostic::new(
+                    span,
+                    "supervised_current requires a typed Pid",
+                ));
+            }
+            return Ok((
+                ir::ExprKind::Actor(ir::ActorExpr::SupervisedCurrent { pid: Box::new(pid) }),
+                Type::Result(Box::new(ty), Box::new(Type::Int)),
+            ));
         }
         if args.len() != 2 {
             return Err(Diagnostic::new(span, "send expects pid and message"));
@@ -166,11 +186,16 @@ impl Checker<'_> {
         expected: Option<&Type>,
         span: Span,
         depth: usize,
+        supervised: bool,
     ) -> Checked<TypedKind> {
-        if args.len() != 1 {
+        if args.len() != if supervised { 2 } else { 1 } {
             return Err(Diagnostic::new(
                 span,
-                "spawn expects one zero-argument Unit function",
+                if supervised {
+                    "supervise expects a zero-argument Unit function and integer restart budget"
+                } else {
+                    "spawn expects one zero-argument Unit function"
+                },
             ));
         }
         let mailbox = self.inference.fresh();
@@ -203,10 +228,20 @@ impl Checker<'_> {
             self.inference
                 .unify(effect, &mailbox, span, "spawn mailbox")?;
         }
+        let max_restarts = if supervised {
+            Some(Box::new(self.expression_expected(
+                &args[1],
+                Some(&Type::Int),
+                depth,
+            )?))
+        } else {
+            None
+        };
         Ok((
             ir::ExprKind::Actor(ir::ActorExpr::Spawn {
                 entry: Box::new(entry),
                 mailbox,
+                max_restarts,
             }),
             ty,
         ))
@@ -360,6 +395,7 @@ impl Checker<'_> {
                     ));
                 }
             }
+            ir::ActorExpr::SupervisedCurrent { .. } => {}
         }
         for child in crate::actors::children_mut(actor) {
             self.finalize(child)?;

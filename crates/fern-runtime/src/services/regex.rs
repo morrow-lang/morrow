@@ -196,16 +196,17 @@ pub unsafe extern "C" fn fern_regex_find_all(
     strings(&values)
 }
 
-unsafe fn replace(
+unsafe fn replace_bounded(
     text: *const c_char,
     pattern: *const c_char,
     replacement: *const c_char,
     all: bool,
-) -> *const c_char {
+    limit: usize,
+) -> Option<*const c_char> {
     let text = unsafe { input(text) };
     let replacement = unsafe { input(replacement) };
     let Some(regex) = Regex::new(&unsafe { input(pattern) }) else {
-        return abi::bytes(text.as_bytes());
+        return (text.as_bytes().len() <= limit).then(|| abi::bytes(text.as_bytes()));
     };
     let bytes = text.as_bytes();
     let mut output = Vec::new();
@@ -215,11 +216,8 @@ unsafe fn replace(
             break;
         };
         let (start, end) = (matches[0].rm_so as usize, matches[0].rm_eo as usize);
-        output.extend_from_slice(&bytes[offset..offset + start]);
-        output.extend_from_slice(replacement.as_bytes());
-        if output.len() > crate::io::TEXT_LIMIT {
-            abi::fault("regex replacement exceeds 16 MiB");
-        }
+        append(&mut output, &bytes[offset..offset + start], limit)?;
+        append(&mut output, replacement.as_bytes(), limit)?;
         offset += end;
         if !all {
             break;
@@ -228,12 +226,138 @@ unsafe fn replace(
             if offset == bytes.len() {
                 break;
             }
-            output.push(bytes[offset]);
+            append(&mut output, &bytes[offset..offset + 1], limit)?;
             offset += 1;
         }
     }
-    output.extend_from_slice(&bytes[offset..]);
-    abi::bytes(&output)
+    append(&mut output, &bytes[offset..], limit)?;
+    Some(abi::bytes(&output))
+}
+
+fn append(output: &mut Vec<u8>, bytes: &[u8], limit: usize) -> Option<()> {
+    if bytes.len() > limit.saturating_sub(output.len()) {
+        return None;
+    }
+    output.extend_from_slice(bytes);
+    Some(())
+}
+
+unsafe fn checked_replace(
+    fault: *mut i64,
+    text: *const c_char,
+    pattern: *const c_char,
+    replacement: *const c_char,
+    all: bool,
+    limit: usize,
+) -> *const c_char {
+    unsafe {
+        if fault.is_null() || *fault != 0 {
+            return std::ptr::null();
+        }
+        replace_bounded(text, pattern, replacement, all, limit).unwrap_or_else(|| {
+            *fault = 13;
+            std::ptr::null()
+        })
+    }
+}
+
+/// Checked source boundary: size failure returns only after recording its fault.
+/// # Safety
+/// Fault is writable; string arguments are readable NUL-terminated allocations.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_regex_replace_checked(
+    fault: *mut i64,
+    text: *const c_char,
+    pattern: *const c_char,
+    replacement: *const c_char,
+) -> *const c_char {
+    unsafe {
+        checked_replace(
+            fault,
+            text,
+            pattern,
+            replacement,
+            false,
+            crate::io::TEXT_LIMIT,
+        )
+    }
+}
+
+/// Checked repeated replacement with an atomic output-size bound.
+/// # Safety
+/// Fault is writable; string arguments are readable NUL-terminated allocations.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_regex_replace_all_checked(
+    fault: *mut i64,
+    text: *const c_char,
+    pattern: *const c_char,
+    replacement: *const c_char,
+) -> *const c_char {
+    unsafe {
+        checked_replace(
+            fault,
+            text,
+            pattern,
+            replacement,
+            true,
+            crate::io::TEXT_LIMIT,
+        )
+    }
+}
+
+#[cfg(test)]
+#[test]
+fn checked_replacement_bounds_every_append_and_preserves_existing_fault() {
+    unsafe {
+        let mut fault = 0;
+        let value = checked_replace(
+            &mut fault,
+            c"aa".as_ptr(),
+            c"a".as_ptr(),
+            c"1234".as_ptr(),
+            true,
+            7,
+        );
+        assert_eq!(fault, 13);
+        assert!(value.is_null());
+        fault = 0;
+        let exact = checked_replace(
+            &mut fault,
+            c"aa".as_ptr(),
+            c"a".as_ptr(),
+            c"1234".as_ptr(),
+            true,
+            8,
+        );
+        assert_eq!(fault, 0);
+        assert_eq!(abi::raw_bytes(exact), b"12341234");
+        fault = 0;
+        assert!(
+            checked_replace(
+                &mut fault,
+                c"abcdefgh".as_ptr(),
+                c"z".as_ptr(),
+                c"x".as_ptr(),
+                true,
+                7
+            )
+            .is_null()
+        );
+        assert_eq!(fault, 13, "unmatched suffix must obey the same bound");
+        fault = 3;
+        assert!(
+            checked_replace(
+                &mut fault,
+                c"a".as_ptr(),
+                c"a".as_ptr(),
+                c"b".as_ptr(),
+                true,
+                8
+            )
+            .is_null()
+        );
+        assert_eq!(fault, 3);
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -246,7 +370,8 @@ pub unsafe extern "C" fn fern_regex_replace(
     pattern: *const c_char,
     replacement: *const c_char,
 ) -> *const c_char {
-    unsafe { replace(text, pattern, replacement, false) }
+    unsafe { replace_bounded(text, pattern, replacement, false, crate::io::TEXT_LIMIT) }
+        .unwrap_or_else(|| abi::fault("regex replacement exceeds 16 MiB"))
 }
 #[unsafe(no_mangle)]
 /// # Safety
@@ -258,7 +383,8 @@ pub unsafe extern "C" fn fern_regex_replace_all(
     pattern: *const c_char,
     replacement: *const c_char,
 ) -> *const c_char {
-    unsafe { replace(text, pattern, replacement, true) }
+    unsafe { replace_bounded(text, pattern, replacement, true, crate::io::TEXT_LIMIT) }
+        .unwrap_or_else(|| abi::fault("regex replacement exceeds 16 MiB"))
 }
 
 #[unsafe(no_mangle)]

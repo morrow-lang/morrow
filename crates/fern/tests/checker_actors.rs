@@ -20,6 +20,25 @@ fn spawn_and_handled_send_preserve_typed_mailbox_identity() {
 }
 
 #[test]
+fn supervision_and_current_lookup_preserve_typed_mailboxes() {
+    checked(
+        "fn worker():\n    receive:\n        value -> println(value)\nfn main() -> Result((), Int):\n    let original: Pid(String) = supervise(worker, 2)\n    let current = supervised_current(original)?\n    send(current, \"hello\")?\n    Ok(())\n",
+    );
+}
+
+#[test]
+fn supervision_requires_integer_budget_and_handled_lookup_result() {
+    rejected(
+        "fn worker(): ()\nfn main():\n    let original: Pid(Int) = supervise(worker, true)\n    ()\n",
+        "Int",
+    );
+    rejected(
+        "fn worker(): ()\nfn main():\n    let original: Pid(Int) = supervise(worker, 2)\n    supervised_current(original)\n    ()\n",
+        "Result",
+    );
+}
+
+#[test]
 fn sequential_receive_preserves_local_values_across_suspension() {
     checked(
         "fn worker():\n    let first = receive:\n        value -> value\n    let second = receive:\n        value -> value\n    println(first + second)\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",

@@ -64,16 +64,19 @@ does not validate the native Fern collector or compiler on that architecture.
 The separate WebAssembly emitter consumes checked semantic IR before native
 pointer lowering. Language integers remain i64; browser pointers are i32.
 Scalar programs need neither memory nor host imports. Programs using the supported
-String subset use a bounded nonmoving linear-memory heap and compiler-maintained
-shadow roots. Browser collection never depends on native stack/register scanning.
-General aggregate values, captured closures and actors are not implemented by this
-backend; unsupported capabilities are rejected before an output module is published.
+strings or aggregates use a bounded nonmoving linear-memory heap and compiler
+shadow roots. Records, tagged sums, Option/Result, lists and tuples have precise
+child-pointer maps; integers that resemble addresses do not retain objects.
+Browser collection never depends on native stack/register scanning. Captured
+closures, maps and actors remain unsupported by this backend and reject before
+an output module is published.
 
-The current checklist uses scalar Fern exports called by a Rust browser WASM
-module. These modules do not share a heap. The host owns strings, protocol state,
-DOM nodes and browser resources; Fern owns the example's scalar interaction and
-view policies. Host listeners, timers and socket callbacks have explicit cleanup,
-and unmount releases subscriptions. The Rust service worker owns the offline
+The checklist keeps its complete Fern model and view in that heap. Its Rust WASM
+host owns type-checked positive i64/BigInt handles, with 55-bit nonwrapping
+generations and explicit release. Bounded UTF-8 scratch transfer copies strings;
+raw Fern pointers never cross into host code. The modules do not share a heap.
+Host listeners, timers and socket callbacks have explicit cleanup, and unmount
+releases model handles and subscriptions. The Rust service worker owns the offline
 asset cache. See the [web preview guide](WEB_PREVIEW.md).
 
 ## Remaining memory work
@@ -87,8 +90,9 @@ Per-actor heaps alone do not bound scheduler latency. Collection, copying, mailb
 search and execution must share measured work budgets, with resumable
 continuations keeping roots valid at every yield. Precise native heap layouts,
 complete root coverage, multi-worker ownership and reliable host-resource
-cancellation remain acceptance gates. The browser needs broader typed values,
-tested host ABI ownership and a WasmGC comparison before its ABI is stabilized.
+cancellation remain acceptance gates. The browser ABI has independent nested-value, stale-handle and pressured-root
+execution tests; broader capabilities and a WasmGC comparison remain open before
+stabilization.
 
 Run `cargo test -p fern-runtime` for runtime checks and `cargo xtask test` for
 native integration. WASM execution tests live in the compiler crate. See the

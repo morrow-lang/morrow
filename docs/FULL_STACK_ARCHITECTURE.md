@@ -43,13 +43,12 @@ ownership and delivery contracts.
 
 ## Implemented preview boundary
 
-The collaborative checklist now runs end to end with a compiled Fern scalar WASM
-module, a Rust browser host, a Rust service worker and an Axum/Tokio server. Fern
-exports control filter selection, completion progress and interaction policy.
-The host owns strings, the client model, transport and keyed DOM; the authoritative
-room state is currently a Rust model behind a serialized owner task. This is not
-yet the complete Fern model/update/view application or a compiled Fern domain actor
-shown in the target architecture above.
+The collaborative checklist runs its complete typed domain, local model,
+event update and keyed view in compiled Fern. A generic Rust browser host supplies
+DOM, storage and transport capabilities. On the server, a native compiled Fern
+actor owns each room, reached through explicitly rooted host sessions and typed
+reply ports on a dedicated owner thread. Optional local room checkpoints commit
+before acknowledgement and restore into actors under fresh incarnations.
 
 The bounded command/snapshot protocol implements revision conflicts, sequence
 high-water marks, retained duplicate outcomes, distinct resource/namespace/socket
@@ -72,10 +71,12 @@ the [verification record](WEB_PREVIEW.md#verification) gives their exact scope.
 Separately, native Fern actors now own payload heaps and copy message/capture
 graphs. Compiler root frames and scoped runtime roots are explicit, while ordinary
 native collection still conservatively scans stack/register state and heap words.
-The WASM backend branches from semantic IR and supports scalar values plus a
-bounded precise String heap. General aggregate values and a full browser host ABI
-remain work. The scalar checklist uses no shared memory between its Fern and Rust
-WASM modules. See [memory management](MEMORY_MANAGEMENT.md).
+The WASM backend branches from semantic IR and supports bounded records, tagged
+sums, lists, tuples, Option/Result and UTF-8 strings with precise child tracing.
+Managed host values use type-checked, nonwrapping i64/BigInt handles. Native and
+browser modules share source, not linear memory. Maps, closures, indirect calls,
+native capabilities, generic wire-schema generation and application-independent
+packaging remain open. See [memory management](MEMORY_MANAGEMENT.md).
 
 ## Decisions to preserve while implementing
 

@@ -1,13 +1,16 @@
 //! Portable WebAssembly backend, branching before native pointer-width lowering.
 //!
-//! This first ABI exports concrete Fern functions by checked name: Int is i64,
-//! Float is f64, and Bool/Unit are i32 (Unit is zero). Pure scalar modules have no
-//! memory or allocator. Strings opt into a bounded precise tracing heap with
-//! internal i32 pointers; managed signatures are not host exports. Modules need
-//! no imports, JavaScript, WASI or native runtime. Unsupported capabilities are
-//! rejected throughout the program rather than silently omitted.
-//! This intentionally does not freeze the future managed browser ABI.
+//! Scalar functions export their checked names: Int is i64, Float is f64, and
+//! Bool/Unit are i32. Pure scalar modules need no memory or allocator. Immutable
+//! strings, records, variants, tuples and lists use a bounded precisely traced
+//! heap. Managed signatures export as `fern::<checked-name>`, replacing each
+//! managed argument/result with a rooted, generational i64 handle. The versioned
+//! UTF-8 scratch API copies string data without exposing unrooted heap pointers.
+//! Modules require no imports, WASI or native runtime. Unsupported capabilities
+//! are rejected throughout the program rather than silently omitted.
 mod emit;
+mod heap;
+mod host;
 mod numeric;
 mod strings;
 
@@ -21,7 +24,7 @@ type Result<T> = std::result::Result<T, Diagnostic>;
 
 /// Compile checked semantic IR into a validated core WebAssembly module.
 ///
-/// Every scalar-signature function is an export. All functions are checked,
+/// Every concrete function has a scalar or managed-handle export. All functions are checked,
 /// including uncalled imported source bodies. Unsupported capabilities and malformed public IR return a
 /// diagnostic before any module bytes are published. Execution hosts must set
 /// their own work limits; recursive Fern calls use the WebAssembly call stack.
@@ -76,6 +79,7 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
     }
     if let Some(runtime) = &runtime {
         runtime.declarations(&mut types, &mut functions);
+        host::declarations(runtime, &mut types, &mut functions, &mut exports);
     }
     let mut code = CodeSection::new();
     let mut work = 0;
@@ -89,22 +93,70 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
     }
     if let Some(runtime) = &runtime {
         runtime.code(&mut code);
+        host::code(runtime, &mut code);
         for (index, function) in program.functions.iter().enumerate() {
-            if function.return_type == Type::String
-                || function.params.iter().any(|p| p.ty == Type::String)
-            {
-                continue;
-            }
+            let managed_signature =
+                managed(&function.return_type) || function.params.iter().any(|p| managed(&p.ty));
             let wrapper_index = functions.len();
-            functions.function(index as u32);
-            exports.export(&function.name, ExportKind::Func, wrapper_index);
+            if managed_signature {
+                let parameters = function
+                    .params
+                    .iter()
+                    .map(|param| {
+                        if managed(&param.ty) {
+                            Ok(ValType::I64)
+                        } else {
+                            value_type(&param.ty, function.body.span)
+                        }
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let result = if managed(&function.return_type) {
+                    ValType::I64
+                } else {
+                    value_type(&function.return_type, function.body.span)?
+                };
+                functions.function(types.len());
+                types.ty().function(parameters, [result]);
+            } else {
+                functions.function(index as u32);
+            }
+            exports.export(
+                &if managed_signature {
+                    format!("fern::{}", function.name)
+                } else {
+                    function.name.clone()
+                },
+                ExportKind::Func,
+                wrapper_index,
+            );
             let mut wrapper = wasm_encoder::Function::new([]);
             wrapper.instruction(&wasm_encoder::Instruction::I32Const(0));
             wrapper.instruction(&wasm_encoder::Instruction::GlobalSet(0));
             for param in 0..function.params.len() {
                 wrapper.instruction(&wasm_encoder::Instruction::LocalGet(param as u32));
+                if managed(&function.params[param].ty) {
+                    wrapper.instruction(&wasm_encoder::Instruction::I32Const(
+                        runtime.type_ids[&function.params[param].ty] as i32,
+                    ));
+                    wrapper.instruction(&wasm_encoder::Instruction::Call(
+                        runtime.first + strings::COUNT + host::GET,
+                    ));
+                    wrapper.instruction(&wasm_encoder::Instruction::Call(
+                        runtime.first + strings::PUSH,
+                    ));
+                }
             }
             wrapper.instruction(&wasm_encoder::Instruction::Call(index as u32));
+            if managed(&function.return_type) {
+                wrapper.instruction(&wasm_encoder::Instruction::I32Const(
+                    runtime.type_ids[&function.return_type] as i32,
+                ));
+                wrapper.instruction(&wasm_encoder::Instruction::Call(
+                    runtime.first + strings::COUNT + host::NEW,
+                ));
+            }
+            wrapper.instruction(&wasm_encoder::Instruction::I32Const(0));
+            wrapper.instruction(&wasm_encoder::Instruction::GlobalSet(0));
             wrapper.instruction(&wasm_encoder::Instruction::End);
             code.function(&wrapper);
         }
@@ -139,7 +191,8 @@ fn value_type(ty: &Type, span: Span) -> Result<ValType> {
     match ty {
         Type::Int => Ok(ValType::I64),
         Type::Float => Ok(ValType::F64),
-        Type::Bool | Type::Unit | Type::String => Ok(ValType::I32),
+        Type::Bool | Type::Unit => Ok(ValType::I32),
+        ty if managed(ty) => Ok(ValType::I32),
         _ => Err(invalid(
             span,
             format!(
@@ -151,6 +204,18 @@ fn value_type(ty: &Type, span: Span) -> Result<ValType> {
 }
 
 // Never recursively format a caller-constructed type when rejecting public IR.
+fn managed(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::String
+            | Type::Tuple(_)
+            | Type::Named(_, _)
+            | Type::Option(_)
+            | Type::Result(_, _)
+            | Type::List(_)
+    )
+}
+
 fn type_name(ty: &Type) -> &'static str {
     match ty {
         Type::Never => "Never",

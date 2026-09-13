@@ -70,16 +70,26 @@ pub fn emit_test(program: &ir::Program) -> Result<String, Diagnostic> {
 
 /// Lower checked semantic IR once for both native backends, preserving all runtime boundaries.
 pub fn lower(program: &ir::Program) -> Result<machine::Program, Diagnostic> {
-    emit_mode(program, false)
+    emit_mode(program, false, false)
 }
 
 /// Lower a test entry with explicit process-exit rejection for either native backend.
 pub fn lower_test(program: &ir::Program) -> Result<machine::Program, Diagnostic> {
-    emit_mode(program, true)
+    emit_mode(program, true, false)
+}
+
+/// Lower checked library functions without synthesizing a process entry point.
+/// Exported host adapters are added separately by `native_library`.
+pub fn lower_library(program: &ir::Program) -> Result<machine::Program, Diagnostic> {
+    emit_mode(program, false, true)
 }
 
 /// Share executable validation while keeping test-only process behavior out of ordinary programs.
-fn emit_mode(program: &ir::Program, test_mode: bool) -> Result<machine::Program, Diagnostic> {
+fn emit_mode(
+    program: &ir::Program,
+    test_mode: bool,
+    library: bool,
+) -> Result<machine::Program, Diagnostic> {
     ir::reject_probes(program)?;
     crate::json_codec::validate_program(program)?;
     let lowered = actor_backend::prepare(program);
@@ -89,6 +99,7 @@ fn emit_mode(program: &ir::Program, test_mode: bool) -> Result<machine::Program,
             test_mode,
             prepared.plan,
             prepared.layouts,
+            library,
         )
     });
     result.map_err(|exit| match exit {
@@ -119,6 +130,7 @@ fn emit_inner(
     test_mode: bool,
     actors: actor_backend::Plan,
     layouts: HashMap<Type, &ir::TypeLayout>,
+    library: bool,
 ) -> Lowering<machine::Program> {
     let mut functions = BTreeMap::new();
     let mut main = None;
@@ -153,15 +165,20 @@ fn emit_inner(
             }
         }
     }
-    let main = main.ok_or_else(|| invalid(Span::default(), "missing main function"))?;
+    if !library && main.is_none() {
+        return Err(invalid(Span::default(), "missing main function"));
+    }
     let mut emitter = new_emitter(functions, layouts, actors, test_mode);
     emitter.actor_descriptors()?;
+    if library {
+        emitter.actor_library()?;
+    }
     for function in &program.functions {
         if !emitter.actors.entries.contains_key(&function.id.0) {
             emitter.function(function)?;
         }
     }
-    emitter.support_helpers(main);
+    emitter.support_helpers(if library { None } else { main });
     emitter.data.extend(&emitter.output);
     emitter
         .data
@@ -307,7 +324,7 @@ impl Locals {
 
 impl Emitter<'_> {
     /// Append compiler-owned helper definitions once, including only used numeric adapters.
-    fn support_helpers(&mut self, main: &Function) {
+    fn support_helpers(&mut self, main: Option<&Function>) {
         self.test_exit_helper();
         if self.output.calls("fern_rs_json_object") || self.output.calls("fern_rs_json_members") {
             helpers::json(&mut self.output);
@@ -337,7 +354,9 @@ impl Emitter<'_> {
         if self.slice_used {
             helpers::slice(&mut self.output);
         }
-        self.main_wrapper(main);
+        if let Some(main) = main {
+            self.main_wrapper(main);
+        }
         if self.pattern_tail_used {
             helpers::pattern_tail(&mut self.output);
         }

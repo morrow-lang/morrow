@@ -3,8 +3,9 @@
 The collaborative checklist connects a real Fern WebAssembly module, a Rust
 browser host and an authenticated Rust HTTP/WebSocket server. It demonstrates
 local interaction, shared confirmed state and offline reload in one deployable
-server executable. It is an ephemeral application preview, not yet a complete
-Fern web framework or a distributed actor system.
+server executable. The shared model/update/view runs in Fern, as does the native
+room actor. This remains an application preview: general framework packaging,
+fair multicore scheduling and distributed ownership have separate gates.
 
 ## Build and run
 
@@ -81,8 +82,9 @@ origin includes the scheme and any non-default port, with no trailing slash.
 Binding outside loopback requires `FERN_WEB_ORIGIN`; loopback defaults to the
 listener's HTTP origin. `/health` provides a small readiness response.
 
-The static server is self-contained; automatic clustering, durable storage and
-built-in TLS termination are separate features. The web server is a separate
+The static server is self-contained. Set `FERN_WEB_DATA_DIR` to a local directory
+to enable durable room checkpoints. Automatic clustering and built-in TLS
+termination remain separate features. The web server is a separate
 workspace package, so ordinary CLI programs do not acquire its transport or
 browser dependencies.
 
@@ -109,8 +111,14 @@ restores the draft and snapshot, but does not persist authentication secrets,
 command namespaces or a mutation replay queue. Uncertain completion is shown for
 review; offline edits are not blindly replayed against fresh server state.
 
-Room state lives in memory and disappears when the server process restarts.
-A new resource incarnation invalidates old commands. Logout revokes the server
+Without `FERN_WEB_DATA_DIR`, room state is ephemeral. With it, the server owns an
+exclusive checkpoint directory, writes bounded room state atomically and syncs
+the file and directory before acknowledging a mutation. Restart restores
+acknowledged tasks and the next task identifier. A fresh resource incarnation,
+authentication session and command namespace prevent old commands from being
+reinterpreted against recovered state. Checkpoints cover room state, not a
+durable exactly-once external-effects log. A storage failure requires recovery;
+a write that failed after publication can have an uncertain disk outcome. Logout revokes the server
 session and its active connections, and clears the client's saved server snapshot.
 Cached application files and local drafts
 are browser-local data, not evidence of a still-valid server session.
@@ -144,24 +152,36 @@ authorization and operational administration remain application work.
 
 | Component | Current responsibility |
 | --- | --- |
-| [`examples/web/checklist.fn`](../examples/web/checklist.fn) | Compiled Fern policy: filtering, submit eligibility, completion percentage and toggle behavior |
-| [`fern-browser`](../crates/fern-browser) | Rust WASM host: model storage, wire transport, keyed accessible DOM, focus, drafts and lifecycle cleanup |
+| [`examples/web/checklist.fn`](../examples/web/checklist.fn) | Shared Fern domain, model, event update, effects and keyed view |
+| [`examples/web/server.fn`](../examples/web/server.fn) | Typed native room actor, JSON request/reply adapter and restore entry |
+| [`fern-browser`](../crates/fern-browser) | Rust WASM host: rooted Fern model handles, generic keyed DOM, focus, storage and transport |
 | [`fern-browser-worker`](../crates/fern-browser-worker) | Rust service worker: versioned static-asset caching and offline loading |
-| [`fern-web-protocol`](../crates/fern-web-protocol) | Portable Rust wire types, reconciliation and authoritative ephemeral checklist state |
-| [`fern-web`](../crates/fern-web) | Axum/Tokio transport, authentication, bounded state owner and embedded assets |
-| [`fern/src/wasm`](../crates/fern/src/wasm.rs) | Separate compiler backend with scalar values and a bounded precise String heap |
+| [`fern-web-protocol`](../crates/fern-web-protocol) | Rust wire schemas, authentication boundaries, deduplication, revisions and recovery |
+| [`fern-web-app`](../crates/fern-web-app) | Build-time native Fern object, thread-confined rooted host bridge and optional atomic checkpoints |
+| [`fern-web`](../crates/fern-web) | Axum/Tokio transport, authentication, dedicated actor owner thread and embedded assets |
+| [`fern/src/wasm`](../crates/fern/src/wasm.rs) | Separate compiler backend with precise aggregate tracing and managed host ABI |
 
-The checklist's scalar Fern module has no host imports or shared linear memory.
-The Rust host invokes its checked exports with i64 values represented as browser
-BigInts. The separate String heap is compiler functionality; it is not required
-by this scalar example. Generated loader/binding JavaScript is a build artifact.
+The compiler supports records, tagged sums, Option/Result, lists, tuples and
+UTF-8 strings for this application. Managed browser exports use positive i64
+BigInt handles with checked types and generations; releasing a handle removes
+its host root. A bounded UTF-8 scratch buffer transfers strings. The host never
+receives a raw Fern heap address. Generated loader/binding JavaScript remains a
+build artifact. Maps, closures/indirect calls and native service capabilities
+still reject on the WASM target.
 
-The server's authoritative model currently executes as Rust behind a serialized
-owner task. It is not a compiled Fern domain actor. Native Fern actor heaps and
-message copying are a separate runtime foundation. Moving the complete model,
-update and view into typed Fern and connecting real Fern server actors are open
-integration steps. Fair resumable scheduling, typed supervision, multicore
-execution, durable recovery and clustering remain later gates.
+The native server links compiled Fern object code at build time. Each room keeps
+its canonical state in a typed actor with copied messages and isolated payload
+heaps; the gateway holds confirmed snapshots. Native calls share a recoverable
+fault cell. Supervised actors restart from fresh initializer captures within a
+bounded budget. The host uses nonblocking scheduler polling and a bounded typed
+String reply port, with every retained native pointer rooted on its owning
+thread. No compiler or interpreter ships in the web binary.
+
+This owner thread currently serializes rooms. Continuation-step limits do not
+preempt arbitrary synchronous helper calls. General helper suspension, fair
+multicore work, complete native precise tracing and clustered ownership remain
+open. The wire envelope is a Rust schema; automatic Fern-to-wire schema generation
+and an application-independent build manifest are also separate work.
 
 ## Verification
 
@@ -176,6 +196,22 @@ The runner starts its own server and browser sessions. Set `FERN_WEB_SCREENSHOT`
 and `FERN_WEB_MOBILE_SCREENSHOT` to output paths to retain desktop and mobile
 screenshots. Use the appropriate static binary path when checking a Linux build
 on a matching architecture.
+
+The 2026-09-13 application checkpoint passed macOS ARM64 `cargo xtask check`:
+1,869 standard Rust tests, 305 native-output fixtures, 18 examples, 63 dynamic
+compatibility programs, 295 atomic rejections and 64 grammar plus 192 mutation
+fuzz cases. Independent native tests additionally cover room checkpoint reopen,
+concurrent-writer rejection, replacement-path safety, exact IDs above 2^53 and
+uncertain directory-sync failure. A real WebSocket test verifies acknowledged
+state across a server restart with fresh authentication and resource identity.
+
+The real-browser i64 managed-handle build passed the two-client, complete Fern
+model/update/view, invalid-draft retention, keyed focus, cold offline worker,
+mobile and cache-tamper assertions. ARM64 and x86-64 musl application test
+executables link statically with deterministic Rust-generated GNU archives;
+Darwin release execution passes the native actor tests. These checks supersede
+the scalar-only application boundary, while the following earlier measurements
+retain their original build and platform context.
 
 The 2026-09-12 final macOS `web-check` passed with two real browser clients:
 task creation, completion, compiled Fern policy, local filtering, preserved input

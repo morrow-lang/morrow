@@ -1,12 +1,10 @@
-//! Optional bounded string heap. Every root is an explicit compiler-owned i32
-//! pointer slot; integers and native stack contents are never scanned.
-//!
-//! Strings are leaf objects, so marking needs no graph recursion. Fixed slots
-//! make sweep/reuse bounded and nonmoving. This deliberately modest first heap
-//! supports 256 live strings of at most 4096 bytes, with 16384 shadow roots.
-//! Managed signatures are internal: only scalar export wrappers enter the
-//! module, clearing abandoned roots after a previous trapped invocation.
-use super::{Result, invalid};
+//! Fixed-slot allocation and portable string primitives. Strings are leaf values;
+//! aggregate child bits and marking live in `heap`. Compiler shadow roots and
+//! typed host handles preserve references without scanning Int or Float payloads.
+//! String-only modules use 256 slots; aggregate modules use 8192. Each slot holds
+//! at most 4096 UTF-8 bytes or 511 aggregate fields, with 16384 compiler shadow roots.
+//! Host entry wrappers clear abandoned transient roots after a trapped call.
+use super::{Result, invalid, managed};
 use crate::{Span, Type, ir};
 use std::collections::BTreeMap;
 use wasm_encoder::{
@@ -17,21 +15,25 @@ use wasm_encoder::{
 pub(super) const PUSH: u32 = 0;
 const COLLECT: u32 = 1;
 const FIND: u32 = 2;
-const ALLOC: u32 = 3;
+pub(super) const ALLOC: u32 = 3;
 pub(super) const CONCAT: u32 = 4;
 pub(super) const LEN: u32 = 5;
 pub(super) const EQ: u32 = 6;
+pub(super) const INT_TEXT: u32 = 7;
+pub(super) const COUNT: u32 = 8;
 const ROOT_BYTES: i32 = 65_536;
 const LITERAL_BYTES: i32 = 1_048_576;
 const STRING_BYTES: i32 = 4096;
-const STRIDE: i32 = STRING_BYTES + 8;
-const HEAP_START: i32 = ROOT_BYTES + LITERAL_BYTES;
-const HEAP_END: i32 = HEAP_START + 256 * STRIDE;
+pub(super) const STRIDE: i32 = STRING_BYTES + 8;
+pub(super) const HEAP_START: i32 = ROOT_BYTES + LITERAL_BYTES;
 
 pub(super) struct Runtime {
     pub first: u32,
     pub literals: BTreeMap<String, i32>,
     data: Vec<u8>,
+    pub layouts: BTreeMap<Type, ir::TypeLayout>,
+    pub slots: i32,
+    pub type_ids: BTreeMap<Type, u32>,
 }
 
 impl Runtime {
@@ -40,16 +42,58 @@ impl Runtime {
             first: program.functions.len() as u32,
             literals: BTreeMap::new(),
             data: Vec::new(),
+            layouts: program
+                .types
+                .iter()
+                .map(|layout| (layout.ty.clone(), layout.clone()))
+                .collect(),
+            slots: 256,
+            type_ids: BTreeMap::from([(Type::String, 1)]),
         };
         let mut needed = false;
         for function in &program.functions {
-            needed |= function.return_type == Type::String
-                || function.params.iter().any(|p| p.ty == Type::String);
+            for ty in std::iter::once(&function.return_type)
+                .chain(function.params.iter().map(|param| &param.ty))
+            {
+                if managed(ty) {
+                    let next = runtime.type_ids.len() as u32 + 1;
+                    runtime.type_ids.entry(ty.clone()).or_insert(next);
+                }
+            }
+            needed |=
+                managed(&function.return_type) || function.params.iter().any(|p| managed(&p.ty));
             let mut pending = vec![&function.body];
             while let Some(expr) = pending.pop() {
-                needed |= expr.ty == Type::String;
+                needed |= managed(&expr.ty);
+                if managed(&expr.ty) && expr.ty != Type::String {
+                    runtime.slots = 8192;
+                }
                 if let ir::ExprKind::String(value) = &expr.kind {
                     runtime.literal(value, expr.span)?;
+                }
+                if matches!(&expr.kind, ir::ExprKind::Interpolate(_)) {
+                    for text in ["", "true", "false", "()"] {
+                        runtime.literal(text, expr.span)?;
+                    }
+                }
+                let patterns = match &expr.kind {
+                    ir::ExprKind::Match { arms, .. } => {
+                        arms.iter().map(|arm| &arm.pattern).collect::<Vec<_>>()
+                    }
+                    ir::ExprKind::Block(statements) => statements
+                        .iter()
+                        .filter_map(|statement| {
+                            if let ir::Stmt::LetElse { pattern, .. } = statement {
+                                Some(pattern)
+                            } else {
+                                None
+                            }
+                        })
+                        .collect(),
+                    _ => vec![],
+                };
+                for pattern in patterns {
+                    runtime.pattern_literals(pattern, expr.span)?;
                 }
                 pending.extend(ir::children(expr));
             }
@@ -70,7 +114,7 @@ impl Runtime {
         if self.literals.contains_key(value) {
             return Ok(());
         }
-        if self.data.len() + value.len() + 16 > LITERAL_BYTES as usize {
+        if self.data.len() + value.len() + 16 > (super::heap::META_BASE - ROOT_BYTES) as usize {
             return Err(invalid(span, "string literal storage limit exceeded"));
         }
         self.literals
@@ -85,6 +129,35 @@ impl Runtime {
         Ok(())
     }
 
+    fn pattern_literals(&mut self, pattern: &ir::Pattern, span: Span) -> Result<()> {
+        let mut pending = vec![pattern];
+        let mut work = 0;
+        while let Some(pattern) = pending.pop() {
+            work += 1;
+            if work > 4096 {
+                return Err(invalid(span, "pattern complexity limit exceeded"));
+            }
+            match pattern {
+                ir::Pattern::String(text) => self.literal(text, span)?,
+                ir::Pattern::Newtype(pattern) => pending.push(pattern),
+                ir::Pattern::Tuple(patterns)
+                | ir::Pattern::Variant {
+                    fields: patterns, ..
+                } => pending.extend(patterns),
+                ir::Pattern::List { prefix, rest } => {
+                    pending.extend(prefix);
+                    pending.extend(rest.as_deref());
+                }
+                ir::Pattern::TupleRest { prefix, rest } => {
+                    pending.extend(prefix);
+                    pending.push(rest);
+                }
+                _ => {}
+            }
+        }
+        Ok(())
+    }
+
     pub fn declarations(&self, types: &mut TypeSection, functions: &mut FunctionSection) {
         for (params, result) in [
             (vec![V::I32], V::I32),
@@ -94,6 +167,7 @@ impl Runtime {
             (vec![V::I32, V::I32], V::I32),
             (vec![V::I32], V::I64),
             (vec![V::I32, V::I32], V::I32),
+            (vec![V::I64], V::I32),
         ] {
             functions.function(types.len());
             types.ty().function(params, [result]);
@@ -101,7 +175,7 @@ impl Runtime {
     }
 
     pub fn memory(&self) -> MemorySection {
-        let pages = (HEAP_END as u64).div_ceil(65_536);
+        let pages = ((HEAP_START + self.slots * STRIDE) as u64).div_ceil(65_536);
         let mut section = MemorySection::new();
         section.memory(MemoryType {
             minimum: pages,
@@ -123,6 +197,14 @@ impl Runtime {
             },
             &ConstExpr::i32_const(0),
         );
+        section.global(
+            GlobalType {
+                val_type: V::I32,
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::i32_const(HEAP_START),
+        );
         section
     }
 
@@ -138,8 +220,8 @@ impl Runtime {
 
     pub fn code(&self, code: &mut CodeSection) {
         code.function(&push());
-        code.function(&collect());
-        code.function(&find());
+        code.function(&super::heap::collect(self.slots));
+        code.function(&find(HEAP_START + self.slots * STRIDE));
         code.function(&allocate(self.first));
         code.function(&concat(self.first));
         code.function(&body(
@@ -147,7 +229,100 @@ impl Runtime {
             [I::LocalGet(0), I::I32Load(mem(0)), I::I64ExtendI32U],
         ));
         code.function(&equal());
+        code.function(&integer_text(self.first));
     }
+}
+
+fn integer_text(first: u32) -> Function {
+    let mut function = Function::new([(1, V::I64), (3, V::I32)]);
+    for instruction in [
+        I::LocalGet(0),
+        I::I64Const(0),
+        I::I64LtS,
+        I::LocalSet(4),
+        I::LocalGet(4),
+        I::If(B::Result(V::I64)),
+        I::I64Const(0),
+        I::LocalGet(0),
+        I::I64Sub,
+        I::Else,
+        I::LocalGet(0),
+        I::End,
+        I::LocalSet(1),
+        I::I32Const(20),
+        I::Call(first + ALLOC),
+        I::LocalSet(3),
+        I::I32Const(20),
+        I::LocalSet(2),
+        I::Loop(B::Empty),
+        I::LocalGet(2),
+        I::I32Const(1),
+        I::I32Sub,
+        I::LocalSet(2),
+        I::LocalGet(3),
+        I::LocalGet(2),
+        I::I32Add,
+        I::LocalGet(1),
+        I::I64Const(10),
+        I::I64RemU,
+        I::I32WrapI64,
+        I::I32Const(48),
+        I::I32Add,
+        I::I32Store8(MemArg {
+            offset: 8,
+            align: 0,
+            memory_index: 0,
+        }),
+        I::LocalGet(1),
+        I::I64Const(10),
+        I::I64DivU,
+        I::LocalTee(1),
+        I::I64Const(0),
+        I::I64Ne,
+        I::BrIf(0),
+        I::End,
+        I::LocalGet(4),
+        I::If(B::Empty),
+        I::LocalGet(2),
+        I::I32Const(1),
+        I::I32Sub,
+        I::LocalSet(2),
+        I::LocalGet(3),
+        I::LocalGet(2),
+        I::I32Add,
+        I::I32Const(45),
+        I::I32Store8(MemArg {
+            offset: 8,
+            align: 0,
+            memory_index: 0,
+        }),
+        I::End,
+        I::LocalGet(3),
+        I::I32Const(8),
+        I::I32Add,
+        I::LocalGet(3),
+        I::I32Const(8),
+        I::I32Add,
+        I::LocalGet(2),
+        I::I32Add,
+        I::I32Const(20),
+        I::LocalGet(2),
+        I::I32Sub,
+        I::MemoryCopy {
+            src_mem: 0,
+            dst_mem: 0,
+        },
+        I::LocalGet(3),
+        I::I32Const(20),
+        I::LocalGet(2),
+        I::I32Sub,
+        I::I32Store(mem(0)),
+        I::LocalGet(3),
+        I::End,
+    ] {
+        function.instruction(&instruction);
+    }
+    function
 }
 
 fn mem(offset: u64) -> MemArg {
@@ -196,105 +371,33 @@ fn push() -> Function {
     )
 }
 
-fn collect() -> Function {
-    // locals: root byte offset, rooted pointer, slot pointer, reclaimed count.
+fn find(heap_end: i32) -> Function {
     body(
-        4,
+        2,
         [
-            I::Block(B::Empty),
-            I::Loop(B::Empty),
-            I::LocalGet(0),
-            I::GlobalGet(0),
-            I::I32GeU,
-            I::BrIf(1),
-            I::LocalGet(0),
-            I::I32Load(mem(0)),
-            I::LocalTee(1),
-            I::I32Const(HEAP_START),
-            I::I32GeU,
-            I::LocalGet(1),
-            I::I32Const(HEAP_END),
-            I::I32LtU,
-            I::I32And,
-            I::If(B::Empty),
-            I::LocalGet(1),
-            I::I32Const(HEAP_START),
-            I::I32Sub,
-            I::I32Const(STRIDE),
-            I::I32RemU,
-            I::I32Eqz,
-            I::If(B::Empty),
-            I::LocalGet(1),
-            I::I32Const(2),
-            I::I32Store(mem(4)),
-            I::End,
-            I::End,
-            I::LocalGet(0),
-            I::I32Const(4),
-            I::I32Add,
-            I::LocalSet(0),
-            I::Br(0),
-            I::End,
-            I::End,
-            I::I32Const(HEAP_START),
-            I::LocalSet(2),
-            I::Block(B::Empty),
-            I::Loop(B::Empty),
-            I::LocalGet(2),
-            I::I32Const(HEAP_END),
-            I::I32GeU,
-            I::BrIf(1),
-            I::LocalGet(2),
-            I::I32Load(mem(4)),
-            I::I32Const(1),
-            I::I32Eq,
-            I::If(B::Empty),
-            I::LocalGet(2),
-            I::I32Const(0),
-            I::I32Store(mem(4)),
-            I::LocalGet(3),
-            I::I32Const(1),
-            I::I32Add,
-            I::LocalSet(3),
-            I::Else,
-            I::LocalGet(2),
-            I::I32Load(mem(4)),
-            I::I32Const(2),
-            I::I32Eq,
-            I::If(B::Empty),
-            I::LocalGet(2),
-            I::I32Const(1),
-            I::I32Store(mem(4)),
-            I::End,
-            I::End,
-            I::LocalGet(2),
-            I::I32Const(STRIDE),
-            I::I32Add,
-            I::LocalSet(2),
-            I::Br(0),
-            I::End,
-            I::End,
-            I::LocalGet(3),
-        ],
-    )
-}
-
-fn find() -> Function {
-    body(
-        1,
-        [
-            I::I32Const(HEAP_START),
+            I::GlobalGet(1),
             I::LocalSet(0),
             I::Block(B::Empty),
             I::Loop(B::Empty),
-            I::LocalGet(0),
-            I::I32Const(HEAP_END),
+            I::LocalGet(1),
+            I::I32Const((heap_end - HEAP_START) / STRIDE),
             I::I32GeU,
             I::BrIf(1),
+            I::LocalGet(0),
+            I::I32Const(heap_end),
+            I::I32GeU,
+            I::If(B::Empty),
+            I::I32Const(HEAP_START),
+            I::LocalSet(0),
+            I::End,
             I::LocalGet(0),
             I::I32Load(mem(4)),
             I::I32Eqz,
             I::If(B::Empty),
+            I::LocalGet(0),
+            I::I32Const(STRIDE),
+            I::I32Add,
+            I::GlobalSet(1),
             I::LocalGet(0),
             I::Return,
             I::End,
@@ -302,6 +405,10 @@ fn find() -> Function {
             I::I32Const(STRIDE),
             I::I32Add,
             I::LocalSet(0),
+            I::LocalGet(1),
+            I::I32Const(1),
+            I::I32Add,
+            I::LocalSet(1),
             I::Br(0),
             I::End,
             I::End,
@@ -339,6 +446,18 @@ fn allocate(first: u32) -> Function {
             I::LocalGet(1),
             I::I32Const(1),
             I::I32Store(mem(4)),
+            I::LocalGet(1),
+            I::I32Const(HEAP_START),
+            I::I32Sub,
+            I::I32Const(STRIDE),
+            I::I32DivU,
+            I::I32Const(64),
+            I::I32Mul,
+            I::I32Const(super::heap::META_BASE),
+            I::I32Add,
+            I::I32Const(0),
+            I::I32Const(64),
+            I::MemoryFill(0),
             I::LocalGet(1),
         ],
     )

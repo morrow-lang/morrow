@@ -36,6 +36,27 @@ fn native_type(ty: Scalar) -> ir::Type {
 /// Validate first, emit PIC objects directly, and return bytes without touching caller files.
 /// The initial acceptance mode favors predictable lowering over speculative optimization.
 pub fn emit_object(program: &Program) -> Result<Vec<u8>, String> {
+    emit_object_target(program, None)
+}
+
+/// Emit a 64-bit native object for an explicit supported deployment target.
+/// Object emission does not resolve a target runtime or invoke a cross linker.
+pub fn emit_object_for_target(program: &Program, target: &str) -> Result<Vec<u8>, String> {
+    if !matches!(
+        target,
+        "aarch64-unknown-linux-musl"
+            | "x86_64-unknown-linux-musl"
+            | "aarch64-unknown-linux-gnu"
+            | "x86_64-unknown-linux-gnu"
+            | "aarch64-apple-darwin"
+            | "x86_64-apple-darwin"
+    ) {
+        return Err("unsupported native object target".into());
+    }
+    emit_object_target(program, Some(target))
+}
+
+fn emit_object_target(program: &Program, target: Option<&str>) -> Result<Vec<u8>, String> {
     program.validate()?;
     if cfg!(target_endian = "big") {
         return Err("Cranelift currently requires a little-endian host target".into());
@@ -49,8 +70,15 @@ pub fn emit_object(program: &Program) -> Result<Vec<u8>, String> {
     ] {
         flags.set(name, value).map_err(|e| e.to_string())?;
     }
-    let isa = cranelift_native::builder()
-        .map_err(str::to_owned)?
+    let builder = if let Some(target) = target {
+        let triple = target
+            .parse()
+            .map_err(|_| "invalid native target".to_owned())?;
+        cranelift_codegen::isa::lookup(triple).map_err(|error| error.to_string())?
+    } else {
+        cranelift_native::builder().map_err(str::to_owned)?
+    };
+    let isa = builder
         .finish(settings::Flags::new(flags))
         .map_err(|e| e.to_string())?;
     if isa.pointer_type() != types::I64 {

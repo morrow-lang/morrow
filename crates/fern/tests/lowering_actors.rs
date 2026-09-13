@@ -156,6 +156,7 @@ fn inactive_spawn_rejects_unknown_closure_identity() {
     };
     let program = inactive(Expr {
         kind: ExprKind::Actor(ActorExpr::Spawn {
+            max_restarts: None,
             entry: Box::new(entry),
             mailbox: Type::Int,
         }),

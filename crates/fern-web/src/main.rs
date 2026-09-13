@@ -23,7 +23,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args == ["--help"] || args == ["-h"] {
         println!(
-            "fern-web: ephemeral collaborative Fern preview\n\nBuild: cargo xtask web-build\nRun: FERN_WEB_ACCESS_KEY=<at least 16 characters> fern-web\nLicenses: fern-web --licenses\n\nFERN_WEB_BIND defaults to 127.0.0.1:3000.\nFERN_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nThe preview uses ephemeral state and a shared access key. HTTPS requires a TLS terminator."
+            "fern-web: compiled Fern collaborative application\n\nBuild: cargo xtask web-build\nRun: FERN_WEB_ACCESS_KEY=<at least 16 characters> fern-web\nLicenses: fern-web --licenses\n\nFERN_WEB_BIND defaults to 127.0.0.1:3000.\nFERN_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nFERN_WEB_DATA_DIR enables durable room checkpoints; omit it for ephemeral state.\nAuthentication and command namespaces restart with the server. HTTPS requires a TLS terminator."
         );
         return Ok(());
     }
@@ -45,7 +45,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Err(_) if address.ip().is_loopback() => format!("http://{address}"),
         Err(_) => return Err("set FERN_WEB_ORIGIN when binding outside loopback".into()),
     };
-    let config = Config::new(origin.clone(), access_key);
+    let mut config = Config::new(origin.clone(), access_key);
+    config.data_dir = std::env::var_os("FERN_WEB_DATA_DIR").map(std::path::PathBuf::from);
     let listener = BoundedListener::new(
         listener,
         config.max_tcp_connections,

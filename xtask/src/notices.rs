@@ -253,6 +253,10 @@ fn licenses(package: &Value) -> Result<Vec<(String, String, String)>, String> {
         "MIT"
     } else if expression == "Apache-2.0" {
         "Apache-2.0"
+    } else if expression == "Apache-2.0 WITH LLVM-exception" {
+        // Reviewed ar_archive_writer 0.5.2 LICENSE.txt contains Apache 2.0 and
+        // the complete LLVM exceptions. Preserve the full expression and text.
+        "Apache-2.0 WITH LLVM-exception"
     } else if expression == "BSL-1.0" {
         "BSL-1.0"
     } else if expression == "Zlib" {

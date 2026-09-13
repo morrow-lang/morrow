@@ -236,6 +236,14 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         &second,
         "document.querySelector('#connection')?.getAttribute('data-online') === 'true'",
     )?;
+    browser.eval(&first, "document.querySelector('#draft').value='   '; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#add-form').requestSubmit(); true")?;
+    browser.wait(
+        &first,
+        "document.querySelector('#status')?.textContent.includes('InvalidLabel') === true",
+    )?;
+    if browser.eval(&first, "document.querySelector('#draft').value === '   ' && document.querySelectorAll('#tasks li').length === 0")? != true {
+        return Err("a rejected effect erased its local draft or changed confirmed state".into());
+    }
     browser.eval(&first, "document.querySelector('#draft').value='Grow a lasting language'; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#add-form').requestSubmit(); true")?;
     for page in [&first, &second] {
         browser.wait(page, "document.querySelector('#tasks')?.textContent.includes('Grow a lasting language') === true")?;
@@ -243,6 +251,9 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
             page,
             "getComputedStyle(document.querySelector('#empty')).display === 'none'",
         )?;
+        if browser.eval(page, "document.querySelector('#task-1 > #label-1 > #check-1')?.type === 'checkbox' && document.querySelector('#text-1')?.textContent === 'Grow a lasting language'")? != true {
+            return Err("compiled Fern view did not produce the expected keyed DOM tree".into());
+        }
     }
     browser.eval(
         &second,
@@ -350,7 +361,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     )?;
     integrity::run(&mut browser, &first)?;
     println!(
-        "Real-browser acceptance passed: two clients, compiled Fern policy, keyed DOM/focus, offline worker restart/reload/draft/filter, mobile layout, reconnect and session revocation"
+        "Real-browser acceptance passed: two clients, compiled Fern model/update/view, rejected-effect draft preservation, keyed DOM/focus, offline worker restart/reload/draft/filter, mobile layout, reconnect and session revocation"
     );
     drop(server_process);
     Ok(())

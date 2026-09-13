@@ -388,9 +388,20 @@ impl Engine<'_> {
     /// Sending borrows its message; only the newly returned enqueue Result gains a fresh duty.
     fn actor(&mut self, actor: &ir::ActorExpr, expr: &ir::Expr, depth: usize) -> Checked<Value> {
         match actor {
-            ir::ActorExpr::Spawn { entry, .. } => {
+            ir::ActorExpr::Spawn {
+                entry,
+                max_restarts,
+                ..
+            } => {
                 self.expression(entry, depth)?;
+                if let Some(budget) = max_restarts {
+                    self.expression(budget, depth)?;
+                }
                 self.node(Region::Empty, expr.span)
+            }
+            ir::ActorExpr::SupervisedCurrent { pid } => {
+                self.expression(pid, depth)?;
+                self.fresh(&expr.ty, None, expr.span, depth)
             }
             ir::ActorExpr::Send { pid, message } => {
                 self.expression(pid, depth)?;

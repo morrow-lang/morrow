@@ -56,6 +56,7 @@ impl Limits {
 struct Room {
     snapshot: Snapshot,
     next_task: i64,
+    failed: bool,
 }
 struct Cached {
     command: Command,
@@ -77,6 +78,7 @@ struct Connection {
 /// monotonically increasing time. IDs are routing identities, never credentials.
 /// The transport must authorize the selected room before every call, not just login.
 pub struct Hub {
+    domain: Box<dyn Domain>,
     incarnation: String,
     limits: Limits,
     serial: u64,
@@ -88,6 +90,15 @@ pub struct Hub {
 impl Hub {
     /// Start an empty bounded server. Boot incarnations must never be reused.
     pub fn new(incarnation: String, limits: Limits) -> Result<Self, Error> {
+        Self::with_domain(incarnation, limits, crate::domain::ReferenceDomain)
+    }
+
+    /// Install application behavior while retaining gateway authorization and delivery semantics.
+    pub fn with_domain(
+        incarnation: String,
+        limits: Limits,
+        domain: impl Domain + 'static,
+    ) -> Result<Self, Error> {
         wire::identity(&incarnation)?;
         // Leave room for monotonic identity suffixes inside the wire identity bound.
         if incarnation.len() > 64 {
@@ -95,6 +106,7 @@ impl Hub {
         }
         limits.validate()?;
         Ok(Self {
+            domain: Box::new(domain),
             incarnation,
             limits,
             serial: 0,
@@ -137,6 +149,9 @@ impl Hub {
         wire::identity(principal)?;
         wire::identity(room)?;
         self.expire(now_ms)?;
+        if self.rooms.get(room).is_some_and(|room| room.failed) {
+            return Err(Error::ResyncRequired);
+        }
         if !self.rooms.contains_key(room) && self.rooms.len() >= self.limits.max_rooms {
             return Err(Error::RoomLimit);
         }
@@ -166,6 +181,7 @@ impl Hub {
         let connection = self.id()?;
         if !self.rooms.contains_key(room) {
             let incarnation = self.id()?;
+            let restored = self.restore_domain(room)?;
             self.rooms.insert(
                 room.into(),
                 Room {
@@ -174,9 +190,12 @@ impl Hub {
                         room: room.into(),
                         incarnation,
                         revision: Decimal(0),
-                        tasks: Vec::new(),
+                        tasks: restored
+                            .as_ref()
+                            .map_or_else(Vec::new, |state| state.tasks.clone()),
                     },
-                    next_task: 1,
+                    next_task: restored.map_or(1, |state| state.next_id),
+                    failed: false,
                 },
             );
         }
@@ -240,6 +259,9 @@ impl Hub {
             return Err(Error::Unauthorized);
         }
         let room = self.rooms.get(&ns.room).ok_or(Error::IncarnationMismatch)?;
+        if room.failed {
+            return Err(Error::ResyncRequired);
+        }
         if room.snapshot.incarnation != command.incarnation {
             return Err(Error::IncarnationMismatch);
         }
@@ -278,7 +300,45 @@ impl Hub {
         let status = if command.expected_revision != room.snapshot.revision {
             Status::Conflict
         } else {
-            apply(room, &command.mutation, self.limits.max_tasks)?
+            let revision = room
+                .snapshot
+                .revision
+                .0
+                .checked_add(1)
+                .ok_or(Error::Exhausted)?;
+            let transition = self
+                .domain
+                .apply(
+                    &room_name,
+                    &room.snapshot.tasks,
+                    room.next_task,
+                    &command.mutation,
+                    self.limits.max_tasks,
+                )
+                .and_then(|change| {
+                    change.validate(
+                        &room.snapshot.tasks,
+                        room.next_task,
+                        self.limits.max_tasks,
+                        self.limits.max_label_bytes,
+                    )?;
+                    Ok(change)
+                });
+            let change = match transition {
+                Ok(change) => change,
+                Err(error) => {
+                    // A stateful implementation may already have advanced. Retire
+                    // its incarnation even when recovery itself subsequently fails.
+                    let _ = self.reset_room(&room_name);
+                    return Err(error);
+                }
+            };
+            if change.status == Status::Applied {
+                room.snapshot.tasks = change.tasks;
+                room.next_task = change.next_id;
+                room.snapshot.revision = Decimal(revision);
+            }
+            change.status
         };
         let outcome = Outcome {
             version: VERSION,
@@ -308,16 +368,23 @@ impl Hub {
     pub fn snapshot(&self, room: &str) -> Result<Snapshot, Error> {
         self.rooms
             .get(room)
-            .map(|r| r.snapshot.clone())
             .ok_or(Error::IncarnationMismatch)
+            .and_then(|room| {
+                if room.failed {
+                    Err(Error::ResyncRequired)
+                } else {
+                    Ok(room.snapshot.clone())
+                }
+            })
     }
 
     /// Reset one ephemeral domain incarnation. Existing namespace high-water marks
     /// survive, so old commands cannot be reinterpreted as new mutations.
     pub fn reset_room(&mut self, room: &str) -> Result<Snapshot, Error> {
-        if !self.rooms.contains_key(room) {
-            return Err(Error::IncarnationMismatch);
-        }
+        self.rooms
+            .get_mut(room)
+            .ok_or(Error::IncarnationMismatch)?
+            .failed = true;
         let incarnation = self.id()?;
         let state = self.rooms.get_mut(room).ok_or(Error::IncarnationMismatch)?;
         state.snapshot.incarnation = incarnation;
@@ -327,7 +394,26 @@ impl Hub {
         for ns in self.namespaces.values_mut().filter(|ns| ns.room == room) {
             ns.outcomes.clear();
         }
+        self.domain.reset(room)?;
+        let restored = self.restore_domain(room)?;
+        let state = self.rooms.get_mut(room).ok_or(Error::IncarnationMismatch)?;
+        if let Some(restored) = restored {
+            state.snapshot.tasks = restored.tasks;
+            state.next_task = restored.next_id;
+        }
+        state.failed = false;
         self.snapshot(room)
+    }
+
+    fn restore_domain(&mut self, room: &str) -> Result<Option<DomainChange>, Error> {
+        let restored = self.domain.restore(room)?;
+        if let Some(state) = &restored {
+            if state.status != Status::Applied {
+                return Err(Error::Malformed);
+            }
+            state.validate(&[], 1, self.limits.max_tasks, self.limits.max_label_bytes)?;
+        }
+        Ok(restored)
     }
 
     /// Release physical connection resources; dedupe metadata has a fixed expiry.
@@ -341,7 +427,13 @@ impl Hub {
         self.connections
             .get(connection)
             .and_then(|connection| self.namespaces.get(&connection.namespace))
-            .is_some_and(|namespace| namespace.expires > now_ms)
+            .is_some_and(|namespace| {
+                namespace.expires > now_ms
+                    && self
+                        .rooms
+                        .get(&namespace.room)
+                        .is_some_and(|room| !room.failed)
+            })
     }
 
     /// Invalidate all namespaces and connections of a revoked principal immediately.
@@ -359,41 +451,4 @@ impl Hub {
             self.connections.len(),
         )
     }
-}
-
-fn apply(room: &mut Room, mutation: &Mutation, max_tasks: usize) -> Result<Status, Error> {
-    let revision = room
-        .snapshot
-        .revision
-        .0
-        .checked_add(1)
-        .ok_or(Error::Exhausted)?;
-    match mutation {
-        Mutation::Add { label } => {
-            if room.snapshot.tasks.len() == max_tasks {
-                return Ok(Status::Capacity);
-            }
-            let next = room.next_task.checked_add(1).ok_or(Error::Exhausted)?;
-            room.snapshot.tasks.push(Task {
-                id: Decimal(room.next_task),
-                label: label.clone(),
-                done: false,
-            });
-            room.next_task = next;
-        }
-        Mutation::SetDone { id, done } => {
-            let Some(task) = room.snapshot.tasks.iter_mut().find(|task| task.id == *id) else {
-                return Ok(Status::NotFound);
-            };
-            task.done = *done;
-        }
-        Mutation::Remove { id } => {
-            let Some(at) = room.snapshot.tasks.iter().position(|task| task.id == *id) else {
-                return Ok(Status::NotFound);
-            };
-            room.snapshot.tasks.remove(at);
-        }
-    }
-    room.snapshot.revision = Decimal(revision);
-    Ok(Status::Applied)
 }

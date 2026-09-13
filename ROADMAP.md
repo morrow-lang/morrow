@@ -1,13 +1,13 @@
 # Fern Roadmap
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 This file is the only active roadmap. Historical context is in [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Current Status Snapshot
 
 - Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.
-- Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate scalar/String WASM backend, and a Rust-hosted collaborative web preview are implemented foundations. The full Fern application API and scalable actor runtime remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.
+- Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate aggregate WASM backend, typed Fern browser model/update/view and compiled native room actors are implemented. Optional durable room checkpoints pass native restart and real WebSocket acceptance. General framework packaging and scalable actor execution remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.
 
 ### Full-stack Actor and Browser Milestones
 
@@ -24,11 +24,15 @@ below describe bounded foundations, not completion of the larger acceptance plan
 - [x] Package the preview with embedded assets, generated bindings and a Rust offline service worker. Exercise two real clients, cached offline reload, drafts, reconnect and logout against the static ARM64 Linux server running unprivileged in an empty chroot. Validate x86-64 static ELF structure; x86-64 execution remains open.
 - [x] Pass final macOS real-browser acceptance including compiled Fern policy, keyed focus, cold service-worker restart, offline draft/filter recovery, reconnect/revocation, a 320-pixel mobile layout and rejection of a tampered HTTP-200 cache update while retaining the prior offline application. Inspect desktop and mobile screenshots.
 - [x] Revalidate the new work with macOS ARM64 `cargo xtask check` and equivalent Linux ARM64 coverage across a workspace check and resumed acceptance tail after storage recovery: formatting, Clippy, notices, workspace tests, 305 native fixtures, 18 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192 fuzz cases. Separately pass 17 WASM, 17 native ABI and four compiler-root cases. Add the static x86-64 browser CI job; its GitHub execution remains unverified.
+- [x] Pass the 2026-09-13 integrated macOS ARM64 `cargo xtask check`: formatting, complete notices, workspace Clippy, 1,869 standard Rust tests, 305 native-output fixtures, 18 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192 fuzz cases. Pass the real browser i64-handle/offline/mobile/cache-integrity gate and link native application test executables statically for ARM64/x86-64 Linux. New Linux execution evidence remains separate from earlier preview acceptance.
 - [ ] Complete precise native root/layout coverage, suspended-continuation lifetime checks and reusable actor identities with generations. Charge copying and collection to measured work budgets.
 - [ ] Implement resumable work-budget safepoints through loops and helper calls, an external-event scheduler, bounded blocking-service workers and supervision of actual typed actors. Prove unrelated progress and failure isolation on one worker before adding parallel execution.
-- [ ] Extend WASM to the aggregate types and host ABI needed by complete Fern applications. Verify native/browser semantic parity, initialization and allocator ownership, and evaluate WasmGC before stabilizing the browser ABI.
-- [ ] Move the complete browser model/update/view and server domain model into typed Fern; generate shared wire codecs and connect compiled Fern actors to the gateway. The current checklist state and DOM host are Rust implementations.
-- [ ] Pass the full architecture acceptance cases with actual Fern domain actors, actor failure/reset and independent aggregate ABI/GC oracles. The current serialized-owner preview does not establish native scheduler fairness or supervision.
+- [x] Extend WASM to records, tagged sums, Option/Result, lists and tuples with precise child tracing, managed i64/BigInt host handles and bounded UTF-8 transfer. Independent nested/full-width/Unicode/GC oracles and complete shared model/update/view traces pass. Maps, closures, indirect calls and native capabilities still reject; WasmGC evaluation remains open.
+- [x] Move the complete checklist browser model/update/view and server domain model into typed Fern. Link native Fern room actors into the Rust gateway with rooted thread-confined sessions, nonblocking polling and typed String reply ports. Real browser and WebSocket acceptance passes; generic rendering stays Rust. Shared wire-codec generation and application-independent packaging remain open.
+- [x] Add actual compiled actor supervision with bounded restarts, fresh initializer heaps, cleanup, stale-PID rejection and unrelated actor progress between restart attempts. Add recoverable native embedding exports without process startup or an interpreter.
+- [x] Pass independent native embedding tests for persistent room state, isolated rooms, full-width values, recoverable faults and 5,000 requests with precise host-root collection.
+- [x] Add optional single-writer atomic room checkpoints before acknowledgement; recover tasks under fresh incarnations and command namespaces. Native reopen/lock/corruption tests and a real WebSocket server restart pass. This is room-state durability, not durable exactly-once external effects.
+- [ ] Pass the full architecture acceptance cases with actual Fern domain actors, actor failure/reset and independent aggregate ABI/GC oracles. The current serialized owner does not establish arbitrary-helper scheduler fairness or multicore progress.
 - [ ] Prove sustained multi-worker fairness, lifecycle churn, memory bounds and observability. Add transactional durable recovery before claiming persistent application guarantees; multi-node ownership and failover remain a separate gate.
 
 ### Rust Workspace Completion
@@ -384,6 +388,6 @@ using the Rust runtime and Cranelift through `cargo xtask check`; historical
 compiler-default evidence does not validate new runtime or browser features.
 
 1. Complete native root/layout coverage and resumable actor continuations; establish independent fairness, actor failure and resource-cleanup oracles before adding workers. Preserve full-width values and bounded lifecycle contracts.
-2. Extend the tested WASM backend and host ABI to the types needed for a complete Fern model/update/view API. Move the checklist's Rust domain state into compiled Fern actors and derive its shared protocol from supported Fern types.
-3. Preserve the working static/offline preview while adding full actor-reset acceptance, durable mutation/recovery and measured multi-worker progress. Treat multi-node ownership and failover as a separate milestone.
+2. Extend the aggregate WASM backend beyond the tested application surface; derive shared wire schemas and add application-independent framework packaging. Preserve actual Fern model/update/view and native actor acceptance.
+3. Preserve the working static/offline application and durable room recovery while adding measured multi-worker progress and transactional external-effect recovery. Treat multi-node ownership and failover as a separate milestone.
 4. Close supporting language/stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), maintain the Rust LSP, and collect fresh native/browser correctness and performance evidence. Tree-sitter remains removed.

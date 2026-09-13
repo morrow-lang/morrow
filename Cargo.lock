@@ -21,6 +21,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
+name = "ar_archive_writer"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4087686b4b0a3427190bae57a1d9a478dbb2d40c5dc1bd6e2b6d797913bdd348"
+dependencies = [
+ "object 0.37.3",
+]
+
+[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -354,7 +363,7 @@ dependencies = [
  "cranelift-module",
  "gimli",
  "log",
- "object",
+ "object 0.39.1",
  "target-lexicon",
 ]
 
@@ -528,6 +537,7 @@ name = "fern-web"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "fern-web-app",
  "fern-web-protocol",
  "futures-util",
  "getrandom 0.4.3",
@@ -536,6 +546,19 @@ dependencies = [
  "serde_json",
  "tokio",
  "tokio-tungstenite 0.30.0",
+]
+
+[[package]]
+name = "fern-web-app"
+version = "0.1.0"
+dependencies = [
+ "ar_archive_writer",
+ "fern",
+ "fern-runtime",
+ "fern-web-protocol",
+ "libc",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -947,6 +970,15 @@ dependencies = [
  "cfg-if",
  "cfg_aliases",
  "libc",
+]
+
+[[package]]
+name = "object"
+version = "0.37.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ff76201f031d8863c38aa7f905eca4f53abbfa15f609db4277d44cd8938f33fe"
+dependencies = [
+ "memchr",
 ]
 
 [[package]]

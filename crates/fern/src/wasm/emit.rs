@@ -1,5 +1,9 @@
 //! Structured scalar control flow with lexical locals and typed branch results.
-use super::{Result, expect, invalid, strings, value_type};
+#[path = "aggregates.rs"]
+mod aggregates;
+#[path = "collections.rs"]
+mod collections;
+use super::{Result, expect, invalid, managed, strings, value_type};
 use crate::{
     Span, Type,
     ast::{BinaryOp, UnaryOp},
@@ -41,7 +45,7 @@ pub(super) fn function(
         {
             return Err(invalid(function.body.span, "duplicate parameter identity"));
         }
-        if param.ty == Type::String {
+        if managed(&param.ty) {
             emitter.emit(I::LocalGet(index as u32));
             emitter.root_string(function.body.span)?;
             emitter.emit(I::Drop);
@@ -140,6 +144,41 @@ impl Emitter<'_, '_> {
                 self.emit(I::I32Const(*pointer));
                 Type::String
             }
+            ExprKind::Interpolate(parts) => {
+                let runtime = self
+                    .strings
+                    .ok_or_else(|| invalid(expr.span, "missing string heap"))?;
+                let first = runtime.first;
+                self.emit(I::I32Const(runtime.literals[""]));
+                for part in parts {
+                    let ty = self.expr(part, locals, depth)?;
+                    match ty {
+                        Type::String => {}
+                        Type::Int => self.emit(I::Call(first + strings::INT_TEXT)),
+                        Type::Bool => {
+                            self.emit(I::If(BlockType::Result(ValType::I32)));
+                            self.emit(I::I32Const(runtime.literals["true"]));
+                            self.emit(I::Else);
+                            self.emit(I::I32Const(runtime.literals["false"]));
+                            self.emit(I::End);
+                        }
+                        Type::Unit => {
+                            self.emit(I::Drop);
+                            self.emit(I::I32Const(runtime.literals["()"]));
+                        }
+                        _ => {
+                            return Err(invalid(
+                                part.span,
+                                "interpolation of this value type is unavailable",
+                            ));
+                        }
+                    }
+                    self.root_string(part.span)?;
+                    self.emit(I::Call(first + strings::CONCAT));
+                    self.root_string(part.span)?;
+                }
+                Type::String
+            }
             ExprKind::Local(id) => {
                 let (index, ty) = locals
                     .get(&id.0)
@@ -181,7 +220,7 @@ impl Emitter<'_, '_> {
                     if actual != expr.ty {
                         return Err(invalid(expr.span, "string call result type mismatch"));
                     }
-                    if actual == Type::String {
+                    if managed(&actual) {
                         self.root_string(expr.span)?;
                     }
                     return Ok(actual);
@@ -274,6 +313,13 @@ impl Emitter<'_, '_> {
                 self.emit(I::End);
                 expr.ty.clone()
             }
+            ExprKind::Tuple(_)
+            | ExprKind::List(_)
+            | ExprKind::CustomConstruct { .. }
+            | ExprKind::Construct { .. }
+            | ExprKind::Field { .. }
+            | ExprKind::Wrap(_)
+            | ExprKind::Unwrap(_) => self.aggregate(expr, locals, depth)?,
             _ => return Err(invalid(expr.span, unsupported(&expr.kind))),
         };
         if actual != expr.ty {
@@ -285,7 +331,7 @@ impl Emitter<'_, '_> {
                 ),
             ));
         }
-        if actual == Type::String {
+        if managed(&actual) {
             self.root_string(expr.span)?;
         }
         Ok(actual)
@@ -300,6 +346,27 @@ impl Emitter<'_, '_> {
         span: Span,
     ) -> Result<Type> {
         use ir::Builtin;
+        if let CallTarget::Builtin(builtin) = target
+            && matches!(
+                builtin,
+                Builtin::ListLen
+                    | Builtin::ListGet
+                    | Builtin::ListHead
+                    | Builtin::ListTail
+                    | Builtin::ListIsEmpty
+                    | Builtin::ListPush
+                    | Builtin::ListConcat
+                    | Builtin::ListReverse
+                    | Builtin::OptionIsSome
+                    | Builtin::OptionIsNone
+                    | Builtin::OptionUnwrapOr
+                    | Builtin::ResultIsOk
+                    | Builtin::ResultIsErr
+                    | Builtin::ResultUnwrapOr
+            )
+        {
+            return self.collection_call(builtin, args, locals, depth, span);
+        }
         let operation = match target {
             CallTarget::Builtin(Builtin::StringLen) => Some((strings::LEN, 1, Type::Int)),
             CallTarget::Builtin(Builtin::StringConcat) => Some((strings::CONCAT, 2, Type::String)),
@@ -360,15 +427,15 @@ impl Emitter<'_, '_> {
             } else {
                 None
             };
-            let mut retained_binding = None;
+            let mut retained_bindings = Vec::new();
             match statement {
                 Stmt::Let { id, value } => {
                     let ty = self.expr(value, locals, depth)?;
                     if ty != Type::Never {
                         let index = self.bind(locals, *id, &ty, value.span)?;
                         self.emit(I::LocalSet(index));
-                        if ty == Type::String {
-                            retained_binding = Some(index);
+                        if managed(&ty) {
+                            retained_bindings.push(index);
                         }
                     }
                     diverges |= ty == Type::Never;
@@ -389,11 +456,15 @@ impl Emitter<'_, '_> {
                     let ty = self.expr(value, locals, depth)?;
                     let temp = self.temp(value_type(&ty, value.span)?, value.span)?;
                     self.emit(I::LocalSet(temp));
+                    let previous = locals
+                        .keys()
+                        .copied()
+                        .collect::<std::collections::BTreeSet<_>>();
                     self.pattern(pattern, temp, &ty, locals, value.span)?;
-                    if ty == Type::String
-                        && let Pattern::Bind(id) = pattern
-                    {
-                        retained_binding = Some(locals[&id.0].0);
+                    for (id, (slot, ty)) in locals.iter() {
+                        if !previous.contains(id) && managed(ty) {
+                            retained_bindings.push(*slot);
+                        }
                     }
                     self.emit(I::I32Eqz);
                     self.emit(I::If(BlockType::Empty));
@@ -408,12 +479,12 @@ impl Emitter<'_, '_> {
                 // block result, with no allocating operation between reset and re-root.
                 self.emit(I::LocalGet(mark));
                 self.emit(I::GlobalSet(0));
-                if let Some(binding) = retained_binding {
+                for binding in retained_bindings {
                     self.emit(I::LocalGet(binding));
                     self.root_string(span)?;
                     self.emit(I::Drop);
                 }
-                if is_last && last == Type::String {
+                if is_last && managed(&last) {
                     self.root_string(span)?;
                 }
             }
@@ -456,12 +527,7 @@ impl Emitter<'_, '_> {
                 self.emit(I::I32Const(i32::from(*value_pattern)));
                 self.emit(I::I32Eq);
             }
-            _ => {
-                return Err(invalid(
-                    span,
-                    "pattern requires unsupported value representation",
-                ));
-            }
+            _ => return self.aggregate_pattern(pattern, value, ty, locals, span),
         }
         Ok(())
     }

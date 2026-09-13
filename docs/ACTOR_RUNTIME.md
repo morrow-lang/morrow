@@ -1,13 +1,85 @@
 # Actor runtime status and contracts
 
-This page describes the Rust mailbox and supervision runtime in
-`crates/fern-runtime/src/actors`. These mailbox APIs do not themselves execute
-spawned Fern functions. [Typed native actors](RUST_ACTORS.md) use a separate
-bounded cooperative scheduler; the two interfaces do not yet share a complete
-typed supervision or FernSim execution model. The broader target language is
-recorded in [DESIGN.md](../DESIGN.md).
+Fern executes typed native actors with the Rust runtime in
+`crates/fern-runtime/src/managed`. The older string mailbox API in
+`crates/fern-runtime/src/actors` remains a separate compatibility interface.
+Its lifecycle events and strategies do not implicitly apply to typed actors.
+The broader target language is recorded in [DESIGN.md](../DESIGN.md).
 
-## Mailbox behavior
+## Typed native execution
+
+`spawn(initializer)` queues a typed, zero-argument initializer. Its captures are
+copied into a new actor heap before it runs. Sending copies the validated message
+graph into the receiving actor's heap, preserves sharing inside that graph, and
+publishes nothing when validation or admission fails. Strings, aggregates,
+full-width ranges and immutable `json.Value` graphs have owned representations;
+PID references point only to invocation-owned control records. Unsupported
+native handles cannot cross this boundary.
+
+Each actor heap is collected independently and retired on actor completion or
+failure. Sender collection and termination cannot invalidate a received payload.
+Native compiler frames register typed reference roots. Runtime allocation helpers
+still use conservative stack/register discovery, and objects are scanned
+conservatively; this is not yet a fully precise collector.
+
+The scheduler executes FIFO continuation callbacks on one thread. Supported
+receives and receiving tail calls suspend into explicit continuation frames.
+Ordinary native helpers, loops and recursion run synchronously inside their
+callback: they have no instruction budget or preemption. There are no parallel
+workers, cross-process PIDs or distributed scheduler guarantees.
+
+## Typed failure and restart
+
+`supervise(initializer, max_restarts)` returns `Pid(Message)` and retains a private
+copy of the typed initializer. The restart count must be between 0 and 32 and is a
+lifetime budget, not a rolling time window. A checked runtime failure unwinds the
+generated function returns and active `defer` cleanup, retires the failed child's
+payload heap and mailbox, then queues a fresh actor from the original initializer.
+Unrelated actors remain runnable. Mutation of a failed child's captures does not
+change the next initializer. Normal completion does not restart.
+
+Each replacement has a fresh identity. `send(old_pid, message)` continues to
+return an error; it never redirects. `supervised_current(original_pid)` returns
+`Result(Pid(Message), Int)` for the currently live replacement, or an error when
+the lineage has completed or exhausted its budget. Restart admission failure
+ends that lineage without poisoning unrelated actors. Unsupervised actor faults
+retain the invocation-failure behavior of ordinary native programs.
+
+Recoverable checked faults include existing arithmetic/collection runtime
+failures and the 16 MiB Regex replacement and terminal-rendering limits.
+Generated source calls propagate the exact actor fault cell before using a
+failed operation's result. This is not a recovery boundary for process aborts,
+out-of-memory termination, foreign memory corruption or arbitrary external code.
+Typed links, monitor messages, supervisor trees and restart strategies beyond a
+single child are still future work.
+
+## Native application hosts
+
+Managed native libraries export descriptor-aware `fern_library_open(fault)` and
+`fern_library_string_port(exec)` helpers. The opened invocation is explicitly
+rooted until `fern_managed_close(exec)`. The host's writable fault cell must remain
+at its original address until close, and all operations run on the opening thread.
+Other retained native values need registered host root slots across calls.
+
+`fern_managed_poll(exec, max_steps)` accepts 1–65,536 continuation callbacks and
+returns 0 for completion, 1 for external-input idle, 2 for a reached callback
+budget, or 3 for invocation failure. An idle persistent server is not a deadlock.
+This count does not bound the synchronous work within a helper. String ports are
+ordinary bounded, actor-owned mailboxes with host reads: peek reports the next
+byte length; read copies UTF-8 into a host buffer and consumes exactly one message.
+A short buffer returns -2 without consuming it; -1 means empty and -3 invalid.
+Close cancels the invocation, retires actor heaps and drops its persistent root;
+it does not collect or invalidate another open invocation.
+
+Admission currently caps live actors at 1,024, mailbox messages at 4,096, total
+queued messages at 65,536 and logical retained actor storage at 64 MiB. Actor
+identities have a separate 65,536-per-invocation lifetime limit: dead control
+records are retained to keep stale copied PID and supervision lineage references
+safe. Reusing slots safely requires generation checks and explicit control-edge
+ownership; it is not implemented yet. Repeated reads of an existing port or
+lookups of a supervision lineage do not consume new actor identities.
+
+## Compatibility mailbox behavior
 
 `actors.start(name)` creates a process-local integer ID and an empty mailbox.
 `actors.post(pid, message)` and `send(pid, message)` copy a string into its FIFO mailbox
@@ -25,7 +97,7 @@ virtual clock controls, and exit injection for integration and simulation tests.
 `actors.supervise_one_for_all`, and `actors.supervise_rest_for_one` have checker,
 codegen, and runtime implementations.
 
-## Lifecycle and supervision commitments
+## Compatibility lifecycle and supervision commitments
 
 - Exited PIDs are permanently dead. They cannot receive new messages, participate
   in scheduling, or become current. Invalid IDs, including `INT64_MAX` at the C
@@ -66,6 +138,17 @@ codegen, and runtime implementations.
 
 ## Regression coverage
 
+Typed runtime tests cover initializer isolation, independent heap reclamation,
+atomic copying, stale PID rejection, fresh restart identity, bounded host reads,
+repeated port reuse and independently rooted host sessions. Native executable
+oracles compile real Fern programs and prove that supervised collection, Regex
+and terminal-layout failures preserve sibling progress and execute active cleanup.
+
+```sh
+cargo test -p fern-runtime --lib
+cargo test -p fern --test checker_actors --test lowering_actors --test cranelift_backend
+```
+
 Rust runtime tests exercise FIFO messages and round-robin tickets, forest
 cycle/owner rejection, stale identities and single-use restart lineage,
 zero-time restart windows, both sibling restart strategies, and descendant
@@ -83,10 +166,11 @@ verification of the Rust runtime; those earlier totals are not silently reused.
 
 ## Work still required before concurrency is ready for applications
 
-The mailbox scheduler does not execute actor functions or suspend/resume them.
-The typed native scheduler provides those capabilities within the [105A limits](RUST_ACTORS.md),
-but generalized suspension, isolated per-actor heaps, synchronous request/reply,
-typed supervision and REPL/FernSim parity remain open. Legacy supervision
+The compatibility mailbox scheduler does not execute actor functions or
+suspend/resume them. The typed native scheduler executes real actor functions
+with isolated heaps and bounded single-child supervision, but generalized fair
+suspension, safe identity-slot recycling, typed supervisor trees, synchronous
+request/reply and REPL/FernSim parity remain open. Compatibility supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
 Automatic ancestor escalation and descendant subtree recreation after supervisor
 restart remain incomplete. Linked exits are notifications rather than full

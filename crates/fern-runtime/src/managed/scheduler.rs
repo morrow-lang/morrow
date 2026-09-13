@@ -82,6 +82,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*s).live -= 1;
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
+        supervision::completed(a);
     }
 }
 
@@ -128,7 +129,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
             if !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
             }
-            if (*a).fault != 0 {
+            if (*a).fault != 0 && !supervision::recover(a) {
                 fail(&raw mut (*s).root, (*a).fault);
                 break;
             }
@@ -201,30 +202,40 @@ pub unsafe extern "C" fn fern_managed_run(exec: *mut Exec) {
             if !(*a).alive {
                 continue;
             }
-            if (*a).waiting {
-                poll(a, false);
-            } else {
-                let f = function(s, (*a).frame);
-                let status = {
-                    let _actor_scope = memory::enter_heap((*a).heap);
-                    ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
-                };
-                if status == 2 {
-                    finish(a);
-                } else if !matches!(status, 0 | 1 | 3)
-                    || (status == 0 && !(*a).queued)
-                    || (status == 1 && !(*a).waiting)
-                    || (status == 3 && (*a).fault == 0)
-                {
-                    fail(&raw mut (*a).exec, 11);
-                }
-            }
-            if (*a).fault != 0 {
-                fail(&raw mut (*s).root, (*a).fault);
-            }
+            step(s, a);
         }
         if *(*s).root.fault != 0 {
             fern_managed_stop(exec);
+        }
+    }
+}
+
+/// Execute one ready continuation with its exact payload allocation scope.
+pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
+    unsafe {
+        if (*a).host_port {
+            return;
+        }
+        if (*a).waiting {
+            poll(a, false);
+        } else {
+            let f = function(s, (*a).frame);
+            let status = {
+                let _actor_scope = memory::enter_heap((*a).heap);
+                ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
+            };
+            if status == 2 {
+                finish(a);
+            } else if !matches!(status, 0 | 1 | 3)
+                || (status == 0 && !(*a).queued)
+                || (status == 1 && !(*a).waiting)
+                || (status == 3 && (*a).fault == 0)
+            {
+                fail(&raw mut (*a).exec, 11);
+            }
+        }
+        if (*a).fault != 0 && !supervision::recover(a) {
+            fail(&raw mut (*s).root, (*a).fault);
         }
     }
 }

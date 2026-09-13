@@ -1,10 +1,245 @@
-# Portable application policy. Compile with:
+# A portable typed application. Compile with:
 # fern build --target=wasm32 examples/web/checklist.fn -o checklist.wasm
 #
-# The Rust browser host owns DOM handles, storage and transport. These pure Fern
-# functions decide visibility, progress and event availability in every browser,
-# including while disconnected. Int crosses the WASM boundary as i64/BigInt.
+# The host owns DOM handles, storage and transport. Fern owns the domain transition,
+# immutable local model, event update and view. No host or application-specific
+# primitive is needed by the compiler. Native and browser targets share this file.
 module checklist
+
+pub type Task derive(Json):
+    id: Int
+    label: String
+    done: Bool
+
+pub type Domain derive(Json):
+    tasks: List(Task)
+    next_id: Int
+
+pub type Mutation derive(Json):
+    Add(String)
+    SetDone(Int, Bool)
+    Remove(Int)
+
+pub type DomainChange derive(Json):
+    state: Domain
+    status: Int
+
+# Status: 0 applied, 1 task missing, 2 capacity, 3 identifier exhausted.
+pub fn domain_init() -> Domain: Domain([], 1)
+
+fn replace_task(tasks: List(Task), id: Int, done: Bool, remove: Bool, index: Int, output: List(Task)) -> List(Task):
+    if index >= List.len(tasks): output
+    else:
+        let task = List.get(tasks, index)
+        if task.id == id:
+            if remove:
+                replace_task(tasks: tasks, id: id, done: done, remove: remove, index: index + 1, output: output)
+            else:
+                replace_task(tasks: tasks, id: id, done: done, remove: remove, index: index + 1, output: List.push(output, Task(id, task.label, done)))
+        else:
+            replace_task(tasks: tasks, id: id, done: done, remove: remove, index: index + 1, output: List.push(output, task))
+
+fn find_task(tasks: List(Task), id: Int, index: Int) -> Option(Task):
+    if index >= List.len(tasks): None
+    else:
+        let task = List.get(tasks, index)
+        if task.id == id: Some(task) else: find_task(tasks, id: id, index: index + 1)
+
+pub fn domain_update(state: Domain, mutation: Mutation, capacity: Int) -> DomainChange:
+    match mutation:
+        Add(label) ->
+            if List.len(state.tasks) >= capacity or String.len(label) == 0 or String.len(label) > 256:
+                DomainChange(state, 2)
+            else:
+                if state.next_id == 9223372036854775807:
+                    DomainChange(state, 3)
+                else:
+                    DomainChange(Domain(List.push(state.tasks, Task(state.next_id, label, false)), state.next_id + 1), 0)
+        SetDone(id, done) ->
+            match find_task(state.tasks, id: id, index: 0):
+                None -> DomainChange(state, 1)
+                Some(_) -> DomainChange(Domain(replace_task(tasks: state.tasks, id: id, done: done, remove: false, index: 0, output: []), state.next_id), 0)
+        Remove(id) ->
+            match find_task(state.tasks, id: id, index: 0):
+                None -> DomainChange(state, 1)
+                Some(_) -> DomainChange(Domain(replace_task(tasks: state.tasks, id: id, done: false, remove: true, index: 0, output: []), state.next_id), 0)
+
+pub type Model:
+    tasks: List(Task)
+    draft: String
+    filter: Int
+    status: String
+    online: Bool
+    pending: Bool
+
+pub type Event:
+    Draft(String)
+    Filter(Int)
+    Snapshot(List(Task))
+    Connection(Bool, Bool, String)
+    Submit
+    Admitted
+    Toggle(Int)
+    Delete(Int)
+
+pub type Change:
+    model: Model
+    effect: Option(Mutation)
+
+pub fn model_init(draft: String) -> Model:
+    Model([], draft, 0, "Offline · your draft stays on this device", false, false)
+
+fn unchanged(model: Model) -> Change: Change(model, None)
+fn queued(model: Model, mutation: Mutation) -> Change:
+    Change(Model(model.tasks, model.draft, model.filter, "Saving · awaiting server confirmation", model.online, true), Some(mutation))
+
+pub fn update(model: Model, event: Event) -> Change:
+    match event:
+        Draft(text) ->
+            if String.len(text) <= 256:
+                unchanged(Model(model.tasks, text, model.filter, model.status, model.online, model.pending))
+            else:
+                unchanged(Model(model.tasks, model.draft, model.filter, "Draft limit: 256 UTF-8 bytes. Shorten it before submitting.", model.online, model.pending))
+        Filter(selected) ->
+            if selected >= 0 and selected <= 2:
+                unchanged(Model(model.tasks, model.draft, selected, model.status, model.online, model.pending))
+            else: unchanged(model)
+        Snapshot(tasks) ->
+            if List.len(tasks) <= 100:
+                unchanged(Model(tasks, model.draft, model.filter, model.status, model.online, model.pending))
+            else: unchanged(model)
+        Connection(online, pending, status) -> unchanged(Model(model.tasks, model.draft, model.filter, status, online, pending))
+        Submit ->
+            if can_submit(String.len(model.draft), online: model.online, pending: model.pending):
+                queued(model, Add(model.draft))
+            else: unchanged(model)
+        Admitted -> unchanged(Model(model.tasks, "", model.filter, model.status, model.online, model.pending))
+        Toggle(id) ->
+            if model.online and not model.pending:
+                match find_task(model.tasks, id: id, index: 0):
+                    Some(task) -> queued(model, SetDone(id, not task.done))
+                    None -> unchanged(model)
+            else: unchanged(model)
+        Delete(id) ->
+            if model.online and not model.pending:
+                match find_task(model.tasks, id: id, index: 0):
+                    Some(_) -> queued(model, Remove(id))
+                    None -> unchanged(model)
+            else: unchanged(model)
+
+# Flat, parent-before-child keyed virtual DOM. Empty tag targets an existing shell
+# node; other tags create owned nodes. Values and attributes are text, never HTML.
+pub type Attribute:
+    name: String
+    value: String
+
+pub type Node:
+    key: String
+    parent: String
+    tag: String
+    text: String
+    value: String
+    flags: Int
+    attributes: List(Attribute)
+
+fn boolean(value: Bool) -> String: if value: "true" else: "false"
+fn node(key: String, text: String, attributes: List(Attribute)) -> Node:
+    Node(key, "", "", text, "", 0, attributes)
+
+fn done_count(tasks: List(Task), index: Int, count: Int) -> Int:
+    if index >= List.len(tasks): count
+    else:
+        let task = List.get(tasks, index)
+        done_count(tasks, index: index + 1, count: count + (if task.done: 1 else: 0))
+
+fn visible_count(tasks: List(Task), filter: Int, index: Int, count: Int) -> Int:
+    if index >= List.len(tasks): count
+    else:
+        let task = List.get(tasks, index)
+        visible_count(tasks, filter: filter, index: index + 1, count: count + (if task_visible(filter, done: task.done): 1 else: 0))
+
+fn task_nodes(model: Model, index: Int, nodes: List(Node)) -> List(Node):
+    if index >= List.len(model.tasks): nodes
+    else:
+        let task = List.get(model.tasks, index)
+        let key = "task-{task.id}"
+        let label = "label-{task.id}"
+        let disabled = if model.online and not model.pending: 0 else: 1
+        let hidden = if task_visible(model.filter, done: task.done): 0 else: 4
+        let checked = if task.done: 2 else: 0
+        let row = Node(key, "tasks", "li", "", "", hidden, [Attribute("data-done", boolean(value: task.done))])
+        let wrapper = Node(label, key, "label", "", "", 0, [])
+        let checkbox = Node("check-{task.id}", label, "input", "", "", disabled + checked, [Attribute("type", "checkbox"), Attribute("data-id", "{task.id}"), Attribute("data-action", "toggle")])
+        let text = Node("text-{task.id}", label, "span", task.label, "", 0, [])
+        let remove = Node("remove-{task.id}", key, "button", "×", "", disabled, [Attribute("class", "remove"), Attribute("aria-label", "Remove task"), Attribute("data-id", "{task.id}"), Attribute("data-action", "remove")])
+        task_nodes(model, index + 1, List.concat(nodes, [row, wrapper, checkbox, text, remove]))
+
+pub fn view(model: Model) -> List(Node):
+    let done = done_count(model.tasks, index: 0, count: 0)
+    let total = List.len(model.tasks)
+    let percent = completion_percent(done: done, total: total)
+    let empty = if visible_count(model.tasks, filter: model.filter, index: 0, count: 0) == 0: 0 else: 4
+    let disabled = if can_submit(String.len(model.draft), online: model.online, pending: model.pending): 0 else: 1
+    task_nodes(model, 0, [
+        node(key: "status", text: model.status, attributes: []),
+        node(key: "connection", text: if model.online: "LIVE" else: "OFFLINE", attributes: [Attribute("data-online", boolean(value: model.online))]),
+        Node("draft", "", "", "", model.draft, 8, []),
+        Node("add", "", "", "", "", disabled, []),
+        node(key: "progress", text: "{done} of {total} complete · {percent}%", attributes: []),
+        Node("empty", "", "", "", "", empty, []),
+        node(key: "filter-0", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 0))]),
+        node(key: "filter-1", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 1))]),
+        node(key: "filter-2", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 2))])
+    ])
+
+# Host construction/projection functions keep ownership explicit at the ABI. They
+# are ordinary Fern functions; applications may use different models and events.
+pub fn tasks_empty() -> List(Task): []
+pub fn tasks_push(tasks: List(Task), id: Int, label: String, done: Bool) -> List(Task): List.push(tasks, Task(id, label, done))
+pub fn event_draft(text: String) -> Event: Draft(text)
+pub fn event_filter(filter: Int) -> Event: Filter(filter)
+pub fn event_snapshot(tasks: List(Task)) -> Event: Snapshot(tasks)
+pub fn event_connection(online: Bool, pending: Bool, status: String) -> Event: Connection(online, pending, status)
+pub fn event_submit() -> Event: Submit
+pub fn event_admitted() -> Event: Admitted
+pub fn event_toggle(id: Int) -> Event: Toggle(id)
+pub fn event_delete(id: Int) -> Event: Delete(id)
+pub fn change_model(change: Change) -> Model: change.model
+pub fn change_effect_kind(change: Change) -> Int:
+    match change.effect:
+        None -> 0
+        Some(Add(_)) -> 1
+        Some(SetDone(_, _)) -> 2
+        Some(Remove(_)) -> 3
+pub fn change_effect_label(change: Change) -> String:
+    match change.effect:
+        Some(Add(label)) -> label
+        _ -> ""
+pub fn change_effect_id(change: Change) -> Int:
+    match change.effect:
+        Some(SetDone(id, _)) -> id
+        Some(Remove(id)) -> id
+        _ -> 0
+pub fn change_effect_done(change: Change) -> Bool:
+    match change.effect:
+        Some(SetDone(_, done)) -> done
+        _ -> false
+pub fn model_draft(model: Model) -> String: model.draft
+pub fn model_status(model: Model) -> String: model.status
+pub fn view_len(nodes: List(Node)) -> Int: List.len(nodes)
+pub fn view_node(nodes: List(Node), index: Int) -> Node:
+    if index >= 0 and index < List.len(nodes): List.get(nodes, index) else: node(key: "", text: "", attributes: [])
+pub fn node_key(value: Node) -> String: value.key
+pub fn node_parent(value: Node) -> String: value.parent
+pub fn node_tag(value: Node) -> String: value.tag
+pub fn node_text(value: Node) -> String: value.text
+pub fn node_value(value: Node) -> String: value.value
+pub fn node_flags(value: Node) -> Int: value.flags
+pub fn node_attributes_len(value: Node) -> Int: List.len(value.attributes)
+pub fn node_attribute(value: Node, index: Int) -> Attribute:
+    if index >= 0 and index < List.len(value.attributes): List.get(value.attributes, index) else: Attribute("", "")
+pub fn attribute_name(value: Attribute) -> String: value.name
+pub fn attribute_value(value: Attribute) -> String: value.value
 
 pub fn task_visible(filter: Int, done: Bool) -> Bool:
     match filter:

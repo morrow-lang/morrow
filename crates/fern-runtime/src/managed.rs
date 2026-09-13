@@ -53,6 +53,7 @@ struct Actor {
     alive: bool,
     queued: bool,
     waiting: bool,
+    host_port: bool,
     fault: i64,
     mailbox: *const Type,
     frame: *mut c_void,
@@ -66,6 +67,7 @@ struct Actor {
     first: *mut Message,
     last: *mut Message,
     next: *mut Actor,
+    supervisor: *mut supervision::Supervisor,
 }
 #[repr(C)]
 struct Pid {
@@ -184,3 +186,11 @@ use scheduler::{clear_receive, enqueue};
 #[cfg(test)]
 use scheduler::{dequeue, wake_due};
 pub use scheduler::{fern_managed_run, fern_managed_stop};
+
+#[path = "managed/supervision.rs"]
+mod supervision;
+pub use supervision::*;
+
+#[path = "managed/host.rs"]
+mod host;
+pub use host::*;

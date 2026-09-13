@@ -10,14 +10,16 @@ const BOXES: [[&str; 8]; 6] = [
     [" ", " ", " ", " ", " ", " ", " ", " "],
 ];
 
-fn layout_limit(width: usize, lines: usize) {
+fn layout_limit(width: usize, lines: usize) -> bool {
     if width
         .checked_mul(lines)
         .and_then(|n| n.checked_mul(4))
         .is_none_or(|n| n > crate::io::TEXT_LIMIT)
     {
-        abi::fault("terminal rendering exceeds 16 MiB");
+        super::limit_fault("terminal rendering exceeds 16 MiB");
+        return false;
     }
+    true
 }
 
 fn padded(value: &str, width: usize, center: bool) -> String {
@@ -223,13 +225,15 @@ pub unsafe extern "C" fn fern_panel_render(panel: *const Panel) -> *const c_char
     } else {
         content.split_terminator('\n').collect()
     };
-    layout_limit(
+    if !layout_limit(
         width.saturating_add(2),
         lines
             .len()
             .saturating_add(vertical.saturating_mul(2))
             .saturating_add(2),
-    );
+    ) {
+        return std::ptr::null();
+    }
     let mut result = panel_border(boxes, title, width, false, &border, reset);
     let padding = repeat(" ", horizontal);
     let blank = repeat(" ", width);
@@ -309,7 +313,8 @@ pub extern "C" fn fern_table_new() -> *mut Table {
 unsafe fn array<T: Copy>(values: &[T]) -> *mut T {
     let size = std::mem::size_of_val(values);
     if size > crate::io::TEXT_LIMIT {
-        abi::fault("terminal collection exceeds 16 MiB");
+        super::limit_fault("terminal collection exceeds 16 MiB");
+        return std::ptr::null_mut();
     }
     let _root =
         unsafe { crate::memory::root_range(values.as_ptr().cast(), size / size_of::<usize>()) };
@@ -345,7 +350,11 @@ pub unsafe extern "C" fn fern_table_add_column(
         max_width: 0,
         justify: 0,
     });
-    target.columns = unsafe { array(&columns) };
+    let copied = unsafe { array(&columns) };
+    if copied.is_null() {
+        return std::ptr::null_mut();
+    }
+    target.columns = copied;
     target.column_count = columns.len() as i64;
     table
 }
@@ -382,7 +391,11 @@ pub unsafe extern "C" fn fern_table_add_row(
         cells: unsafe { (*copies).data },
         cell_count: cells.len,
     });
-    target.rows = unsafe { array(&rows) };
+    let copied = unsafe { array(&rows) };
+    if copied.is_null() {
+        return std::ptr::null_mut();
+    }
+    target.rows = copied;
     target.row_count = rows.len() as i64;
     target.row_capacity = target.row_count;
     table
@@ -444,14 +457,16 @@ pub unsafe extern "C" fn fern_table_render(table: *const Table) -> *const c_char
         *width += 2;
     }
     let boxes = &BOXES[table.box_style.clamp(0, 5) as usize];
-    layout_limit(
+    if !layout_limit(
         widths
             .iter()
             .sum::<usize>()
             .saturating_add(widths.len())
             .saturating_add(1),
         rows.len().saturating_add(4),
-    );
+    ) {
+        return std::ptr::null();
+    }
     let rule = |left: &str, line: &str, right: &str| {
         format!(
             "{left}{}{right}",
@@ -577,7 +592,9 @@ pub unsafe extern "C" fn fern_progress_render(progress: *const Progress) -> *con
         0.0
     };
     let width = progress.width.max(0) as usize;
-    layout_limit(width, 1);
+    if !layout_limit(width, 1) {
+        return std::ptr::null();
+    }
     let filled = ((ratio * width as f64) as usize).min(width);
     let mut result = if progress.description.is_null() {
         String::new()

@@ -13,8 +13,8 @@ A statically typed, functional language with Python-like syntax.</p>
 Fern brings immutable values, pattern matching and explicit errors to readable,
 indentation-based code. Write Fern, check it before execution, and compile it to a
 native executable with a Rust compiler and runtime.
-An early WebAssembly target and a working browser/server preview extend that
-foundation toward interactive, offline-capable applications.
+The same typed application can run as native server actors and as a reactive
+WebAssembly browser client, with WebSocket updates and offline continuity.
 
 ```fern
 fn greet(name: String) -> String:
@@ -92,11 +92,15 @@ visit has cached the application, offline reload preserves the last confirmed
 list and your draft. Shared changes require a connection.
 
 The binary embeds the HTML, CSS, browser WASM, generated bindings and Rust service
-worker. Fern code in [the checklist example](examples/web/checklist.fn) executes
-in the browser and controls filtering, validation, toggling and progress. The
-Rust browser host owns the DOM and transport; the authoritative checklist model
-currently runs in Rust. A complete Fern model/update/view API and compiled Fern
-server actors are the next integration steps.
+worker. [The shared Fern application](examples/web/checklist.fn) owns the domain
+model, local model, event updates and keyed view. Its [native room actor](examples/web/server.fn)
+owns authoritative state. Rust provides the DOM, storage, authenticated transport
+and a rooted native embedding boundary; the shipped server contains no compiler
+or interpreter.
+
+Set `FERN_WEB_DATA_DIR=./fern-data` to checkpoint acknowledged room changes and
+recover them after a restart. Authentication and command namespaces start fresh;
+uncertain commands are never blindly replayed into a new incarnation.
 
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
@@ -166,9 +170,11 @@ cache integrity, mobile layout and static ARM64 server execution.
 
 Fern is ready to explore, build small programs with and contribute to. It remains
 an early preview: fair resumable actors, generalized supervision, multicore
-scheduling, clustering, durable web state and a complete Fern UI framework remain
-open. The WASM backend supports a bounded scalar/String subset; native capabilities
-and general aggregate values are not yet browser features. Custom traits,
+scheduling, clustering and a general application packaging API remain open.
+The current checklist executes its complete typed model/update/view and native
+actor path, with optional durable room checkpoints. WASM supports bounded
+records, tagged sums, lists, tuples, Option/Result and UTF-8 strings with precise
+tracing and rooted host handles; closures, maps and native services remain unsupported. Custom traits,
 broader SQL APIs, x86-64 native-language acceptance and source debugging also
 remain open. The REPL supports a smaller execution surface than native programs.
 The Rust rewrite is complete;
@@ -202,9 +208,10 @@ when moving an installation.
 | [`crates/fern-runtime`](crates/fern-runtime) | Native values, collector and services |
 | [`crates/fern-runtime-native`](crates/fern-runtime-native) | Compiled-program startup |
 | [`crates/fern-json`](crates/fern-json) | Shared bounded JSON implementation |
-| [`crates/fern-web-protocol`](crates/fern-web-protocol) | Bounded command/snapshot protocol and preview state |
+| [`crates/fern-web-protocol`](crates/fern-web-protocol) | Authenticated command/revision contracts and application transitions |
+| [`crates/fern-web-app`](crates/fern-web-app) | Compiled Fern actor embedding and durable room checkpoints |
 | [`crates/fern-web`](crates/fern-web) | Authenticated HTTP/WebSocket preview server and embedded assets |
-| [`crates/fern-browser`](crates/fern-browser) | Rust browser host, keyed DOM and local client state |
+| [`crates/fern-browser`](crates/fern-browser) | Rust browser host, generic keyed DOM and Fern model handles |
 | [`crates/fern-browser-worker`](crates/fern-browser-worker) | Rust service worker for cached offline loading |
 | [`crates/fern-test-supervisor`](crates/fern-test-supervisor) | Native test capture and process cleanup |
 | [`xtask`](xtask) | Build, checks, packaging and installation |

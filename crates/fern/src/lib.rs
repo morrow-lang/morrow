@@ -1,4 +1,4 @@
-//! Experimental independent Fern frontend. The C compiler remains the reference.
+//! Fern's Rust frontend, typed intermediate representations and native/WASM backends.
 #![forbid(unsafe_code)]
 // Keep production panic restrictions explicit while allowing assertions in tests.
 #![cfg_attr(not(test), deny(clippy::panic, clippy::panic_in_result_fn))]
@@ -13,6 +13,7 @@ pub mod lowering;
 pub mod lsp;
 pub mod machine;
 pub mod modules;
+pub mod native_library;
 pub mod parse;
 pub mod presentation;
 pub mod repl;

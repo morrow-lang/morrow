@@ -1,0 +1,62 @@
+# Native gateway adapter. The transport authenticates and deduplicates before
+# calling this module; the typed actor is the canonical domain-state owner.
+module server
+import checklist
+
+pub type Request:
+    Apply(checklist.Mutation, Int, Pid(String))
+    Inspect(Pid(String))
+
+pub type Input derive(Json):
+    mutation: checklist.Mutation
+    capacity: Int
+
+fn reply_result(reply: Pid(String), change: checklist.DomainChange) -> Unit:
+    match json.encode(change):
+        Ok(text) ->
+            match send(reply, text):
+                Ok(_) -> ()
+                Err(_) -> ()
+        Err(_) ->
+            match send(reply, "null"):
+                Ok(_) -> ()
+                Err(_) -> ()
+
+fn room(state: checklist.Domain) -> Unit:
+    receive:
+        Apply(mutation, capacity, reply) ->
+            let change = checklist.domain_update(state, mutation, capacity)
+            reply_result(reply, change)
+            room(change.state)
+        Inspect(reply) ->
+            reply_result(reply, checklist.DomainChange(state, 0))
+            room(state)
+
+pub fn start_room() -> Pid(Request):
+    supervise(() -> room(checklist.domain_init()), 3)
+
+pub fn restore_room(input: String) -> Result(Pid(Request), Int):
+    match json.decode(input, checklist.Domain):
+        Err(_) -> Err(1)
+        Ok(state) -> Ok(supervise(() -> room(state), 3))
+
+# The generated native host adapter owns the PID values; they never enter JSON.
+# Accepted input returns 0. Decode/admission failures leave the actor unchanged.
+pub fn send_command(owner: Pid(Request), input: String, reply: Pid(String)) -> Int:
+    match json.decode(input, Input):
+        Err(_) -> 1
+        Ok(command) ->
+            if command.capacity < 1 or command.capacity > 100:
+                1
+            else:
+                match send(owner, Apply(command.mutation, command.capacity, reply)):
+                    Ok(_) -> 0
+                    Err(_) -> 2
+
+pub fn inspect_room(owner: Pid(Request), reply: Pid(String)) -> Int:
+    match send(owner, Inspect(reply)):
+        Ok(_) -> 0
+        Err(_) -> 2
+
+pub fn current_room(owner: Pid(Request)) -> Result(Pid(Request), Int):
+    supervised_current(owner)

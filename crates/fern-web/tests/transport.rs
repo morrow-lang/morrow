@@ -260,8 +260,9 @@ async fn join(socket: &mut Socket, resume: Option<String>) -> Connected {
         },
     )
     .await;
-    let ServerMessage::Connected(connected) = read(socket).await else {
-        panic!("expected connection")
+    let response = read(socket).await;
+    let ServerMessage::Connected(connected) = response else {
+        panic!("expected connection, received {response:?}")
     };
     connected
 }
@@ -340,4 +341,88 @@ async fn unauthorized_origin_and_malformed_messages_are_rejected() {
         read(&mut socket).await,
         ServerMessage::Error(Error::Malformed)
     );
+}
+
+#[tokio::test]
+async fn acknowledged_room_recovers_after_server_restart_with_a_fresh_incarnation() {
+    let directory =
+        std::env::temp_dir().join(format!("fern-transport-durable-{}", std::process::id()));
+    std::fs::create_dir(&directory).unwrap();
+    struct Cleanup(std::path::PathBuf);
+    impl Drop for Cleanup {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+    let _cleanup = Cleanup(directory.clone());
+    let mut server = Server::configured(|config| config.data_dir = Some(directory.clone())).await;
+    let (cookie, csrf) = server.session().await;
+    let mut socket = server.socket(&cookie, &csrf).await;
+    let connected = join(&mut socket, None).await;
+    send(
+        &mut socket,
+        ClientMessage::Command(Command {
+            version: VERSION,
+            incarnation: connected.snapshot.incarnation.clone(),
+            namespace: connected.namespace.clone(),
+            sequence: Decimal(1),
+            expected_revision: Decimal(0),
+            mutation: Mutation::Add {
+                label: "survives restart 🌱".into(),
+            },
+        }),
+    )
+    .await;
+    loop {
+        if let ServerMessage::Outcome(outcome) = read(&mut socket).await {
+            assert_eq!(outcome.status, Status::Applied);
+            break;
+        }
+    }
+    assert!(
+        directory.join("rooms.json").is_file(),
+        "checkpoint must exist before acknowledgement"
+    );
+    socket.close(None).await.unwrap();
+    drop(socket);
+    server.task.abort();
+    let _ = (&mut server.task).await;
+    drop(server);
+    // The owner thread closes after its final network sender is dropped. Wait for
+    // its actual lock release, not an assumed scheduling delay.
+    tokio::time::timeout(Duration::from_secs(3), async {
+        loop {
+            if fern_web_app::NativeDomain::persistent(&directory).is_ok() {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .unwrap();
+    let server = Server::configured(|config| config.data_dir = Some(directory.clone())).await;
+    let (cookie, csrf) = server.session().await;
+    let mut socket = server.socket(&cookie, &csrf).await;
+    send(
+        &mut socket,
+        ClientMessage::Join {
+            room: "test".into(),
+            resume_namespace: Some(connected.namespace),
+        },
+    )
+    .await;
+    assert_eq!(
+        read(&mut socket).await,
+        ServerMessage::Error(Error::NamespaceExpired)
+    );
+    let restored = join(&mut socket, None).await;
+    assert!(!restored.resumed);
+    assert_ne!(
+        restored.snapshot.incarnation,
+        connected.snapshot.incarnation
+    );
+    assert_eq!(restored.snapshot.revision, Decimal(0));
+    assert_eq!(restored.snapshot.tasks.len(), 1);
+    assert_eq!(restored.snapshot.tasks[0].label, "survives restart 🌱");
+    socket.close(None).await.unwrap();
 }

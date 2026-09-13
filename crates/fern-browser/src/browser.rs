@@ -13,6 +13,8 @@ use web_sys::{
     RequestCredentials, RequestInit, Response, WebSocket, Window,
 };
 
+mod application;
+mod renderer;
 mod transport;
 
 thread_local! { static APP: RefCell<Option<Rc<RefCell<App>>>> = const { RefCell::new(None) }; }
@@ -81,7 +83,6 @@ async fn mount_inner(document: Document) -> Result<(), JsValue> {
     .await?;
     let instance = Reflect::get(&instance, &JsValue::from_str("instance"))?;
     let exports = Reflect::get(&instance, &JsValue::from_str("exports"))?;
-    let policy = Policy::new(exports)?;
     let saved = window()?
         .local_storage()?
         .and_then(|s| s.get_item(STORAGE_KEY).ok().flatten())
@@ -91,6 +92,7 @@ async fn mount_inner(document: Document) -> Result<(), JsValue> {
             snapshot: None,
             had_pending: false,
         });
+    let policy = application::Application::new(exports, &saved.draft)?;
     let draft: HtmlInputElement = element(&document, "draft")?.dyn_into()?;
     draft.set_value(&saved.draft);
     let app = Rc::new(RefCell::new(App {
@@ -98,8 +100,7 @@ async fn mount_inner(document: Document) -> Result<(), JsValue> {
         policy,
         client: None,
         saved,
-        rows: BTreeMap::new(),
-        filter: 0,
+        renderer: renderer::Renderer::default(),
         status: "Offline · your draft stays on this device".into(),
         online: false,
         namespace: None,
@@ -134,69 +135,6 @@ pub fn unmount() {
     APP.with(|root| {
         root.borrow_mut().take();
     });
-}
-
-struct Policy {
-    visible: Function,
-    toggle: Function,
-    submit: Function,
-    progress: Function,
-}
-impl Policy {
-    fn new(exports: JsValue) -> Result<Self, JsValue> {
-        let function = |name: &str| -> Result<Function, JsValue> {
-            Reflect::get(&exports, &JsValue::from_str(name))?
-                .dyn_into()
-                .map_err(|_| js_error(format!("compiled Fern export {name} missing")))
-        };
-        Ok(Self {
-            visible: function("checklist.task_visible")?,
-            toggle: function("checklist.toggle_done")?,
-            submit: function("checklist.can_submit")?,
-            progress: function("checklist.completion_percent")?,
-        })
-    }
-    fn visible(&self, filter: i64, done: bool) -> Result<bool, JsValue> {
-        Ok(self
-            .visible
-            .call2(
-                &JsValue::NULL,
-                &JsValue::from(filter),
-                &JsValue::from(i32::from(done)),
-            )?
-            .as_f64()
-            == Some(1.0))
-    }
-    fn toggle(&self, done: bool) -> Result<bool, JsValue> {
-        Ok(self
-            .toggle
-            .call1(&JsValue::NULL, &JsValue::from(i32::from(done)))?
-            .as_f64()
-            == Some(1.0))
-    }
-    fn can_submit(&self, bytes: usize, online: bool, pending: bool) -> Result<bool, JsValue> {
-        Ok(self
-            .submit
-            .call3(
-                &JsValue::NULL,
-                &JsValue::from(bytes as i64),
-                &JsValue::from(i32::from(online)),
-                &JsValue::from(i32::from(pending)),
-            )?
-            .as_f64()
-            == Some(1.0))
-    }
-    fn progress(&self, done: usize, total: usize) -> Result<String, JsValue> {
-        let result = self.progress.call2(
-            &JsValue::NULL,
-            &JsValue::from(done as i64),
-            &JsValue::from(total as i64),
-        )?;
-        Ok(js_sys::BigInt::new(&result)?
-            .to_string(10)?
-            .as_string()
-            .unwrap_or_default())
-    }
 }
 
 struct Listener {
@@ -246,20 +184,12 @@ impl Drop for Timer {
         }
     }
 }
-struct Row {
-    element: Element,
-    checkbox: HtmlInputElement,
-    remove: HtmlButtonElement,
-    label: Element,
-}
-
 struct App {
     document: Document,
-    policy: Policy,
+    policy: application::Application,
     client: Option<Client>,
     saved: Saved,
-    rows: BTreeMap<i64, Row>,
-    filter: i64,
+    renderer: renderer::Renderer,
     status: String,
     online: bool,
     namespace: Option<String>,
@@ -345,22 +275,16 @@ impl App {
         match id {
             "draft" => {
                 let input: HtmlInputElement = element(&self.document, "draft")?.dyn_into()?;
-                let text = input.value();
-                if text.len() <= MAX_LABEL_BYTES {
-                    self.saved.draft = text;
-                } else {
-                    self.status =
-                        "Draft limit: 256 UTF-8 bytes. Shorten it before submitting.".into();
-                }
+                self.policy.draft(&input.value())?;
+                self.saved.draft = self.policy.draft_text()?;
+                self.status = self.policy.status()?;
             }
             "add-form" => {
                 event.prevent_default();
-                let input: HtmlInputElement = element(&self.document, "draft")?.dyn_into()?;
-                self.submit(Mutation::Add {
-                    label: input.value(),
-                })?;
-                self.saved.draft.clear();
-                input.set_value("");
+                if let Some(mutation) = self.policy.action("event_submit", None)? {
+                    self.saved.draft = self.policy.draft_text()?;
+                    self.submit(mutation)?;
+                }
             }
             "filters" => {
                 let target: Element = event
@@ -370,9 +294,8 @@ impl App {
                 if let Some(filter) = target
                     .get_attribute("data-filter")
                     .and_then(|s| s.parse::<i64>().ok())
-                    .filter(|v| (0..=2).contains(v))
                 {
-                    self.filter = filter;
+                    self.policy.filter(filter)?;
                 }
             }
             "tasks" => {
@@ -384,21 +307,13 @@ impl App {
                     .get_attribute("data-id")
                     .and_then(|s| s.parse::<i64>().ok())
                 {
-                    let task = self
-                        .saved
-                        .snapshot
-                        .as_ref()
-                        .and_then(|s| s.tasks.iter().find(|t| t.id.0 == id));
-                    if let Some(task) = task {
-                        let mutation =
-                            if target.get_attribute("data-action").as_deref() == Some("remove") {
-                                Mutation::Remove { id: task.id }
-                            } else {
-                                Mutation::SetDone {
-                                    id: task.id,
-                                    done: self.policy.toggle(task.done)?,
-                                }
-                            };
+                    let action = if target.get_attribute("data-action").as_deref() == Some("remove")
+                    {
+                        "event_delete"
+                    } else {
+                        "event_toggle"
+                    };
+                    if let Some(mutation) = self.policy.action(action, Some(id))? {
                         self.submit(mutation)?;
                     }
                 }
@@ -410,12 +325,9 @@ impl App {
     }
 
     fn submit(&mut self, mutation: Mutation) -> Result<(), JsValue> {
+        let clears_draft = matches!(mutation, Mutation::Add { .. });
         let pending = self.client.as_ref().is_some_and(|c| c.pending().is_some());
-        let bytes = match &mutation {
-            Mutation::Add { label } => label.len(),
-            _ => 1,
-        };
-        if !self.policy.can_submit(bytes, self.online, pending)? {
+        if !self.online || pending {
             return Err(js_error(
                 "Reconnect or wait for the pending command before submitting",
             ));
@@ -425,6 +337,10 @@ impl App {
             .as_mut()
             .ok_or_else(|| js_error("Sign in before submitting"))?;
         let command = client.submit(mutation).map_err(js_error)?;
+        if clears_draft {
+            self.policy.action("event_admitted", None)?;
+            self.saved.draft = self.policy.draft_text()?;
+        }
         self.saved.had_pending = true;
         self.persist();
         self.send(&ClientMessage::Command(command))?;
@@ -542,106 +458,18 @@ impl App {
     }
 
     fn render(&mut self) -> Result<(), JsValue> {
-        element(&self.document, "status")?.set_text_content(Some(&self.status));
-        element(&self.document, "connection")?.set_text_content(Some(if self.online {
-            "LIVE"
-        } else {
-            "OFFLINE"
-        }));
-        element(&self.document, "connection")?
-            .set_attribute("data-online", if self.online { "true" } else { "false" })?;
-        let input: HtmlInputElement = element(&self.document, "draft")?.dyn_into()?;
-        let pending = self.client.as_ref().is_some_and(|c| c.pending().is_some());
-        let submit: HtmlButtonElement = element(&self.document, "add")?.dyn_into()?;
-        submit.set_disabled(
-            !self
-                .policy
-                .can_submit(input.value().len(), self.online, pending)?,
-        );
-        let list = element(&self.document, "tasks")?;
-        let snapshot = self.saved.snapshot.as_ref();
-        self.rows.retain(|id, row| {
-            let retain = snapshot.is_some_and(|s| s.tasks.iter().any(|t| t.id.0 == *id));
-            if !retain {
-                row.element.remove();
-            }
-            retain
-        });
-        let mut done = 0;
-        let mut visible = 0;
-        if let Some(snapshot) = snapshot {
-            for task in &snapshot.tasks {
-                done += usize::from(task.done);
-                if !self.rows.contains_key(&task.id.0) {
-                    let row = self.document.create_element("li")?;
-                    let label = self.document.create_element("label")?;
-                    let checkbox: HtmlInputElement =
-                        self.document.create_element("input")?.dyn_into()?;
-                    checkbox.set_type("checkbox");
-                    checkbox.set_attribute("data-id", &task.id.0.to_string())?;
-                    let text = self.document.create_element("span")?;
-                    label.append_child(&checkbox)?;
-                    label.append_child(&text)?;
-                    row.append_child(&label)?;
-                    let remove: HtmlButtonElement =
-                        self.document.create_element("button")?.dyn_into()?;
-                    remove.set_text_content(Some("×"));
-                    remove.set_attribute("aria-label", "Remove task")?;
-                    remove.set_attribute("class", "remove")?;
-                    remove.set_attribute("data-id", &task.id.0.to_string())?;
-                    remove.set_attribute("data-action", "remove")?;
-                    row.append_child(&remove)?;
-                    list.append_child(&row)?;
-                    self.rows.insert(
-                        task.id.0,
-                        Row {
-                            element: row,
-                            checkbox,
-                            remove,
-                            label: text,
-                        },
-                    );
-                }
-                let row = self
-                    .rows
-                    .get(&task.id.0)
-                    .ok_or_else(|| js_error("missing keyed row"))?;
-                row.checkbox.set_checked(task.done);
-                row.checkbox.set_disabled(!self.online || pending);
-                row.remove.set_disabled(!self.online || pending);
-                row.label.set_text_content(Some(&task.label));
-                row.element
-                    .set_attribute("data-done", if task.done { "true" } else { "false" })?;
-                let show = self.policy.visible(self.filter, task.done)?;
-                if show {
-                    visible += 1;
-                    row.element.remove_attribute("hidden")?;
-                } else {
-                    row.element.set_attribute("hidden", "")?;
-                }
-            }
-        }
-        let total = snapshot.map_or(0, |s| s.tasks.len());
-        element(&self.document, "progress")?.set_text_content(Some(&format!(
-            "{done} of {total} complete · {}%",
-            self.policy.progress(done, total)?
-        )));
-        let empty = element(&self.document, "empty")?;
-        if visible == 0 {
-            empty.remove_attribute("hidden")?;
-        } else {
-            empty.set_attribute("hidden", "")?;
-        }
-        for filter in 0..=2 {
-            element(&self.document, &format!("filter-{filter}"))?.set_attribute(
-                "aria-pressed",
-                if self.filter == filter {
-                    "true"
-                } else {
-                    "false"
-                },
-            )?;
-        }
-        Ok(())
+        let pending = self
+            .client
+            .as_ref()
+            .is_some_and(|client| client.pending().is_some());
+        self.policy.connection(self.online, pending, &self.status)?;
+        self.policy.snapshot(
+            self.saved
+                .snapshot
+                .as_ref()
+                .map_or(&[], |snapshot| snapshot.tasks.as_slice()),
+        )?;
+        let view = self.policy.view()?;
+        self.renderer.render(&self.document, view)
     }
 }

@@ -1,4 +1,4 @@
-//! One bounded async owner of authentication, rooms and subscription publication.
+//! A dedicated actor thread owns authentication, rooms and subscription publication.
 use crate::Config;
 use axum::http::StatusCode;
 use fern_web_protocol::{ClientMessage, Connected, Error, Hub, ServerMessage, Snapshot};
@@ -238,6 +238,7 @@ impl Owner {
                     return;
                 }
                 let room = subscription.room.clone();
+                let before = self.hub.snapshot(&room).ok().map(|s| s.incarnation);
                 let result = self
                     .hub
                     .command(&principal, &connection, command, self.now());
@@ -258,6 +259,30 @@ impl Owner {
                 {
                     self.disconnect(&connection);
                 }
+                let snapshot = self.hub.snapshot(&room);
+                if snapshot
+                    .as_ref()
+                    .is_ok_and(|s| Some(&s.incarnation) != before.as_ref())
+                {
+                    if let Ok(snapshot) = snapshot {
+                        for subscription in self.subscriptions.values().filter(|s| s.room == room) {
+                            subscription.snapshots.send_replace(Some(snapshot.clone()));
+                        }
+                    }
+                    return;
+                }
+                if snapshot.is_err() {
+                    let ids: Vec<_> = self
+                        .subscriptions
+                        .iter()
+                        .filter(|(_, s)| s.room == room)
+                        .map(|(id, _)| id.clone())
+                        .collect();
+                    for id in ids {
+                        self.disconnect(&id);
+                    }
+                    return;
+                }
                 if changed && let Ok(snapshot) = self.hub.snapshot(&room) {
                     for subscription in self.subscriptions.values().filter(|s| s.room == room) {
                         subscription.snapshots.send_replace(Some(snapshot.clone()));
@@ -277,24 +302,36 @@ impl Owner {
 }
 
 pub(crate) fn start(config: Config) -> std::io::Result<mpsc::Sender<Request>> {
-    let hub = Hub::new(token()?, config.limits.clone()).map_err(std::io::Error::other)?;
+    let incarnation = token()?;
     let (tx, mut rx) = mpsc::channel(INGRESS);
-    let mut owner = Owner {
-        config,
-        hub,
-        started: Instant::now(),
-        sessions: BTreeMap::new(),
-        subscriptions: BTreeMap::new(),
-    };
-    tokio::spawn(async move {
-        let mut timer = tokio::time::interval(Duration::from_secs(1));
-        loop {
-            tokio::select! {
-                request = rx.recv() => match request { Some(request) => owner.handle(request), None => break },
-                _ = timer.tick() => owner.expire(),
+    let (ready, started) = std::sync::mpsc::sync_channel(1);
+    std::thread::Builder::new().name("fern-actors".into()).spawn(move || {
+        let runtime = match tokio::runtime::Builder::new_current_thread().enable_time().build() {
+            Ok(runtime) => runtime,
+            Err(error) => { let _ = ready.send(Err(error)); return; }
+        };
+        runtime.block_on(async move {
+            // Construct and destroy the !Send native domain on its owning thread.
+            let domain = match config.data_dir.as_deref().map(fern_web_app::NativeDomain::persistent).transpose() {
+                Ok(domain) => domain.unwrap_or_default(),
+                Err(error) => { let _ = ready.send(Err(error)); return; }
+            };
+            let hub = match Hub::with_domain(incarnation, config.limits.clone(), domain) {
+                Ok(hub) => hub,
+                Err(error) => { let _ = ready.send(Err(std::io::Error::other(error))); return; }
+            };
+            let mut owner = Owner { config, hub, started: Instant::now(), sessions: BTreeMap::new(), subscriptions: BTreeMap::new() };
+            if ready.send(Ok(())).is_err() { return; }
+            let mut timer = tokio::time::interval(Duration::from_secs(1));
+            loop {
+                tokio::select! {
+                    request = rx.recv() => match request { Some(request) => owner.handle(request), None => break },
+                    _ = timer.tick() => owner.expire(),
+                }
             }
-        }
-    });
+        });
+    })?;
+    started.recv().map_err(std::io::Error::other)??;
     Ok(tx)
 }
 

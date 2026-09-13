@@ -251,7 +251,7 @@ impl Checker<'_> {
         span: Span,
         depth: usize,
     ) -> Checked<TypedKind> {
-        if name == "spawn" || name == "send" {
+        if matches!(name, "spawn" | "send" | "supervise" | "supervised_current") {
             return self.actor_call(name, args, expected, span, depth);
         }
         if self

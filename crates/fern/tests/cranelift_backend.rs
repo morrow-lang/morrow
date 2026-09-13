@@ -802,6 +802,74 @@ fn compiled_actor_range_capture_keeps_full_width_endpoints_and_inclusive_flag() 
 }
 
 #[test]
+fn compiled_supervised_actor_recovers_checked_runtime_fault_and_drains_cleanup() {
+    let source = "fn broken():\n    defer println(\"cleanup\")\n    println(\"attempt\")\n    let empty: List(Int) = []\n    println(List.head(empty))\nfn sibling(): println(\"sibling\")\nfn main():\n    let failed: Pid(()) = supervise(broken, 2)\n    let other: Pid(()) = spawn(sibling)\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"attempt\ncleanup\nsibling\nattempt\ncleanup\nattempt\ncleanup\n"
+    );
+}
+
+#[test]
+fn compiled_supervision_lookup_observes_fresh_identity_without_redirecting_stale_sends() {
+    let source = "fn broken():\n    let empty: List(Int) = []\n    println(List.head(empty))\nfn observe(original: Pid(())):\n    match send(original, ()):\n        Ok(()) -> println(\"wrong stale\")\n        Err(_) -> println(\"stale\")\n    match supervised_current(original):\n        Ok(current) ->\n            match send(current, ()):\n                Ok(()) -> println(\"fresh\")\n                Err(_) -> println(\"wrong fresh\")\n        Err(_) -> println(\"missing\")\nfn main():\n    let original: Pid(()) = supervise(broken, 1)\n    let other: Pid(()) = spawn(() -> observe(original))\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"stale\nfresh\n"
+    );
+}
+
+#[test]
+fn compiled_supervision_recovers_terminal_layout_limit_without_process_exit() {
+    let source = "fn broken():\n    let panel = Tui.Panel.new(\"body\")\n    let large = Tui.Panel.width(panel, 9223372036854775807)\n    println(Tui.Panel.render(large))\nfn sibling(): println(\"alive\")\nfn main():\n    let failed: Pid(()) = supervise(broken, 0)\n    let other: Pid(()) = spawn(sibling)\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"alive\n"
+    );
+}
+
+#[test]
+fn compiled_supervision_recovers_regex_output_limit_without_process_exit() {
+    let source = "fn broken():\n    let replacement = String.repeat(\"y\", 8388609)\n    println(Regex.replace_all(\"aa\", \"a\", replacement))\nfn sibling(): println(\"alive\")\nfn main():\n    let failed: Pid(()) = supervise(broken, 0)\n    let other: Pid(()) = spawn(sibling)\n    ()\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"alive\n"
+    );
+}
+
+#[test]
 fn compiled_json_actor_capture_and_mailbox_use_a_distinct_descriptor() {
     let source = "fn main():\n    let captured = json.from_int(-9223372036854775808)\n    let first: Pid(()) = spawn(() ->\n        match json.as_int(captured):\n            Ok(value) -> println(value)\n            Err(_) -> println(0)\n    )\n    let target: Pid(json.Value) = spawn(() ->\n        receive:\n            message ->\n                match json.as_int(message):\n                    Ok(value) -> println(value)\n                    Err(_) -> println(0)\n    )\n    match send(target, json.from_int(9223372036854775807)):\n        Ok(()) -> ()\n        Err(_) -> println(0)\n";
     let checked =

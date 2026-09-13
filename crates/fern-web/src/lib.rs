@@ -19,6 +19,8 @@ use tokio::sync::{Semaphore, mpsc, oneshot};
 /// Explicit preview authentication and admission settings.
 #[derive(Clone)]
 pub struct Config {
+    /// Optional single-writer checkpoint directory. Omit for ephemeral rooms.
+    pub data_dir: Option<std::path::PathBuf>,
     pub origin: String,
     pub access_key: String,
     pub max_sessions: usize,
@@ -31,6 +33,7 @@ pub struct Config {
 impl Config {
     pub fn new(origin: String, access_key: String) -> Self {
         Self {
+            data_dir: None,
             origin,
             access_key,
             max_sessions: 256,

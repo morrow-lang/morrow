@@ -70,8 +70,16 @@ pub(crate) fn validate(program: &ir::Program) -> Result<BTreeSet<usize>, Diagnos
                     ));
                 }
             }
-            if let ir::ExprKind::Actor(ir::ActorExpr::Spawn { entry, .. }) = &expr.kind {
+            if let ir::ExprKind::Actor(ir::ActorExpr::Spawn {
+                entry,
+                max_restarts,
+                ..
+            }) = &expr.kind
+            {
                 pending.push((entry, true));
+                if let Some(budget) = max_restarts {
+                    pending.push((budget, false));
+                }
             } else {
                 pending.extend(ir::children(expr).into_iter().map(|e| (e, false)));
             }

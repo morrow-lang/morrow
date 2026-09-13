@@ -108,7 +108,14 @@ fn arm_children(arms: &[ast::MatchArm]) -> Vec<&ast::Expr> {
 pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
     match actor {
         ir::ActorExpr::Lowered(value) => value.children(),
-        ir::ActorExpr::Spawn { entry, .. } => vec![entry],
+        ir::ActorExpr::Spawn {
+            entry,
+            max_restarts,
+            ..
+        } => std::iter::once(entry.as_ref())
+            .chain(max_restarts.as_deref())
+            .collect(),
+        ir::ActorExpr::SupervisedCurrent { pid } => vec![pid],
         ir::ActorExpr::Send { pid, message } => vec![pid, message],
         ir::ActorExpr::Call { args, .. } => args.iter().collect(),
         ir::ActorExpr::Receive { arms, timeout, .. } => {
@@ -128,7 +135,14 @@ pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
 pub(crate) fn children_mut(actor: &mut ir::ActorExpr) -> Vec<&mut ir::Expr> {
     match actor {
         ir::ActorExpr::Lowered(value) => value.children_mut(),
-        ir::ActorExpr::Spawn { entry, .. } => vec![entry],
+        ir::ActorExpr::Spawn {
+            entry,
+            max_restarts,
+            ..
+        } => std::iter::once(entry.as_mut())
+            .chain(max_restarts.as_deref_mut())
+            .collect(),
+        ir::ActorExpr::SupervisedCurrent { pid } => vec![pid],
         ir::ActorExpr::Send { pid, message } => vec![pid, message],
         ir::ActorExpr::Call { args, .. } => args.iter_mut().collect(),
         ir::ActorExpr::Receive { arms, timeout, .. } => {
@@ -217,7 +231,7 @@ pub(crate) fn reject_interactive(program: &ast::Program) -> Result<(), String> {
             return Err("interactive actor preflight limit exceeded".into());
         }
         if matches!(&expr.kind, ast::ExprKind::Receive { .. })
-            || matches!(&expr.kind, ast::ExprKind::Call { name, .. } if name == "spawn" || name == "send")
+            || matches!(&expr.kind, ast::ExprKind::Call { name, .. } if matches!(name.as_str(), "spawn" | "send" | "supervise" | "supervised_current"))
         {
             return Err("managed actors are unsupported in the REPL; use native build/run".into());
         }

@@ -1,9 +1,11 @@
-# Rust native actor execution (Decision105A)
+# Rust native actor execution
 
 Status: bounded native implementation with actor-owned payload heaps and copied
-messages. Typed native execution began with Decision105A; Decisions124–125 add
-the ownership foundations. Generalized resumable scheduling, typed supervision,
-multicore execution and complete deterministic FernSim parity remain later stages.
+messages, bounded single-child supervision and persistent native application
+hosts. Typed native execution began with Decision105A; Decisions124–126 add the
+ownership and application boundaries. Generalized fair suspension, typed
+supervisor trees, multicore execution and complete deterministic FernSim parity
+remain later stages.
 
 ## Try the native example
 
@@ -21,6 +23,15 @@ Result that the example handles with `?` or `match`.
 
 ## Source contract
 
+`supervise(entry, max_restarts)` takes a zero-argument Unit initializer and returns
+`Pid(M)`. It retains an isolated initializer copy and allows 0–32 replacements
+over the lineage's lifetime. A checked failure retires the child's heap and
+mailbox, then queues a fresh identity from that copy. Normal completion does not
+restart. Old PIDs remain dead for send; `supervised_current(original_pid)` returns
+`Result(Pid(M), Int)` for the currently live replacement. Exhaustion or failed
+restart admission ends the lineage without stopping unrelated actors. See the
+[complete runtime contract](ACTOR_RUNTIME.md) for ownership and failure boundaries.
+
 `spawn(entry)` takes a zero-argument function returning Unit and returns invariant opaque `Pid(M)`. Its captures are evaluated once; its body is queued, never run inline. `send(pid, message)` returns `Result((), Int)`: Ok means enqueue only; Err 3 means dead/foreign identity, Err 4 means mailbox/session quota or an unaccounted message graph. Send borrows its message and gives no Result-handling or transfer credit. Result-bearing messages, callable messages, and unaccounted native handles are rejected by checking. Result-bearing ordinary closure captures retain the existing prohibition. Compiler-created continuation frames may retain already-owned local Result duties; suspension is neither a completed exit nor handling credit, and every completed actor path must still satisfy the ordinary Result proof.
 
 Mailbox schemes are inferred from the owned receive patterns, with no arbitrary scalar default; source body constraints do not supply additional mailbox inference in this checkpoint. An indented `receive` selectively considers messages in enqueue order and arms in source order. Unmatched messages remain in order. Guards are bounded pure, nonallocating, nonfailing scalar expressions without calls. Duplicate or unreachable arms are rejected, but receive need not be exhaustive. An optional final `_ after duration -> body` evaluates duration once; it must be an Int in 0..600000 milliseconds. Registration first tries existing queued messages, even with zero duration. Subsequent polls consider only messages committed strictly before the absolute monotonic deadline. Timely messages do not lose because another actor delayed polling. At exact millisecond equality the deadline wins. Timeout fires only after no eligible message matches. Timer wake ordering is deadline, then stable actor identity. Timeout expressions and capture graphs are not reevaluated on wake.
@@ -31,7 +42,7 @@ The REPL rejects 105A actor programs before effects or retained definitions chan
 
 ## Execution ABI and provenance
 
-Ordinary generated ABI remains `(environment, fault, source arguments)` with an exactly 8-byte fault slot. Context-requiring direct entries use `(environment, fault, execution context, source arguments)`. Context is never captured into a source closure, stored in a global current-actor variable, or read from beyond the fault slot. First-class context-requiring ordinary helpers are rejected except an immediate spawn entry; pure first-class callbacks keep the ordinary ABI.
+Ordinary generated ABI remains `(environment, fault, source arguments)` with an exactly 8-byte fault slot. Context-requiring direct entries use `(environment, fault, execution context, source arguments)`. Context is never captured into a source closure, stored in a global current-actor variable, or read from beyond the fault slot. First-class context-requiring ordinary helpers are rejected except an immediate spawn or supervise entry; pure first-class callbacks keep the ordinary ABI.
 
 The native step callback is `int64_t(exec*, frame*)`; selectors are `void*(exec*, frame*, int64_t payload)`. Cranelift transports both native status and payload as 64-bit words. Immutable function descriptors bind exact code identity, capture count/types, callback kind, and mailbox type. Type descriptors have four 64-bit words: kind, count, child pointers, and sum arities. Public IR is validated before private CPS conversion; caller-created IR cannot construct the opaque private lowered operations. Original and inactive signatures, actor metadata, closure identities, and capture arity/types are checked before cloning. Unknown identities have no fallback.
 
@@ -48,7 +59,24 @@ stack/register and heap-word scanning. See [runtime memory](MEMORY_MANAGEMENT.md
 
 ## Ownership, quotas, and failures
 
-One invocation owns a FIFO cooperative scheduler, immutable PID identities, and mailboxes. Main executes first. Successful main drains actors; main faults or returned Err stop pending actors without running their bodies. The first actor fault stops the session after any active ordinary helper cleanup. A waiting session without a runnable actor or pending timer reports deadlock. Blocking host calls and nonyielding source computation can delay scheduling;105A does not promise preemption or arbitrary wall-clock bounds.
+One invocation owns a FIFO cooperative scheduler, immutable PID identities and
+mailboxes. In native CLI programs, main executes first. Successful main drains
+actors; main faults or returned Err stop pending actors without running their
+bodies. An unsupervised actor fault stops the session after active ordinary
+helper cleanup. A supervised child instead uses its bounded restart policy.
+A waiting CLI session without runnable actors or a pending timer reports
+deadlock. Blocking host calls and nonyielding source computation can delay
+scheduling; ordinary helpers and loops have no preemption or instruction budget.
+
+Native application hosts can instead retain an explicitly rooted invocation
+between calls. `fern_managed_poll` advances a bounded number of continuation
+callbacks and reports external-input idle without treating it as deadlock.
+The host roots retained PID/value slots and keeps the borrowed fault cell stable
+until close. Bounded String reply ports copy actor messages into host-owned
+buffers; no actor payload pointer escapes through that interface. Closing one
+invocation retires its heaps and persistent root without invalidating another.
+The [host ABI contract](ACTOR_RUNTIME.md#native-application-hosts) specifies
+statuses, quotas and thread ownership.
 
 Elapsed timers resolve to ready successor frames at every cooperative scheduling
 boundary, even while other actors remain runnable. Receivers already queued by
@@ -71,8 +99,15 @@ Fault 9: `actor resource limit exceeded`.
 Fault 10: `actor deadlock: no runnable actor or pending timeout`.
 Fault 11: `invalid actor execution descriptor`.
 Fault 12: `actor monotonic clock failure`.
+Fault 13: `regex replacement exceeds 16 MiB`.
+Fault 14: `terminal rendering exceeds 16 MiB`.
 
-Existing fault codes 1..7 and their first-failure behavior remain unchanged. Actor failures use the ordinary `fern: runtime error: ...` diagnostic and exit 1. No source Result type is silently rewritten to encode execution faults.
+Existing fault codes 1..7 and their first-failure behavior remain unchanged.
+Unhandled invocation failures use the ordinary `fern: runtime error: ...`
+diagnostic and exit 1 in native CLI programs. Supervised checked failures are
+handled by the child's restart policy; no source Result type is silently
+rewritten to encode execution faults. Allocation exhaustion, process aborts and
+foreign memory corruption are outside this recoverable boundary.
 
 ## Validation scope
 
@@ -92,9 +127,16 @@ for bounded subprocess cleanup. The former C/FernSim/sanitizer totals remain
 historical evidence; [workspace acceptance](RUST_WORKSPACE.md) identifies the
 actual debug and optimized Rust checks.
 
-The new ownership work adds independent cross-actor copy, root and heap-retirement
-oracles. It does not turn the historical migration totals into acceptance of the
-new scheduler architecture. The [web preview](WEB_PREVIEW.md) uses a Rust-owned
-checklist model behind an Axum/Tokio transport; that server is not yet executing
-this native Fern actor runtime. Its two-browser and static-deployment checks do
-not establish native actor fairness, restart isolation or multicore scaling.
+The ownership work adds independent cross-actor copy, root and heap-retirement
+oracles. Supervision tests prove pristine initializer replay, fresh identities,
+stale-send rejection and sibling progress after checked failures. Real compiled
+Fern tests cover active cleanup and collection, Regex and terminal-rendering
+faults; persistent host tests cover independent session roots and repeated port
+use. These results do not repurpose the historical migration totals.
+
+The [web application](WEB_PREVIEW.md) now keeps each checklist room's state in a
+compiled native Fern actor through `fern-web-app`; the Rust gateway receives
+checked snapshot copies through a bounded reply port. Browser application logic
+is compiled Fern WebAssembly. This application evidence does not establish
+generalized native actor fairness, typed supervisor trees, safe identity-slot
+recycling or multicore scaling.

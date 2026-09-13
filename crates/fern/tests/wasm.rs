@@ -22,6 +22,23 @@ fn instance(source: &str) -> (Store<()>, Instance) {
 }
 
 #[test]
+fn aggregate_values_preserve_nested_fields_full_width_bits_and_variant_patterns() {
+    let (mut store, module) = instance(
+        "type Item:\n    id: Int\n    text: String\ntype Event:\n    Empty\n    Selected(item: Item, score: Float)\nfn inspect(event: Event) -> Int:\n    match event:\n        Empty -> 0\n        Selected(item, score) -> if score == 1.25 and item.text == \"é🌿\": item.id else: -1\nfn result() -> Int:\n    let event = Selected(Item(9223372036854775807, \"é\" + \"🌿\"), 1.25)\n    inspect(event)\nfn option() -> Int:\n    match (true, Some(-9223372036854775808)):\n        (true, Some(value)) -> value\n        _ -> 0\n",
+    );
+    for (name, expected) in [("result", i64::MAX), ("option", i64::MIN)] {
+        assert_eq!(
+            module
+                .get_typed_func::<(), i64>(&store, name)
+                .unwrap()
+                .call(&mut store, ())
+                .unwrap(),
+            expected
+        );
+    }
+}
+
+#[test]
 fn executes_full_width_integer_calls_and_recursive_branches() {
     let (mut store, module) = instance(
         "fn identity(n: Int) -> Int: n\nfn factorial(n: Int) -> Int:\n    if n <= 1: 1 else: n * factorial(n - 1)\nfn wrapped() -> Int: 9223372036854775807 + 1\n",
@@ -134,9 +151,175 @@ fn rejects_native_calls_even_inside_uncalled_functions() {
 
 #[test]
 fn rejects_unimplemented_collection_values() {
-    let error = wasm::compile(&checked("fn values() -> List(Int): [1, 2]\n")).unwrap_err();
+    let error = wasm::compile(&checked("fn values() -> Map(Int, Int): Map.new()\n")).unwrap_err();
     assert!(error.message.contains("wasm32"), "{error:?}");
-    assert!(error.message.contains("List"), "{error:?}");
+    assert!(error.message.contains("Map"), "{error:?}");
+}
+
+#[test]
+fn destructured_let_else_bindings_survive_collection_after_scrutinee_temporaries_die() {
+    let mut source = String::from(
+        "fn churn() -> Int: String.len(\"temporary\" + \" garbage\")\nfn kept() -> Bool:\n    let Some(keep) = Some(\"kept\" + \" value\") else: return false\n",
+    );
+    for _ in 0..8300 {
+        source.push_str("    churn()\n");
+    }
+    source.push_str("    keep == \"kept value\"\n");
+    let (mut store, module) = instance(&source);
+    store.set_fuel(100_000_000).unwrap();
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "kept")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn list_and_tuple_rest_patterns_preserve_scalars_and_nested_managed_values() {
+    let (mut store, module) = instance(
+        "fn sum(values: List(Int)) -> Int:\n    match values:\n        [] -> 0\n        [first, ..rest] -> first + sum(rest)\nfn run() -> Int: sum([9223372036854775807, -9223372036854775808, 43])\nfn tuple() -> Bool:\n    let (head, ..tail) = (9223372036854775807, \"é\" + \"🌿\", 1.25)\n    head == 9223372036854775807 and tail.0 == \"é🌿\" and tail.1 == 1.25\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "tuple")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn host_root_keeps_nested_precise_children_alive_after_source_release_and_pressure() {
+    let (mut store, module) = instance(
+        "type Item:\n    text: String\ntype Envelope:\n    values: List((Int, (Float, Item)))\nfn make(text: String, number: Int, real: Float) -> Envelope:\n    Envelope([(number, (real, Item(text)))])\nfn valid(value: Envelope) -> Bool:\n    let (number, (real, item)) = List.get(value.values, 0)\n    number == -9223372036854775808 and real == 1.25 and item.text == \"é🌿\"\n",
+    );
+    store.set_fuel(100_000_000).unwrap();
+    let memory = module.get_memory(&store, "fern_memory").unwrap();
+    let address = module
+        .get_typed_func::<(), i32>(&store, "fern_io_buffer")
+        .unwrap()
+        .call(&mut store, ())
+        .unwrap() as usize;
+    let new = module
+        .get_typed_func::<i32, i64>(&store, "fern_string_new")
+        .unwrap();
+    let release = module
+        .get_typed_func::<i64, i32>(&store, "fern_release")
+        .unwrap();
+    memory.write(&mut store, address, "é🌿".as_bytes()).unwrap();
+    let original = new.call(&mut store, 6).unwrap();
+    let value = module
+        .get_typed_func::<(i64, i64, f64), i64>(&store, "fern::make")
+        .unwrap()
+        .call(&mut store, (original, i64::MIN, 1.25))
+        .unwrap();
+    release.call(&mut store, original).unwrap();
+    memory.write(&mut store, address, b"garbage").unwrap();
+    for _ in 0..9000 {
+        let temporary = new.call(&mut store, 7).unwrap();
+        release.call(&mut store, temporary).unwrap();
+    }
+    assert_eq!(
+        module
+            .get_typed_func::<i64, i32>(&store, "fern::valid")
+            .unwrap()
+            .call(&mut store, value)
+            .unwrap(),
+        1
+    );
+    release.call(&mut store, value).unwrap();
+}
+
+#[test]
+fn managed_host_handles_validate_utf8_type_and_lifetime_without_pointer_exports() {
+    let (mut store, module) = instance(
+        "type Box:\n    text: String\nfn wrap(text: String) -> Box: Box(text)\nfn read(value: Box) -> String: value.text\nfn echo(text: String) -> String: text + \"!\"\nfn format(value: Int) -> String: \"{value}\"\n",
+    );
+    let memory = module.get_memory(&store, "fern_memory").unwrap();
+    let address = module
+        .get_typed_func::<(), i32>(&store, "fern_io_buffer")
+        .unwrap()
+        .call(&mut store, ())
+        .unwrap() as usize;
+    let new = module
+        .get_typed_func::<i32, i64>(&store, "fern_string_new")
+        .unwrap();
+    let read = module
+        .get_typed_func::<i64, i32>(&store, "fern_string_read")
+        .unwrap();
+    let release = module
+        .get_typed_func::<i64, i32>(&store, "fern_release")
+        .unwrap();
+    memory.write(&mut store, address, "é🌿".as_bytes()).unwrap();
+    let original = new.call(&mut store, 6).unwrap();
+    let boxed = module
+        .get_typed_func::<i64, i64>(&store, "fern::wrap")
+        .unwrap()
+        .call(&mut store, original)
+        .unwrap();
+    assert!(read.call(&mut store, boxed).is_err());
+    assert!(
+        module
+            .get_typed_func::<i64, i64>(&store, "fern::read")
+            .unwrap()
+            .call(&mut store, original)
+            .is_err()
+    );
+    let echoed = module
+        .get_typed_func::<i64, i64>(&store, "fern::echo")
+        .unwrap()
+        .call(&mut store, original)
+        .unwrap();
+    assert_eq!(read.call(&mut store, echoed).unwrap(), 7);
+    let mut bytes = [0; 7];
+    memory.read(&store, address, &mut bytes).unwrap();
+    assert_eq!(&bytes, "é🌿!".as_bytes());
+    release.call(&mut store, original).unwrap();
+    assert!(read.call(&mut store, original).is_err());
+    for input in [
+        vec![0xc0, 0x80],
+        vec![0xed, 0xa0, 0x80],
+        vec![0xf4, 0x90, 0x80, 0x80],
+        vec![0xe2, 0x82],
+        vec![0],
+        vec![0x80],
+    ] {
+        memory.write(&mut store, address, &input).unwrap();
+        assert!(new.call(&mut store, input.len() as i32).is_err());
+    }
+    assert!(new.call(&mut store, -1).is_err());
+    assert!(new.call(&mut store, 4097).is_err());
+    for integer in [i64::MIN, i64::MAX, 0, -1] {
+        let handle = module
+            .get_typed_func::<i64, i64>(&store, "fern::format")
+            .unwrap()
+            .call(&mut store, integer)
+            .unwrap();
+        let length = read.call(&mut store, handle).unwrap() as usize;
+        let mut bytes = vec![0; length];
+        memory.read(&store, address, &mut bytes).unwrap();
+        assert_eq!(String::from_utf8(bytes).unwrap(), integer.to_string());
+        release.call(&mut store, handle).unwrap();
+    }
+    memory.write(&mut store, address, b"ok").unwrap();
+    let fresh = new.call(&mut store, 2).unwrap();
+    assert_ne!(fresh, original);
+    assert!(read.call(&mut store, original).is_err());
+    for handle in [boxed, echoed, fresh] {
+        release.call(&mut store, handle).unwrap();
+    }
 }
 
 #[test]

@@ -98,12 +98,49 @@ impl Emitter<'_> {
             values.push(self.runtime_argument(value, &arg.ty, *abi, span, locals)?);
         }
         self.runtime_operation(signature.operation, &mut values, span, locals)?;
+        if matches!(symbol, "fern_regex_replace" | "fern_regex_replace_all") {
+            values.insert(0, (Scalar::I64, native_operand("%fault")));
+            let value = self.assign(
+                locals,
+                ty.clone(),
+                NativeOperation::Call {
+                    callee: native_operand(&format!("${symbol}_checked")),
+                    args: values,
+                    variadic: None,
+                },
+            );
+            self.guard_fault(locals);
+            return Ok((ty, value));
+        }
         if symbol == "fern_str_split" {
             self.split_guard(&values, locals);
         }
         if signature.return_abi == ValueAbi::PackedOption {
             return Ok((ty, self.packed_option(symbol, &values, span, locals)?));
         }
+        let terminal = [
+            "fern_style_",
+            "fern_panel_",
+            "fern_table_",
+            "fern_progress_",
+            "fern_spinner_",
+            "fern_tree_",
+            "fern_status_",
+            "fern_log_",
+        ]
+        .iter()
+        .any(|prefix| symbol.starts_with(prefix));
+        let terminal_scope = terminal.then(|| {
+            self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Call {
+                    callee: native_operand("$fern_tui_fault_enter"),
+                    args: vec![(Scalar::I64, native_operand("%fault"))],
+                    variadic: None,
+                },
+            )
+        });
         let instruction = NativeOperation::Call {
             callee: native_operand(&format!("${}", symbol)),
             args: values.clone(),
@@ -117,6 +154,15 @@ impl Emitter<'_> {
             ValueAbi::Word32 => self.assign(locals, Type::Bool, instruction),
             _ => self.assign(locals, Type::Int, instruction),
         };
+        if let Some(previous) = terminal_scope {
+            self.output
+                .statement(Statement::Effect(NativeOperation::Call {
+                    callee: native_operand("$fern_tui_fault_leave"),
+                    args: vec![(Scalar::I64, native_operand(&previous))],
+                    variadic: None,
+                }));
+            self.guard_fault(locals);
+        }
         let mut value = self.runtime_result(raw, &ty, signature.return_abi, locals)?;
         if signature.operation == RuntimeOperation::InvertBool {
             value = self.assign(

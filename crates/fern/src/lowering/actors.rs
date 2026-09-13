@@ -67,6 +67,59 @@ pub(super) fn prepare(program: &ir::Program) -> Lowering<Prepared<'_>> {
 }
 
 impl Emitter<'_> {
+    /// Export only descriptor-backed host constructors for managed libraries.
+    pub(super) fn actor_library(&mut self) -> Lowering<()> {
+        if !self.actors.active {
+            return Ok(());
+        }
+        let string = self.actor_type(&Type::String)?;
+        for (name, parameter, callee, args) in [
+            (
+                "$fern_library_open",
+                "%fault",
+                "$fern_managed_open",
+                vec![
+                    (Scalar::I64, native_operand("%fault")),
+                    (Scalar::I64, native_operand("$actor_functions")),
+                    (
+                        Scalar::I64,
+                        native_operand(&self.functions.len().to_string()),
+                    ),
+                ],
+            ),
+            (
+                "$fern_library_string_port",
+                "%exec",
+                "$fern_managed_port",
+                vec![
+                    (Scalar::I64, native_operand("%exec")),
+                    (Scalar::I64, native_operand(&string)),
+                ],
+            ),
+        ] {
+            self.output.begin(
+                name,
+                Some(Scalar::I64),
+                vec![(Scalar::I64, parameter.into())],
+                true,
+            );
+            self.output.statement(Statement::Label("@start".into()));
+            self.output.statement(Statement::Assign {
+                destination: "%result".into(),
+                ty: Scalar::I64,
+                operation: NativeOperation::Call {
+                    callee: native_operand(callee),
+                    args,
+                    variadic: None,
+                },
+            });
+            self.output
+                .statement(Statement::Return(Some(native_operand("%result"))));
+            self.output.end();
+        }
+        Ok(())
+    }
+
     /// Lower validated actor operations with the caller's separate execution context.
     pub(super) fn actor_expression(
         &mut self,
@@ -76,7 +129,11 @@ impl Emitter<'_> {
         depth: usize,
     ) -> Lowering<(Type, String)> {
         match actor {
-            ir::ActorExpr::Spawn { entry, mailbox } => {
+            ir::ActorExpr::Spawn {
+                entry,
+                mailbox,
+                max_restarts,
+            } => {
                 let (_, params, result) = crate::actors::function(&entry.ty)
                     .ok_or_else(|| invalid(span, "spawn entry must be callable"))?;
                 if !params.is_empty() || *result != Type::Unit {
@@ -87,16 +144,43 @@ impl Emitter<'_> {
                 }
                 let entry = self.expr(entry, locals, depth)?;
                 let descriptor = self.actor_type(mailbox)?;
+                let mut arguments = vec![
+                    (Scalar::I64, native_operand("%exec")),
+                    (Scalar::I64, native_operand(&entry)),
+                    (Scalar::I64, native_operand(&descriptor)),
+                ];
+                if let Some(budget) = max_restarts {
+                    let budget = self.expr(budget, locals, depth)?;
+                    arguments.push((Scalar::I64, native_operand(&budget)));
+                }
                 let ty = Type::Pid(Box::new(mailbox.clone()));
                 let value = self.assign(
                     locals,
                     ty.clone(),
                     NativeOperation::Call {
-                        callee: native_operand("$fern_managed_spawn"),
+                        callee: native_operand(if max_restarts.is_some() {
+                            "$fern_managed_supervise"
+                        } else {
+                            "$fern_managed_spawn"
+                        }),
+                        args: arguments,
+                        variadic: None,
+                    },
+                );
+                self.guard_fault(locals);
+                Ok((ty, value))
+            }
+            ir::ActorExpr::SupervisedCurrent { pid } => {
+                let ty = Type::Result(Box::new(pid.ty.clone()), Box::new(Type::Int));
+                let pid = self.expr(pid, locals, depth)?;
+                let value = self.assign(
+                    locals,
+                    ty.clone(),
+                    NativeOperation::Call {
+                        callee: native_operand("$fern_managed_supervised_current"),
                         args: vec![
                             (Scalar::I64, native_operand("%exec")),
-                            (Scalar::I64, native_operand(&(entry))),
-                            (Scalar::I64, native_operand(&(descriptor))),
+                            (Scalar::I64, native_operand(&pid)),
                         ],
                         variadic: None,
                     },

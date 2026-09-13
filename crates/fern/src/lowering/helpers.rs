@@ -368,6 +368,21 @@ pub(super) fn control(output: &mut Buffer) {
 
 /// Append the bounded fault native helper operations.
 pub(super) fn fault(output: &mut Buffer) {
+    for (code, message) in [
+        (
+            13,
+            "fern: runtime error: regex replacement exceeds 16 MiB\n",
+        ),
+        (
+            14,
+            "fern: runtime error: terminal rendering exceeds 16 MiB\n",
+        ),
+    ] {
+        output.data(
+            &format!("$fern_rs_fault_{code}"),
+            vec![DataValue::Bytes(message.as_bytes().to_vec())],
+        );
+    }
     output.data(
         "$fern_rs_fault_1",
         vec![
@@ -452,6 +467,49 @@ pub(super) fn fault(output: &mut Buffer) {
         false,
     );
     output.statement(Statement::Label("@start".to_owned()));
+    for (code, message) in [
+        (
+            13,
+            "fern: runtime error: regex replacement exceeds 16 MiB\n",
+        ),
+        (
+            14,
+            "fern: runtime error: terminal rendering exceeds 16 MiB\n",
+        ),
+    ] {
+        let present = format!("%is_extra_{code}");
+        let found = format!("@extra_{code}");
+        let next = format!("@after_extra_{code}");
+        output.statement(Statement::Assign {
+            destination: present.clone(),
+            ty: Scalar::I32,
+            operation: NativeOperation::Binary(
+                MachineBinary::Compare(Comparison::Eq, Scalar::I64),
+                native_operand("%code"),
+                native_operand(&code.to_string()),
+            ),
+        });
+        output.statement(Statement::Branch {
+            condition: native_operand(&present),
+            then_label: found.clone(),
+            else_label: next.clone(),
+        });
+        output.statement(Statement::Label(found));
+        output.statement(Statement::Effect(NativeOperation::Call {
+            callee: native_operand("$write"),
+            args: vec![
+                (Scalar::I32, native_operand("2")),
+                (
+                    Scalar::I64,
+                    native_operand(&format!("$fern_rs_fault_{code}")),
+                ),
+                (Scalar::I64, native_operand(&message.len().to_string())),
+            ],
+            variadic: None,
+        }));
+        output.statement(Statement::Return(None));
+        output.statement(Statement::Label(next));
+    }
     output.statement(Statement::Assign {
         destination: "%is_1".to_owned(),
         ty: Scalar::I32,

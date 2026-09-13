@@ -482,6 +482,10 @@ pub enum ActorExpr {
     Spawn {
         entry: Box<Expr>,
         mailbox: Type,
+        max_restarts: Option<Box<Expr>>,
+    },
+    SupervisedCurrent {
+        pid: Box<Expr>,
     },
     Send {
         pid: Box<Expr>,

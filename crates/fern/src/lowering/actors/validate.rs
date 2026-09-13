@@ -117,7 +117,29 @@ fn actor_expr(
                 "private actor continuation in public IR",
             ));
         }
-        ir::ActorExpr::Spawn { entry, mailbox } => spawn(entry, mailbox, expr, layouts)?,
+        ir::ActorExpr::Spawn {
+            entry,
+            mailbox,
+            max_restarts,
+        } => {
+            spawn(entry, mailbox, expr, layouts)?;
+            if let Some(budget) = max_restarts {
+                expect_type(budget.ty.clone(), Type::Int, expr.span)?;
+            }
+        }
+        ir::ActorExpr::SupervisedCurrent { pid } => {
+            if !matches!(pid.ty, Type::Pid(_)) {
+                return Err(invalid(
+                    expr.span,
+                    "supervised_current requires a typed Pid",
+                ));
+            }
+            expect_type(
+                expr.ty.clone(),
+                Type::Result(Box::new(pid.ty.clone()), Box::new(Type::Int)),
+                expr.span,
+            )?;
+        }
         ir::ActorExpr::Send { pid, message } => {
             expect_type(
                 pid.ty.clone(),

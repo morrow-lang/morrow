@@ -13,6 +13,35 @@ pub use widgets::*;
 use crate::abi;
 use std::ffi::c_char;
 
+thread_local! { static CHECKED_FAULT: std::cell::Cell<*mut i64> = const { std::cell::Cell::new(std::ptr::null_mut()) }; }
+
+/// Enter a checked terminal call without unwinding through generated frames.
+/// # Safety
+/// Fault is writable until the matching leave; both calls occur on this thread.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_tui_fault_enter(fault: *mut i64) -> *mut i64 {
+    CHECKED_FAULT.with(|slot| slot.replace(fault))
+}
+
+/// Restore the previous checked terminal scope after the native call returns.
+#[unsafe(no_mangle)]
+pub extern "C" fn fern_tui_fault_leave(previous: *mut i64) {
+    CHECKED_FAULT.with(|slot| slot.set(previous));
+}
+
+fn limit_fault(message: &str) {
+    let fault = CHECKED_FAULT.with(|slot| slot.get());
+    if fault.is_null() {
+        abi::fault(message);
+    }
+    // SAFETY: the compiler's matching enter/leave pair owns this writable cell.
+    unsafe {
+        if *fault == 0 {
+            *fault = 14;
+        }
+    }
+}
+
 unsafe fn text<'a>(value: *const c_char) -> &'a str {
     if value.is_null() {
         ""
@@ -23,14 +52,16 @@ unsafe fn text<'a>(value: *const c_char) -> &'a str {
 
 fn rendered(value: &str) -> *const c_char {
     if value.len() > crate::io::TEXT_LIMIT {
-        abi::fault("terminal rendering exceeds 16 MiB");
+        limit_fault("terminal rendering exceeds 16 MiB");
+        return std::ptr::null();
     }
     abi::string(value)
 }
 
 fn repeat(value: &str, count: usize) -> String {
     if count > crate::io::TEXT_LIMIT / value.len().max(1) {
-        abi::fault("terminal rendering exceeds 16 MiB");
+        limit_fault("terminal rendering exceeds 16 MiB");
+        return String::new();
     }
     value.repeat(count)
 }
