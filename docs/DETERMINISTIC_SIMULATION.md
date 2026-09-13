@@ -132,8 +132,9 @@ checkpoint/host-clock tests, 17 simulator tests and all 29 native backend
 oracles. The macOS application and actor reports replayed byte-for-byte on Linux.
 The checksum-matched static ARM64 server passed the complete browser suite;
 desktop and mobile screenshots were inspected and the validation VM was stopped.
-x86-64 has static binary validation here; GitHub browser execution is tracked
-separately from this local ARM64 acceptance.
+This local run validates ARM64 execution. Separately, the
+[x86-64 Linux browser job at `a5f13e2`](https://github.com/niklas-heer/fern/actions/runs/34773888739/job/103768321541)
+built and executed the static server and passed the complete real-Chrome suite.
 
 The CI follow-up fixes two independently reproduced harness defects: opener
 failure configuration no longer depends on the platform's `argv[0]`, and browser
@@ -141,7 +142,19 @@ screenshots activate their target and await painted readiness under one unchange
 15-second budget. The final local gate passed 1,927 Rust tests across 254 suites
 and the same full native/example/compatibility/fuzz tail. Updated real-browser
 acceptance passed from an observed hidden page, with valid PNGs and visual checks.
-GitHub Actions execution remains a separate result from these local checks.
+The linked Linux Chrome job verifies those browser changes in GitHub Actions;
+workspace checks are separate jobs.
+
+Those workspace jobs exposed an ambient descriptor inherited from the CI
+launcher. The supervisor now marks inherited descriptors close-on-exec before
+`posix_spawn`, while its explicit descriptor actions retain child standard IO.
+An independently failing injection test covers both normal limits and an open
+descriptor above a lowered file limit. All 27 optimized supervisor tests and
+Clippy pass on macOS ARM64 and actual Linux ARM64; existing lifecycle, byte,
+status, descriptor and descendant assertions remain intact.
+The final local `cargo xtask check` passes 1,928 Rust tests across 254 suites,
+305 native fixtures, 19 examples, 63 dynamic compatibility programs, 295 atomic
+rejections and 64+192 fuzz cases, plus formatting, notices and workspace Clippy.
 
 ## Demo artifacts
 

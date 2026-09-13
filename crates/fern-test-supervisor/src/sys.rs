@@ -176,9 +176,74 @@ pub fn signals() -> bool {
 unsafe extern "C" {
     static mut environ: *mut *mut libc::c_char;
 }
+/// Fence inherited descriptors in this single-threaded supervisor before spawn.
+/// The signal handler only updates an atomic; no concurrent code opens/closes fds.
+/// Keep descriptors usable here, but prevent publication to the executed child.
+fn inherited_close_on_exec() -> Result<(), Error> {
+    #[cfg(target_os = "linux")]
+    {
+        // Raw syscall keeps compatibility with older libc versions. Unsupported
+        // kernels/flags or sandbox denial fall back to the complete fd inventory.
+        // https://man7.org/linux/man-pages/man2/close_range.2.html
+        let result = unsafe {
+            libc::syscall(
+                libc::SYS_close_range,
+                3_u32,
+                u32::MAX,
+                libc::CLOSE_RANGE_CLOEXEC,
+            )
+        };
+        if result == 0 {
+            return Ok(());
+        }
+    }
+    #[cfg(target_os = "linux")]
+    let directory = "/proc/self/fd";
+    #[cfg(not(target_os = "linux"))]
+    let directory = "/dev/fd";
+    let mut entries = std::fs::read_dir(directory).map_err(|_| Error::Io)?;
+    // Bound work by actual open descriptors, not the soft fd limit: a launcher
+    // can lower that limit while retaining descriptors above it. Fail closed if
+    // the complete inventory is unavailable or exceeds our admission allowance.
+    const MAX_ENTRIES: usize = 65_536;
+    for (index, entry) in entries.by_ref().enumerate() {
+        if index == MAX_ENTRIES {
+            return Err(Error::Io);
+        }
+        let entry = entry.map_err(|_| Error::Io)?;
+        let name = entry.file_name();
+        let descriptor = name
+            .to_str()
+            .and_then(|name| name.parse::<i32>().ok())
+            .ok_or(Error::Io)?;
+        if descriptor < 0 {
+            return Err(Error::Io);
+        }
+        if descriptor < 3 {
+            continue;
+        }
+        let flags = unsafe { libc::fcntl(descriptor, libc::F_GETFD) };
+        if flags == -1 {
+            if errno() == libc::EBADF {
+                continue;
+            }
+            return Err(Error::Io);
+        }
+        if unsafe { libc::fcntl(descriptor, libc::F_SETFD, flags | libc::FD_CLOEXEC) } == -1 {
+            return Err(Error::Io);
+        }
+    }
+    // The iterator stays alive during fcntl calls, so its own inventory fd is
+    // never mistaken for a foreign descriptor which has already been closed.
+    drop(entries);
+    Ok(())
+}
+
 pub fn spawn(args: &[CString], input: i32, pipes: [i32; 4]) -> Result<libc::pid_t, Error> {
+    inherited_close_on_exec()?;
     // posix_spawn copies the exclusively owned argument/attribute buffers before
-    // returning. No Rust code runs in a fork child, and every auxiliary fd is CLOEXEC.
+    // returning. No Rust code runs in a fork child. dup2 actions clear CLOEXEC on
+    // intended stdin/out/err; all other inherited descriptors close during exec.
     unsafe {
         let mut actions = MaybeUninit::<libc::posix_spawn_file_actions_t>::uninit();
         if libc::posix_spawn_file_actions_init(actions.as_mut_ptr()) != 0 {

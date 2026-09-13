@@ -2,7 +2,10 @@
 use std::{
     fs,
     io::Read,
-    os::unix::{fs::PermissionsExt, process::CommandExt},
+    os::{
+        fd::{AsRawFd, FromRawFd, OwnedFd},
+        unix::{fs::PermissionsExt, process::CommandExt},
+    },
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::atomic::{AtomicUsize, Ordering},
@@ -183,6 +186,49 @@ fn status_bytes_arguments_eof_and_descriptors() {
     assert_eq!(libc::WTERMSIG(signal.1 as i32), libc::SIGTERM);
     p.empty();
 }
+#[test]
+fn ambient_descriptor_is_not_inherited_by_the_supervised_child() {
+    let p = Private::new();
+    let file = fs::File::open("/dev/null").unwrap();
+    // Allocate a known descriptor without exposing it to concurrent test spawns.
+    let raw = unsafe { libc::fcntl(file.as_raw_fd(), libc::F_DUPFD_CLOEXEC, 64) };
+    assert!((3..4096).contains(&raw));
+    let inherited = unsafe { OwnedFd::from_raw_fd(raw) };
+    for lowered_limit in [false, true] {
+        let mut command = p.command(2000, &["leaks"]);
+        unsafe {
+            command.pre_exec(move || {
+                // Only the fork child's descriptor table loses CLOEXEC. This
+                // models a CI launcher passing an ambient fd into the supervisor.
+                if libc::fcntl(raw, libc::F_SETFD, 0) == -1 {
+                    return Err(std::io::Error::last_os_error());
+                }
+                if lowered_limit {
+                    // Existing descriptors remain valid above a lowered soft
+                    // limit. Isolation cannot simply scan 3..rlim_cur.
+                    let mut limit = std::mem::zeroed::<libc::rlimit>();
+                    if libc::getrlimit(libc::RLIMIT_NOFILE, &mut limit) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    limit.rlim_cur = 32;
+                    if libc::setrlimit(libc::RLIMIT_NOFILE, &limit) != 0 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                }
+                Ok(())
+            });
+        }
+        assert_eq!(
+            collect(command.spawn().unwrap(), false),
+            ('N', 0, vec![], vec![])
+        );
+        let flags = unsafe { libc::fcntl(inherited.as_raw_fd(), libc::F_GETFD) };
+        assert!(flags >= 0);
+        assert_ne!(flags & libc::FD_CLOEXEC, 0);
+        p.empty();
+    }
+}
+
 #[test]
 fn exact_stream_caps_and_overflow_are_independent() {
     let p = Private::new();
