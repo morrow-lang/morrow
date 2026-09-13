@@ -77,7 +77,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
             message = (*message).next;
         }
         if (*a).deadline != u64::MAX {
-            let Some(now) = now() else {
+            let Some(now) = now(s) else {
                 fail(&raw mut (*a).exec, 12);
                 return false;
             };
@@ -142,7 +142,7 @@ pub unsafe extern "C" fn fern_managed_receive(
             return 3;
         }
         let deadline = if duration >= 0 {
-            let Some(now) = now() else {
+            let Some(now) = now(s) else {
                 fail(exec, 12);
                 return 3;
             };

@@ -53,14 +53,49 @@ pub(super) struct Room {
     exec: *mut Exec,
     owner: Rooted,
     port: Rooted,
+    clock: Clock,
+}
+
+/// Empty in ordinary builds; simulation time stays on the native owner thread.
+#[derive(Clone, Default)]
+pub(super) struct Clock {
+    #[cfg(feature = "simulation")]
+    source: Option<std::rc::Rc<std::cell::Cell<u64>>>,
+}
+impl Clock {
+    #[cfg(feature = "simulation")]
+    pub(super) fn simulated(source: std::rc::Rc<std::cell::Cell<u64>>) -> Self {
+        Self {
+            source: Some(source),
+        }
+    }
+    // SAFETY: caller owns a newly opened, rooted session on this thread.
+    unsafe fn enable(&self, _exec: *mut Exec) -> Result<(), Error> {
+        #[cfg(feature = "simulation")]
+        if let Some(source) = &self.source {
+            unsafe { managed::simulation::enable_clock(_exec, source.get()) }
+                .map_err(|_| Error::ResyncRequired)?;
+        }
+        Ok(())
+    }
+    // SAFETY: caller owns a live, rooted session and is outside its callbacks.
+    unsafe fn advance(&self, _exec: *mut Exec) -> Result<(), Error> {
+        #[cfg(feature = "simulation")]
+        if let Some(source) = &self.source {
+            unsafe { managed::simulation::advance_clock(_exec, source.get()) }
+                .map_err(|_| Error::ResyncRequired)?;
+        }
+        Ok(())
+    }
 }
 impl Room {
-    pub(super) fn new(initial: Option<&str>) -> Result<Self, Error> {
+    pub(super) fn new(initial: Option<&str>, clock: Clock) -> Result<Self, Error> {
         let mut room = Self {
             fault: Box::new(0),
             exec: std::ptr::null_mut(),
             owner: Rooted::new(0),
             port: Rooted::new(0),
+            clock,
         };
         // SAFETY: generated static descriptors live for the process; fault and roots
         // remain stable until close. All calls execute on this same owning thread.
@@ -69,6 +104,7 @@ impl Room {
             if room.exec.is_null() || *room.fault != 0 {
                 return Err(Error::ResyncRequired);
             }
+            room.clock.enable(room.exec)?;
             *room.port.slot = fern_library_string_port(room.exec) as usize;
             if room.port.pointer().is_null() || *room.fault != 0 {
                 return Err(Error::ResyncRequired);
@@ -94,6 +130,7 @@ impl Room {
     pub(super) fn inspect(&mut self) -> Result<Vec<u8>, Error> {
         // SAFETY: all pointers are live, rooted and belong to this session/thread.
         let status = unsafe {
+            self.clock.advance(self.exec)?;
             fern_export_inspect_room(
                 &mut *self.fault,
                 self.exec,
@@ -106,6 +143,10 @@ impl Room {
     pub(super) fn command(&mut self, text: &str) -> Result<Vec<u8>, Error> {
         if text.len() > 4096 || text.contains('\0') {
             return Err(Error::Malformed);
+        }
+        // SAFETY: reject invalid time before allocating or enqueueing application input.
+        unsafe {
+            self.clock.advance(self.exec)?;
         }
         let input = Rooted::new(abi::string(text) as usize);
         // SAFETY: input is rooted UTF8 with a terminator; generated function never
@@ -128,6 +169,7 @@ impl Room {
         // SAFETY: bounded calls borrow the rooted open session and String port;
         // bytes are copied into Rust storage before any managed root is released.
         unsafe {
+            self.clock.advance(self.exec)?;
             let status = managed::fern_managed_poll(self.exec, 4096);
             if status != 1 || *self.fault != 0 {
                 return Err(Error::Malformed);

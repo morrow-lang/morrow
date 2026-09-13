@@ -80,7 +80,7 @@ pub unsafe extern "C" fn fern_managed_poll(exec: *mut Exec, max_steps: i64) -> i
                 return 0;
             }
             if (*s).next_deadline != u64::MAX {
-                let Some(now) = now() else {
+                let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     fern_managed_stop(exec);
                     return 3;

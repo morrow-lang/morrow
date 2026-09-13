@@ -109,7 +109,7 @@ fn fill_domain(state: Domain, remaining: Int) -> Domain:
         .unwrap();
     for (name, expected) in [
         ("domain_trace", &[1, 3, 1, 8, 1, 2, 3][..]),
-        ("local_trace", &[0, 10, 1, 10, 10, 2, 0, 9, 0][..]),
+        ("local_trace", &[0, 10, 1, 10, 10, 2, 0, 11, 0][..]),
     ] {
         let function = instance.get_typed_func::<i64, i64>(&store, name).unwrap();
         for (input, expected) in expected.iter().enumerate() {
@@ -128,6 +128,36 @@ fn fill_domain(state: Domain, remaining: Int) -> Domain:
             .unwrap()
             .call(&mut store, ())
             .unwrap(),
-        1018
+        1022
     );
+}
+
+#[test]
+fn local_feedback_and_authoritative_loading_have_expected_wasm_values() {
+    let source = format!(
+        "{}\n{}",
+        include_str!("../../../examples/web/checklist.fn"),
+        include_str!("fixtures/web_feedback.fn")
+    );
+    let checked = check::check_library(&fern_compiler::parse::parse(&source).unwrap()).unwrap();
+    let bytes = fern_compiler::wasm::compile(&checked).unwrap();
+    let engine = wasmi::Engine::default();
+    let module = wasmi::Module::new(&engine, &bytes).unwrap();
+    let mut store = wasmi::Store::new(&engine, ());
+    let instance = wasmi::Linker::new(&engine)
+        .instantiate_and_start(&mut store, &module)
+        .unwrap();
+    let trace = instance
+        .get_typed_func::<i64, i64>(&store, "feedback_trace")
+        .unwrap();
+    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 11]
+        .into_iter()
+        .enumerate()
+    {
+        assert_eq!(
+            trace.call(&mut store, index as i64).unwrap(),
+            expected,
+            "feedback trace {index}"
+        );
+    }
 }

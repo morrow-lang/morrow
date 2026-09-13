@@ -53,6 +53,11 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-sim')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
           "jsonpath": "$.package[?(@.name.value == 'fern-runtime')].version"
         },
         {

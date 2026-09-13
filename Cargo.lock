@@ -526,6 +526,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "fern-sim"
+version = "0.1.0"
+dependencies = [
+ "fern-runtime",
+ "fern-web-app",
+ "fern-web-protocol",
+ "libc",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
 name = "fern-test-supervisor"
 version = "0.1.0"
 dependencies = [

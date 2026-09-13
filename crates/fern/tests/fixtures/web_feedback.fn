@@ -1,0 +1,32 @@
+# Independent expected-value probe, executed by both native and WASM backends.
+fn feedback_node(nodes: List(Node), key: String, index: Int) -> Node:
+    if index >= List.len(nodes): node(key: "", text: "", attributes: [])
+    else:
+        let found = List.get(nodes, index)
+        if found.key == key: found else: feedback_node(nodes, key, index + 1)
+
+fn feedback_unicode(text: String, remaining: Int) -> String:
+    if remaining == 0: text else: feedback_unicode(text + "🌱", remaining - 1)
+
+pub fn feedback_trace(which: Int) -> Int:
+    let offline = update(model_init(""), Draft("苗 🌱"))
+    let connected = update(offline.model, Connection(true, false, "ready"))
+    let pending = update(connected.model, Submit)
+    let admitted = update(pending.model, Admitted)
+    let next = update(admitted.model, Draft("Next local draft"))
+    let confirmed = update(next.model, Connection(true, false, "Saved"))
+    let full = update(model_init(""), Draft(feedback_unicode("", 64)))
+    let oversized = update(full.model, Draft(full.model.draft + "🌱"))
+    match which:
+        0 -> if feedback_node(view(offline.model), "draft-preview", 0).text == "苗 🌱": 1 else: 0
+        1 -> if feedback_node(view(offline.model), "draft-budget", 0).text == "8 / 256 UTF-8 bytes": 1 else: 0
+        2 -> change_effect_kind(update(offline.model, Submit))
+        3 -> if feedback_node(view(pending.model), "add", 0).text == "Saving…": 1 else: 0
+        4 -> if List.get(feedback_node(view(pending.model), "add", 0).attributes, 0).value == "true": 1 else: 0
+        5 -> if feedback_node(view(next.model), "draft-preview", 0).text == "Next local draft": 1 else: 0
+        6 -> if feedback_node(view(confirmed.model), "add", 0).text == "Add +": 1 else: 0
+        7 -> String.len(full.model.draft)
+        8 -> String.len(oversized.model.draft)
+        9 -> if feedback_node(view(offline.model), "draft", 0).flags == 8: 1 else: 0
+        10 -> String.len(confirmed.model.draft)
+        _ -> List.len(view(confirmed.model))

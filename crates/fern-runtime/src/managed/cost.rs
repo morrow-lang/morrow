@@ -143,11 +143,11 @@ impl Cost {
                 let value = *(*list).data.add(i);
                 if (*ty).kind == 9 {
                     let pair = value as *const i64;
-                    if pair.is_null() || *pair != 0 || !self.add(24) {
+                    if pair.is_null() || !self.add(16) {
                         return false;
                     }
-                    if !self.value(*(*ty).children, *pair.add(1), depth + 1)
-                        || !self.value(*(*ty).children.add(1), *pair.add(2), depth + 1)
+                    if !self.value(*(*ty).children, *pair, depth + 1)
+                        || !self.value(*(*ty).children.add(1), *pair.add(1), depth + 1)
                     {
                         return false;
                     }

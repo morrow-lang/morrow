@@ -141,7 +141,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
 }
 unsafe fn idle(s: *mut Session) -> bool {
     unsafe {
-        let Some(now) = now() else {
+        let Some(now) = now(s) else {
             fail(&raw mut (*s).root, 12);
             return false;
         };
@@ -183,7 +183,7 @@ pub unsafe extern "C" fn fern_managed_run(exec: *mut Exec) {
         let s = (*exec).session;
         while (*s).live != 0 && *(*s).root.fault == 0 && !(*s).stopped {
             if (*s).next_deadline != u64::MAX {
-                let Some(now) = now() else {
+                let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     break;
                 };
@@ -217,6 +217,14 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
     unsafe {
         if (*a).host_port {
             return;
+        }
+        #[cfg(any(test, feature = "simulation"))]
+        if (*s).simulation.enabled {
+            let Some(callbacks) = (*s).simulation.callbacks.checked_add(1) else {
+                fail(&raw mut (*s).root, 9);
+                return;
+            };
+            (*s).simulation.callbacks = callbacks;
         }
         if (*a).waiting {
             poll(a, false);

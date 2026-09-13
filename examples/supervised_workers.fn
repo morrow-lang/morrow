@@ -1,0 +1,17 @@
+# Native actors, bounded recovery and cleanup with automatic memory management.
+# This deliberately triggers a checked runtime fault to demonstrate supervision.
+# Ordinary application errors should use Result instead.
+
+fn fragile_worker() -> Unit:
+    defer println("worker: cleanup")
+    println("worker: attempt")
+    let empty: List(Int) = []
+    println(List.head(empty))
+
+fn steady_worker() -> Unit:
+    println("sibling: completed")
+
+fn main() -> Unit:
+    let worker: Pid(()) = supervise(fragile_worker, 2)
+    let sibling: Pid(()) = spawn(steady_worker)
+    ()

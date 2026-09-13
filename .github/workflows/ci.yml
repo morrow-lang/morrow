@@ -32,6 +32,24 @@ jobs:
           install: true
       - name: Check compiler, runtime, tooling and native programs
         run: cargo xtask check
+      - name: Simulate and replay a month of application virtual time
+        run: |
+          cargo xtask simulate --seed 0xc0ffee --steps 3000 --days 30 --json > fern-simulation.json 2> fern-simulation.stderr.log
+          cargo xtask simulate --replay fern-simulation.json
+          cargo xtask simulate --actors --seed 0xc0ffee --steps 5000 --json > fern-actor-simulation.json 2> fern-actor-simulation.stderr.log
+          cargo xtask simulate --replay fern-actor-simulation.json
+      - name: Retain deterministic scenario evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fern-simulation-${{ matrix.os }}
+          path: |
+            fern-simulation.json
+            fern-actor-simulation.json
+            fern-simulation.stderr.log
+            fern-actor-simulation.stderr.log
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Verify the separate compiler benchmark lockfile
         run: cargo metadata --manifest-path benchmarks/compiler-phases/Cargo.toml --locked --format-version=1 > /dev/null
 

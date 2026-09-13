@@ -46,6 +46,7 @@ fn run() -> Result<(), String> {
 build                 Build and stage compiler, runtime and supervisor in bin/\n\
 web-build [output]    Build the browser preview and embed assets in one server executable\n\
 web-check [server]    Verify two real browser clients and offline reload (FERN_BROWSER required)\n\
+simulate [options]    Run seeded virtual-time actor/application scenarios (--help for options)\n\
 check                 Format, Clippy, workspace tests and native acceptance\n\
 test                  Workspace tests and native acceptance\n\
 native [filter]       Execute native expected-output fixtures from bin/\n\
@@ -75,6 +76,17 @@ verify <tar> <sha256> Validate a release archive without extracting it"
                 .map(PathBuf::from)
                 .unwrap_or_else(|| root.join("dist/fern-web"));
             xtask::web::acceptance::run(&server)?;
+        }
+        "simulate" => {
+            let mut simulation =
+                Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
+            simulation
+                .current_dir(&root)
+                .args(["run", "--locked", "-p", "fern-sim"]);
+            if release {
+                simulation.arg("--release");
+            }
+            execute(simulation.arg("--").args(rest))?;
         }
         "fmt" => cargo(&root, &["fmt", "--all"])?,
         "lint" => {

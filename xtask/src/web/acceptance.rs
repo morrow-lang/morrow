@@ -244,7 +244,13 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     if browser.eval(&first, "document.querySelector('#draft').value === '   ' && document.querySelectorAll('#tasks li').length === 0")? != true {
         return Err("a rejected effect erased its local draft or changed confirmed state".into());
     }
-    browser.eval(&first, "document.querySelector('#draft').value='Grow a lasting language'; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#add-form').requestSubmit(); true")?;
+    if browser.eval(&first, "document.querySelector('#draft').value='Grow a lasting language'; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#draft-preview')?.textContent === 'Grow a lasting language' && document.querySelector('#draft-budget')?.textContent === '23 / 256 UTF-8 bytes' && document.querySelectorAll('#tasks li').length === 0")? != true {
+        return Err("local compiled preview did not remain separate from confirmed tasks".into());
+    }
+    // Same event-loop turn: a network acknowledgement cannot race this assertion.
+    if browser.eval(&first, "document.querySelector('#add-form').requestSubmit(); document.querySelector('#add').textContent === 'Saving…' && document.querySelector('#add').getAttribute('aria-busy') === 'true' && !document.querySelector('#draft').disabled")? != true {
+        return Err("submission did not show scoped pending feedback while keeping local editing available".into());
+    }
     for page in [&first, &second] {
         browser.wait(page, "document.querySelector('#tasks')?.textContent.includes('Grow a lasting language') === true")?;
         browser.wait(
@@ -255,6 +261,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
             return Err("compiled Fern view did not produce the expected keyed DOM tree".into());
         }
     }
+    browser.wait(&first, "document.querySelector('#add')?.getAttribute('aria-busy') === 'false' && document.querySelector('#add')?.textContent === 'Add +'")?;
     browser.eval(
         &second,
         "document.querySelector('#tasks input[type=checkbox]').click(); true",
@@ -301,6 +308,10 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     if browser.eval(&first, "[...document.querySelectorAll('#add, #tasks input, #tasks button')].every(control => control.disabled)")? != true {
         return Err("offline mutation submission was enabled".into());
     }
+    if browser.eval(&first, "document.querySelector('#draft').value='苗 🌱'; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#draft-preview')?.textContent === '苗 🌱' && document.querySelector('#draft-budget')?.textContent === '8 / 256 UTF-8 bytes' && document.querySelector('#add').disabled && document.querySelectorAll('#tasks li').length === 1")? != true {
+        return Err("offline UTF-8 preview failed or changed authoritative tasks".into());
+    }
+    browser.eval(&first, "document.querySelector('#draft').value='My offline draft'; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); true")?;
     browser.eval(&first, "document.querySelector('#filter-2').click(); true")?;
     browser.wait(
         &first,
@@ -361,7 +372,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     )?;
     integrity::run(&mut browser, &first)?;
     println!(
-        "Real-browser acceptance passed: two clients, compiled Fern model/update/view, rejected-effect draft preservation, keyed DOM/focus, offline worker restart/reload/draft/filter, mobile layout, reconnect and session revocation"
+        "Real-browser acceptance passed: two clients, compiled Fern model/update/view, rejected-effect draft preservation, scoped saving feedback, keyed DOM/focus, offline worker restart/reload/draft/filter/UTF-8 preview, mobile layout, reconnect and session revocation"
     );
     drop(server_process);
     Ok(())

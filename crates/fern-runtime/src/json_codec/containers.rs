@@ -88,12 +88,13 @@ impl Execution<'_> {
                 return Err(error(5, -1));
             }
             let out = self.slots(values.len(), list)?;
+            let _out_root = ConstructionRoot::new(out as usize);
             let data = out.add(if list { 3 } else { 1 });
             if list {
                 out.cast::<abi::List>().write(abi::List {
                     data,
                     len: values.len() as i64,
-                    cap: values.len() as i64,
+                    cap: values.len().max(1) as i64,
                 });
             }
             for (i, value) in values.iter().enumerate() {
@@ -146,6 +147,7 @@ impl Execution<'_> {
             };
             self.known_fields(p, members)?;
             let fields = self.slots((*p).count as usize, false)?;
+            let _fields_root = ConstructionRoot::new(fields as usize);
             for i in 0..(*p).count as usize {
                 let mut found = None;
                 for (key, value) in members {
@@ -182,11 +184,12 @@ impl Execution<'_> {
                 return Err(error(5, -1));
             };
             let out = self.slots(members.len(), true)?;
+            let _out_root = ConstructionRoot::new(out as usize);
             let data = out.add(3);
             out.cast::<abi::List>().write(abi::List {
                 data,
                 len: members.len() as i64,
-                cap: members.len() as i64,
+                cap: members.len().max(1) as i64,
             });
             for (i, (key, value)) in members.iter().enumerate() {
                 let Kind::String(name) = &key.kind else {
@@ -197,9 +200,13 @@ impl Execution<'_> {
                 if name.contains('\0') {
                     return Err(error(10, -1));
                 }
-                let text = abi::string(name);
+                self.checkpoint()?;
+                let text = self.allocated(abi::string(name) as *mut c_char);
+                let _text_root = ConstructionRoot::new(text as usize);
                 self.budget.allocate(16)?;
-                let pair = memory::alloc(16, false).cast::<i64>();
+                self.checkpoint()?;
+                let pair = self.allocated(memory::alloc(16, false).cast::<i64>());
+                let _pair_root = ConstructionRoot::new(pair as usize);
                 *pair = text as i64;
                 *pair.add(1) = self.at(name, |c| c.decode(*(*p).children, value, depth + 1))?;
                 *data.add(i) = pair as i64;

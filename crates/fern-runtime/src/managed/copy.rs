@@ -106,10 +106,11 @@ impl Copy {
                             if let Some(&prior) = self.seen.get(&pair_key) {
                                 prior
                             } else {
-                                let copied = self.allocate(24, false).cast::<i64>();
-                                *copied = 0;
-                                *copied.add(1) = self.value(*(*ty).children, *pair.add(1));
-                                *copied.add(2) = self.value(*(*ty).children.add(1), *pair.add(2));
+                                // Native Map entries are untagged [key, value]
+                                // pairs, distinct from source tuple records.
+                                let copied = self.allocate(16, false).cast::<i64>();
+                                *copied = self.value(*(*ty).children, *pair);
+                                *copied.add(1) = self.value(*(*ty).children.add(1), *pair.add(1));
                                 self.seen.insert(pair_key, copied as i64);
                                 copied as i64
                             }

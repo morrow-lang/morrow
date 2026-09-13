@@ -79,6 +79,8 @@ struct Pid {
 }
 #[repr(C)]
 struct Session {
+    #[cfg(any(test, feature = "simulation"))]
+    simulation: simulation::State,
     root: Exec,
     functions: *const *const Function,
     function_count: usize,
@@ -221,7 +223,17 @@ unsafe fn function(s: *mut Session, closure: *const c_void) -> *const Function {
 
 #[cfg(test)]
 thread_local! { static CLOCK: std::cell::Cell<Option<Option<u64>>> = const { std::cell::Cell::new(None) }; }
-fn now() -> Option<u64> {
+unsafe fn now(_session: *mut Session) -> Option<u64> {
+    #[cfg(any(test, feature = "simulation"))]
+    unsafe {
+        let state = &mut (*_session).simulation;
+        if state.enabled {
+            if std::mem::take(&mut state.fail_next) {
+                return None;
+            }
+            return Some(state.milliseconds);
+        }
+    }
     #[cfg(test)]
     if let Some(value) = CLOCK.with(|clock| clock.get()) {
         return value;
@@ -263,3 +275,7 @@ pub use supervision::*;
 #[path = "managed/host.rs"]
 mod host;
 pub use host::*;
+
+#[cfg(any(test, feature = "simulation"))]
+#[path = "managed/simulation.rs"]
+pub mod simulation;

@@ -1,0 +1,21 @@
+fn show(values: Map(String, Int)) -> Unit:
+    println(Map.len(values))
+    println(Option.unwrap_or(Map.get(values, "low🌿"), 0))
+    println(Option.unwrap_or(Map.get(values, "high"), 0))
+
+fn main() -> Result(Unit, json.Error):
+    let decoded = json.decode("\{\"low🌿\":-9223372036854775808,\"high\":9223372036854775807\}", Map(String, Int))?
+    let empty = json.decode("\{\}", Map(String, Int))?
+    let captured: Pid(()) = spawn(() ->
+        show(decoded)
+        println(Map.len(empty))
+    )
+    let receiver: Pid(Map(String, Int)) = spawn(() ->
+        receive:
+            values -> show(values)
+    )
+    let literal = %{"low🌿": -9223372036854775808, "high": 9223372036854775807}
+    match send(receiver, literal):
+        Ok(()) -> ()
+        Err(_) -> println("send failed")
+    Ok(())

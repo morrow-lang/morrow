@@ -184,12 +184,14 @@ pub fn view(model: Model) -> List(Node):
         node(key: "status", text: model.status, attributes: []),
         node(key: "connection", text: if model.online: "LIVE" else: "OFFLINE", attributes: [Attribute("data-online", boolean(value: model.online))]),
         Node("draft", "", "", "", model.draft, 8, []),
-        Node("add", "", "", "", "", disabled, []),
+        Node("add", "", "", if model.pending: "Saving…" else: "Add +", "", disabled, [Attribute("aria-busy", boolean(value: model.pending))]),
         node(key: "progress", text: "{done} of {total} complete · {percent}%", attributes: []),
         Node("empty", "", "", "", "", empty, []),
         node(key: "filter-0", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 0))]),
         node(key: "filter-1", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 1))]),
-        node(key: "filter-2", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 2))])
+        node(key: "filter-2", text: "", attributes: [Attribute("aria-pressed", boolean(value: model.filter == 2))]),
+        node(key: "draft-preview", text: if String.len(model.draft) == 0: "Your next small intention appears here." else: model.draft, attributes: []),
+        node(key: "draft-budget", text: "{String.len(model.draft)} / 256 UTF-8 bytes", attributes: [])
     ])
 
 # Host construction/projection functions keep ownership explicit at the ABI. They

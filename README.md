@@ -111,6 +111,21 @@ for room placement, revocation and durable-write behavior.
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
 
+## Explore resilience
+
+Run the actual protocol and native Fern actors under reproducible faults and
+virtual time, then replay the result:
+
+```sh
+cargo xtask simulate --seed 42 --steps 3000 --days 30 --json > scenario.json
+cargo xtask simulate --replay scenario.json
+cargo xtask simulate --actors --seed 42 --steps 5000
+```
+
+The [demo and simulation guide](docs/DETERMINISTIC_SIMULATION.md) combines native
+supervision, the offline WASM draft preview and deterministic failure testing.
+Simulated time measures the scenario's clock; it is not a production-uptime claim.
+
 ## Available today
 
 - Immutable bindings, inferred types and functions that return their last expression.

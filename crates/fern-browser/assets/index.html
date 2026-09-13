@@ -14,9 +14,11 @@
     <section class="intro"><p class="eyebrow">SMALL THINGS, SHARED.</p><h1>A little room<br>to grow together.</h1><p>A shared checklist, a responsive local app.<br>Your draft stays with you when the connection doesn’t.</p></section>
     <section class="garden" aria-label="Shared checklist">
       <div class="garden-heading"><div><p class="eyebrow">YOUR SHARED GARDEN</p><h2>What’s growing?</h2></div><span class="leaf" aria-hidden="true">↟</span></div>
-      <form id="add-form"><label class="sr-only" for="draft">New task</label><input id="draft" name="draft" placeholder="Plant a small intention…" autocomplete="off" maxlength="256"><button id="add" type="submit" disabled>Add <span aria-hidden="true">+</span></button></form>
+      <form id="add-form"><label class="sr-only" for="draft">New task</label><input id="draft" name="draft" placeholder="Plant a small intention…" autocomplete="off" maxlength="256" aria-describedby="draft-budget draft-note"><button id="add" type="submit" disabled aria-busy="false">Add +</button></form>
+      <aside class="local-draft" aria-label="Local draft preview"><div class="draft-heading"><span class="eyebrow">ON THIS DEVICE</span><span id="draft-budget">0 / 256 UTF-8 bytes</span></div><p id="draft-preview">Your next small intention appears here.</p><p id="draft-note">Preview and filter offline. Only Add sends your draft when connected.</p></aside>
+      <p class="confirmed-label">SERVER-CONFIRMED TASKS</p>
       <div class="list-bar"><div id="filters" role="group" aria-label="Filter tasks"><button id="filter-0" data-filter="0" aria-pressed="true">All</button><button id="filter-1" data-filter="1" aria-pressed="false">Growing</button><button id="filter-2" data-filter="2" aria-pressed="false">Done</button></div><p id="progress">0 of 0 complete · 0%</p></div>
-      <ul id="tasks" aria-label="Tasks"></ul>
+      <ul id="tasks" aria-label="Server-confirmed tasks"></ul>
       <div id="empty"><span aria-hidden="true">✳</span><p>A little space for your next good thing.</p><small>Add a task above when connected.</small></div>
       <div class="status-bar"><span class="dot" aria-hidden="true"></span><p id="status" role="status" aria-live="polite">Starting compiled Fern WebAssembly…</p><button id="retry" type="button">Reconnect</button></div>
     </section>

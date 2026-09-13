@@ -1193,3 +1193,52 @@ fn exact_ieee_bits_survive_native_codegen_without_decimal_canonicalization() {
     let fixture = NativeFixture::new();
     assert_eq!(fixture.execute(&program, &harness), expected.as_bytes());
 }
+
+#[test]
+fn local_feedback_and_authoritative_loading_have_expected_native_values() {
+    use fern_compiler::{
+        check,
+        native_library::{self, Export},
+        parse,
+    };
+    let source = format!(
+        "{}\n{}",
+        include_str!("../../../examples/web/checklist.fn"),
+        include_str!("fixtures/web_feedback.fn")
+    );
+    let checked = check::check_library(&parse::parse(&source).unwrap()).unwrap();
+    let program =
+        native_library::lower(&checked, &[Export::new("feedback_trace", "feedback_trace")])
+            .unwrap();
+    let harness = r#"
+unsafe extern "C" {
+    fn fern_export_feedback_trace(fault: *mut i64, exec: usize, input: i64) -> i64;
+}
+fn main() {
+    let mut fault = 0;
+    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 11].into_iter().enumerate() {
+        assert_eq!(unsafe { fern_export_feedback_trace(&mut fault, 0, index as i64) }, expected, "feedback trace {index}");
+        assert_eq!(fault, 0);
+    }
+    println!("local preview and confirmed loading");
+}
+"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"local preview and confirmed loading\n"
+    );
+}
+
+#[test]
+fn compiled_decoded_map_capture_and_literal_mailbox_preserve_untagged_pairs() {
+    let source = include_str!("fixtures/actor_map.fn");
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(NativeFixture::new().execute_linked(&program, harness, &[core_runtime_archive().into_os_string()]), b"2\n-9223372036854775808\n9223372036854775807\n0\n2\n-9223372036854775808\n9223372036854775807\n");
+}

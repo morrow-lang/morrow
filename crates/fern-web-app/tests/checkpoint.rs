@@ -178,3 +178,54 @@ fn restored_full_width_identity_stays_exact_through_the_native_actor_and_checkpo
     assert_eq!(checkpoint.tasks, changed.tasks);
     assert_eq!(checkpoint.next_id, 9_007_199_254_740_995);
 }
+
+#[test]
+fn removing_the_last_task_can_be_reopened_without_reusing_its_identity() {
+    let directory = Directory::new();
+    let mut domain = NativeDomain::persistent(&directory.0).unwrap();
+    let added = domain
+        .apply(
+            "garden",
+            &[],
+            1,
+            &Mutation::Add {
+                label: "first".into(),
+            },
+            100,
+        )
+        .unwrap();
+    let removed = domain
+        .apply(
+            "garden",
+            &added.tasks,
+            2,
+            &Mutation::Remove {
+                id: fern_web_protocol::Decimal(1),
+            },
+            100,
+        )
+        .unwrap();
+    assert!(removed.tasks.is_empty());
+    assert_eq!(removed.next_id, 2);
+    drop(domain);
+    let mut reopened = NativeDomain::persistent(&directory.0).unwrap();
+    let checkpoint = reopened.restore("garden").unwrap().unwrap();
+    assert!(checkpoint.tasks.is_empty());
+    assert_eq!(checkpoint.next_id, 2);
+    let next = reopened
+        .apply(
+            "garden",
+            &[],
+            2,
+            &Mutation::Add {
+                label: "second".into(),
+            },
+            100,
+        )
+        .unwrap();
+    assert_eq!(next.tasks.len(), 1);
+    assert_eq!(next.tasks[0].id.0, 2);
+    assert_eq!(next.tasks[0].label, "second");
+    assert!(!next.tasks[0].done);
+    assert_eq!(next.next_id, 3);
+}

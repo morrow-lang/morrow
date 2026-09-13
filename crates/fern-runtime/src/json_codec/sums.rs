@@ -107,6 +107,7 @@ impl Execution<'_> {
                     return Err(error(5, -1));
                 }
                 let out = c.slots(values.len(), false)?;
+                let _out_root = ConstructionRoot::new(out as usize);
                 *out = selected as i64;
                 for (i, value) in values.iter().enumerate() {
                     let index = c.index(i)?;

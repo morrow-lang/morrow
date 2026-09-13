@@ -24,6 +24,9 @@ pub struct Variant {
 mod budget_tests;
 #[path = "json_codec/containers.rs"]
 mod containers;
+#[cfg(test)]
+#[path = "json_codec/root_tests.rs"]
+mod root_tests;
 #[path = "json_codec/sums.rs"]
 mod sums;
 #[cfg(test)]
@@ -32,9 +35,47 @@ mod tests;
 #[path = "json_codec/unions.rs"]
 mod unions;
 
+// A fixed-address root for one partially constructed native value. Guards stay
+// on the bounded decode call stack; completed children become reachable from
+// their parent before the guard is retired.
+struct ConstructionRoot {
+    _root: memory::Root,
+    _slot: Box<usize>,
+}
+impl ConstructionRoot {
+    fn new(value: usize) -> Self {
+        let slot = Box::new(value);
+        // SAFETY: the boxed word outlives the root; fields drop in that order.
+        let root = unsafe { memory::root_range(&*slot, 1) };
+        Self {
+            _root: root,
+            _slot: slot,
+        }
+    }
+    unsafe fn decoded(mut plan: *const Codec, value: i64) -> Self {
+        // Transparent newtypes retain their underlying representation. Scalar
+        // payloads never become false roots merely because their bits resemble
+        // a managed address.
+        unsafe {
+            for _ in 0..DEPTH {
+                match (*plan).kind {
+                    11 => plan = *(*plan).children,
+                    0 | 1 | 2 | 4 => return Self::new(0),
+                    _ => return Self::new(value as usize),
+                }
+            }
+        }
+        unreachable!("successful decoding has already bounded descriptor depth")
+    }
+}
+
 struct Execution<'a> {
     budget: Budget<'a>,
     path: Rc<String>,
+    #[cfg(test)]
+    precise: bool,
+    #[cfg(test)]
+    allocations: Vec<usize>,
 }
 impl<'a> Execution<'a> {
     fn new(limits: &'a mut Limits) -> Self {
@@ -47,7 +88,36 @@ impl<'a> Execution<'a> {
                 at: 0,
             },
             path: Rc::new(String::new()),
+            #[cfg(test)]
+            precise: false,
+            #[cfg(test)]
+            allocations: Vec::new(),
         }
+    }
+    fn allocated<T>(&mut self, pointer: *mut T) -> *mut T {
+        #[cfg(test)]
+        if self.precise {
+            self.allocations.push(pointer as usize);
+        }
+        pointer
+    }
+    fn checkpoint(&self) -> Result<()> {
+        #[cfg(test)]
+        if self.precise {
+            // Only enabled by the owned heap-0 codec test fixture. Detect a lost
+            // temporary by address before any caller can dereference that object.
+            unsafe {
+                memory::fern_gc_collect_precise();
+            }
+            if self
+                .allocations
+                .iter()
+                .any(|&p| !memory::heap_owns(0, p as *const _))
+            {
+                return Err(error(4, -1));
+            }
+        }
+        Ok(())
     }
     fn locate<T>(&self, result: Result<T>) -> Result<T> {
         result.map_err(|mut e| {
@@ -149,9 +219,13 @@ impl<'a> Execution<'a> {
             return Err(error(4, -1));
         }
         self.budget.work(count)?;
-        let bytes = (count + if list { 3 } else { 1 }) * 8;
+        // Native lists always own at least one writable data slot, including
+        // decoded empties. Actor graph validation/copying uses this same ABI.
+        let capacity = if list { count.max(1) } else { count };
+        let bytes = (capacity + if list { 3 } else { 1 }) * 8;
         self.budget.allocate(bytes)?;
-        Ok(memory::alloc(bytes, false).cast())
+        self.checkpoint()?;
+        Ok(self.allocated(memory::alloc(bytes, false).cast()))
     }
     fn index(&mut self, index: usize) -> Result<String> {
         self.budget.work(20)?;
@@ -206,6 +280,7 @@ impl<'a> Execution<'a> {
         }
     }
     unsafe fn decode(&mut self, plan: *const Codec, value: &Json, depth: usize) -> Result<i64> {
+        self.checkpoint()?;
         self.step(depth)?;
         let result = unsafe { self.decode_kind(plan, value, depth) };
         self.locate(result)
@@ -228,17 +303,18 @@ impl<'a> Execution<'a> {
                     if t.contains('\0') {
                         Err(error(10, -1))
                     } else {
-                        Ok(abi::string(t) as i64)
+                        Ok(self.allocated(abi::string(t) as *mut c_char) as i64)
                     }
                 }
                 (4, Kind::Null) => Ok(0),
                 (5, _) => {
                     self.budget.work(v.nodes)?;
-                    Ok(json::wrap(v.clone()) as i64)
+                    Ok(self.allocated(json::wrap(v.clone())) as i64)
                 }
                 (6 | 8, _) => self.decode_array(p, v, depth),
                 (7, _) => {
                     let out = self.slots(1, false)?;
+                    let _out_root = ConstructionRoot::new(out as usize);
                     *out = i64::from(matches!(v.kind, Kind::Null));
                     if *out == 0 {
                         *out.add(1) = self.decode(*(*p).children, v, depth + 1)?;
@@ -252,6 +328,8 @@ impl<'a> Execution<'a> {
                 (13, _) => {
                     let selected = self.union_select(p, v)?;
                     let payload = self.decode(*(*p).children.add(selected), v, depth + 1)?;
+                    let _payload_root =
+                        ConstructionRoot::decoded(*(*p).children.add(selected), payload);
                     let out = self.slots(1, false)?;
                     *out = selected as i64;
                     *out.add(1) = payload;

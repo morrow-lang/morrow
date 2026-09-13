@@ -54,6 +54,7 @@ impl SharedCheckpoint {
 pub struct NativeDomain {
     rooms: BTreeMap<String, host::Room>,
     store: Option<SharedCheckpoint>,
+    clock: host::Clock,
 }
 impl NativeDomain {
     pub fn new() -> Self {
@@ -69,7 +70,23 @@ impl NativeDomain {
         Self {
             rooms: BTreeMap::new(),
             store: Some(checkpoint),
+            clock: host::Clock::default(),
         }
+    }
+
+    /// Construct a domain whose native sessions follow this thread's virtual clock.
+    /// Time is monotonic milliseconds; updates take effect before each native call.
+    #[cfg(feature = "simulation")]
+    pub fn simulated(
+        directory: Option<&std::path::Path>,
+        clock: std::rc::Rc<std::cell::Cell<u64>>,
+    ) -> std::io::Result<Self> {
+        let mut domain = directory
+            .map(Self::persistent)
+            .transpose()?
+            .unwrap_or_default();
+        domain.clock = host::Clock::simulated(clock);
+        Ok(domain)
     }
 }
 
@@ -163,8 +180,10 @@ impl Domain for NativeDomain {
                 .as_ref()
                 .map(checkpoint::State::native_json)
                 .transpose()?;
-            self.rooms
-                .insert(room.into(), host::Room::new(initial.as_deref())?);
+            self.rooms.insert(
+                room.into(),
+                host::Room::new(initial.as_deref(), self.clock.clone())?,
+            );
         }
         let actor = self.rooms.get_mut(room).ok_or(Error::Malformed)?;
         let before = decode(&actor.inspect()?)?;
