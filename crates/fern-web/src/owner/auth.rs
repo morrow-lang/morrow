@@ -52,6 +52,10 @@ impl AuthenticationOwner {
             sessions: BTreeMap::new(),
         }
     }
+    /// Retained authentication records; expiry removes them on the next owner turn.
+    pub(super) fn retained_sessions(&self) -> usize {
+        self.sessions.len()
+    }
     pub fn expire(&mut self) {
         self.sessions
             .retain(|_, session| session.expires > Instant::now());
@@ -130,6 +134,24 @@ impl AuthenticationOwner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[tokio::test(start_paused = true)]
+    async fn observation_counts_retained_sessions_until_expiry_is_processed() {
+        let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        config.session_ttl = Duration::from_secs(2);
+        let mut owner = AuthenticationOwner::new(config);
+        let auth = owner.login("long-enough-test-key").unwrap();
+        assert_eq!(owner.retained_sessions(), 1);
+        tokio::time::advance(Duration::from_secs(2)).await;
+        assert_eq!(
+            owner.retained_sessions(),
+            1,
+            "expired credentials remain counted until cleanup"
+        );
+        assert!(owner.authentication(&auth.token, None).is_err());
+        owner.expire();
+        assert_eq!(owner.retained_sessions(), 0);
+        assert!(*auth.revoked.borrow());
+    }
     #[tokio::test]
     async fn cancelled_login_does_not_retain_an_unpublished_session() {
         let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());

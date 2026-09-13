@@ -1,5 +1,6 @@
 //! Bounded native transport for the ephemeral collaborative Fern preview.
 #![forbid(unsafe_code)]
+mod admin;
 mod listener;
 mod owner;
 mod socket;
@@ -59,6 +60,7 @@ pub(crate) struct App {
     sockets: Arc<Semaphore>,
     http: Arc<Semaphore>,
     assets: Assets,
+    system: Arc<admin::System>,
 }
 /// Build a router inside a Tokio runtime. Serve it through [`BoundedListener`]
 /// (as [`serve`] does) to enforce admission before HTTP parsing. Authentication
@@ -97,12 +99,17 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
         sockets,
         http: Arc::new(Semaphore::new(512)),
         assets,
+        system: Arc::new(admin::System::new()),
     };
     Ok(Router::new()
         .route("/session", get(session).post(login))
         .route("/logout", post(logout))
         .route("/ws", get(upgrade))
         .route("/health", get(|| async { "fern-web ephemeral preview\n" }))
+        .route("/admin", get(admin::page))
+        .route("/admin/", get(admin::page))
+        .route("/admin/status", get(admin::status))
+        .route("/admin/style.css", get(admin::stylesheet))
         .fallback(asset)
         .layer(DefaultBodyLimit::max(1024))
         .layer(middleware::from_fn_with_state(app.clone(), admission))

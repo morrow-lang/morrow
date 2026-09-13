@@ -8,12 +8,15 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 
 - Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.
 - Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate aggregate WASM backend, typed Fern browser model/update/view and compiled native room actors are implemented. Optional durable room checkpoints pass native restart and real WebSocket acceptance. General framework packaging and scalable actor execution remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.
+- System observability: an authenticated, read-only [dashboard](docs/ADMIN_DASHBOARD.md) and JSON endpoint expose host/build information, admission use and bounded per-worker observations without queuing behind native callbacks (Decision131). The preview shares its application access policy; separate operator roles and detailed CPU/memory/GC sampling remain open.
 
 ### Full-stack Actor and Browser Milestones
 
 The [architecture and acceptance plan](docs/FULL_STACK_ARCHITECTURE.md) defines
 ownership, scheduling, browser ABI and protocol contracts. The completed items
 below describe bounded foundations, not completion of the larger acceptance plan.
+
+- [x] Add an authenticated read-only system dashboard and schema-versioned JSON snapshots with bounded worker telemetry, last-observed occupancy, admission usage and host/build information (Decision131). Pass 12 optimized owner tests, nine real HTTP/WebSocket tests, desktop/small-phone inspection and the complete browser suite. Final macOS `cargo xtask check` passes 1,933 Rust tests across 254 suites, 305 native fixtures, 19 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192 fuzz cases, plus formatting, notices and Clippy.
 
 - [x] Adopt automatic memory without mandatory application borrow checking, actor-owned tracing heaps, a separate browser ABI and a Rust-authored first-party web/UI framework (Decision124).
 - [x] Branch a separate WASM emitter from checked semantic IR, preserve i64 integers, execute scalar exports and reject unsupported types/capabilities through imported code before publishing output.

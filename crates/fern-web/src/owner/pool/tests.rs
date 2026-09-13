@@ -156,6 +156,27 @@ async fn a_blocked_worker_cannot_stop_other_rooms_or_global_revocation() {
         .await
         .unwrap()
         .unwrap();
+    let metrics = observed(&pool, |snapshot| {
+        snapshot.workers[1].state == WorkerState::Idle
+            && snapshot.authentication.retained_sessions == 1
+    })
+    .await;
+    assert_eq!(metrics.workers.len(), 2);
+    assert_eq!(metrics.workers[0].state, WorkerState::Busy);
+    assert_eq!(
+        (
+            metrics.workers[0].rooms,
+            metrics.workers[0].connections,
+            metrics.workers[0].subscriptions
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(metrics.workers[1].state, WorkerState::Idle);
+    assert_eq!(metrics.authentication.retained_sessions, 1);
+    assert_eq!(
+        (metrics.ingress_in_use, metrics.ingress_limit),
+        (1, INGRESS)
+    );
     assert_eq!(
         pool.admission.available_permits(),
         INGRESS - 1,
@@ -192,6 +213,11 @@ async fn a_blocked_worker_cannot_stop_other_rooms_or_global_revocation() {
         !*gate.open.lock().unwrap(),
         "revocation must not wait for Fern execution"
     );
+    let revoked = observed(&pool, |snapshot| {
+        snapshot.authentication.retained_sessions == 0
+    })
+    .await;
+    assert_eq!(revoked.workers[0].state, WorkerState::Busy);
     drop(release);
     while tokio::time::timeout(Duration::from_secs(5), blocked_outcomes.recv())
         .await
@@ -227,6 +253,17 @@ async fn worker_count_does_not_multiply_room_or_ingress_admission() {
     let permits: Vec<_> = (0..INGRESS)
         .map(|_| pool.admission.clone().try_acquire_owned().unwrap())
         .collect();
+    let observation = pool.snapshot();
+    assert_eq!(observation.ingress_in_use, INGRESS);
+    assert_eq!(observation.ingress_limit, INGRESS);
+    assert_eq!(
+        observation
+            .workers
+            .iter()
+            .map(|worker| worker.rooms)
+            .sum::<usize>(),
+        1
+    );
     let (reply, _response) = oneshot::channel();
     assert!(
         pool.try_send(Request::Authenticate {
@@ -268,6 +305,112 @@ async fn moving_between_workers_releases_the_old_connection_before_joining() {
     let (new, _new_outcomes) = join(&pool, &auth, "b").await.unwrap();
     assert_eq!(new.snapshot.room, "b");
     assert!(old_outcomes.recv().await.is_none());
+    let observation = observed(&pool, |snapshot| {
+        snapshot
+            .workers
+            .iter()
+            .all(|worker| worker.state == WorkerState::Idle)
+            && snapshot.workers[0].connections == 0
+            && snapshot.workers[1].connections == 1
+    })
+    .await;
+    assert_eq!(
+        (
+            observation.workers[0].rooms,
+            observation.workers[0].namespaces,
+            observation.workers[0].subscriptions
+        ),
+        (1, 1, 0)
+    );
+    assert_eq!(
+        (
+            observation.workers[1].rooms,
+            observation.workers[1].namespaces,
+            observation.workers[1].subscriptions
+        ),
+        (1, 1, 1)
+    );
+    assert_eq!(observation.authentication.retained_sessions, 1);
+}
+
+async fn observed(pool: &Pool, predicate: impl Fn(&PoolSnapshot) -> bool) -> PoolSnapshot {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let snapshot = pool.snapshot();
+            if predicate(&snapshot) {
+                return snapshot;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("owner must publish its completed state")
+}
+
+#[tokio::test]
+async fn terminal_observations_follow_domain_and_authentication_cleanup() {
+    struct DropDomain(Arc<AtomicUsize>);
+    impl Drop for DropDomain {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    impl Domain for DropDomain {
+        fn apply(
+            &mut self,
+            _: &str,
+            _: &[Task],
+            _: i64,
+            _: &Mutation,
+            _: usize,
+        ) -> Result<DomainChange, Error> {
+            unreachable!()
+        }
+    }
+    let dropped = Arc::new(AtomicUsize::new(0));
+    let drops = dropped.clone();
+    let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+    config.workers = 2;
+    let pool = start_with_factory(
+        config,
+        Arc::new(move |_| Ok(Box::new(DropDomain(drops.clone())))),
+    )
+    .unwrap();
+    let auth = authentication(&pool).await;
+    observed(&pool, |snapshot| {
+        snapshot.authentication.retained_sessions == 1
+    })
+    .await;
+    let workers = pool.worker_metrics.clone();
+    let authentication = pool.auth_metrics.clone();
+    drop(pool);
+    tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            if workers
+                .iter()
+                .all(|worker| worker.borrow().state == WorkerState::Stopped)
+                && authentication.borrow().stopped
+            {
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(
+        dropped.load(Ordering::SeqCst),
+        2,
+        "stopped publication must follow Fern domain destruction"
+    );
+    assert!(
+        *auth.revoked.borrow(),
+        "authentication shutdown must revoke retained sessions"
+    );
+    assert_eq!(authentication.borrow().retained_sessions, 0);
+    for (index, worker) in workers.iter().enumerate() {
+        assert_eq!(*worker.borrow(), WorkerSnapshot::stopped(index));
+    }
 }
 
 #[test]

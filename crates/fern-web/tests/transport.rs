@@ -8,6 +8,9 @@ use tokio_tungstenite::{
     tungstenite::{Message, client::IntoClientRequest},
 };
 
+#[path = "admin/transport.rs"]
+mod admin;
+
 struct Server {
     address: std::net::SocketAddr,
     task: tokio::task::JoinHandle<()>,
@@ -363,6 +366,14 @@ async fn acknowledged_room_recovers_after_server_restart_with_a_fresh_incarnatio
     let _cleanup = Cleanup(directory.clone());
     let mut server = Server::configured(|config| config.data_dir = Some(directory.clone())).await;
     let (cookie, csrf) = server.session().await;
+    let status = server
+        .http("GET", "/admin/status", &format!("Cookie: {cookie}\r\n"), "")
+        .await;
+    assert!(status.starts_with("HTTP/1.1 200"));
+    let status: serde_json::Value =
+        serde_json::from_str(status.split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(status["durability"], "checkpointed");
+    assert!(!status.to_string().contains(directory.to_str().unwrap()));
     let mut socket = server.socket(&cookie, &csrf).await;
     let connected = join(&mut socket, None).await;
     send(

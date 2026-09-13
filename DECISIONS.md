@@ -4,6 +4,13 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 131 Observe pinned workers without queuing behind their callbacks
+* **Date**: 2026-09-13
+* **Status**: Adopted; acceptance tracked in the roadmap
+* **Decision**: Provide a Rust-rendered, read-only `/admin` dashboard and versioned `/admin/status` JSON response using the preview’s existing session authentication. Publish bounded per-owner snapshots outside native callbacks and read them independently of the worker request queues. Display last-observed counts alongside worker activity and configured admission limits.
+* **Context**: The full-stack demo needs inspectable system behavior. Requesting diagnostics through a busy room worker would hide precisely the condition an operator needs to see. A shared preview key does not establish separate administrative roles.
+* **Consequences**: Snapshots expose no application contents, identifiers, credentials or filesystem paths. HTML/JSON responses prohibit caching; the offline asset allowlist excludes these routes. Observations across owners are not globally atomic, busy-worker counts can lag, and authentication remains subject to normal ingress admission. This adds no server controls, CPU/RSS sampling, actor heap introspection or cluster management. The implementation is embedded Rust HTML/CSS with manual refresh and no new dependencies.
+
 ### 130 Exercise production boundaries under seeded virtual time
 * **Date**: 2026-09-13
 * **Status**: Adopted; final integrated acceptance is recorded in the roadmap

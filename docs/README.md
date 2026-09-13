@@ -14,6 +14,7 @@ Start with the [language guide](LANGUAGE_GUIDE.md), [build guide](../BUILD.md), 
 - [Rust workspace acceptance](RUST_WORKSPACE.md)
 - [Full-stack actor/WebAssembly architecture](FULL_STACK_ARCHITECTURE.md)
 - [Browser preview: WebSockets, offline reload and standalone deployment](WEB_PREVIEW.md)
+- [System dashboard and authenticated runtime snapshots](ADMIN_DASHBOARD.md)
 - [Compatibility policy](COMPATIBILITY_POLICY.md) and [release readiness](RELEASE_READINESS.md)
 
 Editor support is the Rust language server (`fern lsp`). Tree-sitter and the

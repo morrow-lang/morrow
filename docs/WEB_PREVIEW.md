@@ -96,6 +96,12 @@ measured example, not a general size budget or a static Linux CLI claim.
 
 ## Offline and reconnect behavior
 
+The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` shows the running server’s
+workers, room and connection counts, uptime, platform and admission limits.
+It uses the current application session and offers `/admin/status` JSON snapshots.
+All preview users with the shared access key can read it; there is no separate
+administrator role. System responses are not stored in the offline cache.
+
 After a successful online visit caches the assets, the Rust service worker can
 reload the application offline. Service-worker availability requires a supported
 browser and a secure context: HTTPS, or loopback development. The browser keeps

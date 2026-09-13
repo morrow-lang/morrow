@@ -14,7 +14,7 @@ mod auth;
 mod pool;
 pub(crate) use auth::Authentication;
 use auth::Capability;
-pub(crate) use pool::{Pool, Route, start};
+pub(crate) use pool::{Pool, PoolSnapshot, Route, WorkerState, start};
 
 struct Subscription {
     principal: String,

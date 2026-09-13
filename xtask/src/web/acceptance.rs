@@ -130,25 +130,49 @@ impl Browser {
         )
     }
     fn page(&mut self, origin: &str) -> Result<String> {
-        let target = self.call(None, "Target.createTarget", json!({"url":origin}))?;
-        let attached = self.call(
+        let deadline = Instant::now() + WAIT;
+        let target =
+            self.call_until(None, "Target.createTarget", json!({"url":origin}), deadline)?;
+        let attached = self.call_until(
             None,
             "Target.attachToTarget",
             json!({"targetId":target["targetId"],"flatten":true}),
+            deadline,
         )?;
         let session = attached["sessionId"]
             .as_str()
             .ok_or("missing browser session")?
             .to_owned();
-        self.call(Some(&session), "Runtime.enable", json!({}))?;
-        self.call(Some(&session), "Page.enable", json!({}))?;
-        Ok(session)
+        self.call_until(Some(&session), "Runtime.enable", json!({}), deadline)?;
+        self.call_until(Some(&session), "Page.enable", json!({}), deadline)?;
+        // Target creation/attachment can finish in the initial about:blank
+        // context, which has no service-worker API. A complete empty document
+        // is not readiness: require the requested URL, normalized by the browser.
+        let expression = format!(
+            "location.href === new URL({}).href && document.readyState === 'complete'",
+            json!(origin)
+        );
+        while Instant::now() < deadline {
+            if self.eval_until(&session, &expression, deadline)? == true {
+                return Ok(session);
+            }
+            thread::sleep(
+                deadline
+                    .saturating_duration_since(Instant::now())
+                    .min(Duration::from_millis(25)),
+            );
+        }
+        Err(format!("browser requested document did not load: {origin}"))
     }
     fn eval(&mut self, session: &str, expression: &str) -> Result<Value> {
-        let result = self.call(
+        self.eval_until(session, expression, Instant::now() + WAIT)
+    }
+    fn eval_until(&mut self, session: &str, expression: &str, deadline: Instant) -> Result<Value> {
+        let result = self.call_until(
             Some(session),
             "Runtime.evaluate",
             json!({"expression":expression,"awaitPromise":true,"returnByValue":true}),
+            deadline,
         )?;
         if !result["exceptionDetails"].is_null() {
             return Err(format!(
@@ -420,6 +444,60 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
 mod tests {
     use super::*;
     use std::net::TcpListener;
+
+    #[test]
+    fn new_page_waits_through_blank_and_loading_documents() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let peer = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let mut socket = tungstenite::accept(stream).unwrap();
+            let mut observations = 0;
+            while let Ok(Message::Text(text)) = socket.read() {
+                let request: Value = serde_json::from_str(&text).unwrap();
+                let result = match request["method"].as_str().unwrap() {
+                    "Target.createTarget" => json!({"targetId":"new-page"}),
+                    "Target.attachToTarget" => json!({"sessionId":"new-session"}),
+                    "Runtime.enable" | "Page.enable" => json!({}),
+                    "Runtime.evaluate" => {
+                        assert_eq!(request["sessionId"], "new-session");
+                        let expression = request["params"]["expression"].as_str().unwrap();
+                        assert!(expression.contains("location.href"));
+                        assert!(expression.contains("new URL(\"http://127.0.0.1:4321\").href"));
+                        assert!(expression.contains("document.readyState === 'complete'"));
+                        // Initial about:blank is complete but wrong URL; the next
+                        // document has the right URL but is still loading.
+                        observations += 1;
+                        json!({"result":{"value":observations == 3}})
+                    }
+                    method => panic!("unexpected page command: {method}"),
+                };
+                socket
+                    .send(Message::Text(
+                        json!({"id":request["id"],"result":result})
+                            .to_string()
+                            .into(),
+                    ))
+                    .unwrap();
+                if observations == 3 {
+                    break;
+                }
+            }
+            observations
+        });
+        let mut browser = Browser::connect(&format!("ws://{address}")).unwrap();
+        let session = browser.page("http://127.0.0.1:4321").unwrap();
+        drop(browser);
+        assert_eq!(session, "new-session");
+        assert_eq!(
+            peer.join().unwrap(),
+            3,
+            "page was returned before its requested document loaded"
+        );
+    }
 
     fn capture_peer(ready: bool) -> (Browser, std::thread::JoinHandle<Vec<String>>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
