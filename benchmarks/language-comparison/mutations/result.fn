@@ -1,0 +1,6 @@
+fn validate(value: Int) -> Result(Int, String):
+    if value > 0: Ok(value)
+    else: Err("positive value required")
+fn main():
+    validate(-1)
+    println(0)

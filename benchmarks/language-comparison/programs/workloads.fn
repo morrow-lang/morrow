@@ -1,0 +1,42 @@
+# Runtime arguments: scalar|model|precision, decimal step count, decimal seed.
+fn decimal(text: String, index: Int, value: Int) -> Int:
+    if index == String.len(text): value
+    else:
+        match String.char_at(text, index):
+            Some(digit) -> decimal(text, index: index + 1, value: value * 10 + digit - 48)
+            None -> 0
+
+fn scalar(remaining: Int, value: Int) -> Int:
+    if remaining == 0: value
+    else: scalar(remaining: remaining - 1, value: (value * 48271) % 2147483647)
+
+type Cell:
+    index: Int
+    value: Int
+
+fn cells(index: Int, values: List(Cell)) -> List(Cell):
+    if index == 256: values
+    else: cells(index + 1, List.push(values, Cell(index, 0)))
+
+fn update(values: List(Cell), target: Int) -> List(Cell):
+    List.map(values, (cell) -> if cell.index == target: %{ cell | value: cell.value + 1 } else: cell)
+
+fn model(remaining: Int, step: Int, seed: Int, values: List(Cell)) -> List(Cell):
+    if remaining == 0: values
+    else:
+        model(remaining: remaining - 1, step: step + 1, seed: seed, values: update(values, (seed + step * 17) % 256))
+
+fn main():
+    let mode = System.arg(1)
+    let steps = decimal(System.arg(2), index: 0, value: 0)
+    let seed = decimal(System.arg(3), index: 0, value: 0)
+    if String.eq(mode, "precision"):
+        println(9007199254740993 + seed)
+    else:
+        if String.eq(mode, "scalar"):
+            println(scalar(remaining: steps, value: seed))
+        else:
+            let original = cells(0, [])
+            let result = model(remaining: steps, step: 0, seed: seed, values: original)
+            println(List.fold(result, 0, (total, cell) -> total + (cell.index + 1) * cell.value))
+            println(List.fold(original, 0, (total, cell) -> total + cell.value))

@@ -1,0 +1,8 @@
+program,language,bytes
+startup,fern,523656
+startup,rust,342464
+startup,typescript-source,16
+workloads,fern,568104
+workloads,rust,359760
+workloads,typescript-source,1862
+runtime,bun,61884464

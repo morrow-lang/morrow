@@ -1,5 +1,6 @@
 //! Bounded portable command/snapshot semantics for the collaborative checklist preview.
 #![forbid(unsafe_code)]
+pub mod binary;
 mod budget;
 mod client;
 mod domain;

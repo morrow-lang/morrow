@@ -1,5 +1,6 @@
 //! Isolated measurements of actual Fern messages; no production codec selection.
 mod adapter;
+pub mod browser;
 pub mod corpus;
 pub mod schema;
 mod validate;
@@ -22,6 +23,7 @@ pub enum Codec {
     Protobuf,
 }
 pub fn encode(codec: Codec, value: &Message) -> Result<Vec<u8>, String> {
+    let codec = browser::selected_codec(codec);
     match codec {
         Codec::Json => match value {
             Message::Client(v) => protocol::encode(v),
@@ -32,6 +34,7 @@ pub fn encode(codec: Codec, value: &Message) -> Result<Vec<u8>, String> {
     }
 }
 pub fn encode_prepared(codec: Codec, wire: &schema::Wire) -> Result<Vec<u8>, String> {
+    let codec = browser::selected_codec(codec);
     let bytes = match codec {
         Codec::Protobuf => {
             if wire.encoded_len() > protocol::MAX_FRAME_BYTES {
@@ -49,6 +52,7 @@ pub fn encode_prepared(codec: Codec, wire: &schema::Wire) -> Result<Vec<u8>, Str
     Ok(bytes)
 }
 pub fn decode_prepared(codec: Codec, bytes: &[u8]) -> Result<schema::Wire, String> {
+    let codec = browser::selected_codec(codec);
     if bytes.len() > protocol::MAX_FRAME_BYTES {
         return Err("frame limit".into());
     }
@@ -60,6 +64,7 @@ pub fn decode_prepared(codec: Codec, bytes: &[u8]) -> Result<schema::Wire, Strin
     }
 }
 pub fn decode(codec: Codec, bytes: &[u8], client: bool) -> Result<Message, String> {
+    let codec = browser::selected_codec(codec);
     if matches!(codec, Codec::Json) {
         return if client {
             protocol::decode(bytes).map(Message::Client)

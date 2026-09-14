@@ -49,9 +49,9 @@ fn membership_identity_and_hello_fail_closed() {
         config.validate_authenticated_hello(&NodeId::new("c").unwrap(), &hello),
         Err(Error::UnknownNode)
     );
-    hello.version = 2;
+    hello.version = PROTOCOL_VERSION + 1;
     assert_eq!(config.validate_hello(&hello), Err(Error::VersionMismatch));
-    hello.version = 1;
+    hello.version = PROTOCOL_VERSION;
     hello.node = config.local().clone();
     assert_eq!(config.validate_hello(&hello), Err(Error::SelfConnection));
     hello.node = NodeId::new("z").unwrap();

@@ -119,8 +119,10 @@ The [three-node guide](docs/CLUSTER.md) includes setup, delivery guarantees and
 the 10,000-mutation stress scenario. Membership is fixed; partitions do not
 trigger ownership takeover or replay uncertain mutations.
 
-The [protocol comparison](docs/NETWORK_PROTOCOL.md) explains the WebSocket/JSON
-default and measures CBOR/protobuf alternatives without adding them to production.
+The live wire standard is **protobuf over binary WebSocket**, with protobuf over
+mutual TLS between servers. The [measured protocol comparison](docs/NETWORK_PROTOCOL.md)
+explains the choice, the explicit legacy JSON browser path and migration gates.
+HTTP APIs, offline records and checkpoints keep their separate JSON formats.
 
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
@@ -163,6 +165,29 @@ Simulated time measures the scenario's clock; it is not a production-uptime clai
 
 Follow the [language guide](docs/LANGUAGE_GUIDE.md), explore
 [examples](examples), or read the [standard-library reference](docs/STDLIB_API_REFERENCE.md).
+
+## What the experiments show
+
+The [reproducible Fern/Rust/TypeScript comparison](benchmarks/language-comparison/README.md)
+tests current Fern, optimized Rust and Bun 1.4.2 against independent output
+oracles. On one Apple M4, 20 million scalar steps took **76 ms in Fern**, **57 ms
+in Rust**, and **247 ms with Bun BigInt / 520 ms with Bun Number**. An immutable
+256-entry model updated 10,000 times took **71 / 3.6 / 13.9 ms** in Fern / Rust /
+Bun. These are specific whole-process workloads, not a universal language ranking.
+
+Fern's model process used a median peak **3.48 MiB RSS**, compared with Rust's
+**1.55 MiB** and Bun's **30.33 MiB**. Its compiled workload was **568,104 bytes**
+on macOS. Small-source checking and builds were quick, but collection/model work
+is a clear performance weakness. Generated native code currently uses Cranelift
+`opt_level=none`, even with a release-built compiler; profiling and optimization
+remain work.
+
+The compiler experiments show useful defaults: required Result handling,
+exhaustive matches and labels for ambiguous arguments. Rust and configured
+TypeScript provide strong alternatives. They do not establish a developer
+productivity advantage. Fern's current `List.get` still faults out of bounds;
+typed errors do not yet cover every runtime failure. The report retains raw
+samples, first-launch outliers, configuration details and runnable sources.
 
 ## Compiler tools
 

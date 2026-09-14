@@ -1,0 +1,2 @@
+/Users/nheer/Projects/github.com/niklas-heer/fern/benchmarks/language-comparison/mutations/result.fn:5:5: error: Result value must be handled; bind, return, or match it
+      validate(-1)

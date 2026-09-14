@@ -354,7 +354,7 @@ impl App {
             .as_ref()
             .ok_or_else(|| js_error("connection unavailable"))?
             .socket;
-        let bytes = fern_web_protocol::encode(message).map_err(js_error)?;
+        let bytes = fern_web_protocol::binary::encode_client(message).map_err(js_error)?;
         if socket.ready_state() != WebSocket::OPEN
             || !can_send(socket.buffered_amount() as usize, bytes.len())
         {
@@ -362,7 +362,7 @@ impl App {
                 "Connection busy; pending command retained until reconnect",
             ));
         }
-        socket.send_with_str(std::str::from_utf8(&bytes).map_err(js_error)?)
+        socket.send_with_u8_array(&bytes)
     }
 
     fn receive(&mut self, message: ServerMessage) -> Result<bool, JsValue> {

@@ -1,9 +1,14 @@
 # Fern network codec measurements
 
 This excluded Cargo workspace compares the current JSON codec with experimental
-CBOR/protobuf adapters for actual `fern-web-protocol` messages. It adds no codec
-dependencies to the compiler, runtime or production browser/server dependency graph.
-It does not select a new production codec.
+CBOR/protobuf adapters for actual `fern-web-protocol` messages. Production does not
+depend on this benchmark workspace. The measured adapters remain frozen as
+experimental references; protobuf was subsequently promoted separately into
+`fern-web-protocol::binary` with stricter preallocation limits. An equivalence test
+checks that all 46 measured fixtures retain the same production protobuf bytes.
+
+The [real browser/WASM experiment](BROWSER.md) measures the same adapters across
+actual JavaScript/WASM boundaries and records separately linked artifact sizes.
 
 ```sh
 cargo test --manifest-path benchmarks/network-codecs/Cargo.toml --locked
@@ -47,8 +52,10 @@ Selected median encode/decode-and-validate times, in nanoseconds per operation:
 These fixtures demonstrate reduced bytes for the tested binary schemas. They do
 not establish a universal winner: text-heavy messages retain most payload bytes,
 JSON escaping strongly changes results, and CBOR/protobuf trade positions across
-operations. Retain production WebSocket/JSON while evaluating integration cost,
-real browser performance, and transport behavior separately.
+operations. This initial native-only evidence motivated retaining WebSocket/JSON
+while evaluating integration cost, real browser performance and transport
+separately. The subsequent [browser measurements](BROWSER.md) supply that missing
+browser evidence.
 
 ## What is measured
 

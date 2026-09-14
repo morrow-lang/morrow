@@ -1,0 +1,2 @@
+/Users/nheer/Projects/github.com/niklas-heer/fern/benchmarks/language-comparison/mutations/newtypes.fn:6:25: error: function return: call argument: call argument: call result: expected newtypes.UserId, found newtypes.ProductId
+  fn main(): println(load(ProductId(1)))

@@ -137,12 +137,13 @@ fn connect(app: &Rc<RefCell<App>>, csrf: String) -> Result<(), JsValue> {
         "ws"
     };
     let protocols = Array::new();
-    protocols.push(&JsValue::from_str("fern.live.v1"));
+    protocols.push(&JsValue::from_str(fern_web_protocol::binary::SUBPROTOCOL));
     protocols.push(&JsValue::from_str(&format!("fern.csrf.{csrf}")));
     let socket = WebSocket::new_with_str_sequence(
         &format!("{scheme}://{}/ws", location.host()?),
         &protocols,
     )?;
+    socket.set_binary_type(web_sys::BinaryType::Arraybuffer);
     let generation = {
         let mut state = app.borrow_mut();
         state.generation = state.generation.wrapping_add(1);
@@ -166,18 +167,29 @@ fn connect(app: &Rc<RefCell<App>>, csrf: String) -> Result<(), JsValue> {
             }
             let mut reconnect = false;
             let result = match name {
-                "open" => state.send(&ClientMessage::Join {
-                    room: ROOM.into(),
-                    resume_namespace: state.namespace.clone(),
-                }),
+                "open" => {
+                    if state.socket.as_ref().is_none_or(|socket| {
+                        socket.socket.protocol() != fern_web_protocol::binary::SUBPROTOCOL
+                    }) {
+                        Err(js_error(
+                            "Server did not negotiate the Fern protobuf protocol",
+                        ))
+                    } else {
+                        state.send(&ClientMessage::Join {
+                            room: ROOM.into(),
+                            resume_namespace: state.namespace.clone(),
+                        })
+                    }
+                }
                 "message" => {
                     let message = event
                         .dyn_into::<MessageEvent>()
                         .ok()
-                        .and_then(|event| event.data().as_string());
+                        .and_then(|event| event.data().dyn_into::<js_sys::ArrayBuffer>().ok());
                     match message {
-                        Some(text) => {
-                            match fern_web_protocol::decode::<ServerMessage>(text.as_bytes()) {
+                        Some(buffer) if buffer.byte_length() as usize <= MAX_FRAME_BYTES => {
+                            let bytes = Uint8Array::new(&buffer).to_vec();
+                            match fern_web_protocol::binary::decode_server(&bytes) {
                                 Ok(message) => match state.receive(message) {
                                     Ok(retry) => {
                                         reconnect = retry;
@@ -188,7 +200,8 @@ fn connect(app: &Rc<RefCell<App>>, csrf: String) -> Result<(), JsValue> {
                                 Err(error) => Err(js_error(error)),
                             }
                         }
-                        None => Err(js_error("Unexpected binary frame")),
+                        Some(_) => Err(js_error("Server frame exceeds the protocol limit")),
+                        None => Err(js_error("Expected a protobuf binary frame")),
                     }
                 }
                 _ => {
@@ -198,9 +211,15 @@ fn connect(app: &Rc<RefCell<App>>, csrf: String) -> Result<(), JsValue> {
                 }
             };
             if let Err(error) = result {
-                state.status = error
-                    .as_string()
-                    .unwrap_or_else(|| "Connection failed".into());
+                state.offline(
+                    &error
+                        .as_string()
+                        .unwrap_or_else(|| "Connection failed".into()),
+                );
+                if let Some(socket) = &state.socket {
+                    let _ = socket.socket.close();
+                }
+                reconnect = true;
             }
             let _ = state.render();
             drop(state);

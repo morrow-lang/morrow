@@ -23,6 +23,24 @@ async fn two_gateways_forward_to_a_real_remote_owner() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn legacy_json_and_protobuf_gateways_converge_through_the_binary_remote_owner() {
+    let fixture = Fixture::start().await;
+    // These rooms independently belong to node c, beyond both HTTP gateways.
+    // Alternate which gateway serves the legacy tab; the peer links stay protobuf.
+    for (index, room) in OWNER_ROOMS[..2].iter().enumerate() {
+        let clients = vec![
+            fixture.legacy_client(index, room).await,
+            fixture.client(1 - index, room).await,
+        ];
+        let final_state = exercise_room(clients, 12).await;
+        assert_eq!(final_state.snapshot.revision, Decimal(15));
+        assert_eq!(final_state.snapshot.tasks.len(), 1);
+        assert_eq!(final_state.snapshot.tasks[0].id, Decimal(2));
+        assert!(!final_state.snapshot.tasks[0].done);
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn committed_command_with_lost_response_is_never_replayed_on_reconnect() {
     let fixture = Fixture::start().await;
     let mut writer = fixture.client(0, "room-28").await;

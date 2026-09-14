@@ -1,0 +1,2 @@
+fn transfer(from: Int, to: Int) -> Int: from - to
+fn main(): println(transfer(100, 20))

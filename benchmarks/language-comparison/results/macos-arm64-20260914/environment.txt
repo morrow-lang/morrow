@@ -1,0 +1,13 @@
+fern: fern 0.1.0
+rust: rustc 1.100.0-nightly (f248f4038 2026-09-05)
+binary: rustc
+commit-hash: f248f4038796913873f11ca65b1b901e311c8dae
+commit-date: 2026-09-05
+host: aarch64-apple-darwin
+release: 1.100.0-nightly
+LLVM version: 23.1.1
+bun: 1.4.2
+typescript: Version 6.0.2
+source: 472d30c96f8be0ff3cc55028ecbae6d71d49e19f
+platform: Darwin MacBook-Air-von-Niklas-980.local 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:41:26 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T8132 arm64
+FERN_RUNTIME_LIB: Ok("/Users/nheer/Projects/github.com/niklas-heer/fern/target/release/libfern_runtime_native.a")

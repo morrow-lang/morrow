@@ -64,6 +64,7 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
         "Cargo.lock",
         "benchmarks/compiler-phases/Cargo.lock",
         "benchmarks/network-codecs/Cargo.lock",
+        "benchmarks/message-path/Cargo.lock",
     ] {
         let lock = read(lock_path);
         for block in lock
@@ -78,7 +79,10 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
                         .and_then(|rest| rest.strip_suffix('"'))
                 })
                 .unwrap();
-            if matches!(name, "fern-phase-benchmarks" | "fern-network-codecs") {
+            if matches!(
+                name,
+                "fern-phase-benchmarks" | "fern-network-codecs" | "fern-message-path"
+            ) {
                 continue;
             }
             assert!(
@@ -110,6 +114,28 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
         .unwrap();
     assert_eq!(manifest["."], version);
     assert_eq!(read(".github/release-version.txt").trim(), version);
+}
+
+#[test]
+fn standalone_measurements_are_excluded_from_the_production_workspace() {
+    let manifest = read("Cargo.toml");
+    let exclusions = manifest
+        .split("exclude = [")
+        .nth(1)
+        .unwrap()
+        .split(']')
+        .next()
+        .unwrap();
+    for path in [
+        "benchmarks/compiler-phases",
+        "benchmarks/network-codecs",
+        "benchmarks/message-path",
+    ] {
+        assert!(
+            exclusions.contains(&format!("\"{path}\"")),
+            "missing workspace exclusion: {path}"
+        );
+    }
 }
 #[test]
 fn primary_guides_describe_only_supported_cargo_commands_and_components() {

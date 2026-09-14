@@ -39,11 +39,12 @@ impl std::fmt::Display for Error {
 }
 impl std::error::Error for Error {}
 mod framing;
+mod peer_codec;
 mod tls;
 mod transport;
 mod wire;
 pub use framing::{FrameReader, FrameWriter, IoLimits};
-pub use tls::Security;
+pub use tls::{ALPN, Security};
 pub use transport::{PeerReader, PeerStream, PeerWriter, accept, connect};
 pub use wire::{Frame, MAX_LEASE_MS, MAX_PEER_FRAME_BYTES};
 

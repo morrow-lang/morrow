@@ -1,0 +1,15 @@
+error: unused `Result` that must be used
+ --> benchmarks/language-comparison/mutations/result.rs:9:5
+  |
+9 |     validate(-1);
+  |     ^^^^^^^^^^^^
+  |
+  = note: this `Result` may be an `Err` variant, which should be handled
+  = note: requested on the command line with `-D unused-must-use`
+help: use `let _ = ...` to ignore the resulting value
+  |
+9 |     let _ = validate(-1);
+  |     +++++++
+
+error: aborting due to 1 previous error
+

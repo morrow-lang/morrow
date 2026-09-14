@@ -1,2 +1,5 @@
 # Golden output may intentionally end with an empty printed line.
 *.stdout whitespace=-blank-at-eof
+
+# Captured compiler diagnostics retain the original trailing blank lines.
+benchmarks/language-comparison/results/**/*.txt whitespace=-blank-at-eof

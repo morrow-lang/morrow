@@ -1,0 +1,6 @@
+newtype UserId = UserId(Int)
+newtype ProductId = ProductId(Int)
+fn load(user: UserId) -> Int:
+    let UserId(value) = user
+    value
+fn main(): println(load(ProductId(1)))

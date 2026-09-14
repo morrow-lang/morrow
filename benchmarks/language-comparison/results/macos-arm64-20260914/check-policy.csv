@@ -1,0 +1,6 @@
+case,language,iteration,steps,seed,wall_ns,peak_rss_bytes
+check-skip-lib,typescript,0,0,0,124119458,174751744
+check-skip-lib,typescript,1,0,0,118241583,180551680
+check-skip-lib,typescript,2,0,0,121108125,178667520
+check-skip-lib,typescript,3,0,0,119152459,175587328
+check-skip-lib,typescript,4,0,0,129614208,172818432

@@ -99,6 +99,36 @@
           "type": "toml",
           "path": "Cargo.lock",
           "jsonpath": "$.package[?(@.name.value == 'fern-cluster')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-runtime')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-web-app')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/message-path/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-web-protocol')].version"
         }
       ]
     }

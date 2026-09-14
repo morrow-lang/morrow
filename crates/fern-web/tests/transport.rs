@@ -11,6 +11,9 @@ use tokio_tungstenite::{
 #[path = "admin/transport.rs"]
 mod admin;
 
+#[path = "protobuf/transport.rs"]
+mod protobuf;
+
 struct Server {
     address: std::net::SocketAddr,
     task: tokio::task::JoinHandle<()>,

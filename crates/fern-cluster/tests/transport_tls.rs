@@ -260,6 +260,14 @@ async fn raw_tls_client(
     credential: Option<&Credential>,
     claimed: Option<Hello>,
 ) {
+    raw_tls_client_with_alpn(fixture, credential, claimed, fern_cluster::ALPN).await;
+}
+async fn raw_tls_client_with_alpn(
+    fixture: &Fixture,
+    credential: Option<&Credential>,
+    claimed: Option<Hello>,
+    alpn: &[u8],
+) {
     use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer, ServerName};
     use tokio::io::AsyncWriteExt;
     let mut roots = rustls::RootCertStore::empty();
@@ -280,7 +288,7 @@ async fn raw_tls_client(
     } else {
         builder.with_no_client_auth()
     };
-    config.alpn_protocols = vec![b"fern.peer.v1".to_vec()];
+    config.alpn_protocols = vec![alpn.to_vec()];
     let tcp = tokio::net::TcpStream::connect(fixture.listener.local_addr().unwrap())
         .await
         .unwrap();
@@ -289,7 +297,7 @@ async fn raw_tls_client(
         .await
     {
         if let Some(hello) = claimed {
-            let bytes = serde_json::to_vec(&hello).unwrap();
+            let bytes = hello.encode().unwrap();
             let _ = tls.write_all(&(bytes.len() as u32).to_be_bytes()).await;
             let _ = tls.write_all(&bytes).await;
             let _ = tls.flush().await;
@@ -354,4 +362,72 @@ async fn certificate_is_mandatory_even_for_a_client_that_trusts_the_cluster_ca()
     .await
     .unwrap();
     assert!(result.is_err());
+}
+
+#[tokio::test]
+async fn legacy_json_alpn_is_rejected_before_identity_or_application_frames() {
+    let fixture = Fixture::new().await;
+    let security = fixture.security(&fixture.b);
+    let client = raw_tls_client_with_alpn(
+        &fixture,
+        Some(&fixture.a),
+        Some(hello(&fixture.config_a, 3)),
+        b"fern.peer.v1",
+    );
+    let server = async {
+        let (socket, _) = fixture.listener.accept().await.unwrap();
+        accept(
+            socket,
+            &fixture.config_b,
+            &security,
+            hello(&fixture.config_b, 9),
+            IoLimits::default(),
+        )
+        .await
+    };
+    let (_, result) = tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::join!(client, server)
+    })
+    .await
+    .unwrap();
+    assert!(result.is_err());
+    let error = result.err().unwrap();
+    assert!(matches!(
+        error
+            .get_ref()
+            .and_then(|error| error.downcast_ref::<rustls::Error>()),
+        Some(rustls::Error::NoApplicationProtocol)
+    ));
+}
+#[tokio::test]
+async fn old_handshake_version_is_rejected_even_on_the_binary_alpn() {
+    let fixture = Fixture::new().await;
+    let security = fixture.security(&fixture.b);
+    let mut obsolete = hello(&fixture.config_a, 3);
+    obsolete.version = 1;
+    let client = raw_tls_client(&fixture, Some(&fixture.a), Some(obsolete));
+    let server = async {
+        let (socket, _) = fixture.listener.accept().await.unwrap();
+        accept(
+            socket,
+            &fixture.config_b,
+            &security,
+            hello(&fixture.config_b, 9),
+            IoLimits::default(),
+        )
+        .await
+    };
+    let (_, result) = tokio::time::timeout(Duration::from_secs(3), async {
+        tokio::join!(client, server)
+    })
+    .await
+    .unwrap();
+    assert!(result.is_err());
+    assert!(
+        result
+            .err()
+            .unwrap()
+            .to_string()
+            .contains("VersionMismatch")
+    );
 }

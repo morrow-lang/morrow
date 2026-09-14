@@ -87,7 +87,7 @@ pub(super) async fn gateway(
             }
             command = gateway.commands.recv(), if pending.is_none() => {
                 let Some(ClientMessage::Command(command)) = command else { break; };
-                let bytes = fern_web_protocol::encode(&command).map_err(io::Error::other)?.len();
+                let bytes = fern_web_protocol::binary::encode_command(&command).map_err(io::Error::other)?.len();
                 let id = state.admit(bytes, now(started)).map_err(io::Error::other)?;
                 pending = Some((id, command.clone()));
                 stream.writer.write(&Frame::Command(command)).await?;

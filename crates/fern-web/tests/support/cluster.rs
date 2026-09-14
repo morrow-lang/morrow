@@ -344,6 +344,12 @@ impl Fixture {
         client.join(room, None).await;
         client
     }
+    /// Explicit old-browser transport; all peer connections remain protobuf.
+    pub async fn legacy_client(&self, node: usize, room: &str) -> Client {
+        let mut client = Client::connect_with_format(self.address(node), ClientFormat::Json).await;
+        client.join(room, None).await;
+        client
+    }
     pub async fn partition_owner(&self, blocked: bool) {
         self.relay.partition(blocked).await;
     }
@@ -381,7 +387,30 @@ impl Fixture {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+enum ClientFormat {
+    Json,
+    Protobuf,
+}
+impl ClientFormat {
+    fn protocol(self) -> &'static str {
+        match self {
+            Self::Json => "fern.live.v1",
+            Self::Protobuf => binary::SUBPROTOCOL,
+        }
+    }
+    fn encode(self, message: &ClientMessage) -> Message {
+        match self {
+            Self::Json => {
+                Message::Text(String::from_utf8(encode(message).unwrap()).unwrap().into())
+            }
+            Self::Protobuf => Message::Binary(binary::encode_client(message).unwrap().into()),
+        }
+    }
+}
+
 pub struct Client {
+    format: ClientFormat,
     pub address: SocketAddr,
     pub cookie: String,
     pub csrf: String,
@@ -390,6 +419,9 @@ pub struct Client {
 }
 impl Client {
     pub async fn connect(address: SocketAddr) -> Self {
+        Self::connect_with_format(address, ClientFormat::Protobuf).await
+    }
+    async fn connect_with_format(address: SocketAddr, format: ClientFormat) -> Self {
         let response = http(
             address,
             "POST",
@@ -419,14 +451,21 @@ impl Client {
             .insert("cookie", cookie.parse().unwrap());
         request.headers_mut().insert(
             "sec-websocket-protocol",
-            format!("fern.live.v1, fern.csrf.{csrf}").parse().unwrap(),
+            format!("{}, fern.csrf.{csrf}", format.protocol())
+                .parse()
+                .unwrap(),
         );
-        let socket = tokio::time::timeout(Duration::from_secs(5), connect_async(request))
-            .await
-            .unwrap()
-            .unwrap()
-            .0;
+        let (socket, response) =
+            tokio::time::timeout(Duration::from_secs(5), connect_async(request))
+                .await
+                .unwrap()
+                .unwrap();
+        assert_eq!(
+            response.headers()["sec-websocket-protocol"],
+            format.protocol()
+        );
         Self {
+            format,
             address,
             cookie,
             csrf,
@@ -437,9 +476,7 @@ impl Client {
     pub async fn send(&mut self, message: ClientMessage) {
         tokio::time::timeout(
             Duration::from_secs(5),
-            self.socket.send(Message::Text(
-                String::from_utf8(encode(&message).unwrap()).unwrap().into(),
-            )),
+            self.socket.send(self.format.encode(&message)),
         )
         .await
         .unwrap()
@@ -454,13 +491,16 @@ impl Client {
                     .await
                     .expect("socket ended")
                     .expect("socket failed");
-                if let Message::Text(text) = message {
-                    return decode(text.as_bytes()).unwrap();
+                match (self.format, message) {
+                    (ClientFormat::Protobuf, Message::Binary(bytes)) => {
+                        return binary::decode_server(&bytes).unwrap();
+                    }
+                    (ClientFormat::Json, Message::Text(text)) => {
+                        return decode(text.as_bytes()).unwrap();
+                    }
+                    (_, Message::Ping(_) | Message::Pong(_)) => (),
+                    (format, other) => panic!("unexpected frame for {format:?}: {other:?}"),
                 }
-                assert!(
-                    !matches!(message, Message::Close(_)),
-                    "socket closed before expected event"
-                );
             }
         })
         .await
@@ -471,8 +511,8 @@ impl Client {
             loop {
                 match self.socket.next().await {
                     None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
-                    Some(Ok(Message::Text(text))) => {
-                        panic!("unexpected event while awaiting closure: {text}")
+                    Some(Ok(message @ (Message::Text(_) | Message::Binary(_)))) => {
+                        panic!("unexpected event while awaiting closure: {message:?}")
                     }
                     Some(Ok(_)) => {}
                 }

@@ -1,0 +1,2 @@
+/Users/nheer/Projects/github.com/niklas-heer/fern/benchmarks/language-comparison/mutations/labels.fn:2:29: error: function return: call argument: argument requires label 'from:'
+  fn main(): println(transfer(100, 20))

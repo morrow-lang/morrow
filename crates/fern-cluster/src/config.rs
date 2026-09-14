@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Exact initial peer schema version; incompatible peers fail before forwarding.
-pub const PROTOCOL_VERSION: u8 = 1;
+pub const PROTOCOL_VERSION: u8 = 2;
 const OWNER_ALGORITHM: &[u8] = b"fern-room-owner-v1\0";
 /// Operator-controlled member record. Endpoints are never learned from peer frames.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

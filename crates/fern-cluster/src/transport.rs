@@ -137,8 +137,8 @@ async fn handshake(
     let mut reader = FrameReader::new(reader, limits)?;
     let mut writer = FrameWriter::new(writer, limits)?;
     // Both peers write a small bounded Hello, flush, then read. No application data precedes validation.
-    writer.write_json(&local).await?;
-    let remote: Hello = reader.read_json().await?.ok_or_else(|| {
+    writer.write_hello(&local).await?;
+    let remote: Hello = reader.read_hello().await?.ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::UnexpectedEof,
             "peer closed before identity handshake",

@@ -1,0 +1,4 @@
+
+thread 'main' (6775649) panicked at benchmarks/language-comparison/mutations/bounds.rs:4:26:
+index out of bounds: the len is 1 but the index is 3
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace

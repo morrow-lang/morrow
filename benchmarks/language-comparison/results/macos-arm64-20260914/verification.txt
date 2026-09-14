@@ -1,0 +1,1 @@
+84 independent-output comparisons; exact Number precision-loss oracle; 30 checker observations with diagnostic matching; 15 positive checker controls; 2 runtime bounds faults; 2 Bun execution-without-typecheck controls.

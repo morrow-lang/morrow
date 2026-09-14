@@ -90,12 +90,13 @@ async fn logout_revokes_its_remote_stream_without_revoking_another_gateway() {
         loop {
             match revoked.socket.next().await {
                 None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
-                Some(Ok(Message::Text(text))) => {
+                Some(Ok(Message::Binary(bytes))) => {
                     assert_eq!(
-                        fern_web_protocol::decode::<ServerMessage>(text.as_bytes()).unwrap(),
+                        fern_web_protocol::binary::decode_server(&bytes).unwrap(),
                         ServerMessage::Error(Error::Unauthorized)
                     );
                 }
+                Some(Ok(Message::Text(text))) => panic!("legacy data on a protobuf socket: {text}"),
                 Some(Ok(_)) => {}
             }
         }
@@ -160,12 +161,13 @@ async fn logout_during_held_peer_handshake_cannot_publish_connected() {
         loop {
             match revoked.socket.next().await {
                 None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
-                Some(Ok(Message::Text(text))) => {
+                Some(Ok(Message::Binary(bytes))) => {
                     assert_eq!(
-                        fern_web_protocol::decode::<ServerMessage>(text.as_bytes()).unwrap(),
+                        fern_web_protocol::binary::decode_server(&bytes).unwrap(),
                         ServerMessage::Error(Error::Unauthorized)
                     );
                 }
+                Some(Ok(Message::Text(text))) => panic!("legacy data on a protobuf socket: {text}"),
                 Some(Ok(_)) => {}
             }
         }

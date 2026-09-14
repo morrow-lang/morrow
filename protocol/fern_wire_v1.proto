@@ -1,0 +1,61 @@
+// Fern live protobuf v1. Closed-schema restrictions are specified in README.md.
+// This schema documents the Rust prost DTOs; builds do not invoke protoc.
+syntax = "proto3";
+package fern.wire.v1;
+
+message Envelope {
+  optional uint32 kind = 1;
+  optional Join join = 2;
+  optional Command command = 3;
+  optional Connected connected = 4;
+  optional Snapshot snapshot = 5;
+  optional Outcome outcome = 6;
+  optional string error = 7;
+}
+message Join {
+  optional string room = 1;
+  optional string resume_namespace = 2;
+}
+message Command {
+  optional uint32 version = 1;
+  optional string incarnation = 2;
+  optional string namespace = 3;
+  optional sint64 sequence = 4;
+  optional sint64 expected_revision = 5;
+  optional Mutation mutation = 6;
+}
+message Mutation {
+  optional uint32 kind = 1;
+  optional string label = 2;
+  optional sint64 id = 3;
+  optional bool done = 4;
+}
+message Connected {
+  optional uint32 version = 1;
+  optional string connection = 2;
+  optional string namespace = 3;
+  optional sint64 next_sequence = 4;
+  optional Snapshot snapshot = 5;
+  optional bool resumed = 6;
+}
+message Snapshot {
+  optional uint32 version = 1;
+  optional string room = 2;
+  optional string incarnation = 3;
+  optional sint64 revision = 4;
+  optional TaskList tasks = 5;
+}
+message TaskList { repeated Task items = 1; }
+message Task {
+  optional sint64 id = 1;
+  optional string label = 2;
+  optional bool done = 3;
+}
+message Outcome {
+  optional uint32 version = 1;
+  optional string incarnation = 2;
+  optional string namespace = 3;
+  optional sint64 sequence = 4;
+  optional sint64 revision = 5;
+  optional uint32 status = 6;
+}

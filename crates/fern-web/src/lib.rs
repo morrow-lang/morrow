@@ -313,9 +313,7 @@ async fn upgrade(
         .requested_protocols()
         .filter_map(|v| v.to_str().ok())
         .collect();
-    if !protocols.contains(&"fern.live.v1") {
-        return Err(StatusCode::BAD_REQUEST);
-    }
+    let format = socket::Format::negotiate(&protocols).ok_or(StatusCode::BAD_REQUEST)?;
     let mut nonces = protocols
         .iter()
         .filter_map(|p| p.strip_prefix("fern.csrf."));
@@ -340,13 +338,13 @@ async fn upgrade(
     )
     .await?;
     Ok(ws
-        .protocols(["fern.live.v1"])
+        .protocols([format.name()])
         .max_message_size(fern_web_protocol::MAX_FRAME_BYTES)
         .max_frame_size(fern_web_protocol::MAX_FRAME_BYTES)
         .read_buffer_size(8192)
         .write_buffer_size(0)
         .max_write_buffer_size(2 * fern_web_protocol::MAX_FRAME_BYTES)
-        .on_upgrade(move |socket| socket::run(socket, app, auth, permit)))
+        .on_upgrade(move |socket| socket::run(socket, app, auth, permit, format)))
 }
 async fn asset(State(app): State<App>, uri: Uri) -> Response {
     let name = if uri.path() == "/" {

@@ -57,6 +57,28 @@ jobs:
           cargo test --manifest-path benchmarks/network-codecs/Cargo.toml --locked
           cargo clippy --manifest-path benchmarks/network-codecs/Cargo.toml --all-targets --locked -- -D warnings
 
+      - name: Verify measured native message paths
+        run: |
+          cargo test --manifest-path benchmarks/message-path/Cargo.toml --target-dir target --locked
+          cargo clippy --manifest-path benchmarks/message-path/Cargo.toml --target-dir target --all-targets --locked -- -D warnings
+      - name: Install comparison runtime
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - name: Verify language comparison oracles and developer diagnostics
+        run: |
+          mkdir -p "$RUNNER_TEMP/fern-typescript"
+          bun add --cwd "$RUNNER_TEMP/fern-typescript" --exact typescript@6.0.2
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/main.rs -o "$RUNNER_TEMP/fern-language-runner"
+          rustc --edition=2024 --test benchmarks/language-comparison/src/oracle.rs -o "$RUNNER_TEMP/fern-language-oracles"
+          "$RUNNER_TEMP/fern-language-oracles"
+          export FERN="$PWD/bin/fern"
+          export FERN_RUNTIME_LIB="$PWD/bin/libfern_runtime.a"
+          export BUN="$(command -v bun)"
+          export TSC="$RUNNER_TEMP/fern-typescript/node_modules/typescript/bin/tsc"
+          "$RUNNER_TEMP/fern-language-runner" prepare "$RUNNER_TEMP/fern-language-results"
+          "$RUNNER_TEMP/fern-language-runner" verify "$RUNNER_TEMP/fern-language-results"
+
   web-preview:
     name: Static Linux server and real browser
     runs-on: ubuntu-latest

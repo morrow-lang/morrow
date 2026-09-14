@@ -4,10 +4,22 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 fn packet(frame: &Frame) -> Vec<u8> {
-    let payload = serde_json::to_vec(frame).unwrap();
+    let payload = frame.encode().unwrap();
     let mut bytes = (payload.len() as u32).to_be_bytes().to_vec();
     bytes.extend(payload);
     bytes
+}
+
+#[tokio::test]
+async fn peer_close_has_independent_protobuf_bytes() {
+    let (writer, mut reader) = tokio::io::duplex(128);
+    let mut writer = FrameWriter::new(writer, IoLimits::default()).unwrap();
+    writer.write(&Frame::Close).await.unwrap();
+    drop(writer);
+    let mut actual = Vec::new();
+    reader.read_to_end(&mut actual).await.unwrap();
+    // Four-byte network length, protobuf field 1 (kind), Close = 6.
+    assert_eq!(actual, [0, 0, 0, 2, 8, 6]);
 }
 
 #[tokio::test]
@@ -165,20 +177,24 @@ async fn buffered_remainder_after_deadline_is_rejected_even_when_io_is_ready() {
     );
 }
 #[tokio::test]
-async fn increasing_frames_never_geometrically_expand_past_the_buffer_budget() {
+async fn large_valid_snapshots_stay_within_the_frame_buffer_budget() {
+    use fern_web_protocol::{Decimal, ServerMessage, Snapshot, Task};
     let (mut writer, reader) = tokio::io::duplex(150_000);
     let mut reader = FrameReader::new(reader, IoLimits::default()).unwrap();
-    for size in [40_000, 60_000] {
-        let frame = Frame::Command(fern_web_protocol::Command {
+    for label_bytes in [200, 256] {
+        let frame = Frame::Event(ServerMessage::Snapshot(Snapshot {
             version: 1,
+            room: "room".into(),
             incarnation: "boot".into(),
-            namespace: "namespace".into(),
-            sequence: fern_web_protocol::Decimal(1),
-            expected_revision: fern_web_protocol::Decimal(0),
-            mutation: fern_web_protocol::Mutation::Add {
-                label: "a".repeat(size),
-            },
-        });
+            revision: Decimal(1),
+            tasks: (1..=100)
+                .map(|id| Task {
+                    id: Decimal(id),
+                    label: "a".repeat(label_bytes),
+                    done: false,
+                })
+                .collect(),
+        }));
         writer.write_all(&packet(&frame)).await.unwrap();
         assert_eq!(reader.read().await.unwrap(), Some(frame));
         assert!(reader.buffered_capacity() <= MAX_PEER_FRAME_BYTES);

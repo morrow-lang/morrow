@@ -1,0 +1,2 @@
+benchmarks/language-comparison/mutations/bounds.ts(2,7): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+  Type 'undefined' is not assignable to type 'number'.

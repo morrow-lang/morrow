@@ -1,0 +1,29 @@
+[package]
+name = "fern-message-path"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100"
+publish = false
+
+[workspace]
+
+[dependencies]
+fern-network-codecs = { path = "../network-codecs" }
+fern-web-app = { path = "../../crates/fern-web-app" }
+fern-web-protocol = { path = "../../crates/fern-web-protocol" }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }
+
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

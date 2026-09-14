@@ -1,0 +1,542 @@
+[
+  {
+    "durable": false,
+    "tasks": 1,
+    "codec": "json",
+    "samples": 750,
+    "rtt_p50_us": 81.6255,
+    "rtt_p95_us": 110.042,
+    "rtt_p99_us": 116.333,
+    "batch_rtt_p50_us": [
+      88.5,
+      51.584,
+      84.125,
+      106.0,
+      58.75
+    ],
+    "native_domain_mean_us": 22.194789333333333,
+    "server_codec_mean_us": 2.045593333333333,
+    "client_codec_mean_us": 2.054596,
+    "mean_application_bytes": 502.4533333333333,
+    "stage_totals_ns": {
+      "decode_ns": 720293,
+      "hub_ns": 16942058,
+      "native_domain_ns": 16646092,
+      "snapshot_ns": 58562,
+      "encode_ns": 813902,
+      "send_ns": 3281370
+    },
+    "server_stage_codec_share_pct": 8.277368832653577,
+    "native_domain_stage_share_pct": 89.80986322226578
+  },
+  {
+    "durable": false,
+    "tasks": 1,
+    "codec": "cbor",
+    "samples": 750,
+    "rtt_p50_us": 71.75,
+    "rtt_p95_us": 95.25,
+    "rtt_p99_us": 110.042,
+    "batch_rtt_p50_us": [
+      70.5,
+      70.541,
+      42.708,
+      87.667,
+      74.375
+    ],
+    "native_domain_mean_us": 24.545690666666665,
+    "server_codec_mean_us": 1.5064213333333332,
+    "client_codec_mean_us": 1.6873186666666666,
+    "mean_application_bytes": 155.26,
+    "stage_totals_ns": {
+      "decode_ns": 512882,
+      "hub_ns": 18788344,
+      "native_domain_ns": 18409268,
+      "snapshot_ns": 71217,
+      "encode_ns": 616934,
+      "send_ns": 3043260
+    },
+    "server_stage_codec_share_pct": 5.652082103409226,
+    "native_domain_stage_share_pct": 92.09525639543443
+  },
+  {
+    "durable": false,
+    "tasks": 1,
+    "codec": "protobuf",
+    "samples": 750,
+    "rtt_p50_us": 62.8335,
+    "rtt_p95_us": 107.916,
+    "rtt_p99_us": 114.083,
+    "batch_rtt_p50_us": [
+      39.584,
+      63.5,
+      101.083,
+      42.5,
+      73.0
+    ],
+    "native_domain_mean_us": 22.684661333333334,
+    "server_codec_mean_us": 0.8738946666666667,
+    "client_codec_mean_us": 1.0427706666666665,
+    "mean_application_bytes": 149.92666666666668,
+    "stage_totals_ns": {
+      "decode_ns": 341846,
+      "hub_ns": 17350875,
+      "native_domain_ns": 17013496,
+      "snapshot_ns": 58994,
+      "encode_ns": 313575,
+      "send_ns": 2579371
+    },
+    "server_stage_codec_share_pct": 3.6280679690168274,
+    "native_domain_stage_share_pct": 94.17781834667475
+  },
+  {
+    "durable": false,
+    "tasks": 25,
+    "codec": "json",
+    "samples": 750,
+    "rtt_p50_us": 153.0205,
+    "rtt_p95_us": 179.583,
+    "rtt_p99_us": 197.875,
+    "batch_rtt_p50_us": [
+      149.167,
+      151.917,
+      170.0,
+      151.292,
+      149.375
+    ],
+    "native_domain_mean_us": 129.91116133333333,
+    "server_codec_mean_us": 3.6297733333333335,
+    "client_codec_mean_us": 5.297085333333333,
+    "mean_application_bytes": 1508.1666666666667,
+    "stage_totals_ns": {
+      "decode_ns": 663301,
+      "hub_ns": 98362682,
+      "native_domain_ns": 97433371,
+      "snapshot_ns": 278248,
+      "encode_ns": 2059029,
+      "send_ns": 1635631
+    },
+    "server_stage_codec_share_pct": 2.6857166985355443,
+    "native_domain_stage_share_pct": 96.12296506643531
+  },
+  {
+    "durable": false,
+    "tasks": 25,
+    "codec": "cbor",
+    "samples": 750,
+    "rtt_p50_us": 154.5,
+    "rtt_p95_us": 180.917,
+    "rtt_p99_us": 200.958,
+    "batch_rtt_p50_us": [
+      156.375,
+      148.208,
+      151.791,
+      167.417,
+      153.333
+    ],
+    "native_domain_mean_us": 134.79793733333332,
+    "server_codec_mean_us": 2.1399186666666665,
+    "client_codec_mean_us": 3.395213333333333,
+    "mean_application_bytes": 487.08,
+    "stage_totals_ns": {
+      "decode_ns": 415076,
+      "hub_ns": 102069583,
+      "native_domain_ns": 101098453,
+      "snapshot_ns": 290686,
+      "encode_ns": 1189863,
+      "send_ns": 1610290
+    },
+    "server_stage_codec_share_pct": 1.5437270129830356,
+    "native_domain_stage_share_pct": 97.24258234543233
+  },
+  {
+    "durable": false,
+    "tasks": 25,
+    "codec": "protobuf",
+    "samples": 750,
+    "rtt_p50_us": 149.8125,
+    "rtt_p95_us": 171.625,
+    "rtt_p99_us": 226.792,
+    "batch_rtt_p50_us": [
+      155.208,
+      148.417,
+      145.833,
+      149.667,
+      151.417
+    ],
+    "native_domain_mean_us": 131.78207066666667,
+    "server_codec_mean_us": 1.7132773333333335,
+    "client_codec_mean_us": 2.7032040000000004,
+    "mean_application_bytes": 504.7266666666667,
+    "stage_totals_ns": {
+      "decode_ns": 286669,
+      "hub_ns": 99791366,
+      "native_domain_ns": 98836553,
+      "snapshot_ns": 283581,
+      "encode_ns": 998289,
+      "send_ns": 1638418
+    },
+    "server_stage_codec_share_pct": 1.2677182363183943,
+    "native_domain_stage_share_pct": 97.51050279693928
+  },
+  {
+    "durable": false,
+    "tasks": 100,
+    "codec": "json",
+    "samples": 750,
+    "rtt_p50_us": 2047.6875,
+    "rtt_p95_us": 2663.584,
+    "rtt_p99_us": 2816.583,
+    "batch_rtt_p50_us": [
+      2038.833,
+      2037.75,
+      2062.583,
+      2070.042,
+      2009.875
+    ],
+    "native_domain_mean_us": 2014.7495013333332,
+    "server_codec_mean_us": 8.859012,
+    "client_codec_mean_us": 13.350309333333332,
+    "mean_application_bytes": 4691.72,
+    "stage_totals_ns": {
+      "decode_ns": 666876,
+      "hub_ns": 1514586758,
+      "native_domain_ns": 1511062126,
+      "snapshot_ns": 914503,
+      "encode_ns": 5977383,
+      "send_ns": 3305671
+    },
+    "server_stage_codec_share_pct": 0.43650616269592935,
+    "native_domain_stage_share_pct": 99.27185713492098
+  },
+  {
+    "durable": false,
+    "tasks": 100,
+    "codec": "cbor",
+    "samples": 750,
+    "rtt_p50_us": 2050.5835,
+    "rtt_p95_us": 2652.0,
+    "rtt_p99_us": 2733.166,
+    "batch_rtt_p50_us": [
+      2072.75,
+      2059.167,
+      2016.958,
+      2049.416,
+      2049.625
+    ],
+    "native_domain_mean_us": 2016.1060493333332,
+    "server_codec_mean_us": 4.641766666666666,
+    "client_codec_mean_us": 8.023354666666666,
+    "mean_application_bytes": 1613.6933333333334,
+    "stage_totals_ns": {
+      "decode_ns": 354094,
+      "hub_ns": 1515530743,
+      "native_domain_ns": 1512079537,
+      "snapshot_ns": 904459,
+      "encode_ns": 3127231,
+      "send_ns": 3189928
+    },
+    "server_stage_codec_share_pct": 0.2290471179276808,
+    "native_domain_stage_share_pct": 99.48438023662598
+  },
+  {
+    "durable": false,
+    "tasks": 100,
+    "codec": "protobuf",
+    "samples": 750,
+    "rtt_p50_us": 2045.9795,
+    "rtt_p95_us": 2673.166,
+    "rtt_p99_us": 2884.875,
+    "batch_rtt_p50_us": [
+      2030.125,
+      2037.667,
+      2040.083,
+      2045.459,
+      2068.708
+    ],
+    "native_domain_mean_us": 2036.274124,
+    "server_codec_mean_us": 4.765232,
+    "client_codec_mean_us": 6.936166666666667,
+    "mean_application_bytes": 1669.2466666666667,
+    "stage_totals_ns": {
+      "decode_ns": 280402,
+      "hub_ns": 1530732628,
+      "native_domain_ns": 1527205593,
+      "snapshot_ns": 959210,
+      "encode_ns": 3293522,
+      "send_ns": 4295205
+    },
+    "server_stage_codec_share_pct": 0.2327886212576139,
+    "native_domain_stage_share_pct": 99.47499845306913
+  },
+  {
+    "durable": true,
+    "tasks": 1,
+    "codec": "json",
+    "samples": 100,
+    "rtt_p50_us": 9017.8125,
+    "rtt_p95_us": 10807.333,
+    "rtt_p99_us": 13142.333,
+    "batch_rtt_p50_us": [
+      9810.416,
+      8027.083,
+      8977.792,
+      9982.708,
+      8978.542
+    ],
+    "native_domain_mean_us": 9005.87584,
+    "server_codec_mean_us": 15.47587,
+    "client_codec_mean_us": 12.72161,
+    "mean_application_bytes": 498.95,
+    "stage_totals_ns": {
+      "decode_ns": 626629,
+      "hub_ns": 901143206,
+      "native_domain_ns": 900587584,
+      "snapshot_ns": 100373,
+      "encode_ns": 920958,
+      "send_ns": 3196875
+    },
+    "server_stage_codec_share_pct": 0.17142247933781843,
+    "native_domain_stage_share_pct": 99.75591453671801
+  },
+  {
+    "durable": true,
+    "tasks": 1,
+    "codec": "cbor",
+    "samples": 100,
+    "rtt_p50_us": 8052.229,
+    "rtt_p95_us": 10830.666,
+    "rtt_p99_us": 20877.083,
+    "batch_rtt_p50_us": [
+      8047.959,
+      7987.417,
+      8969.75,
+      7882.084,
+      8094.334
+    ],
+    "native_domain_mean_us": 8383.49259,
+    "server_codec_mean_us": 6.72876,
+    "client_codec_mean_us": 7.42921,
+    "mean_application_bytes": 151,
+    "stage_totals_ns": {
+      "decode_ns": 215168,
+      "hub_ns": 838820501,
+      "native_domain_ns": 838349259,
+      "snapshot_ns": 69211,
+      "encode_ns": 457708,
+      "send_ns": 9554750
+    },
+    "server_stage_codec_share_pct": 0.08014602003680517,
+    "native_domain_stage_share_pct": 99.85548081616042
+  },
+  {
+    "durable": true,
+    "tasks": 1,
+    "codec": "protobuf",
+    "samples": 100,
+    "rtt_p50_us": 8987.0415,
+    "rtt_p95_us": 10194.625,
+    "rtt_p99_us": 12038.417,
+    "batch_rtt_p50_us": [
+      9067.083,
+      7983.583,
+      9134.0,
+      8958.208,
+      8008.666
+    ],
+    "native_domain_mean_us": 8715.92546,
+    "server_codec_mean_us": 5.85863,
+    "client_codec_mean_us": 6.3363000000000005,
+    "mean_application_bytes": 147,
+    "stage_totals_ns": {
+      "decode_ns": 187077,
+      "hub_ns": 872095329,
+      "native_domain_ns": 871592546,
+      "snapshot_ns": 81916,
+      "encode_ns": 398786,
+      "send_ns": 2568664
+    },
+    "server_stage_codec_share_pct": 0.06712737908257231,
+    "native_domain_stage_share_pct": 99.86587861135854
+  },
+  {
+    "durable": true,
+    "tasks": 25,
+    "codec": "json",
+    "samples": 100,
+    "rtt_p50_us": 10129.1245,
+    "rtt_p95_us": 11882.792,
+    "rtt_p99_us": 13970.167,
+    "batch_rtt_p50_us": [
+      10152.375,
+      10876.416,
+      9033.875,
+      10205.292,
+      10126.833
+    ],
+    "native_domain_mean_us": 10064.400810000001,
+    "server_codec_mean_us": 33.81545,
+    "client_codec_mean_us": 35.16461,
+    "mean_application_bytes": 1507.05,
+    "stage_totals_ns": {
+      "decode_ns": 935923,
+      "hub_ns": 1007864911,
+      "native_domain_ns": 1006440081,
+      "snapshot_ns": 385376,
+      "encode_ns": 2445622,
+      "send_ns": 4778245
+    },
+    "server_stage_codec_share_pct": 0.3342663697438892,
+    "native_domain_stage_share_pct": 99.48679442107552
+  },
+  {
+    "durable": true,
+    "tasks": 25,
+    "codec": "cbor",
+    "samples": 100,
+    "rtt_p50_us": 9994.708,
+    "rtt_p95_us": 11318.5,
+    "rtt_p99_us": 14991.583,
+    "batch_rtt_p50_us": [
+      10030.667,
+      9985.958,
+      9967.541,
+      10086.916,
+      9185.458
+    ],
+    "native_domain_mean_us": 9935.556289999999,
+    "server_codec_mean_us": 21.59156,
+    "client_codec_mean_us": 28.16205,
+    "mean_application_bytes": 487,
+    "stage_totals_ns": {
+      "decode_ns": 527662,
+      "hub_ns": 994996705,
+      "native_domain_ns": 993555629,
+      "snapshot_ns": 376455,
+      "encode_ns": 1631494,
+      "send_ns": 4795031
+    },
+    "server_stage_codec_share_pct": 0.2164497295343763,
+    "native_domain_stage_share_pct": 99.60134755173185
+  },
+  {
+    "durable": true,
+    "tasks": 25,
+    "codec": "protobuf",
+    "samples": 100,
+    "rtt_p50_us": 9977.937,
+    "rtt_p95_us": 11641.041,
+    "rtt_p99_us": 14962.417,
+    "batch_rtt_p50_us": [
+      8978.834,
+      10850.333,
+      9886.375,
+      9046.792,
+      10007.916
+    ],
+    "native_domain_mean_us": 9712.36749,
+    "server_codec_mean_us": 16.412119999999998,
+    "client_codec_mean_us": 20.17245,
+    "mean_application_bytes": 501,
+    "stage_totals_ns": {
+      "decode_ns": 346831,
+      "hub_ns": 972641121,
+      "native_domain_ns": 971236749,
+      "snapshot_ns": 392208,
+      "encode_ns": 1294381,
+      "send_ns": 4682500
+    },
+    "server_stage_codec_share_pct": 0.16838564371612125,
+    "native_domain_stage_share_pct": 99.64728821207612
+  },
+  {
+    "durable": true,
+    "tasks": 100,
+    "codec": "json",
+    "samples": 100,
+    "rtt_p50_us": 12971.5835,
+    "rtt_p95_us": 15126.25,
+    "rtt_p99_us": 19263.625,
+    "batch_rtt_p50_us": [
+      11014.875,
+      12970.583,
+      12994.5,
+      12937.0,
+      13030.917
+    ],
+    "native_domain_mean_us": 12658.68207,
+    "server_codec_mean_us": 29.040029999999998,
+    "client_codec_mean_us": 35.62956,
+    "mean_application_bytes": 4739.05,
+    "stage_totals_ns": {
+      "decode_ns": 500298,
+      "hub_ns": 1267434247,
+      "native_domain_ns": 1265868207,
+      "snapshot_ns": 642455,
+      "encode_ns": 2403705,
+      "send_ns": 2816042
+    },
+    "server_stage_codec_share_pct": 0.22848521528106125,
+    "native_domain_stage_share_pct": 99.59775172196655
+  },
+  {
+    "durable": true,
+    "tasks": 100,
+    "codec": "cbor",
+    "samples": 100,
+    "rtt_p50_us": 12898.146,
+    "rtt_p95_us": 14021.209,
+    "rtt_p99_us": 14977.958,
+    "batch_rtt_p50_us": [
+      12992.958,
+      12942.375,
+      12314.459,
+      11894.584,
+      12985.833
+    ],
+    "native_domain_mean_us": 12391.05089,
+    "server_codec_mean_us": 13.82955,
+    "client_codec_mean_us": 21.164990000000003,
+    "mean_application_bytes": 1613,
+    "stage_totals_ns": {
+      "decode_ns": 175662,
+      "hub_ns": 1240425708,
+      "native_domain_ns": 1239105089,
+      "snapshot_ns": 398465,
+      "encode_ns": 1207293,
+      "send_ns": 1580335
+    },
+    "server_stage_codec_share_pct": 0.11133046726487629,
+    "native_domain_stage_share_pct": 99.75028005152454
+  },
+  {
+    "durable": true,
+    "tasks": 100,
+    "codec": "protobuf",
+    "samples": 100,
+    "rtt_p50_us": 12955.0625,
+    "rtt_p95_us": 15017.958,
+    "rtt_p99_us": 17878.625,
+    "batch_rtt_p50_us": [
+      12953.458,
+      13084.75,
+      12926.125,
+      10998.5,
+      12992.291
+    ],
+    "native_domain_mean_us": 12277.97418,
+    "server_codec_mean_us": 13.97582,
+    "client_codec_mean_us": 18.869139999999998,
+    "mean_application_bytes": 1669,
+    "stage_totals_ns": {
+      "decode_ns": 167291,
+      "hub_ns": 1229277702,
+      "native_domain_ns": 1227797418,
+      "snapshot_ns": 481034,
+      "encode_ns": 1230291,
+      "send_ns": 2262582
+    },
+    "server_stage_codec_share_pct": 0.11351783519012083,
+    "native_domain_stage_share_pct": 99.72717518069058
+  }
+]

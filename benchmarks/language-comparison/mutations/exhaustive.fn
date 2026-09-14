@@ -1,0 +1,9 @@
+type Status:
+    Pending
+    Done
+    Paused
+fn label(status: Status) -> String:
+    match status:
+        Pending -> "pending"
+        Done -> "done"
+fn main(): println(label(Pending))

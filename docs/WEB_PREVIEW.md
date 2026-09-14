@@ -141,13 +141,27 @@ are browser-local data, not evidence of a still-valid server session.
 
 ## Protocol and limits
 
-The shared Rust protocol uses versioned, closed JSON schemas, canonical decimal
-strings for i64 values and separate resource, command-namespace and connection
+The live standard uses a versioned, closed protobuf schema over binary WebSocket
+subprotocol `fern.live.protobuf.v1`. An explicitly negotiated `fern.live.v1`
+compatibility connection uses text JSON and canonical decimal strings for i64.
+Binary messages preserve signed 64-bit integers directly in Rust/WASM. Receivers
+use the selected codec and reject the wrong message kind; they do not sniff an
+encoding or fall back after malformed input. The [schema contract](../protocol/README.md)
+defines required-field presence and structural limits. Migration acceptance is
+tracked separately in the [roadmap](../ROADMAP.md).
+
+The application keeps separate resource, command-namespace and connection
 identities. Commands carry an expected revision and monotonic sequence number.
 The server resolves retained duplicates before revision conflicts, rejects
 changed payloads for retained command identities and never executes an old
 sequence again after its cached outcome expires. Unknown completion and resets
 are explicit outcomes; this does not provide durable exactly-once effects.
+
+The network codec does not change HTTP/admin JSON, saved offline state, durable
+checkpoint records or the native Fern actor's JSON request/reply bridge. Each
+has its own format and recovery rules. The [protocol experiments](NETWORK_PROTOCOL.md)
+show faster browser decoding and smaller payloads with protobuf; they do not show
+network JSON to be the dominant cost of the current native application.
 
 The default room holds at most 100 tasks with labels of at most 256 UTF-8 bytes.
 Frames are limited to 64 KiB. Connections, rooms, sessions, queued commands and
@@ -210,6 +224,15 @@ tracing and dynamic ownership/failover remain open. The wire envelope is a Rust 
 and an application-independent build manifest are also separate work.
 
 ## Verification
+
+The 2026-09-14 protobuf build passes real Edge acceptance: two clients, compiled
+Fern model/update/view, draft preservation, keyed DOM and focus, offline worker
+restart/reload, mobile layout, reconnect, session revocation and atomic rejection
+of HTTP-successful tampered assets. The macOS server with embedded assets is
+4,582,144 bytes (4.37 MiB); it is system-linked, not a static Linux measurement.
+The combined macOS gate passes 2,176 Rust tests, 311 native-output fixtures,
+20 examples, compatibility and fuzz checks. See the [roadmap](../ROADMAP.md).
+
 
 See the [application and worker acceptance record](WEB_APPLICATION_ACCEPTANCE.md)
 for current source/artifact identities, sizes and execution evidence. The

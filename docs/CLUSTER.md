@@ -2,7 +2,9 @@
 
 Fern's web server can route a browser's messages through one gateway to a room
 actor on another server. Every node runs the same Rust executable. Peer links use
-mutual TLS, configured node identities and bounded, length-prefixed messages.
+mutual TLS, configured node identities and bounded, length-prefixed protobuf
+messages. The selected peer standard is `fern.peer.protobuf.v1`, handshake
+version 2; its migration acceptance is tracked in the [roadmap](../ROADMAP.md).
 No broker, Erlang installation, discovery daemon or external certificate tool is
 required for the local demo.
 
@@ -70,6 +72,12 @@ and the configured certificate fingerprint. The handshake then checks protocol,
 cluster, full manifest and node identity. A different boot of a node cannot
 replace another boot while its existing streams remain live.
 
+The [peer registry](../crates/fern-cluster/protocol/README.md) defines the closed
+protobuf fields. Old JSON peer ALPN `fern.peer.v1` is unsupported: upgrade nodes
+in a coordinated deployment. There is no encoding sniffing or JSON parser
+fallback. The application message contract is shared with the browser, while
+peer handshake version, node configuration and checkpoint placement are separate.
+
 Each remote browser subscription has its own persistent TLS forwarding stream.
 Commands preserve order on that stream. Outcomes have their own bounded queue;
 complete snapshots may coalesce. Native heaps, closures and PIDs never cross the
@@ -107,6 +115,7 @@ under a fresh incarnation; it does not recover other nodes' data.
 | Concurrent peer handshakes, shared across directions | 8 |
 | Browser command or event | 64 KiB |
 | Framed peer record, including metadata | 68 KiB |
+| Peer Hello payload | 256 bytes |
 | Queued commands per gateway stream | 1, plus one awaiting its outcome |
 | Non-coalesced outcome queue per subscription | 16 |
 | Snapshot queue per subscription | One replaceable snapshot |
@@ -145,7 +154,8 @@ gateways, exact authoritative state, lost responses, partitions, slow readers,
 durable owner restart and namespaces that do not replay uncertain mutations.
 Simulation time describes scheduled scenarios, not equivalent production uptime.
 
-On 2026-09-14, the debug macOS ARM64 acceptance run applied 10,024 durable
+Before the protobuf migration, the 2026-09-14 debug macOS ARM64 JSON acceptance
+run applied 10,024 durable
 mutations across 32 clients and eight rooms in 92.885 seconds (107.9 applied
 operations/second). Send through committed outcome and all four matching observer
 snapshots took p50 57.184 ms, p95 97.065 ms and p99 105.263 ms. This includes real
@@ -154,5 +164,14 @@ work; it is neither a release-build throughput benchmark nor a network SLA.
 The full 98.46-second scenario also exercised balanced owners, 256 updates with
 an unread browser, a partition with a healthy sibling owner, and durable restart.
 
-See the [wire-format research and measurements](NETWORK_PROTOCOL.md) for why the
-browser keeps WebSocket + JSON while CBOR and protobuf remain measured candidates.
+That result establishes the previous cluster's tested failure behavior; it does
+not replace running those tests against the new peer encoding. See the
+[wire-format research and measurements](NETWORK_PROTOCOL.md) for the protobuf
+decision and the distinction between smaller messages and application throughput.
+
+The subsequent protobuf migration passes the same three-process fault/stress
+scenario, plus a mixed legacy-JSON/protobuf test with 30 exact mutations through
+both gateway arrangements to a real remote owner. The 40 cluster checks include
+10,000 TLS message exchanges, independent wire bytes and old-ALPN rejection.
+The complete macOS repository and real-browser gates pass; these correctness
+runs are not new throughput measurements.

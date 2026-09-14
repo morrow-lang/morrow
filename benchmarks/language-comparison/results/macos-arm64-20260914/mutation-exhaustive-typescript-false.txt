@@ -1,0 +1,1 @@
+benchmarks/language-comparison/mutations/exhaustive.ts(6,26): error TS2322: Type '"paused"' is not assignable to type 'never'.

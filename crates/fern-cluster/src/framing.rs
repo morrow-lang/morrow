@@ -1,7 +1,6 @@
 //! Retain partial read progress across select cancellation; never retry partial writes.
 use crate::wire::invalid;
-use crate::{Frame, MAX_PEER_FRAME_BYTES};
-use serde::{Serialize, de::DeserializeOwned};
+use crate::{Frame, Hello, MAX_PEER_FRAME_BYTES};
 use std::{io, time::Duration};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::time::Instant;
@@ -67,20 +66,19 @@ impl<R: AsyncRead + Unpin> FrameReader<R> {
     }
     /// Safe to cancel this future: the next call resumes the same bounded frame and deadline.
     pub async fn read(&mut self) -> io::Result<Option<Frame>> {
-        let frame: Option<Frame> = self.read_json().await?;
-        if let Some(frame) = &frame
-            && let Err(error) = frame.validate()
-        {
-            self.failed = true;
-            return Err(error);
-        }
-        Ok(frame)
+        self.read_with(Frame::decode).await
+    }
+    pub(crate) async fn read_hello(&mut self) -> io::Result<Option<Hello>> {
+        self.read_with(Hello::decode).await
     }
     /// Allocation observation for admission tests; at most one bounded frame is retained.
     pub fn buffered_capacity(&self) -> usize {
         self.body.capacity()
     }
-    pub(crate) async fn read_json<T: DeserializeOwned>(&mut self) -> io::Result<Option<T>> {
+    async fn read_with<T>(
+        &mut self,
+        decode: impl FnOnce(&[u8]) -> io::Result<T>,
+    ) -> io::Result<Option<T>> {
         if self.failed {
             return Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
@@ -90,13 +88,16 @@ impl<R: AsyncRead + Unpin> FrameReader<R> {
         if self.ended {
             return Ok(None);
         }
-        let result = self.read_inner().await;
+        let result = self.read_inner(decode).await;
         if result.is_err() {
             self.failed = true;
         }
         result
     }
-    async fn read_inner<T: DeserializeOwned>(&mut self) -> io::Result<Option<T>> {
+    async fn read_inner<T>(
+        &mut self,
+        decode: impl FnOnce(&[u8]) -> io::Result<T>,
+    ) -> io::Result<Option<T>> {
         let deadline = *self
             .deadline
             .get_or_insert_with(|| Instant::now() + self.limits.read_timeout);
@@ -149,8 +150,7 @@ impl<R: AsyncRead + Unpin> FrameReader<R> {
             self.body_read += read;
         }
         check_deadline(deadline)?;
-        let value =
-            serde_json::from_slice(&self.body).map_err(|_| invalid("malformed peer frame"))?;
+        let value = decode(&self.body)?;
         self.prefix_read = 0;
         self.body_read = 0;
         self.body.clear();
@@ -174,17 +174,18 @@ impl<W: AsyncWrite + Unpin> FrameWriter<W> {
     }
     /// Cancellation or partial IO failure poisons the writer; close the stream, never replay.
     pub async fn write(&mut self, frame: &Frame) -> io::Result<()> {
-        frame.validate()?;
-        self.write_json(frame).await
+        self.write_payload(frame.encode()?).await
     }
-    pub(crate) async fn write_json<T: Serialize>(&mut self, value: &T) -> io::Result<()> {
+    pub(crate) async fn write_hello(&mut self, hello: &Hello) -> io::Result<()> {
+        self.write_payload(hello.encode()?).await
+    }
+    async fn write_payload(&mut self, payload: Vec<u8>) -> io::Result<()> {
         if self.failed {
             return Err(io::Error::new(
                 io::ErrorKind::BrokenPipe,
                 "peer writer cannot resume a partial frame",
             ));
         }
-        let payload = encode(value)?;
         let prefix = u32::try_from(payload.len())
             .map_err(|_| invalid("peer frame length overflow"))?
             .to_be_bytes();
@@ -203,26 +204,6 @@ impl<W: AsyncWrite + Unpin> FrameWriter<W> {
         Ok(())
     }
 }
-fn encode<T: Serialize>(value: &T) -> io::Result<Vec<u8>> {
-    struct Capped(Vec<u8>);
-    impl io::Write for Capped {
-        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-            if bytes.len() > MAX_PEER_FRAME_BYTES - self.0.len() {
-                return Err(invalid("peer frame exceeds wire budget"));
-            }
-            self.0.extend_from_slice(bytes);
-            Ok(bytes.len())
-        }
-        fn flush(&mut self) -> io::Result<()> {
-            Ok(())
-        }
-    }
-    let mut output = Capped(Vec::with_capacity(MAX_PEER_FRAME_BYTES));
-    serde_json::to_writer(&mut output, value)
-        .map_err(|_| invalid("peer frame exceeds wire budget"))?;
-    Ok(output.0)
-}
-
 fn check_deadline(deadline: Instant) -> io::Result<()> {
     if Instant::now() >= deadline {
         Err(io::Error::new(
@@ -231,5 +212,29 @@ fn check_deadline(deadline: Instant) -> io::Result<()> {
         ))
     } else {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[tokio::test]
+    async fn increasing_raw_frames_preserve_original_forty_and_sixty_kib_capacity_oracle() {
+        let (mut writer, reader) = tokio::io::duplex(150_000);
+        let mut reader = FrameReader::new(reader, IoLimits::default()).unwrap();
+        for size in [40_000usize, 60_000] {
+            writer
+                .write_all(&(size as u32).to_be_bytes())
+                .await
+                .unwrap();
+            writer.write_all(&vec![b'a'; size]).await.unwrap();
+            // Exercise byte framing independently of narrower application schemas.
+            // The same reader must retain one buffer without geometric overshoot.
+            assert_eq!(
+                reader.read_with(|bytes| Ok(bytes.len())).await.unwrap(),
+                Some(size)
+            );
+            assert!(reader.buffered_capacity() <= MAX_PEER_FRAME_BYTES);
+        }
     }
 }

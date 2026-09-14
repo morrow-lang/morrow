@@ -6,7 +6,8 @@ use rustls::{
 use sha2::{Digest, Sha256};
 use std::{io, sync::Arc};
 
-pub(crate) const ALPN: &[u8] = b"fern.peer.v1";
+/// Explicit binary peer protocol; JSON peers cannot negotiate this transport.
+pub const ALPN: &[u8] = b"fern.peer.protobuf.v1";
 #[derive(Clone)]
 pub struct Security {
     pub(crate) client: Arc<ClientConfig>,

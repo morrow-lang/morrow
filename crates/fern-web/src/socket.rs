@@ -8,6 +8,51 @@ use fern_web_protocol::{ClientMessage, Error, ServerMessage, decode, encode};
 use std::time::{Duration, Instant};
 use tokio::sync::{OwnedSemaphorePermit, mpsc, oneshot, watch};
 
+/// Select once at the authenticated upgrade; payload bytes never select a parser.
+#[derive(Clone, Copy)]
+pub(crate) enum Format {
+    Json,
+    Protobuf,
+}
+impl Format {
+    pub fn negotiate(protocols: &[&str]) -> Option<Self> {
+        if protocols.contains(&fern_web_protocol::binary::SUBPROTOCOL) {
+            Some(Self::Protobuf)
+        } else if protocols.contains(&"fern.live.v1") {
+            Some(Self::Json)
+        } else {
+            None
+        }
+    }
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Json => "fern.live.v1",
+            Self::Protobuf => fern_web_protocol::binary::SUBPROTOCOL,
+        }
+    }
+    fn decode(self, message: Message) -> Result<ClientMessage, Error> {
+        match (self, message) {
+            (Self::Json, Message::Text(text)) => decode(text.as_bytes()),
+            (Self::Protobuf, Message::Binary(bytes)) => {
+                fern_web_protocol::binary::decode_client(&bytes)
+            }
+            _ => Err(Error::Malformed),
+        }
+    }
+    fn encode(self, message: &ServerMessage) -> Result<Message, Error> {
+        match self {
+            Self::Json => Ok(Message::Text(
+                String::from_utf8(encode(message)?)
+                    .map_err(|_| Error::Malformed)?
+                    .into(),
+            )),
+            Self::Protobuf => Ok(Message::Binary(
+                fern_web_protocol::binary::encode_server(message)?.into(),
+            )),
+        }
+    }
+}
+
 enum Connection {
     Local { route: owner::Route, id: String },
     Remote(crate::peer::Remote),
@@ -88,14 +133,16 @@ async fn write(socket: &mut WebSocket, message: Message, limit: Duration) -> boo
         Ok(Ok(()))
     )
 }
-async fn publish(socket: &mut WebSocket, message: ServerMessage, limit: Duration) -> bool {
-    let Ok(bytes) = encode(&message) else {
+async fn publish(
+    socket: &mut WebSocket,
+    format: Format,
+    message: ServerMessage,
+    limit: Duration,
+) -> bool {
+    let Ok(message) = format.encode(&message) else {
         return false;
     };
-    let Ok(text) = String::from_utf8(bytes) else {
-        return false;
-    };
-    write(socket, Message::Text(text.into()), limit).await
+    write(socket, message, limit).await
 }
 
 /// Coalescing may skip the exact rollover snapshot. Compare resource identity,
@@ -129,6 +176,7 @@ pub(crate) async fn run(
     app: App,
     mut auth: Authentication,
     _permit: OwnedSemaphorePermit,
+    format: Format,
 ) {
     let mut connection: Option<Connection> = None;
     let mut incarnation = None;
@@ -151,19 +199,19 @@ pub(crate) async fn run(
             _ = &mut join_timeout, if connection.is_none() => break,
             message = outcomes.recv(), if connection.is_some() => {
                 let Some(message) = message else { break; };
-                if !publish(&mut socket, publication(&mut incarnation, message), limit).await { break; }
+                if !publish(&mut socket, format, publication(&mut incarnation, message), limit).await { break; }
             }
             changed = snapshots.changed(), if connection.is_some() => {
                 if changed.is_err() { break; }
                 let snapshot = snapshots.borrow_and_update().clone();
                 if let Some(snapshot) = snapshot
-                    && !publish(&mut socket, publication(&mut incarnation, ServerMessage::Snapshot(snapshot)), limit).await { break; }
+                    && !publish(&mut socket, format, publication(&mut incarnation, ServerMessage::Snapshot(snapshot)), limit).await { break; }
             }
             incoming = socket.recv() => {
                 let Some(Ok(incoming)) = incoming else { break; };
                 active = Instant::now();
                 match incoming {
-                    Message::Text(text) => match decode::<ClientMessage>(text.as_bytes()) {
+                    payload @ (Message::Text(_) | Message::Binary(_)) => match format.decode(payload) {
                         Ok(ClientMessage::Join { room, resume_namespace }) => {
                             let response_deadline = tokio::time::Instant::now() + Duration::from_secs(2);
                             let response_deadline = if connection.is_none() {
@@ -179,25 +227,24 @@ pub(crate) async fn run(
                                     connection = Some(joined);
                                     outcomes = outcome_rx;
                                     snapshots = snapshot_rx;
-                                    if !publish(&mut socket, publication(&mut incarnation, ServerMessage::Connected(connected)), limit).await { break; }
+                                    if !publish(&mut socket, format, publication(&mut incarnation, ServerMessage::Connected(connected)), limit).await { break; }
                                 }
-                                Ok(Err(error)) => { if !publish(&mut socket, ServerMessage::Error(error), limit).await { break; } }
+                                Ok(Err(error)) => { if !publish(&mut socket, format, ServerMessage::Error(error), limit).await { break; } }
                                 _ => break,
                             }
                         }
                         Ok(message @ ClientMessage::Command(_)) => {
                             let Some(connection) = &connection else {
-                                publish(&mut socket, ServerMessage::Error(Error::Unauthorized), limit).await;
+                                publish(&mut socket, format, ServerMessage::Error(Error::Unauthorized), limit).await;
                                 break;
                             };
                             if connection.send(&app, &auth.token, message).is_err() { break; }
                         }
-                        Err(error) => { publish(&mut socket, ServerMessage::Error(error), limit).await; break; }
+                        Err(error) => { publish(&mut socket, format, ServerMessage::Error(error), limit).await; break; }
                     },
                     Message::Ping(bytes) => { if !write(&mut socket, Message::Pong(bytes), limit).await { break; } }
                     Message::Pong(_) => (),
                     Message::Close(_) => break,
-                    Message::Binary(_) => { publish(&mut socket, ServerMessage::Error(Error::Malformed), limit).await; break; }
                 }
             }
             _ = heartbeat.tick() => {
