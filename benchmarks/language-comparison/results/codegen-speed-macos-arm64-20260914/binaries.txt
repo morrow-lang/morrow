@@ -1,0 +1,3 @@
+before: 567880 bytes; 43bde82860738cc7ae19cb245d9fbfebb62f9352a390c7b78ba45dbd023ffd15  /tmp/fern-model-none
+after: 567880 bytes; 86695c1ff41e9712ce1cac6e84abd576e80c5a77493adece5feaa09dce911bbc  /tmp/fern-model-speed-only
+rust: 359760 bytes; 7c81252a4775d877f3a1629c64a35d9d321c9924ea07e503dc2f4c5e832644e5  /tmp/fern-language-results-20260914/workloads-rust

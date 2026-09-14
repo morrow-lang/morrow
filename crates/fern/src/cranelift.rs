@@ -36,7 +36,7 @@ fn native_type(ty: Scalar) -> ir::Type {
 }
 
 /// Validate first, emit PIC objects directly, and return bytes without touching caller files.
-/// The initial acceptance mode favors predictable lowering over speculative optimization.
+/// Optimize generated code while retaining verification and native frame pointers.
 pub fn emit_object(program: &Program) -> Result<Vec<u8>, String> {
     emit_object_target(program, None)
 }
@@ -65,7 +65,7 @@ fn emit_object_target(program: &Program, target: Option<&str>) -> Result<Vec<u8>
     }
     let mut flags = settings::builder();
     for (name, value) in [
-        ("opt_level", "none"),
+        ("opt_level", "speed"),
         ("is_pic", "true"),
         ("preserve_frame_pointers", "true"),
         ("enable_verifier", "true"),

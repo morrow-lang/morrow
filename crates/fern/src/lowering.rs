@@ -15,6 +15,8 @@ use helpers::{machine_width, native_operand};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 #[path = "lowering/boundaries.rs"]
 mod boundaries;
+#[path = "lowering/callback_inline.rs"]
+mod callback_inline;
 #[path = "lowering/closures.rs"]
 mod closures;
 #[path = "lowering/control.rs"]

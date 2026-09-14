@@ -99,6 +99,14 @@ struct Loop {
     accumulated: String,
 }
 
+/// A fresh, unpublished list whose capacity covers the entire input traversal.
+/// Only this loop may write its backing storage and initialized-prefix length.
+struct ListOutput {
+    header: String,
+    data: String,
+    length_slot: String,
+}
+
 impl Loop {
     /// Reserve loop identities before emitting forward-referenced phi operands.
     fn new(locals: &mut Locals) -> Self {
@@ -134,7 +142,7 @@ impl Emitter<'_> {
             values.push(self.expr(arg, locals, depth)?);
         }
         let value = if matches!(args[0].ty, Type::List(_)) {
-            self.higher_list(builtin, args, &values, &result, locals)
+            self.higher_list(builtin, args, &values, &result, locals)?
         } else {
             self.higher_sum(builtin, args, &values, &result, locals)
         };
@@ -149,7 +157,7 @@ impl Emitter<'_> {
         values: &[String],
         result: &Type,
         locals: &mut Locals,
-    ) -> String {
+    ) -> Lowering<String> {
         let Type::List(item) = &args[0].ty else {
             unreachable!("signature validated")
         };
@@ -167,24 +175,23 @@ impl Emitter<'_> {
                 variadic: None,
             },
         );
+        // Validation above establishes a nonnegative length within the backing
+        // allocation. The source header is immutable, so callbacks cannot change
+        // its data or bounds. Explicit roots keep both allocations alive across
+        // callbacks; the native collector never relocates them.
+        let input_data = self.higher_list_data(collection, locals);
         let output = if matches!(builtin, Builtin::ListMap | Builtin::ListFilter) {
-            self.higher_list_output(&length, result, locals)
+            Some(self.higher_list_output(&length, result, locals))
         } else {
-            "0".into()
+            None
         };
         let flow = Loop::new(locals);
         self.loop_header(&flow, &length, builtin, result, values, locals);
+        let address = self.higher_list_slot(&input_data, &flow.index, locals);
         let raw = self.assign(
             locals,
             Type::Int,
-            NativeOperation::Call {
-                callee: native_operand("$fern_list_get"),
-                args: vec![
-                    (Scalar::I64, native_operand(&(collection).to_string())),
-                    (Scalar::I64, native_operand(&(flow.index).to_string())),
-                ],
-                variadic: None,
-            },
+            NativeOperation::Load(LoadKind::I64, native_operand(&address)),
         );
         let element = self.unpack(locals, item, raw.clone());
         let mut callback_args = Vec::new();
@@ -192,11 +199,18 @@ impl Emitter<'_> {
             callback_args.push((result.clone(), flow.accumulator.clone()));
         }
         callback_args.push((*item.clone(), element));
-        let mapped = self.invoke_values(callback, &callback_args, callback_result, locals);
+        let mapped = self.invoke_callback_values(
+            args.last().unwrap(),
+            callback,
+            &callback_args,
+            callback_result,
+            locals,
+        )?;
         self.loop_action(
             &flow,
             builtin,
-            (&output, &raw, &mapped),
+            output.as_ref(),
+            (&raw, &mapped),
             callback_result,
             locals,
         );
@@ -213,15 +227,20 @@ impl Emitter<'_> {
         self.output
             .statement(Statement::Jump((flow.head).to_string()));
         self.start_block(locals, &flow.exhausted);
-        match builtin {
-            Builtin::ListMap | Builtin::ListFilter => output,
+        Ok(match builtin {
+            Builtin::ListMap | Builtin::ListFilter => output.unwrap().header,
             Builtin::ListFold => flow.accumulator,
             _ => self.loop_search_result(&flow, builtin, result, &raw, locals),
-        }
+        })
     }
 
     /// Runtime list capacity must be positive even when mapping an empty collection.
-    fn higher_list_output(&mut self, length: &str, result: &Type, locals: &mut Locals) -> String {
+    fn higher_list_output(
+        &mut self,
+        length: &str,
+        result: &Type,
+        locals: &mut Locals,
+    ) -> ListOutput {
         let empty = self.assign(
             locals,
             Type::Bool,
@@ -241,7 +260,7 @@ impl Emitter<'_> {
                 native_operand(&(extra)),
             ),
         );
-        self.assign(
+        let header = self.assign(
             locals,
             result.clone(),
             NativeOperation::Call {
@@ -249,10 +268,98 @@ impl Emitter<'_> {
                 args: vec![(Scalar::I64, native_operand(&(capacity)))],
                 variadic: None,
             },
+        );
+        let data = self.higher_list_data(&header, locals);
+        let length_slot = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Add,
+                native_operand(&header),
+                native_operand("8"),
+            ),
+        );
+        ListOutput {
+            header,
+            data,
+            length_slot,
+        }
+    }
+
+    /// Load the audited List ABI's first field and retain its nonmoving storage.
+    fn higher_list_data(&mut self, header: &str, locals: &mut Locals) -> String {
+        let data = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Load(LoadKind::I64, native_operand(header)),
+        );
+        self.root_pointer(locals, &data);
+        data
+    }
+
+    /// The loop guard and valid allocation bound prove index * 8 cannot overflow
+    /// and addresses a full native payload word. No safepoint occurs before use.
+    fn higher_list_slot(&mut self, data: &str, index: &str, locals: &mut Locals) -> String {
+        let offset = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Mul,
+                native_operand(index),
+                native_operand("8"),
+            ),
+        );
+        self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Add,
+                native_operand(data),
+                native_operand(&offset),
+            ),
         )
     }
 
-    /// Define the induction/accumulator phis and guard each indexed runtime read.
+    /// Append only to this loop's fresh builder. Map writes one output per input;
+    /// filter writes at most one, so neither can exceed the reserved capacity.
+    /// Zeroed backing storage traces completed pointers across later callbacks.
+    fn higher_list_append(
+        &mut self,
+        output: &ListOutput,
+        index: Option<&str>,
+        payload: &str,
+        locals: &mut Locals,
+    ) {
+        let index = index.map(str::to_owned).unwrap_or_else(|| {
+            self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Load(LoadKind::I64, native_operand(&output.length_slot)),
+            )
+        });
+        let address = self.higher_list_slot(&output.data, &index, locals);
+        self.output.statement(Statement::Store {
+            kind: LoadKind::I64,
+            value: native_operand(payload),
+            address: native_operand(&address),
+        });
+        let next = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Add,
+                native_operand(&index),
+                native_operand("1"),
+            ),
+        );
+        self.output.statement(Statement::Store {
+            kind: LoadKind::I64,
+            value: native_operand(&next),
+            address: native_operand(&output.length_slot),
+        });
+    }
+
+    /// Define the induction/accumulator phis and guard each indexed native read.
     fn loop_header(
         &mut self,
         flow: &Loop,
@@ -314,23 +421,16 @@ impl Emitter<'_> {
         &mut self,
         flow: &Loop,
         builtin: Builtin,
-        values: (&str, &str, &str),
+        output: Option<&ListOutput>,
+        values: (&str, &str),
         callback_result: &Type,
         locals: &mut Locals,
     ) {
-        let (output, raw, mapped) = values;
+        let (raw, mapped) = values;
         match builtin {
             Builtin::ListMap => {
                 let payload = self.payload(locals, callback_result, mapped.into());
-                self.output
-                    .statement(Statement::Effect(NativeOperation::Call {
-                        callee: native_operand("$fern_list_push_mut"),
-                        args: vec![
-                            (Scalar::I64, native_operand(output)),
-                            (Scalar::I64, native_operand(&(payload))),
-                        ],
-                        variadic: None,
-                    }));
+                self.higher_list_append(output.unwrap(), Some(&flow.index), &payload, locals);
                 self.output
                     .statement(Statement::Jump((flow.step).to_string()));
             }
@@ -351,15 +451,7 @@ impl Emitter<'_> {
                     else_label: (flow.step).to_string(),
                 });
                 self.start_block(locals, &retain);
-                self.output
-                    .statement(Statement::Effect(NativeOperation::Call {
-                        callee: native_operand("$fern_list_push_mut"),
-                        args: vec![
-                            (Scalar::I64, native_operand(output)),
-                            (Scalar::I64, native_operand(raw)),
-                        ],
-                        variadic: None,
-                    }));
+                self.higher_list_append(output.unwrap(), None, raw, locals);
                 self.output
                     .statement(Statement::Jump((flow.step).to_string()));
             }

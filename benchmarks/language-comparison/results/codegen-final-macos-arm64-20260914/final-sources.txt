@@ -1,0 +1,4 @@
+1d8ad7d3f88a8c4802492fe6c96d86c2d21480fb0034fa6c41f3894d2110ab1b  crates/fern/src/cranelift.rs
+95ce60c3cf126a76eb6596c32fc93962beda1ef3cccb8596c67eff4f0f8e1bc4  crates/fern/src/lowering.rs
+ddde1e987fd1108eb1b144c31ac297274af8a5b9ad4fc4de3916d2e087a3ec63  crates/fern/src/lowering/higher_order.rs
+7ff8e1f7da82d5d7852ccfaf23c41754053045eec903ef4b60b90fd9bd348fa9  crates/fern/src/lowering/callback_inline.rs

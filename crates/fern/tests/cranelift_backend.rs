@@ -2591,3 +2591,8 @@ assert_eq!(*fault, 1);
 }
 #[path = "support/immutable_gc_backend.rs"]
 mod immutable_gc_backend;
+
+#[path = "support/bounded_lists_backend.rs"]
+mod bounded_lists_backend;
+#[path = "support/callback_inlining_backend.rs"]
+mod callback_inlining_backend;

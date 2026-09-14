@@ -1,0 +1,12 @@
+before-0: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-0
+after-0: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-0
+after-1: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-1
+before-1: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-1
+before-2: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-2
+after-2: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-2
+after-3: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-3
+before-3: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-3
+before-4: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-4
+after-4: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-4
+after-5: 567832 bytes; 548f04e7ba16dc362d95c3f2ba918f08f6b3bf12846fab0ad6aeadaa57254b23  /tmp/fern-codegen-scalar-build-results/builds/after-5
+before-5: 567992 bytes; a329b9551484f482985ad8f3828fc581223ea70b863553ac313172caa25e7ffb  /tmp/fern-codegen-scalar-build-results/builds/before-5

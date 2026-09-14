@@ -168,23 +168,25 @@ Follow the [language guide](docs/LANGUAGE_GUIDE.md), explore
 
 ## What the experiments show
 
-The [reproducible Fern/Rust/TypeScript comparison](benchmarks/language-comparison/README.md)
-tests current Fern, optimized Rust and Bun 1.4.2 against independent output
-oracles. On one Apple M4, 20 million scalar steps took **76 ms in Fern**, **57 ms
-in Rust**, and **247 ms with Bun BigInt / 520 ms with Bun Number**. An immutable
-256-entry model updated 10,000 times took **71 / 3.6 / 13.9 ms** in Fern / Rust /
-Bun. The subsequent [immutable implementation improvement](benchmarks/language-comparison/IMMUTABLE.md)
-reduced Fern's 10,000-update time to **25.9 ms**, a **2.73× speedup** in a fresh
-paired comparison, with approximately **3.47 MiB RSS**. At 100,000 updates the
-speedup was **2.94×**. These are specific whole-process workloads, not a universal
-language ranking.
+The [latest paired native measurements](benchmarks/language-comparison/NATIVE_OPTIMIZATION.md)
+run unchanged programs against independent output oracles. On one Apple M4,
+10,000 immutable updates of a 256-entry model take **8.61 ms**, and 100,000 take
+**62.15 ms**. Optimized Rust takes **3.41 / 12.03 ms**. Fern improved another
+**2.98–3.71×** through bounded callback inlining, direct list loops and optimized
+native emission, following the earlier [GC bookkeeping improvement](benchmarks/language-comparison/IMMUTABLE.md).
+Immutable aliases and checked fault behavior are preserved.
 
-The original model process used a median peak **3.48 MiB RSS**, compared with Rust's
-**1.55 MiB** and Bun's **30.33 MiB**. Its compiled workload was **568,104 bytes**
-on macOS. Small-source checking and builds were quick, but collection/model work
-is a clear performance weakness. Generated native code currently uses Cranelift
-`opt_level=none`, even with a release-built compiler; profiling and optimization
-remain work.
+The model uses approximately **3.5 MiB RSS**; its macOS executable is **567,704
+bytes**. Twenty million scalar steps take **80.41 ms** against Rust's **57.25 ms**;
+that workload is essentially unchanged by these optimizations. Building the small
+Fern source takes **44.67 ms**. Native programs now use Cranelift `opt_level=speed`,
+independently of the compiler's own Rust build profile. Rust remains faster on
+these workloads; broader inlining, collection layout and allocation remain work.
+
+The [original Fern/Rust/TypeScript comparison](benchmarks/language-comparison/README.md)
+also measures Bun 1.4.2 and TypeScript 6.0.2, retaining the earlier unoptimized
+Fern baseline. Bun was not rerun for the latest optimization. These are specific
+whole-process experiments, not a universal language ranking.
 
 The compiler experiments show useful defaults: required Result handling,
 exhaustive matches and labels for ambiguous arguments. Rust and configured

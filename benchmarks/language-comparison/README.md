@@ -6,9 +6,10 @@ output oracles; compiler rejection is measured separately from runtime behavior.
 The comparison sources in Rust and TypeScript are intentional test subjects.
 Repository orchestration remains Rust.
 
-**Update:** the [immutable callback optimization](IMMUTABLE.md) makes the same
-model workload 2.73–2.94× faster through cheaper GC frame bookkeeping. Results
-below retain the original baseline and its configuration.
+**Latest:** [native callback/list/codegen optimization](NATIVE_OPTIMIZATION.md)
+makes the model another 2.98–3.71× faster after the earlier
+[GC frame improvement](IMMUTABLE.md). Current native emission uses Cranelift
+`speed`. Results below retain the original baseline and its configuration.
 
 ## Recorded results, 2026-09-14
 
@@ -94,11 +95,11 @@ interleaved timed rounds. Startup has 21 samples; hot-filesystem source checking
 and executable building have five. No dependency installation, compiler build,
 package resolution or cold disk cache is charged to source build timings.
 
-Fern is the existing release-built compiler linked with a release-built Rust
-runtime, but **its generated native code currently uses Cranelift
-`opt_level=none`**. Building the compiler in release does not enable native
-optimization. Rust uses `rustc -O -C strip=symbols -C panic=abort`; Bun uses its
-default JIT. This records what users can run today, not an equal-optimization
+The baseline used a release-built compiler linked with a release-built Rust
+runtime, but **its generated native code used Cranelift `opt_level=none`**.
+Building that compiler in release did not enable native optimization.
+Rust uses `rustc -O -C strip=symbols -C panic=abort`; Bun uses its
+default JIT. This records what users could run at the time, not an equal-optimization
 backend contest. The native binaries include runtime/library code selected by
 their linkers and use the normal macOS system libraries.
 

@@ -1,5 +1,9 @@
 # Immutable callback optimization, 2026-09-14
 
+This records the GC-frame improvement at `7f53818`. The subsequent
+[native optimization](NATIVE_OPTIMIZATION.md) measures further gains and enables
+optimized generated code; the results and configuration below remain historical.
+
 Fern's unchanged immutable model workload is **2.73–2.94× faster** after removing
 repeated tree updates from native GC frame registration. Lists still map every
 element into a fresh collection and share unchanged records. Retained versions
@@ -42,7 +46,7 @@ the paired timing rebuilds the same source against the frozen old runtime.
 
 This changes runtime bookkeeping only. Compiler settings, generated collection
 loops, actor continuation boundaries, full-width payloads and checked fault paths
-are unchanged. Cranelift still uses `opt_level=none`. A frame's normal entry/exit
+were unchanged at this stage; Cranelift used `opt_level=none`. A frame's normal entry/exit
 is amortized O(1); unusual out-of-order exits are O(active frame depth), compared
 with the previous tree lookup. Registry capacity follows peak active depth and
 is released at invocation shutdown. This is not a persistent-vector or
