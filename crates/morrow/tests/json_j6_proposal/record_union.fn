@@ -1,0 +1,12 @@
+type User derive(Json):
+    name:String
+    email:Option(String)
+type Counted derive(Json):
+    count:Int
+type Choice=User | Counted
+fn main() -> Result(Unit,json.Error):
+    let value=json.decode("\{\"name\":\"Morrow\"\}",Choice)?
+    println(json.encode(value)?)
+    let other:Choice=Counted(42)
+    println(json.encode(other)?)
+    Ok(())

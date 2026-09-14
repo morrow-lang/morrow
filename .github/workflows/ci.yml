@@ -34,20 +34,20 @@ jobs:
         run: cargo xtask check
       - name: Simulate and replay a month of application virtual time
         run: |
-          cargo xtask simulate --seed 0xc0ffee --steps 3000 --days 30 --json > fern-simulation.json 2> fern-simulation.stderr.log
-          cargo xtask simulate --replay fern-simulation.json
-          cargo xtask simulate --actors --seed 0xc0ffee --steps 5000 --json > fern-actor-simulation.json 2> fern-actor-simulation.stderr.log
-          cargo xtask simulate --replay fern-actor-simulation.json
+          cargo xtask simulate --seed 0xc0ffee --steps 3000 --days 30 --json > morrow-simulation.json 2> morrow-simulation.stderr.log
+          cargo xtask simulate --replay morrow-simulation.json
+          cargo xtask simulate --actors --seed 0xc0ffee --steps 5000 --json > morrow-actor-simulation.json 2> morrow-actor-simulation.stderr.log
+          cargo xtask simulate --replay morrow-actor-simulation.json
       - name: Retain deterministic scenario evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: fern-simulation-${{ matrix.os }}
+          name: morrow-simulation-${{ matrix.os }}
           path: |
-            fern-simulation.json
-            fern-actor-simulation.json
-            fern-simulation.stderr.log
-            fern-actor-simulation.stderr.log
+            morrow-simulation.json
+            morrow-actor-simulation.json
+            morrow-simulation.stderr.log
+            morrow-actor-simulation.stderr.log
           if-no-files-found: ignore
           retention-days: 7
       - name: Verify the separate compiler benchmark lockfile
@@ -67,24 +67,24 @@ jobs:
           bun-version: 1.4.2
       - name: Verify language comparison oracles and developer diagnostics
         run: |
-          mkdir -p "$RUNNER_TEMP/fern-typescript"
-          bun add --cwd "$RUNNER_TEMP/fern-typescript" --exact typescript@6.0.2
-          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/main.rs -o "$RUNNER_TEMP/fern-language-runner"
-          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/immutable.rs -o "$RUNNER_TEMP/fern-immutable-runner"
-          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/fern-codegen-runner"
-          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/fern-beam-runner"
-          rustc --edition=2024 --test -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/fern-beam-oracles"
-          "$RUNNER_TEMP/fern-beam-oracles"
-          rustc --edition=2024 --test benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/fern-codegen-oracles"
-          "$RUNNER_TEMP/fern-codegen-oracles"
-          rustc --edition=2024 --test benchmarks/language-comparison/src/oracle.rs -o "$RUNNER_TEMP/fern-language-oracles"
-          "$RUNNER_TEMP/fern-language-oracles"
-          export FERN="$PWD/bin/fern"
-          export FERN_RUNTIME_LIB="$PWD/bin/libfern_runtime.a"
+          mkdir -p "$RUNNER_TEMP/morrow-typescript"
+          bun add --cwd "$RUNNER_TEMP/morrow-typescript" --exact typescript@6.0.2
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/main.rs -o "$RUNNER_TEMP/morrow-language-runner"
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/immutable.rs -o "$RUNNER_TEMP/morrow-immutable-runner"
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/morrow-codegen-runner"
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/morrow-beam-runner"
+          rustc --edition=2024 --test -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/morrow-beam-oracles"
+          "$RUNNER_TEMP/morrow-beam-oracles"
+          rustc --edition=2024 --test benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/morrow-codegen-oracles"
+          "$RUNNER_TEMP/morrow-codegen-oracles"
+          rustc --edition=2024 --test benchmarks/language-comparison/src/oracle.rs -o "$RUNNER_TEMP/morrow-language-oracles"
+          "$RUNNER_TEMP/morrow-language-oracles"
+          export MORROW="$PWD/bin/morrow"
+          export MORROW_RUNTIME_LIB="$PWD/bin/libmorrow_runtime.a"
           export BUN="$(command -v bun)"
-          export TSC="$RUNNER_TEMP/fern-typescript/node_modules/typescript/bin/tsc"
-          "$RUNNER_TEMP/fern-language-runner" prepare "$RUNNER_TEMP/fern-language-results"
-          "$RUNNER_TEMP/fern-language-runner" verify "$RUNNER_TEMP/fern-language-results"
+          export TSC="$RUNNER_TEMP/morrow-typescript/node_modules/typescript/bin/tsc"
+          "$RUNNER_TEMP/morrow-language-runner" prepare "$RUNNER_TEMP/morrow-language-results"
+          "$RUNNER_TEMP/morrow-language-runner" verify "$RUNNER_TEMP/morrow-language-results"
 
   beam-comparison:
     name: Elixir comparison correctness
@@ -103,9 +103,9 @@ jobs:
           install-rebar: false
       - name: Check the comparator against independent mathematical oracles
         run: |
-          mkdir "$RUNNER_TEMP/fern-beam-modules"
-          elixirc --warnings-as-errors -o "$RUNNER_TEMP/fern-beam-modules" benchmarks/language-comparison/programs/workloads.ex
-          elixir -pa "$RUNNER_TEMP/fern-beam-modules" -e 'FernComparison.main()' -- verify
+          mkdir "$RUNNER_TEMP/morrow-beam-modules"
+          elixirc --warnings-as-errors -o "$RUNNER_TEMP/morrow-beam-modules" benchmarks/language-comparison/programs/workloads.ex
+          elixir -pa "$RUNNER_TEMP/morrow-beam-modules" -e 'MorrowComparison.main()' -- verify
 
   web-preview:
     name: Static Linux server and real browser
@@ -115,8 +115,8 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_PROFILE_DEV_DEBUG: "0"
       CARGO_PROFILE_TEST_DEBUG: "0"
-      FERN_WEB_TARGET: x86_64-unknown-linux-musl
-      FERN_BROWSER: /usr/bin/google-chrome
+      MORROW_WEB_TARGET: x86_64-unknown-linux-musl
+      MORROW_BROWSER: /usr/bin/google-chrome
       CC_x86_64_unknown_linux_musl: musl-gcc
     steps:
       - name: Checkout
@@ -133,17 +133,17 @@ jobs:
           rustup target add wasm32-unknown-unknown x86_64-unknown-linux-musl
           cargo install wasm-bindgen-cli --version 0.2.128 --locked
       - name: Lint browser and offline worker on their real target
-        run: cargo clippy -p fern-browser -p fern-browser-worker --target wasm32-unknown-unknown --locked -- -D warnings
+        run: cargo clippy -p morrow-browser -p morrow-browser-worker --target wasm32-unknown-unknown --locked -- -D warnings
       - name: Build self-contained static Linux executable
         run: cargo xtask web-build
       - name: Exercise two browsers and offline reload
         env:
-          FERN_WEB_SCREENSHOT: dist/browser-desktop.png
-          FERN_WEB_MOBILE_SCREENSHOT: dist/browser-mobile.png
-        run: cargo xtask web-check dist/fern-web-linux-x86_64
+          MORROW_WEB_SCREENSHOT: dist/browser-desktop.png
+          MORROW_WEB_MOBILE_SCREENSHOT: dist/browser-mobile.png
+        run: cargo xtask web-check dist/morrow-web-linux-x86_64
       - name: Retain preview and browser evidence
         uses: actions/upload-artifact@v4
         with:
-          name: fern-web-linux-x86_64
+          name: morrow-web-linux-x86_64
           path: dist/
           retention-days: 7

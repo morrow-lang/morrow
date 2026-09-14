@@ -60,15 +60,15 @@ pub fn capture(
     command: Command,
     bin: &Path,
     cwd: &Path,
-) -> Result<fern_test_supervisor::Captured, String> {
-    let mut supervisor = Command::new(bin.join("fern-test-supervisor"));
+) -> Result<morrow_test_supervisor::Captured, String> {
+    let mut supervisor = Command::new(bin.join("morrow-test-supervisor"));
     supervisor.current_dir(cwd);
-    fern_test_supervisor::capture(command, supervisor, Duration::from_secs(60))
+    morrow_test_supervisor::capture(command, supervisor, Duration::from_secs(60))
 }
 
 /// Compile and execute independent expected-output cases with no old implementation dependency.
 pub fn native(root: &Path, bin: &Path, filter: Option<&str>) -> Result<(), String> {
-    let inventory = cases(include_str!("../../crates/fern/tests/native-cases.json"))?;
+    let inventory = cases(include_str!("../../crates/morrow/tests/native-cases.json"))?;
     let workspace = crate::Temporary::new(&std::env::temp_dir())?;
     let mut failures = Vec::new();
     let mut count = 0;
@@ -79,10 +79,10 @@ pub fn native(root: &Path, bin: &Path, filter: Option<&str>) -> Result<(), Strin
         count += 1;
         let outcome = (|| {
             let executable = workspace.0.join("program");
-            let mut compiler = Command::new(bin.join("fern"));
+            let mut compiler = Command::new(bin.join("morrow"));
             compiler
                 .arg("build")
-                .arg(root.join("crates/fern/tests").join(&case.file))
+                .arg(root.join("crates/morrow/tests").join(&case.file))
                 .arg("-o")
                 .arg(&executable);
             let built = capture(compiler, bin, root)?;
@@ -148,7 +148,7 @@ pub fn examples(root: &Path, bin: &Path) -> Result<(), String> {
         .iter()
         .filter(|path| path.extension().is_some_and(|extension| extension == "fn"))
     {
-        let mut command = Command::new(bin.join("fern"));
+        let mut command = Command::new(bin.join("morrow"));
         command.arg("check").arg(path);
         let result = capture(command, bin, root)?;
         if !result.status.success() {
@@ -172,7 +172,7 @@ mod tests {
     use super::*;
     #[test]
     fn preserves_all_native_oracles_and_rejects_escaping_paths() {
-        let actual = cases(include_str!("../../crates/fern/tests/native-cases.json")).unwrap();
+        let actual = cases(include_str!("../../crates/morrow/tests/native-cases.json")).unwrap();
         assert_eq!(actual.len(), 316);
         let fault = actual
             .iter()

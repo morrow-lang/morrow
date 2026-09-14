@@ -1,4 +1,4 @@
-use fern_network_codecs::{
+use morrow_network_codecs::{
     protocol::{ClientMessage, Decimal, MAX_FRAME_BYTES, ServerMessage, Snapshot, Task, VERSION},
     *,
 };

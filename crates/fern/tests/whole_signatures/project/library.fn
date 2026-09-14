@@ -1,3 +1,0 @@
-fn identity(value) -> value
-pub fn number() -> Int: identity(42)
-pub fn text() -> String: identity("Fern")

@@ -1,8 +1,0 @@
-type Choice=Int | String
-fn write(value):json.encode(value)
-fn main() -> Result(Unit,json.Error):
-    let value:Choice=json.decode("9007199254740993",Choice)?
-    println(write(value)?)
-    let text:Choice="Fern"
-    println(write(text)?)
-    Ok(())

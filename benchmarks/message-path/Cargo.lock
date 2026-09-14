@@ -324,7 +324,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b5343afd4a8365a643ac588dab4cf234a190c7f6c88c9f6dd6ffe00837661b7"
 
 [[package]]
-name = "fern"
+name = "morrow"
 version = "0.1.0"
 dependencies = [
  "cranelift-codegen",
@@ -332,34 +332,34 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "cranelift-object",
- "fern-json",
- "fern-test-supervisor",
+ "morrow-json",
+ "morrow-test-supervisor",
  "rustyline",
  "wasm-encoder",
  "wasmparser",
 ]
 
 [[package]]
-name = "fern-json"
+name = "morrow-json"
 version = "0.1.0"
 
 [[package]]
-name = "fern-message-path"
+name = "morrow-message-path"
 version = "0.0.0"
 dependencies = [
- "fern-network-codecs",
- "fern-web-app",
- "fern-web-protocol",
+ "morrow-network-codecs",
+ "morrow-web-app",
+ "morrow-web-protocol",
  "serde",
  "serde_json",
  "tungstenite",
 ]
 
 [[package]]
-name = "fern-network-codecs"
+name = "morrow-network-codecs"
 version = "0.0.0"
 dependencies = [
- "fern-web-protocol",
+ "morrow-web-protocol",
  "libc",
  "minicbor",
  "prost",
@@ -367,35 +367,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "fern-runtime"
+name = "morrow-runtime"
 version = "0.1.0"
 dependencies = [
- "fern-json",
+ "morrow-json",
  "libc",
 ]
 
 [[package]]
-name = "fern-test-supervisor"
+name = "morrow-test-supervisor"
 version = "0.1.0"
 dependencies = [
  "libc",
 ]
 
 [[package]]
-name = "fern-web-app"
+name = "morrow-web-app"
 version = "0.1.0"
 dependencies = [
  "ar_archive_writer",
- "fern",
- "fern-runtime",
- "fern-web-protocol",
+ "morrow",
+ "morrow-runtime",
+ "morrow-web-protocol",
  "libc",
  "serde",
  "serde_json",
 ]
 
 [[package]]
-name = "fern-web-protocol"
+name = "morrow-web-protocol"
 version = "0.1.0"
 dependencies = [
  "prost",

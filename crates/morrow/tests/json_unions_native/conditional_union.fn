@@ -1,0 +1,7 @@
+fn write(value:a | String,anchor:a)->Result(String,json.Error):json.encode(value)
+fn main() -> Result(Unit,json.Error):
+    let numbers:(Int | String,Int)->Result(String,json.Error)=write
+    println(numbers(42,0)?)
+    let texts:(String,String)->Result(String,json.Error)=write
+    println(texts("Morrow","anchor")?)
+    Ok(())

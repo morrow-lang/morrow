@@ -116,7 +116,7 @@ fn main() {
     {
         hash(&mut metadata, label, path);
     }
-    hash(&mut metadata, "Fern source", &source);
+    hash(&mut metadata, "Morrow source", &source);
     for file in ["codegen.rs", "oracle.rs"] {
         hash(
             &mut metadata,
@@ -130,7 +130,7 @@ fn main() {
         env::current_dir().unwrap().display()
     )
     .unwrap();
-    writeln!(metadata, "Timing includes /usr/bin/time launch and reap; raw streams retained. Scalar: 20,000,000 steps, seed 7; 1 warmup + 9 measured rotated rounds. Build: 1 warmup + 5 measured rotated rounds, unique output paths, FERN_RUNTIME_LIB fixed, LIBRARY_PATH removed. Correctness checks run outside timed intervals; medians exclude tagged warmups. No CPU isolation is implied.").unwrap();
+    writeln!(metadata, "Timing includes /usr/bin/time launch and reap; raw streams retained. Scalar: 20,000,000 steps, seed 7; 1 warmup + 9 measured rotated rounds. Build: 1 warmup + 5 measured rotated rounds, unique output paths, MORROW_RUNTIME_LIB fixed, LIBRARY_PATH removed. Correctness checks run outside timed intervals; medians exclude tagged warmups. No CPU isolation is implied.").unwrap();
 
     let labels = ["before", "after", "rust"];
     let binaries = &inputs[3..6];
@@ -194,7 +194,7 @@ fn main() {
                 .arg(&source)
                 .arg("-o")
                 .arg(&binary)
-                .env("FERN_RUNTIME_LIB", &inputs[2])
+                .env("MORROW_RUNTIME_LIB", &inputs[2])
                 .env_remove("LIBRARY_PATH");
             let (_, elapsed, peak) = timed(&mut command, &raw, &format!("build-{label}-{round}"));
             let phase = if round == 0 { "warmup" } else { "measured" };

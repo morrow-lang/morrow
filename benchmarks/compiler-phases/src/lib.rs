@@ -1,5 +1,5 @@
 //! Prepared fixtures keep parsing, checking, emission and proof timing boundaries explicit.
-use fern_compiler::{ast, check, ir, json_codec::Plan, lowering, parse};
+use morrow_compiler::{ast, check, ir, json_codec::Plan, lowering, parse};
 
 /// One independently checked input and its reusable outputs for subsequent phases.
 pub struct Fixture {
@@ -17,7 +17,7 @@ pub fn fixtures() -> Vec<Fixture> {
         scalar.push_str(&format!("fn add{index}(value:Int)->Int:value + {index}\n"));
     }
     scalar.push_str("fn main():println(add0(42))\n");
-    let generic = "fn identity(x):x\nfn first(x):second(identity(x))\nfn second(x):\n    if true:\n        x\n    else:\n        first(x)\nfn main():\n    println(first(42))\n    println(first(\"Fern\"))\n";
+    let generic = "fn identity(x):x\nfn first(x):second(identity(x))\nfn second(x):\n    if true:\n        x\n    else:\n        first(x)\nfn main():\n    println(first(42))\n    println(first(\"Morrow\"))\n";
     let json = "type User derive(Json):\n    name:String\n    age:Int\n    tags:List(String)\nfn encode(user:User)->Result(String,json.Error):json.encode(user)\nfn main():()\n";
     [
         ("scalar", scalar),

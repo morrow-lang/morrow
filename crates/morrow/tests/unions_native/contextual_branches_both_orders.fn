@@ -1,0 +1,11 @@
+fn describe(value: Int | String) -> String:
+    match value:
+        n: Int -> "number:{n}"
+        s: String -> "string:{s}"
+fn first(flag: Bool) -> Int | String:
+    if flag: 7 else: "morrow"
+fn second(flag: Bool) -> Int | String:
+    if flag: "morrow" else: 7
+fn main():
+    println(describe(first(flag: true)))
+    println(describe(second(flag: true)))

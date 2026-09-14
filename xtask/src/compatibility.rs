@@ -1,7 +1,7 @@
 //! Native boundary and rejection oracles independent of compiler implementation.
 mod inventory;
 use crate::acceptance::capture;
-use fern_test_supervisor::Captured;
+use morrow_test_supervisor::Captured;
 use serde_json::Value;
 use std::{
     ffi::OsString,
@@ -33,7 +33,7 @@ pub fn run(root: &Path, bin: &Path) -> Result<(), String> {
         ("labels_native", 8),
         ("namespaces_native", 12),
     ] {
-        let mut paths = fs::read_dir(root.join("crates/fern/tests").join(group))
+        let mut paths = fs::read_dir(root.join("crates/morrow/tests").join(group))
             .map_err(|e| e.to_string())?
             .map(|entry| entry.map(|entry| entry.path()))
             .collect::<Result<Vec<_>, _>>()
@@ -93,7 +93,7 @@ fn prepare(directory: &Path, case: &Value) -> Result<std::path::PathBuf, String>
     Ok(source)
 }
 fn command(bin: &Path, directory: &Path, action: &str, source: &Path) -> Result<Captured, String> {
-    let mut command = Command::new(bin.join("fern"));
+    let mut command = Command::new(bin.join("morrow"));
     command.arg(action).arg(source);
     capture(command, bin, directory)
 }
@@ -104,7 +104,7 @@ fn native(bin: &Path, case: &Value) -> Result<(), String> {
     let source = prepare(&work.0, case)?;
     fs::write(work.0.join("invalid-utf8.txt"), [0xc0, 0xaf]).map_err(|e| e.to_string())?;
     let executable = work.0.join("program 'output' $literal");
-    let mut build = Command::new(bin.join("fern"));
+    let mut build = Command::new(bin.join("morrow"));
     build.arg("build").arg(&source).arg("-o").arg(&executable);
     let built = capture(build, bin, &work.0)?;
     if !built.status.success() {
@@ -160,7 +160,7 @@ fn rejected(bin: &Path, directory: &Path, source: &Path, case: &Value) -> Result
             .map_err(|e| e.to_string())?;
         Some(fs::metadata(&output).map_err(|e| e.to_string())?)
     };
-    let mut build = Command::new(bin.join("fern"));
+    let mut build = Command::new(bin.join("morrow"));
     build.arg("build").arg(source).arg("-o").arg(&output);
     let actual = capture(build, bin, directory)?;
     let diagnostic = String::from_utf8_lossy(&actual.stderr);

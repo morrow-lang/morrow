@@ -1,4 +1,4 @@
-use fern_message_path::{Case, Codec, run};
+use morrow_message_path::{Case, Codec, run};
 use serde::Serialize;
 use std::{
     io::Write,
@@ -9,7 +9,7 @@ use std::{
 struct Batch {
     batch: usize,
     order: usize,
-    report: fern_message_path::Report,
+    report: morrow_message_path::Report,
 }
 #[derive(Serialize)]
 struct Results {
@@ -53,13 +53,13 @@ fn bounded(text: Option<&String>, default: usize, maximum: usize) -> Result<usiz
 fn measure() -> Result<(), String> {
     let args: Vec<_> = std::env::args().skip(1).take(4).collect();
     if args.len() > 3 {
-        return Err("usage: fern-message-path [ephemeral-ops durable-ops batches]".into());
+        return Err("usage: morrow-message-path [ephemeral-ops durable-ops batches]".into());
     }
     let ephemeral = bounded(args.first(), 150, 2000)?;
     let durable = bounded(args.get(1), 20, 2000)?;
     let repetitions = bounded(args.get(2), 5, 21)?;
     let mut results = Results {
-        experiment: "native-fern-actors-over-loopback-websocket-v1",
+        experiment: "native-morrow-actors-over-loopback-websocket-v1",
         source_revision: command("git", &["rev-parse", "HEAD"]),
         source_status: command("git", &["status", "--short"]),
         rustc: command("rustc", &["--version"]),

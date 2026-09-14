@@ -554,145 +554,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7360491ce676a36bf9bb3c56c1aa791658183a54d2744120f27285738d90465a"
 
 [[package]]
-name = "fern"
-version = "0.1.0"
-dependencies = [
- "cranelift-codegen",
- "cranelift-frontend",
- "cranelift-module",
- "cranelift-native",
- "cranelift-object",
- "fern-json",
- "fern-test-supervisor",
- "libc",
- "rustyline",
- "serde_json",
- "wasm-encoder",
- "wasmi",
- "wasmparser 0.259.0",
-]
-
-[[package]]
-name = "fern-browser"
-version = "0.1.0"
-dependencies = [
- "fern-web-protocol",
- "js-sys",
- "serde",
- "serde_json",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "fern-browser-worker"
-version = "0.1.0"
-dependencies = [
- "js-sys",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
-]
-
-[[package]]
-name = "fern-cluster"
-version = "0.1.0"
-dependencies = [
- "fern-web-protocol",
- "rcgen",
- "rustix",
- "rustls",
- "serde",
- "serde_json",
- "sha2",
- "tokio",
- "tokio-rustls",
- "zeroize",
-]
-
-[[package]]
-name = "fern-json"
-version = "0.1.0"
-
-[[package]]
-name = "fern-runtime"
-version = "0.1.0"
-dependencies = [
- "fern-json",
- "libc",
- "rusqlite",
- "ureq",
-]
-
-[[package]]
-name = "fern-runtime-native"
-version = "0.1.0"
-dependencies = [
- "fern-runtime",
-]
-
-[[package]]
-name = "fern-sim"
-version = "0.1.0"
-dependencies = [
- "fern",
- "fern-runtime",
- "fern-web-app",
- "fern-web-protocol",
- "libc",
- "serde",
- "serde_json",
- "sha2",
-]
-
-[[package]]
-name = "fern-test-supervisor"
-version = "0.1.0"
-dependencies = [
- "libc",
-]
-
-[[package]]
-name = "fern-web"
-version = "0.1.0"
-dependencies = [
- "axum",
- "fern-cluster",
- "fern-web-app",
- "fern-web-protocol",
- "futures-util",
- "getrandom 0.4.3",
- "libc",
- "serde",
- "serde_json",
- "tokio",
- "tokio-tungstenite 0.30.0",
-]
-
-[[package]]
-name = "fern-web-app"
-version = "0.1.0"
-dependencies = [
- "ar_archive_writer",
- "fern",
- "fern-runtime",
- "fern-web-protocol",
- "libc",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "fern-web-protocol"
-version = "0.1.0"
-dependencies = [
- "prost",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "filetime"
 version = "0.2.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1102,6 +963,145 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "morrow"
+version = "0.1.0"
+dependencies = [
+ "cranelift-codegen",
+ "cranelift-frontend",
+ "cranelift-module",
+ "cranelift-native",
+ "cranelift-object",
+ "libc",
+ "morrow-json",
+ "morrow-test-supervisor",
+ "rustyline",
+ "serde_json",
+ "wasm-encoder",
+ "wasmi",
+ "wasmparser 0.259.0",
+]
+
+[[package]]
+name = "morrow-browser"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "morrow-web-protocol",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "morrow-browser-worker"
+version = "0.1.0"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "morrow-cluster"
+version = "0.1.0"
+dependencies = [
+ "morrow-web-protocol",
+ "rcgen",
+ "rustix",
+ "rustls",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tokio",
+ "tokio-rustls",
+ "zeroize",
+]
+
+[[package]]
+name = "morrow-json"
+version = "0.1.0"
+
+[[package]]
+name = "morrow-runtime"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "morrow-json",
+ "rusqlite",
+ "ureq",
+]
+
+[[package]]
+name = "morrow-runtime-native"
+version = "0.1.0"
+dependencies = [
+ "morrow-runtime",
+]
+
+[[package]]
+name = "morrow-sim"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "morrow",
+ "morrow-runtime",
+ "morrow-web-app",
+ "morrow-web-protocol",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "morrow-test-supervisor"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "morrow-web"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures-util",
+ "getrandom 0.4.3",
+ "libc",
+ "morrow-cluster",
+ "morrow-web-app",
+ "morrow-web-protocol",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+]
+
+[[package]]
+name = "morrow-web-app"
+version = "0.1.0"
+dependencies = [
+ "ar_archive_writer",
+ "libc",
+ "morrow",
+ "morrow-runtime",
+ "morrow-web-protocol",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "morrow-web-protocol"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -2257,9 +2257,9 @@ name = "xtask"
 version = "0.1.0"
 dependencies = [
  "base64 0.23.1",
- "fern-test-supervisor",
  "flate2",
  "libc",
+ "morrow-test-supervisor",
  "serde_json",
  "sha2",
  "tar",

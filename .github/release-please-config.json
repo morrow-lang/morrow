@@ -6,7 +6,7 @@
       "version-file": ".github/release-version.txt",
       "initial-version": "0.1.0",
       "bump-minor-pre-major": true,
-      "package-name": "fern",
+      "package-name": "morrow",
       "include-v-in-tag": true,
       "changelog-path": "CHANGELOG.md",
       "extra-files": [
@@ -18,57 +18,57 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-json')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-browser')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-browser')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-browser-worker')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-browser-worker')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web-app')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web-app')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web-protocol')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web-protocol')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-sim')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-sim')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-runtime')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-runtime')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-runtime-native')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-runtime-native')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-test-supervisor')].version"
         },
         {
           "type": "toml",
@@ -78,57 +78,57 @@
         {
           "type": "toml",
           "path": "benchmarks/compiler-phases/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/compiler-phases/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-json')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/compiler-phases/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-test-supervisor')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/network-codecs/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web-protocol')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web-protocol')].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-cluster')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-cluster')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-json')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-json')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-runtime')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-runtime')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-test-supervisor')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web-app')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web-app')].version"
         },
         {
           "type": "toml",
           "path": "benchmarks/message-path/Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value == 'fern-web-protocol')].version"
+          "jsonpath": "$.package[?(@.name.value == 'morrow-web-protocol')].version"
         }
       ]
     }

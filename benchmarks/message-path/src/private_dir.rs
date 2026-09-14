@@ -19,7 +19,7 @@ impl PrivateDir {
             .as_nanos();
         for _ in 0..32 {
             let path = std::env::temp_dir().join(format!(
-                "fern-message-path-{}-{stamp}-{}",
+                "morrow-message-path-{}-{stamp}-{}",
                 std::process::id(),
                 SERIAL.fetch_add(1, Ordering::Relaxed)
             ));

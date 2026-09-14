@@ -1,0 +1,16 @@
+fn square(value: a) -> a: value * value
+fn add(left: a, right: a) -> a: left + right
+fn describe(value: a) -> String: "value={value}"
+fn apply(action: (a) -> b, value: a) -> b: action(value)
+fn squares(values: List(a)) -> List(a): List.map(values, square)
+fn descriptions(values: List(a)) -> List(String): List.map(values, describe)
+fn main():
+    println(square(3))
+    println(square(2.0))
+    println(add(left: 20, right: 22))
+    println(add(left: 1.25, right: 2.5))
+    println(add(left: "Mor", right: "row"))
+    println(describe(true))
+    println(apply(square, 2.0))
+    println(List.head(squares([3, 4])))
+    println(List.head(descriptions([42])))

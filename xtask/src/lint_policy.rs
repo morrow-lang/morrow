@@ -148,7 +148,7 @@ fn expected_failure(success: bool, diagnostics: &str, lint: &str) -> bool {
 
 /// Exercise all eighteen forbidden snippets and both supported positive cases.
 pub fn run(root: &Path) -> Result<(), String> {
-    let compiler = root.join("crates/fern");
+    let compiler = root.join("crates/morrow");
     let (lints, boundary) = policy(
         &read(&compiler.join("Cargo.toml"))?,
         &read(&compiler.join("src/lib.rs"))?,
@@ -157,10 +157,10 @@ pub fn run(root: &Path) -> Result<(), String> {
     )?;
     let temp = crate::Temporary::new(&std::env::temp_dir())?;
     fs::create_dir(temp.0.join("src")).map_err(|e| e.to_string())?;
-    fs::write(temp.0.join("Cargo.toml"), format!("[workspace]\n[package]\nname=\"fern-lint-policy-probe\"\nversion=\"0.0.0\"\nedition=\"2024\"\n[lints.clippy]\n{lints}")).map_err(|e| e.to_string())?;
-    let helper = std::env::var_os("FERN_TEST_SUPERVISOR")
+    fs::write(temp.0.join("Cargo.toml"), format!("[workspace]\n[package]\nname=\"morrow-lint-policy-probe\"\nversion=\"0.0.0\"\nedition=\"2024\"\n[lints.clippy]\n{lints}")).map_err(|e| e.to_string())?;
+    let helper = std::env::var_os("MORROW_TEST_SUPERVISOR")
         .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| root.join("bin/fern-test-supervisor"));
+        .unwrap_or_else(|| root.join("bin/morrow-test-supervisor"));
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| env!("CARGO").into());
     let check = |body: &str, scoped: bool, tests: bool| -> Result<(bool, String), String> {
         fs::write(
@@ -185,7 +185,7 @@ pub fn run(root: &Path) -> Result<(), String> {
             .env("CARGO_TARGET_DIR", temp.0.join("target"))
             .env_remove("RUSTFLAGS")
             .env_remove("CARGO_ENCODED_RUSTFLAGS");
-        let output = fern_test_supervisor::capture(command, supervisor, Duration::from_secs(60))?;
+        let output = morrow_test_supervisor::capture(command, supervisor, Duration::from_secs(60))?;
         Ok((
             output.status.success(),
             format!(
@@ -250,7 +250,7 @@ mod tests {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"))
             .parent()
             .unwrap()
-            .join("crates/fern");
+            .join("crates/morrow");
         let manifest = read(&root.join("Cargo.toml")).unwrap();
         let lib = read(&root.join("src/lib.rs")).unwrap();
         let main = read(&root.join("src/main.rs")).unwrap();

@@ -1,7 +1,7 @@
 # A portable typed application. Compile with:
-# fern build --target=wasm32 examples/web/checklist.fn -o checklist.wasm
+# morrow build --target=wasm32 examples/web/checklist.fn -o checklist.wasm
 #
-# The host owns DOM handles, storage and transport. Fern owns the domain transition,
+# The host owns DOM handles, storage and transport. Morrow owns the domain transition,
 # immutable local model, event update and view. No host or application-specific
 # primitive is needed by the compiler. Native and browser targets share this file.
 module checklist
@@ -195,7 +195,7 @@ pub fn view(model: Model) -> List(Node):
     ])
 
 # Host construction/projection functions keep ownership explicit at the ABI. They
-# are ordinary Fern functions; applications may use different models and events.
+# are ordinary Morrow functions; applications may use different models and events.
 pub fn tasks_empty() -> List(Task): []
 pub fn tasks_push(tasks: List(Task), id: Int, label: String, done: Bool) -> List(Task): List.push(tasks, Task(id, label, done))
 pub fn event_draft(text: String) -> Event: Draft(text)

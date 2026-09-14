@@ -1,0 +1,8 @@
+fn total([]: List(Int), acc: Int) -> acc
+fn total([head, ..tail]: List(Int), acc: Int) -> total(tail, acc + head)
+fn pick((false, ..rest): (Bool, String)) -> rest.0
+fn pick((true, ..rest): (Bool, String)) -> String.to_upper(rest.0)
+fn main():
+    println(total([1, 2, 3, 4], 0))
+    println(pick((false, "Morrow")))
+    println(pick((true, "Morrow")))

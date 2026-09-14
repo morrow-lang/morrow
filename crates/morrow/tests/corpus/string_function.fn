@@ -1,0 +1,4 @@
+fn greet(name: String) -> String:
+    String.concat("Hello, ", name)
+fn main():
+    println(greet("Morrow"))

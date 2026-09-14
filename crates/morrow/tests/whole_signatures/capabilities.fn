@@ -1,0 +1,14 @@
+fn add(left, right) -> left + right
+fn square(value) -> value * value
+fn describe(value) -> "value={value}"
+fn seen(value) -> List.contains([value], value)
+fn lookup(key, value) -> Map.get(%{key: value}, key)
+fn main():
+    println(add(left: 20, right: 22))
+    println(add(left: 1.25, right: 2.5))
+    println(add(left: "Mor", right: "row"))
+    println(square(3))
+    println(square(2.0))
+    println(describe(true))
+    println(seen("Morrow"))
+    println(Option.unwrap_or(lookup("answer", 42), 0))

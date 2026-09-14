@@ -1,0 +1,46 @@
+newtype Id = Id(Int)
+
+type Profile:
+    id: Id
+    label: String
+
+fn factorial(n: Int) -> Int:
+    (if (n == 0): 1 else: (n * factorial((n - 1))))
+
+fn capture(n: Int) -> () -> Int:
+    () -> n
+
+const number = comptime:
+    factorial(6)
+
+const profile = comptime:
+    Profile(Id(9007199254740993), String.concat("🌿", " Morrow"))
+
+const values = comptime:
+    [9223372036854775807, -9223372036854775808]
+
+const table = comptime:
+    Map.put(%{"first": 1}, "second", 2)
+
+const callback = comptime:
+    capture(42)
+
+const unique = comptime:
+    Set.from_list([3, 1, 3, 2])
+
+const result: Result(Int, String) = comptime:
+    Ok(7)
+
+fn main():
+    println(number)
+    println(profile.id.0)
+    println(profile.label)
+    println(List.head(values))
+    println(List.get(values, 1))
+    println(Option.unwrap_or(Map.get(table, "second"), 0))
+    println(callback())
+    println(Set.len(unique))
+    println(List.head(Set.to_list(unique)))
+    match result:
+        Ok(value) -> println(value)
+        Err(message) -> println(message)

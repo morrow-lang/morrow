@@ -23,17 +23,17 @@ pub fn artifacts(messages: &str) -> Result<Artifacts, String> {
             continue;
         }
         match message["target"]["name"].as_str() {
-            Some("fern")
+            Some("morrow")
                 if message["target"]["kind"]
                     .as_array()
                     .is_some_and(|kinds| kinds.iter().any(|kind| kind == "bin")) =>
             {
                 compiler = message["executable"].as_str().map(PathBuf::from);
             }
-            Some("fern-test-supervisor") => {
+            Some("morrow-test-supervisor") => {
                 supervisor = message["executable"].as_str().map(PathBuf::from)
             }
-            Some("fern_runtime_native") => {
+            Some("morrow_runtime_native") => {
                 runtime = message["filenames"]
                     .as_array()
                     .into_iter()
@@ -42,7 +42,7 @@ pub fn artifacts(messages: &str) -> Result<Artifacts, String> {
                     .find(|name| {
                         Path::new(name)
                             .file_name()
-                            .is_some_and(|file| file == "libfern_runtime_native.a")
+                            .is_some_and(|file| file == "libmorrow_runtime_native.a")
                     })
                     .map(PathBuf::from);
             }
@@ -50,8 +50,8 @@ pub fn artifacts(messages: &str) -> Result<Artifacts, String> {
         }
     }
     Ok(Artifacts {
-        compiler: compiler.ok_or("Cargo did not produce the Fern compiler")?,
-        supervisor: supervisor.ok_or("Cargo did not produce the Fern test supervisor")?,
+        compiler: compiler.ok_or("Cargo did not produce the Morrow compiler")?,
+        supervisor: supervisor.ok_or("Cargo did not produce the Morrow test supervisor")?,
         runtime: runtime.ok_or("Cargo did not produce the Rust native entry archive")?,
     })
 }
@@ -64,13 +64,13 @@ pub fn build(root: &Path, release: bool) -> Result<PathBuf, String> {
         "--locked",
         "--message-format=json-render-diagnostics",
         "-p",
-        "fern",
+        "morrow",
         "-p",
-        "fern-runtime",
+        "morrow-runtime",
         "-p",
-        "fern-runtime-native",
+        "morrow-runtime-native",
         "-p",
-        "fern-test-supervisor",
+        "morrow-test-supervisor",
     ]);
     if release {
         command.arg("--release");
@@ -86,9 +86,9 @@ pub fn build(root: &Path, release: bool) -> Result<PathBuf, String> {
         artifacts(std::str::from_utf8(&output.stdout).map_err(|error| error.to_string())?)?;
     let stage = crate::Temporary::new(root)?;
     for (source, name) in [
-        (&selected.compiler, "fern"),
-        (&selected.supervisor, "fern-test-supervisor"),
-        (&selected.runtime, "libfern_runtime.a"),
+        (&selected.compiler, "morrow"),
+        (&selected.supervisor, "morrow-test-supervisor"),
+        (&selected.runtime, "libmorrow_runtime.a"),
     ] {
         fs::copy(source, stage.0.join(name))
             .map_err(|error| format!("cannot stage {name}: {error}"))?;
@@ -107,21 +107,21 @@ mod tests {
     #[test]
     fn discovers_exact_artifacts_and_never_selects_the_core_archive() {
         let messages = concat!(
-            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"fern_runtime\",\"kind\":[\"rlib\",\"staticlib\"]},\"filenames\":[\"/custom/libfern_runtime.a\"]}\n",
-            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"fern_runtime_native\",\"kind\":[\"staticlib\"]},\"filenames\":[\"/custom/libfern_runtime_native.a\"]}\n",
-            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"fern\",\"kind\":[\"bin\"]},\"executable\":\"/custom/fern\"}\n",
-            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"fern-test-supervisor\",\"kind\":[\"bin\"]},\"executable\":\"/custom/fern-test-supervisor\"}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"morrow_runtime\",\"kind\":[\"rlib\",\"staticlib\"]},\"filenames\":[\"/custom/libmorrow_runtime.a\"]}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"morrow_runtime_native\",\"kind\":[\"staticlib\"]},\"filenames\":[\"/custom/libmorrow_runtime_native.a\"]}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"morrow\",\"kind\":[\"bin\"]},\"executable\":\"/custom/morrow\"}\n",
+            "{\"reason\":\"compiler-artifact\",\"target\":{\"name\":\"morrow-test-supervisor\",\"kind\":[\"bin\"]},\"executable\":\"/custom/morrow-test-supervisor\"}\n",
             "{\"reason\":\"build-finished\",\"success\":true}\n",
         );
         assert_eq!(
             artifacts(messages).unwrap(),
             Artifacts {
-                compiler: "/custom/fern".into(),
-                supervisor: "/custom/fern-test-supervisor".into(),
-                runtime: "/custom/libfern_runtime_native.a".into(),
+                compiler: "/custom/morrow".into(),
+                supervisor: "/custom/morrow-test-supervisor".into(),
+                runtime: "/custom/libmorrow_runtime_native.a".into(),
             }
         );
-        assert!(artifacts(&messages.replace("fern_runtime_native", "unrelated")).is_err());
+        assert!(artifacts(&messages.replace("morrow_runtime_native", "unrelated")).is_err());
         assert!(artifacts("invalid json").is_err());
     }
 }

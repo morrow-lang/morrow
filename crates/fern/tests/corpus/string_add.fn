@@ -1,4 +1,0 @@
-fn suffix() -> String:
-    "Fern"
-fn main():
-    println("Hello, " + suffix() + "!")

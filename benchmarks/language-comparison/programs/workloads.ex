@@ -1,8 +1,8 @@
-defmodule FernComparison do
+defmodule MorrowComparison do
   @moduledoc """
   Elixir equivalents of workloads.fn and workloads.rs.
 
-  Compile once with elixirc, then invoke FernComparison.main/0 with runtime
+  Compile once with elixirc, then invoke MorrowComparison.main/0 with runtime
   arguments. The default model uses a list of {index, value} tuples; model-struct
   uses named structs. Both allocate a new list on every update, retain unchanged
   cells, and keep the original model available until after the final checksum.

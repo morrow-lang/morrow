@@ -1,4 +1,4 @@
 fn start() -> Int: -4294967295
 fn main():
-    println(String.slice("fern", start(), 4294967297))
+    println(String.slice("morrow", start(), 4294967297))
     println(String.repeat("x", -4294967295))

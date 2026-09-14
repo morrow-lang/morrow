@@ -1,6 +1,6 @@
 use crate::{Codec, Result, ns};
-use fern_network_codecs::{Message, decode, encode};
-use fern_web_protocol::MAX_FRAME_BYTES;
+use morrow_network_codecs::{Message, decode, encode};
+use morrow_web_protocol::MAX_FRAME_BYTES;
 use std::{
     net::{SocketAddr, TcpStream},
     time::{Duration, Instant},

@@ -1,0 +1,15 @@
+fn describe(value: a) -> String: "value={value}"
+fn first(value: a, n: Int) -> String:
+    if n == 0: describe(value) else: second(value, n - 1)
+fn second(value: b, n: Int) -> String:
+    if n == 0: describe(value) else: first(value, n - 1)
+fn printer(value: a) -> () -> String: () -> describe(value)
+fn seen(value: a) -> Bool: List.contains([value], value)
+fn lookup(key: k, value: v) -> Option(v): Map.get(%{key: value}, key)
+fn main():
+    println(first(42, 3))
+    println(second("Morrow", 2))
+    println(printer(true)())
+    println(seen("Morrow"))
+    println(seen(false))
+    println(Option.unwrap_or(lookup("answer", 42), 0))

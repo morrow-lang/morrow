@@ -1,4 +1,4 @@
-use fern_network_codecs::{Codec, browser::Engine};
+use morrow_network_codecs::{Codec, browser::Engine};
 
 #[test]
 fn browser_fixture_engine_checks_semantics_before_measurement() {
@@ -20,7 +20,7 @@ fn browser_fixture_engine_checks_semantics_before_measurement() {
 
 #[test]
 fn production_protobuf_keeps_the_measured_fixture_wire_bytes() {
-    use fern_network_codecs::{Message, corpus, encode, protocol::binary};
+    use morrow_network_codecs::{Message, corpus, encode, protocol::binary};
     for (name, message) in corpus::fixtures() {
         let measured = encode(Codec::Protobuf, &message).unwrap();
         let production = match &message {

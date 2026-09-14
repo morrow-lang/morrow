@@ -5,19 +5,19 @@ const SOURCES: &[(&str, &str)] = &[
     ("tour", include_str!("../../../examples/language_tour.fn")),
     (
         "custom-json",
-        include_str!("../../../crates/fern/tests/custom_json_native/values.fn"),
+        include_str!("../../../crates/morrow/tests/custom_json_native/values.fn"),
     ),
     (
         "comptime",
-        include_str!("../../../crates/fern/tests/comptime_native/values.fn"),
+        include_str!("../../../crates/morrow/tests/comptime_native/values.fn"),
     ),
     (
         "deep-json",
-        include_str!("../../../crates/fern/tests/json_deep_unions/values.fn"),
+        include_str!("../../../crates/morrow/tests/json_deep_unions/values.fn"),
     ),
     (
         "traits",
-        include_str!("../../../crates/fern/tests/traits/values.fn"),
+        include_str!("../../../crates/morrow/tests/traits/values.fn"),
     ),
     (
         "foreign",

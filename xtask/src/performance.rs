@@ -27,14 +27,14 @@ fn summary(samples: &[f64]) -> Result<Value, String> {
 /// Measure explicitly staged components and simple native programs with independent outputs.
 pub fn run(root: &Path, bin: &Path, output: &Path) -> Result<(), String> {
     let mut components = serde_json::Map::new();
-    for name in ["fern", "fern-test-supervisor", "libfern_runtime.a"] {
+    for name in ["morrow", "morrow-test-supervisor", "libmorrow_runtime.a"] {
         let bytes = fs::read(bin.join(name)).map_err(|error| error.to_string())?;
         components.insert(
             name.into(),
             json!({"bytes":bytes.len(),"sha256":Sha256::digest(&bytes).iter().map(|byte| format!("{byte:02x}")).collect::<String>()}),
         );
     }
-    let compiler = bin.join("fern");
+    let compiler = bin.join("morrow");
     let mut startup = Vec::new();
     for _ in 0..30 {
         let started = Instant::now();
@@ -44,7 +44,7 @@ pub fn run(root: &Path, bin: &Path, output: &Path) -> Result<(), String> {
             .map_err(|error| error.to_string())?;
         startup.push(started.elapsed().as_secs_f64() * 1000.0);
         if !result.status.success()
-            || result.stdout != format!("fern {}\n", env!("CARGO_PKG_VERSION")).as_bytes()
+            || result.stdout != format!("morrow {}\n", env!("CARGO_PKG_VERSION")).as_bytes()
             || !result.stderr.is_empty()
         {
             return Err("compiler version probe failed".into());
@@ -61,7 +61,7 @@ pub fn run(root: &Path, bin: &Path, output: &Path) -> Result<(), String> {
         let started = Instant::now();
         let result = Command::new(&compiler)
             .arg("build")
-            .arg(root.join(format!("benchmarks/{name}_fern.fn")))
+            .arg(root.join(format!("benchmarks/{name}_morrow.fn")))
             .arg("-o")
             .arg(&executable)
             .output()

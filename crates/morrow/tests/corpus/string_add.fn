@@ -1,0 +1,4 @@
+fn suffix() -> String:
+    "Morrow"
+fn main():
+    println("Hello, " + suffix() + "!")

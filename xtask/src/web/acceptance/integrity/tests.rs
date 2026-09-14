@@ -83,7 +83,7 @@ fn rolling_deployment_keeps_exact_http_success_tampering_and_mime() {
     let fixture = Fixture::new(BTreeMap::from([
         ("/worker.js".into(), b"original worker".to_vec()),
         ("/style.css".into(), b"original style".to_vec()),
-        ("/fern.wasm".into(), b"\0asm\x01\0\0\0".to_vec()),
+        ("/morrow.wasm".into(), b"\0asm\x01\0\0\0".to_vec()),
     ]))
     .unwrap();
     assert_eq!(get(&fixture, "/worker.js").1, b"original worker");
@@ -100,7 +100,7 @@ fn rolling_deployment_keeps_exact_http_success_tampering_and_mime() {
     assert!(headers.starts_with("HTTP/1.1 200 OK\r\n"));
     assert!(headers.contains("Cache-Control: no-store\r\n"));
     assert_eq!(style, b"body { display: none !important; }");
-    let (headers, wasm) = get(&fixture, "/fern.wasm");
+    let (headers, wasm) = get(&fixture, "/morrow.wasm");
     assert!(headers.contains("Content-Type: application/wasm\r\n"));
     assert_eq!(wasm, b"\0asm\x01\0\0\0");
     assert!(

@@ -1,0 +1,3 @@
+import api as inventory
+fn main():
+    inventory.describe(inventory.item("Morrow", 42))

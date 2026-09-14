@@ -224,12 +224,12 @@ pub(super) fn run(browser: &mut Browser, source: &str) -> Result<()> {
         "navigator.serviceWorker.controller !== null && document.querySelector('#draft') !== null",
     )?;
     browser.eval(&page, "document.querySelector('#draft').value='Survives rejected upgrade';document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true}));true")?;
-    let before = browser.eval(&page, "(async()=>{const key=(await caches.keys()).find(k=>k.startsWith('fern-public-assets-v1-'));return await (await (await caches.open(key)).match('/style.css')).text()})()")?;
+    let before = browser.eval(&page, "(async()=>{const key=(await caches.keys()).find(k=>k.startsWith('morrow-public-assets-v1-'));return await (await (await caches.open(key)).match('/style.css')).text()})()")?;
     fixture.changed.store(true, Ordering::Relaxed);
     // Attach before update so even a fast rejecting install is observable.
-    browser.eval(&page, "(async()=>{const registration=await navigator.serviceWorker.getRegistration();window.fernRejectedUpdate=false;registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker.addEventListener('statechange',()=>{if(worker.state==='redundant')window.fernRejectedUpdate=true})});await registration.update();return true})()")?;
-    browser.wait(&page, "window.fernRejectedUpdate === true")?;
-    let after = browser.eval(&page, "(async()=>{const key=(await caches.keys()).find(k=>k.startsWith('fern-public-assets-v1-'));return await (await (await caches.open(key)).match('/style.css')).text()})()")?;
+    browser.eval(&page, "(async()=>{const registration=await navigator.serviceWorker.getRegistration();window.morrowRejectedUpdate=false;registration.addEventListener('updatefound',()=>{const worker=registration.installing;worker.addEventListener('statechange',()=>{if(worker.state==='redundant')window.morrowRejectedUpdate=true})});await registration.update();return true})()")?;
+    browser.wait(&page, "window.morrowRejectedUpdate === true")?;
+    let after = browser.eval(&page, "(async()=>{const key=(await caches.keys()).find(k=>k.startsWith('morrow-public-assets-v1-'));return await (await (await caches.open(key)).match('/style.css')).text()})()")?;
     if before != after {
         return Err("failed worker upgrade modified the active asset cache".into());
     }

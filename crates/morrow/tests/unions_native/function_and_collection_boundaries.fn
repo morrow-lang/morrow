@@ -1,0 +1,19 @@
+type Choice = Int | String
+type Handler = (Choice) -> Choice
+fn handler() -> Handler | Bool:
+    (value: Choice) -> value
+fn choose(n: Int) -> Choice:
+    if n == 1: 4294967296 else: "morrow"
+fn show(value: Choice) -> Unit:
+    match value:
+        n: Int -> println(n)
+        s: String -> println(s)
+fn main():
+    match handler():
+        call: Handler -> show(call("handler"))
+        flag: Bool -> println(flag)
+    for value in List.map([1, 2], choose):
+        show(value)
+    let values: Map(String, Choice) = %{"first": 4294967297, "second": "map"}
+    for (_, value) in values:
+        show(value)

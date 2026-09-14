@@ -1,9 +1,0 @@
-fn describe(value: json.Value | String) -> String:
-    match value:
-        native: json.Value -> match json.stringify(native):
-            Ok(text) -> text
-            Err(error) -> json.error_message(error)
-        text: String -> text
-fn main():
-    println(describe(json.from_int(4294967296)))
-    println(describe("fern"))

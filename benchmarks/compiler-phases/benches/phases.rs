@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use fern_compiler::{check, lowering, parse, Span};
-use fern_phase_benchmarks::{codec_plan, fixtures};
+use morrow_compiler::{check, lowering, parse, Span};
+use morrow_phase_benchmarks::{codec_plan, fixtures};
 use std::{hint::black_box, time::Duration};
 
 fn phases(c: &mut Criterion) {

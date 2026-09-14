@@ -220,12 +220,12 @@ pub fn run_integrity(server: &Path) -> Result<()> {
 }
 
 fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
-    let browser_path = env::var_os("FERN_BROWSER")
-        .ok_or("set FERN_BROWSER to a Chromium/Edge executable for real-browser acceptance")?;
+    let browser_path = env::var_os("MORROW_BROWSER")
+        .ok_or("set MORROW_BROWSER to a Chromium/Edge executable for real-browser acceptance")?;
     let directory = crate::Temporary::new(&env::temp_dir())?;
     let server_log = directory.0.join("server.log");
     let mut server_process = None;
-    let origin = if let Ok(origin) = env::var("FERN_WEB_CHECK_ORIGIN") {
+    let origin = if let Ok(origin) = env::var("MORROW_WEB_CHECK_ORIGIN") {
         let address: std::net::SocketAddr = origin
             .strip_prefix("http://")
             .ok_or("external acceptance origin must be a loopback http socket address")?
@@ -239,11 +239,11 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         let server = server.canonicalize().map_err(|error| error.to_string())?;
         server_process = Some(Process::spawn(
             Command::new(server)
-                .env("FERN_WEB_BIND", "127.0.0.1:0")
-                .env_remove("FERN_WEB_ORIGIN")
-                .env_remove("FERN_WEB_CLUSTER")
-                .env_remove("FERN_WEB_DATA_DIR")
-                .env("FERN_WEB_ACCESS_KEY", "fern-browser-test-key")
+                .env("MORROW_WEB_BIND", "127.0.0.1:0")
+                .env_remove("MORROW_WEB_ORIGIN")
+                .env_remove("MORROW_WEB_CLUSTER")
+                .env_remove("MORROW_WEB_DATA_DIR")
+                .env("MORROW_WEB_ACCESS_KEY", "morrow-browser-test-key")
                 .stdout(Stdio::null())
                 .stderr(fs::File::create(&server_log).map_err(|error| error.to_string())?),
         )?);
@@ -297,7 +297,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         &first,
         "document.querySelector('#status')?.textContent.includes('access key') === true",
     )?;
-    browser.eval(&first, "document.querySelector('#access-key').value='fern-browser-test-key'; document.querySelector('#login-form').requestSubmit(); true")?;
+    browser.eval(&first, "document.querySelector('#access-key').value='morrow-browser-test-key'; document.querySelector('#login-form').requestSubmit(); true")?;
     browser.wait(
         &first,
         "document.querySelector('#connection')?.getAttribute('data-online') === 'true'",
@@ -329,7 +329,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
             "getComputedStyle(document.querySelector('#empty')).display === 'none'",
         )?;
         if browser.eval(page, "document.querySelector('#task-1 > #label-1 > #check-1')?.type === 'checkbox' && document.querySelector('#text-1')?.textContent === 'Grow a lasting language'")? != true {
-            return Err("compiled Fern view did not produce the expected keyed DOM tree".into());
+            return Err("compiled Morrow view did not produce the expected keyed DOM tree".into());
         }
     }
     browser.wait(&first, "document.querySelector('#add')?.getAttribute('aria-busy') === 'false' && document.querySelector('#add')?.textContent === 'Add +'")?;
@@ -408,7 +408,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     println!(
         "Screenshot readiness passed: previous visibility {previous_visibility}; activated, painted, PNG signature verified"
     );
-    if let Some(path) = env::var_os("FERN_WEB_SCREENSHOT") {
+    if let Some(path) = env::var_os("MORROW_WEB_SCREENSHOT") {
         fs::write(path, bytes).map_err(|error| error.to_string())?;
     }
     browser.call(
@@ -419,7 +419,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     if browser.eval(&first, "document.documentElement.scrollWidth <= window.innerWidth && document.querySelector('#draft').getBoundingClientRect().width >= 100")? != true {
         return Err("mobile layout overflows or leaves no usable draft field".into());
     }
-    if let Some(path) = env::var_os("FERN_WEB_MOBILE_SCREENSHOT") {
+    if let Some(path) = env::var_os("MORROW_WEB_MOBILE_SCREENSHOT") {
         let screenshot = browser.capture(&first, true)?;
         let bytes = screenshot_png(&screenshot)?;
         fs::write(path, bytes).map_err(|error| error.to_string())?;
@@ -431,7 +431,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     )?;
     integrity::run(&mut browser, &first)?;
     println!(
-        "Real-browser acceptance passed: two clients, compiled Fern model/update/view, rejected-effect draft preservation, scoped saving feedback, keyed DOM/focus, offline worker restart/reload/draft/filter/UTF-8 preview, mobile layout, reconnect and session revocation"
+        "Real-browser acceptance passed: two clients, compiled Morrow model/update/view, rejected-effect draft preservation, scoped saving feedback, keyed DOM/focus, offline worker restart/reload/draft/filter/UTF-8 preview, mobile layout, reconnect and session revocation"
     );
     drop(server_process);
     Ok(())

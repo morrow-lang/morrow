@@ -13,7 +13,7 @@ struct Fixture {
 impl Fixture {
     fn new() -> Self {
         let root = std::env::temp_dir().canonicalize().unwrap().join(format!(
-            "fern-dist-{}-{}",
+            "morrow-dist-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -23,7 +23,7 @@ impl Fixture {
         for name in REQUIRED {
             fs::write(
                 stage.join(name),
-                if *name == "fern-package.json" {
+                if *name == "morrow-package.json" {
                     MARKER.as_bytes()
                 } else {
                     b"fixture\n"
@@ -32,11 +32,13 @@ impl Fixture {
             .unwrap();
             fs::set_permissions(
                 stage.join(name),
-                fs::Permissions::from_mode(if ["fern", "fern-test-supervisor"].contains(name) {
-                    0o755
-                } else {
-                    0o644
-                }),
+                fs::Permissions::from_mode(
+                    if ["morrow", "morrow-test-supervisor"].contains(name) {
+                        0o755
+                    } else {
+                        0o644
+                    },
+                ),
             )
             .unwrap();
         }
@@ -69,7 +71,7 @@ fn forged(f: &Fixture, changes: &[(&str, tar::EntryType, u32, &[u8])]) -> PathBu
             .map(|(_, kind, mode, data)| (*kind, *mode, *data))
             .unwrap_or((
                 tar::EntryType::Regular,
-                if ["fern", "fern-test-supervisor"].contains(name) {
+                if ["morrow", "morrow-test-supervisor"].contains(name) {
                     0o755
                 } else {
                     0o644
@@ -78,7 +80,7 @@ fn forged(f: &Fixture, changes: &[(&str, tar::EntryType, u32, &[u8])]) -> PathBu
             ));
         let mut header = tar::Header::new_ustar();
         header
-            .set_path(format!("fern-0.1.0-linux-arm64/{name}"))
+            .set_path(format!("morrow-0.1.0-linux-arm64/{name}"))
             .unwrap();
         header.set_entry_type(kind);
         header.set_mode(mode);
@@ -141,7 +143,7 @@ fn missing_required_inputs_reject_before_output_publication() {
 }
 #[test]
 fn helpers_require_owner_execute_and_regular_input_files() {
-    for name in ["fern", "fern-test-supervisor"] {
+    for name in ["morrow", "morrow-test-supervisor"] {
         for mode in [0o644, 0o641] {
             let f = Fixture::new();
             fs::set_permissions(f.stage.join(name), fs::Permissions::from_mode(mode)).unwrap();
@@ -164,7 +166,7 @@ fn marker_requires_exact_typed_rust_identity() {
         r#"{"format":2,"compiler":"rust","backend":"qbe","runtime":"rust"}"#,
     ] {
         let f = Fixture::new();
-        fs::write(f.stage.join("fern-package.json"), value).unwrap();
+        fs::write(f.stage.join("morrow-package.json"), value).unwrap();
         assert!(verify_layout(&f.stage).is_err(), "{value}");
     }
 }
@@ -185,7 +187,7 @@ fn invalid_repack_keeps_previous_archive_and_checksum() {
     let f = Fixture::new();
     let path = f.package().unwrap();
     let before = (fs::read(&path).unwrap(), fs::read(checksum(&path)).unwrap());
-    fs::write(f.stage.join("fern-package.json"), "{}").unwrap();
+    fs::write(f.stage.join("morrow-package.json"), "{}").unwrap();
     assert!(f.package().is_err());
     assert_eq!(
         (fs::read(&path).unwrap(), fs::read(checksum(&path)).unwrap()),
@@ -200,7 +202,7 @@ fn valid_checksum_cannot_hide_non_executable_or_link_helpers() {
         (tar::EntryType::Symlink, 0o755),
     ] {
         let f = Fixture::new();
-        let path = forged(&f, &[("fern-test-supervisor", kind, mode, b"fixture")]);
+        let path = forged(&f, &[("morrow-test-supervisor", kind, mode, b"fixture")]);
         assert!(verify(&path, &checksum(&path)).is_err());
     }
 }
@@ -209,7 +211,7 @@ fn archive_checksum_and_marker_corruption_are_rejected() {
     let f = Fixture::new();
     let path = forged(
         &f,
-        &[("fern-package.json", tar::EntryType::Regular, 0o644, b"{}")],
+        &[("morrow-package.json", tar::EntryType::Regular, 0o644, b"{}")],
     );
     assert!(verify(&path, &checksum(&path)).is_err());
     let path = f.package().unwrap();
@@ -222,7 +224,7 @@ fn install_uses_literal_prefix_and_complete_component_layout() {
     install(&f.stage, &f.prefix()).unwrap();
     for name in REQUIRED {
         let directory = if ["LICENSE", "THIRD_PARTY_NOTICES.md"].contains(name) {
-            "share/fern"
+            "share/morrow"
         } else {
             "bin"
         };
@@ -239,10 +241,10 @@ fn install_sets_executable_and_document_permissions() {
     let f = Fixture::new();
     install(&f.stage, &f.prefix()).unwrap();
     for (name, mode) in [
-        ("bin/fern", 0o755),
-        ("bin/fern-test-supervisor", 0o755),
-        ("bin/libfern_runtime.a", 0o644),
-        ("share/fern/LICENSE", 0o644),
+        ("bin/morrow", 0o755),
+        ("bin/morrow-test-supervisor", 0o755),
+        ("bin/libmorrow_runtime.a", 0o644),
+        ("share/morrow/LICENSE", 0o644),
     ] {
         assert_eq!(
             fs::metadata(f.prefix().join(name))
@@ -258,10 +260,10 @@ fn install_sets_executable_and_document_permissions() {
 fn install_replaces_existing_files_as_complete_components() {
     let f = Fixture::new();
     install(&f.stage, &f.prefix()).unwrap();
-    fs::write(f.stage.join("fern"), b"replacement compiler").unwrap();
+    fs::write(f.stage.join("morrow"), b"replacement compiler").unwrap();
     install(&f.stage, &f.prefix()).unwrap();
     assert_eq!(
-        fs::read(f.prefix().join("bin/fern")).unwrap(),
+        fs::read(f.prefix().join("bin/morrow")).unwrap(),
         b"replacement compiler"
     );
 }
@@ -270,21 +272,21 @@ fn install_preflights_all_directory_destinations_before_replacing_any_file() {
     for name in REQUIRED {
         let f = Fixture::new();
         let location = if ["LICENSE", "THIRD_PARTY_NOTICES.md"].contains(name) {
-            "share/fern"
+            "share/morrow"
         } else {
             "bin"
         };
         let dest = f.prefix().join(location).join(name);
         fs::create_dir_all(&dest).unwrap();
         fs::write(dest.join("keep"), b"sentinel").unwrap();
-        let previous = f.prefix().join("bin/fern");
-        if *name != "fern" {
+        let previous = f.prefix().join("bin/morrow");
+        if *name != "morrow" {
             fs::create_dir_all(previous.parent().unwrap()).unwrap();
             fs::write(&previous, b"previous").unwrap();
         }
         assert!(install(&f.stage, &f.prefix()).is_err(), "{name}");
         assert_eq!(fs::read(dest.join("keep")).unwrap(), b"sentinel");
-        if *name != "fern" {
+        if *name != "morrow" {
             assert_eq!(fs::read(previous).unwrap(), b"previous");
         }
     }
@@ -301,7 +303,7 @@ fn install_rejects_symlink_destinations_without_touching_targets() {
         } else {
             fs::write(&outside, b"sentinel").unwrap();
         }
-        symlink(&outside, f.prefix().join("bin/fern")).unwrap();
+        symlink(&outside, f.prefix().join("bin/morrow")).unwrap();
         assert!(install(&f.stage, &f.prefix()).is_err());
         assert_eq!(
             fs::read(if directory {
@@ -312,7 +314,7 @@ fn install_rejects_symlink_destinations_without_touching_targets() {
             .unwrap(),
             b"sentinel"
         );
-        assert!(f.prefix().join("bin/fern").is_symlink());
+        assert!(f.prefix().join("bin/morrow").is_symlink());
     }
 }
 #[test]
@@ -329,18 +331,21 @@ fn install_rejects_symlink_parent_without_creating_external_components() {
 fn incomplete_installation_input_leaves_prior_destination_unchanged() {
     let f = Fixture::new();
     install(&f.stage, &f.prefix()).unwrap();
-    fs::write(f.stage.join("fern"), b"new compiler").unwrap();
-    fs::remove_file(f.stage.join("libfern_runtime.a")).unwrap();
+    fs::write(f.stage.join("morrow"), b"new compiler").unwrap();
+    fs::remove_file(f.stage.join("libmorrow_runtime.a")).unwrap();
     assert!(install(&f.stage, &f.prefix()).is_err());
-    assert_eq!(fs::read(f.prefix().join("bin/fern")).unwrap(), b"fixture\n");
+    assert_eq!(
+        fs::read(f.prefix().join("bin/morrow")).unwrap(),
+        b"fixture\n"
+    );
 }
 #[test]
 fn same_source_destination_is_rejected_without_mutating_the_staged_bundle() {
     let f = Fixture::new();
     fs::create_dir(f.stage.join("bin")).unwrap();
-    symlink(f.stage.join("fern"), f.stage.join("bin/fern")).unwrap();
+    symlink(f.stage.join("morrow"), f.stage.join("bin/morrow")).unwrap();
     assert!(install(&f.stage, &f.stage).is_err());
-    assert_eq!(fs::read(f.stage.join("fern")).unwrap(), b"fixture\n");
+    assert_eq!(fs::read(f.stage.join("morrow")).unwrap(), b"fixture\n");
 }
 #[test]
 fn staging_parent_links_are_not_followed() {
@@ -356,14 +361,14 @@ fn uninstall_removes_only_published_components_and_is_idempotent() {
     let f = Fixture::new();
     install(&f.stage, &f.prefix()).unwrap();
     fs::write(f.prefix().join("bin/user-tool"), b"keep").unwrap();
-    fs::write(f.prefix().join("share/fern/user-note"), b"keep").unwrap();
+    fs::write(f.prefix().join("share/morrow/user-note"), b"keep").unwrap();
     uninstall(&f.prefix()).unwrap();
     uninstall(&f.prefix()).unwrap();
     for name in REQUIRED {
         assert!(
             !f.prefix()
                 .join(if ["LICENSE", "THIRD_PARTY_NOTICES.md"].contains(name) {
-                    "share/fern"
+                    "share/morrow"
                 } else {
                     "bin"
                 })
@@ -373,7 +378,7 @@ fn uninstall_removes_only_published_components_and_is_idempotent() {
     }
     assert_eq!(fs::read(f.prefix().join("bin/user-tool")).unwrap(), b"keep");
     assert_eq!(
-        fs::read(f.prefix().join("share/fern/user-note")).unwrap(),
+        fs::read(f.prefix().join("share/morrow/user-note")).unwrap(),
         b"keep"
     );
 }
@@ -381,11 +386,14 @@ fn uninstall_removes_only_published_components_and_is_idempotent() {
 fn uninstall_preflights_all_names_before_removing_any_component() {
     let f = Fixture::new();
     install(&f.stage, &f.prefix()).unwrap();
-    let notice = f.prefix().join("share/fern/THIRD_PARTY_NOTICES.md");
+    let notice = f.prefix().join("share/morrow/THIRD_PARTY_NOTICES.md");
     fs::remove_file(&notice).unwrap();
     symlink(f.stage.join("THIRD_PARTY_NOTICES.md"), &notice).unwrap();
     assert!(uninstall(&f.prefix()).is_err());
-    assert_eq!(fs::read(f.prefix().join("bin/fern")).unwrap(), b"fixture\n");
+    assert_eq!(
+        fs::read(f.prefix().join("bin/morrow")).unwrap(),
+        b"fixture\n"
+    );
     assert!(notice.is_symlink());
 }
 #[test]
@@ -429,7 +437,10 @@ fn archive_without_tar_end_blocks_rejects_even_with_valid_checksum() {
 #[test]
 fn forged_privileged_permissions_are_not_part_of_the_release_contract() {
     let f = Fixture::new();
-    let path = forged(&f, &[("fern", tar::EntryType::Regular, 0o4755, b"fixture")]);
+    let path = forged(
+        &f,
+        &[("morrow", tar::EntryType::Regular, 0o4755, b"fixture")],
+    );
     assert!(verify(&path, &checksum(&path)).is_err());
 }
 #[test]
@@ -461,9 +472,9 @@ fn archive_rejects_duplicate_traversal_and_hidden_trailing_members() {
                 header.as_mut_bytes().copy_from_slice(&bytes[..512]);
                 header.as_mut_bytes()[..100].fill(0);
                 let name = if attack == "absolute" {
-                    b"/outside/fern".as_slice()
+                    b"/outside/morrow".as_slice()
                 } else {
-                    b"fern-root/../fern"
+                    b"morrow-root/../morrow"
                 };
                 header.as_mut_bytes()[..name.len()].copy_from_slice(name);
                 header.set_cksum();
@@ -500,9 +511,9 @@ fn archive_rejects_duplicate_traversal_and_hidden_trailing_members() {
 fn aggregate_staging_limit_is_checked_before_reading_component_payloads() {
     let f = Fixture::new();
     for name in [
-        "fern",
-        "fern-test-supervisor",
-        "libfern_runtime.a",
+        "morrow",
+        "morrow-test-supervisor",
+        "libmorrow_runtime.a",
         "LICENSE",
         "THIRD_PARTY_NOTICES.md",
     ] {
@@ -552,9 +563,9 @@ fn held_destination_directory_cannot_be_redirected_by_a_parent_link_swap() {
     let outside = f.root.join("outside");
     fs::create_dir(&outside).unwrap();
     symlink(&outside, f.root.join("bin")).unwrap();
-    temporary.dir.rename("compiler", &bin, "fern").unwrap();
+    temporary.dir.rename("compiler", &bin, "morrow").unwrap();
     assert_eq!(
-        fs::read(f.root.join("displaced/fern")).unwrap(),
+        fs::read(f.root.join("displaced/morrow")).unwrap(),
         b"complete compiler"
     );
     assert_eq!(fs::read_dir(outside).unwrap().count(), 0);

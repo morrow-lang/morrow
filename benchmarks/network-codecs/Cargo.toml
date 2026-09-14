@@ -1,10 +1,10 @@
 [package]
-name = "fern-network-codecs"
+name = "morrow-network-codecs"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.100"
 publish = false
-default-run = "fern-network-codecs"
+default-run = "morrow-network-codecs"
 [lib]
 crate-type = ["rlib", "cdylib"]
 [features]
@@ -13,7 +13,7 @@ browser-cbor = ["dep:wasm-bindgen"]
 browser-protobuf = ["dep:wasm-bindgen"]
 [workspace]
 [dependencies]
-fern-web-protocol = { path = "../../crates/fern-web-protocol" }
+morrow-web-protocol = { path = "../../crates/morrow-web-protocol" }
 serde_json = "=1.0.151"
 minicbor = { version = "=2.3.0", features = ["std", "derive"] }
 prost = { version = "=0.14.4", default-features = false, features = ["derive", "std"] }

@@ -1,0 +1,38 @@
+fn describe(value: Option(Int)) -> String:
+    match value:
+        Some(n) -> "some {n}"
+        None -> "none"
+
+fn main():
+    let xs = [-9223372036854775808, 0, 9223372036854775807]
+    let empty: List(Int) = []
+    println(describe(List.at(xs, 0)))
+    println(describe(List.at(xs, 2)))
+    println(describe(List.at(xs, 3)))
+    println(describe(List.at(xs, -1)))
+    println(describe(List.first(xs)))
+    println(describe(List.last(xs)))
+    println(describe(List.first(empty)))
+    println(describe(List.last(empty)))
+    println(List.len(List.take(xs, 2)))
+    println(List.len(List.take(xs, -4)))
+    println(List.len(List.take(xs, 99)))
+    println(List.len(List.drop(xs, 1)))
+    println(List.len(List.drop(xs, 99)))
+    println(List.len(List.drop(xs, -1)))
+    println(describe(List.last(List.take(xs, 2))))
+    println(describe(List.first(List.drop(xs, 2))))
+    println(List.len(xs))
+    let words = ["morrow", "moss"]
+    match List.last(words):
+        Some(word) -> println(word)
+        None -> println("empty")
+    println(describe(Int.parse("42")))
+    println(describe(Int.parse("-9223372036854775808")))
+    println(describe(Int.parse("+7")))
+    println(describe(Int.parse("9223372036854775808")))
+    println(describe(Int.parse("")))
+    println(describe(Int.parse(" 1")))
+    println(describe(Int.parse("1.0")))
+    println(describe(Int.parse("abc")))
+    println(Option.unwrap_or(Int.parse("12"), 0) + Option.unwrap_or(Int.parse("x"), 30))

@@ -26,7 +26,7 @@ impl Temporary {
         let parent = parent.canonicalize().map_err(|error| error.to_string())?;
         for _ in 0..100 {
             let path = parent.join(format!(
-                ".fern-task-{}-{}",
+                ".morrow-task-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));

@@ -1,0 +1,7 @@
+fn first(x: a, n: Int) -> String:
+    if n == 0: "{x}" else: second(x, n - 1)
+fn second(x, n) -> String:
+    if n == 0: "{x}" else: first(x, n - 1)
+fn main():
+    println(first(42, 2))
+    println(second("Morrow", 3))

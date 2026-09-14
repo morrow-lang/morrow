@@ -1,0 +1,9 @@
+type Number = Int
+type Input = String | Number | Int
+fn echo(x: Input) -> Int | String: x
+fn main():
+    let number: Number | Int = 4294967296
+    println(number)
+    match echo("morrow"):
+        s: String -> println(s)
+        n: Int -> println(n)

@@ -17,7 +17,7 @@ impl Rng {
             0 => self.range(1000).to_string(),
             1 => ["true", "false"][self.range(2)].into(),
             2 => ["x", "y", "value", "n", "count"][self.range(5)].into(),
-            _ => ["\"fern\"", "\"fuzz\"", "\"seed\"", "\"ok\""][self.range(4)].into(),
+            _ => ["\"morrow\"", "\"fuzz\"", "\"seed\"", "\"ok\""][self.range(4)].into(),
         }
     }
     fn expressions(&mut self, depth: usize, count: usize) -> String {

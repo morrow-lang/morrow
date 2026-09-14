@@ -1,10 +1,10 @@
-//! Isolated measurements of actual Fern messages; no production codec selection.
+//! Isolated measurements of actual Morrow messages; no production codec selection.
 mod adapter;
 pub mod browser;
 pub mod corpus;
 pub mod schema;
 mod validate;
-pub use fern_web_protocol as protocol;
+pub use morrow_web_protocol as protocol;
 use prost::Message as _;
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Message {

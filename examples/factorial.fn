@@ -2,8 +2,8 @@
 Factorial calculation using recursion.
 
 Demonstrates recursive functions, conditionals and executable documentation
-examples. Run `fern test --doc examples/factorial.fn` to check the examples
-below, or `fern doc examples --site docs-site` to browse them.
+examples. Run `morrow test --doc examples/factorial.fn` to check the examples
+below, or `morrow doc examples --site docs-site` to browse them.
 """
 
 @doc """
@@ -13,7 +13,7 @@ Negative inputs return `1` because the recursion stops at the base case.
 
 # Examples
 
-```fern
+```morrow
 factorial(0)  # => 1
 factorial(5)  # => 120
 ```

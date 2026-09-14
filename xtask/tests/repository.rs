@@ -12,6 +12,45 @@ fn root() -> PathBuf {
 fn read(path: &str) -> String {
     fs::read_to_string(root().join(path)).unwrap()
 }
+
+#[test]
+fn workspace_packages_and_cli_use_morrow_names() {
+    let expected = [
+        "morrow",
+        "morrow-browser",
+        "morrow-browser-worker",
+        "morrow-cluster",
+        "morrow-json",
+        "morrow-runtime",
+        "morrow-runtime-native",
+        "morrow-sim",
+        "morrow-test-supervisor",
+        "morrow-web",
+        "morrow-web-app",
+        "morrow-web-protocol",
+    ];
+    for package in expected {
+        let directory = root().join("crates").join(package);
+        assert!(directory.is_dir(), "missing crate directory {package}");
+        let manifest = fs::read_to_string(directory.join("Cargo.toml")).unwrap();
+        assert!(
+            manifest.contains(&format!("name = \"{package}\"")),
+            "crate manifest does not declare {package}"
+        );
+    }
+    let compiler = read("crates/morrow/Cargo.toml");
+    assert!(compiler.contains("publish = false"));
+    assert!(compiler.contains("name = \"morrow_compiler\""));
+    assert!(compiler.contains("name = \"morrow\"\npath = \"src/main.rs\""));
+    for entry in fs::read_dir(root().join("crates")).unwrap() {
+        let name = entry.unwrap().file_name();
+        assert!(
+            !name.to_string_lossy().starts_with(&["fe", "rn"].concat()),
+            "legacy crate directory remains: {}",
+            name.to_string_lossy()
+        );
+    }
+}
 #[test]
 fn editor_integration_is_rust_lsp_without_a_second_parser_toolchain() {
     for path in [
@@ -25,8 +64,8 @@ fn editor_integration_is_rust_lsp_without_a_second_parser_toolchain() {
             "retired integration remains: {path}"
         );
     }
-    assert!(root().join("crates/fern/src/lsp.rs").is_file());
-    assert!(root().join("crates/fern/tests/lsp.rs").is_file());
+    assert!(root().join("crates/morrow/src/lsp.rs").is_file());
+    assert!(root().join("crates/morrow/tests/lsp.rs").is_file());
 }
 #[test]
 fn ci_and_release_use_workspace_acceptance_and_rust_distribution() {
@@ -81,7 +120,7 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
                 .unwrap();
             if matches!(
                 name,
-                "fern-phase-benchmarks" | "fern-network-codecs" | "fern-message-path"
+                "morrow-phase-benchmarks" | "morrow-network-codecs" | "morrow-message-path"
             ) {
                 continue;
             }

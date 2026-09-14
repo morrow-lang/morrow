@@ -3,7 +3,7 @@ use super::*;
 #[ignore = "owned child fixture invoked by startup diagnostics tests"]
 fn child_fixture() {
     use std::io::Write;
-    match std::env::var("FERN_STARTUP_FIXTURE").as_deref() {
+    match std::env::var("MORROW_STARTUP_FIXTURE").as_deref() {
         Ok("exit") => {
             eprintln!("browser startup fixture: sandbox diagnostic marker");
             std::process::exit(7);
@@ -17,7 +17,7 @@ fn child_fixture() {
                 .write_all(b"\nlast browser diagnostic marker\n")
                 .unwrap();
             stderr.flush().unwrap();
-            fs::write(std::env::var_os("FERN_STARTUP_READY").unwrap(), "ready").unwrap();
+            fs::write(std::env::var_os("MORROW_STARTUP_READY").unwrap(), "ready").unwrap();
             thread::sleep(Duration::from_secs(30));
         }
         _ => panic!("fixture requires an explicit mode"),
@@ -37,7 +37,7 @@ fn early_browser_exit_reports_status_and_stderr_without_waiting_for_readiness_ti
                 "--ignored",
                 "--nocapture",
             ])
-            .env("FERN_STARTUP_FIXTURE", "exit")
+            .env("MORROW_STARTUP_FIXTURE", "exit")
             .stdout(Stdio::null())
             .stderr(fs::File::create(&log).unwrap()),
     )
@@ -58,8 +58,8 @@ fn running_child(ready: &Path, log: &Path) -> Process {
                 "--ignored",
                 "--nocapture",
             ])
-            .env("FERN_STARTUP_FIXTURE", "hang")
-            .env("FERN_STARTUP_READY", ready)
+            .env("MORROW_STARTUP_FIXTURE", "hang")
+            .env("MORROW_STARTUP_READY", ready)
             .stdout(Stdio::null())
             .stderr(fs::File::create(log).unwrap()),
     )

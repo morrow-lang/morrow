@@ -1,8 +1,0 @@
-fn describe(value: Int | String) -> String:
-    match value:
-        n: Int -> "number:{n}"
-        s: String -> "string:{s}"
-fn main():
-    let items: List(Int | String) = [1, "fern"]
-    for item in items:
-        println(describe(item))

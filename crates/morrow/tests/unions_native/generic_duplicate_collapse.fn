@@ -1,0 +1,8 @@
+fn include(x: a) -> a | Int: x
+fn main():
+    let integer: Int = include(4294967296)
+    let text: String | Int = include("morrow")
+    println(integer)
+    match text:
+        n: Int -> println(n)
+        s: String -> println(s)

@@ -1,0 +1,16 @@
+type Box(a):
+    value: a
+fn boxed(value) -> Box(value)
+fn unbox(Box(value)) -> value
+fn missing() -> None
+fn empty() -> []
+fn both(value: a, other) -> (value, other)
+fn main():
+    println(unbox(boxed(42)))
+    println(unbox(boxed("Morrow")))
+    println(Option.unwrap_or(missing(), "default"))
+    let values: List(Int) = empty()
+    println(List.len(values))
+    let (name, number) = both("answer", 42)
+    println(name)
+    println(number)

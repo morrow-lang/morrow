@@ -1,0 +1,16 @@
+type Tree(a) derive(Json):
+    value:a
+    children:List(Tree(a))
+newtype Wrapped(a) derive(Json)=Wrapped(a)
+fn write(value):json.encode(value)
+fn forward(value):write(value)
+fn main() -> Result(Unit,json.Error):
+    println(forward(Tree(42,[]))?)
+    println(forward(Wrapped("morrow"))?)
+    println(forward(%{"value":Some(7)})?)
+    let outputs=List.map([1,2],write)
+    for output in outputs:
+        match output:
+            Ok(text) -> println(text)
+            Err(error) -> println(json.error_message(error))
+    Ok(())

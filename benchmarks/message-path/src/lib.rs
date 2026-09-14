@@ -1,10 +1,10 @@
-//! Loopback WebSocket experiment using the production Hub and compiled Fern actors.
+//! Loopback WebSocket experiment using the production Hub and compiled Morrow actors.
 mod private_dir;
 mod transport;
 
-use fern_network_codecs as wire;
-use fern_web_app::NativeDomain;
-use fern_web_protocol::{
+use morrow_network_codecs as wire;
+use morrow_web_app::NativeDomain;
+use morrow_web_protocol::{
     Command, Decimal, Domain, DomainChange, Error, Hub, Limits, Mutation, ServerMessage, Snapshot,
     Status, Task, VERSION,
 };
@@ -186,7 +186,7 @@ fn serve(
     )
     .map_err(|e| e.to_string())?;
     let request = transport::read(&mut socket, case.codec, true)?;
-    let wire::Message::Client(fern_web_protocol::ClientMessage::Join {
+    let wire::Message::Client(morrow_web_protocol::ClientMessage::Join {
         room,
         resume_namespace: None,
     }) = request.0
@@ -207,7 +207,7 @@ fn serve(
     let mut samples = Vec::with_capacity(case.operations);
     for index in 0..case.tasks + case.operations {
         let (message, decode_ns, _) = transport::read(&mut socket, case.codec, true)?;
-        let wire::Message::Client(fern_web_protocol::ClientMessage::Command(command)) = message
+        let wire::Message::Client(morrow_web_protocol::ClientMessage::Command(command)) = message
         else {
             return Err("expected command".into());
         };
@@ -269,7 +269,7 @@ fn exchange(case: Case, mut socket: transport::Socket) -> Result<(Vec<ClientSamp
     transport::send(
         &mut socket,
         case.codec,
-        &wire::Message::Client(fern_web_protocol::ClientMessage::Join {
+        &wire::Message::Client(morrow_web_protocol::ClientMessage::Join {
             room: "measurement".into(),
             resume_namespace: None,
         }),
@@ -308,7 +308,7 @@ fn exchange(case: Case, mut socket: transport::Socket) -> Result<(Vec<ClientSamp
             }
         };
         let sequence = Decimal(index as i64 + 1);
-        let message = wire::Message::Client(fern_web_protocol::ClientMessage::Command(Command {
+        let message = wire::Message::Client(morrow_web_protocol::ClientMessage::Command(Command {
             version: VERSION,
             incarnation: snapshot.incarnation.clone(),
             namespace: connected.namespace.clone(),

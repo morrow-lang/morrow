@@ -7,51 +7,51 @@ fn bool_to_int(b: Bool) -> Int:
 
 fn main():
     # Test fs.exists on non-existent file
-    let exists_before = fs.exists("/tmp/fern_test_file.txt")
+    let exists_before = fs.exists("/tmp/morrow_test_file.txt")
     println(bool_to_int(b: exists_before))
 
     # Write a file
-    let write_result = fs.write("/tmp/fern_test_file.txt", "Hello from Fern!")
+    let write_result = fs.write("/tmp/morrow_test_file.txt", "Hello from Morrow!")
     match write_result:
         Ok(_) -> println(1)
         Err(_) -> println(0)
 
     # Check file exists after writing
-    let exists_after = fs.exists("/tmp/fern_test_file.txt")
+    let exists_after = fs.exists("/tmp/morrow_test_file.txt")
     println(bool_to_int(b: exists_after))
 
     # Get file size
-    let size_result = fs.size("/tmp/fern_test_file.txt")
+    let size_result = fs.size("/tmp/morrow_test_file.txt")
     match size_result:
         Ok(size) -> println(size)
         Err(e) -> println(e)
 
     # Read the file back
-    let read_result = fs.read("/tmp/fern_test_file.txt")
+    let read_result = fs.read("/tmp/morrow_test_file.txt")
     match read_result:
         Ok(content) -> println(String.len(content))
         Err(e) -> println(e)
 
     # Append to the file
-    let append_result = fs.append("/tmp/fern_test_file.txt", " More content.")
+    let append_result = fs.append("/tmp/morrow_test_file.txt", " More content.")
     match append_result:
         Ok(_) -> println(1)
         Err(_) -> println(0)
 
     # Check new file size after append
-    let size_after = fs.size("/tmp/fern_test_file.txt")
+    let size_after = fs.size("/tmp/morrow_test_file.txt")
     match size_after:
         Ok(size) -> println(size)
         Err(e) -> println(e)
 
     # Delete the file
-    let delete_result = fs.delete("/tmp/fern_test_file.txt")
+    let delete_result = fs.delete("/tmp/morrow_test_file.txt")
     match delete_result:
         Ok(_) -> println(1)
         Err(_) -> println(0)
 
     # Verify file no longer exists
-    let exists_deleted = fs.exists("/tmp/fern_test_file.txt")
+    let exists_deleted = fs.exists("/tmp/morrow_test_file.txt")
     println(bool_to_int(b: exists_deleted))
 
     # Try to read non-existent file (should fail)

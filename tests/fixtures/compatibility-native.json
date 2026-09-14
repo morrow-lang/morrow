@@ -11,28 +11,28 @@
     "source": "fn main() -> Result((), String):\n    defer println(\"done\")\n    Err(\"missing\")\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: main returned Err\n"
+    "stderr": "morrow: main returned Err\n"
   },
   {
     "name": "test_rust_boundaries/main_custom",
     "source": "type Problem:\n    Missing(String)\n    Invalid(Int)\nfn main() -> Result((), Problem): Err(Missing(\"file\"))\n",
     "exit": 1,
     "stdout": "",
-    "stderr": "fern: main returned Err\n"
+    "stderr": "morrow: main returned Err\n"
   },
   {
     "name": "test_rust_boundaries/main_propagate",
     "source": "fn read() -> Result(Int, Int): Err(9223372036854775807)\nfn main() -> Result((), Int):\n    defer println(\"done\")\n    let value = read()?\n    println(value)\n    Ok(())\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: main returned Err\n"
+    "stderr": "morrow: main returned Err\n"
   },
   {
     "name": "test_rust_boundaries/main_fault",
     "source": "fn main() -> Result((), String):\n    defer println(1 / 0)\n    Err(\"original\")\n",
     "exit": 1,
     "stdout": "",
-    "stderr": "fern: runtime error: integer division by zero\n"
+    "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
     "name": "test_rust_boundaries/infer_forward",
@@ -60,35 +60,35 @@
     "source": "fn main():\n    defer println(\"done\")\n    println(List.get([7], -1))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: list index out of bounds\n"
+    "stderr": "morrow: runtime error: list index out of bounds\n"
   },
   {
     "name": "test_rust_boundaries/index_high",
     "source": "fn main():\n    defer println(\"done\")\n    let at: (List(Float), Int) -> Float = List.get\n    println(at([7.0], 9223372036854775807))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: list index out of bounds\n"
+    "stderr": "morrow: runtime error: list index out of bounds\n"
   },
   {
     "name": "test_rust_boundaries/head_empty",
     "source": "fn main():\n    defer println(\"done\")\n    let first: (List(String)) -> String = List.head\n    println(first([]))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: head of empty list\n"
+    "stderr": "morrow: runtime error: head of empty list\n"
   },
   {
     "name": "test_rust_boundaries/repeat_overflow",
     "source": "fn main():\n    defer println(\"done\")\n    println(String.repeat(\"abcd\", 4611686018427387904))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: string size limit exceeded\n"
+    "stderr": "morrow: runtime error: string size limit exceeded\n"
   },
   {
     "name": "test_rust_boundaries/repeat_indirect",
     "source": "fn main():\n    defer println(\"done\")\n    let repeat: (String, Int) -> String = String.repeat\n    println(repeat(\"x\", 16777217))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: string size limit exceeded\n"
+    "stderr": "morrow: runtime error: string size limit exceeded\n"
   },
   {
     "name": "test_rust_boundaries/repeat_empty",
@@ -109,21 +109,21 @@
     "source": "fn take(xs: List(Int)) -> Int:\n    defer println(\"callback\")\n    List.head(xs)\nfn main():\n    defer println(\"main\")\n    println(List.len(List.map([[], [7]], take)))\n",
     "exit": 1,
     "stdout": "callback\nmain\n",
-    "stderr": "fern: runtime error: head of empty list\n"
+    "stderr": "morrow: runtime error: head of empty list\n"
   },
   {
     "name": "test_rust_boundaries/slice_boundary",
     "source": "fn main():\n    defer println(\"done\")\n    println(String.slice(\"é\", 0, 1))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: String.slice indices must be UTF-8 character boundaries\n"
+    "stderr": "morrow: runtime error: String.slice indices must be UTF-8 character boundaries\n"
   },
   {
     "name": "test_rust_boundaries/slice_indirect",
     "source": "fn main():\n    defer println(\"done\")\n    let slice: (String, Int, Int) -> String = String.slice\n    println(slice(\"é\", 1, 1))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: String.slice indices must be UTF-8 character boundaries\n"
+    "stderr": "morrow: runtime error: String.slice indices must be UTF-8 character boundaries\n"
   },
   {
     "name": "test_rust_boundaries/slice_clamp",
@@ -151,20 +151,20 @@
     "source": "fn main():\n    defer println(\"done\")\n    let text = System.arg(1)\n    println(List.len(String.split(text, \"\")))\n",
     "exit": 1,
     "stdout": "done\n",
-    "stderr": "fern: runtime error: String.split requires valid UTF-8 input\n"
+    "stderr": "morrow: runtime error: String.split requires valid UTF-8 input\n"
   },
   {
     "name": "test_rust_stdlib/files",
-    "source": "fn workflow() -> Result(Int, Int):\n    let written = fs.write(\"data.txt\", \"Fern 🌿\")?\n    println(written > 0)\n    println(fs.read(\"data.txt\")?)\n    println(fs.size(\"data.txt\")?)\n    let appended = fs.append(\"data.txt\", \"!\")?\n    println(appended > 0)\n    println(fs.read(\"data.txt\")?)\n    fs.delete(\"data.txt\")\nfn main():\n    println(Result.is_ok(workflow()))\n    println(fs.exists(\"data.txt\"))\n    println(Result.is_err(fs.read(\"missing.txt\")))\n",
+    "source": "fn workflow() -> Result(Int, Int):\n    let written = fs.write(\"data.txt\", \"Morrow 🌿\")?\n    println(written > 0)\n    println(fs.read(\"data.txt\")?)\n    println(fs.size(\"data.txt\")?)\n    let appended = fs.append(\"data.txt\", \"!\")?\n    println(appended > 0)\n    println(fs.read(\"data.txt\")?)\n    fs.delete(\"data.txt\")\nfn main():\n    println(Result.is_ok(workflow()))\n    println(fs.exists(\"data.txt\"))\n    println(Result.is_err(fs.read(\"missing.txt\")))\n",
     "exit": 0,
-    "stdout": "true\nFern 🌿\n9\ntrue\nFern 🌿!\ntrue\nfalse\ntrue\n",
+    "stdout": "true\nMorrow 🌿\n11\ntrue\nMorrow 🌿!\ntrue\nfalse\ntrue\n",
     "stderr": ""
   },
   {
     "name": "test_rust_stdlib/strings",
-    "source": "fn main():\n    let pieces = String.split(\"a,🌿,c\", \",\")\n    println(List.len(pieces))\n    println(String.join(List.reverse(pieces), \"/\"))\n    println(List.head(String.lines(\"first\\nsecond\")))\n    println(String.to_upper(String.trim(\" fern \")))\n    println(Option.unwrap_or(String.index_of(\"hello fern\", \"fern\"), -1))\n    println(Option.is_none(String.index_of(\"hello\", \"missing\")))\n    println(Option.unwrap_or(String.char_at(\"abc\", 1), -1))\n    println(Option.is_none(String.char_at(\"abc\", 9)))\n    println(Option.unwrap_or(String.char_at(\"🌿\", 0), -1))\n    println(Option.is_none(String.char_at(\"abc\", -1)))\n    println(Option.unwrap_or(String.index_of(\"abc\", \"\"), -1))\n",
+    "source": "fn main():\n    let pieces = String.split(\"a,🌿,c\", \",\")\n    println(List.len(pieces))\n    println(String.join(List.reverse(pieces), \"/\"))\n    println(List.head(String.lines(\"first\\nsecond\")))\n    println(String.to_upper(String.trim(\" morrow \")))\n    println(Option.unwrap_or(String.index_of(\"hello morrow\", \"morrow\"), -1))\n    println(Option.is_none(String.index_of(\"hello\", \"missing\")))\n    println(Option.unwrap_or(String.char_at(\"abc\", 1), -1))\n    println(Option.is_none(String.char_at(\"abc\", 9)))\n    println(Option.unwrap_or(String.char_at(\"🌿\", 0), -1))\n    println(Option.is_none(String.char_at(\"abc\", -1)))\n    println(Option.unwrap_or(String.index_of(\"abc\", \"\"), -1))\n",
     "exit": 0,
-    "stdout": "3\nc/🌿/a\nfirst\nFERN\n6\ntrue\n98\ntrue\n240\ntrue\n0\n",
+    "stdout": "3\nc/🌿/a\nfirst\nMORROW\n6\ntrue\n98\ntrue\n240\ntrue\n0\n",
     "stderr": ""
   },
   {
@@ -436,14 +436,14 @@
     "source": "fn main() -> Result(Unit, Int | String): Err(4294967296)\n",
     "exit": 1,
     "stdout": "",
-    "stderr": "fern: main returned Err\n"
+    "stderr": "morrow: main returned Err\n"
   },
   {
     "name": "union-entry/2",
-    "source": "fn main() -> Result(Unit, Int | String): Err(\"fern\")\n",
+    "source": "fn main() -> Result(Unit, Int | String): Err(\"morrow\")\n",
     "exit": 1,
     "stdout": "",
-    "stderr": "fern: main returned Err\n"
+    "stderr": "morrow: main returned Err\n"
   },
   {
     "name": "literal-paths",

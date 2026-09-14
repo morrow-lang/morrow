@@ -1,0 +1,9 @@
+fn value(x: Bool | String | Int) -> Int:
+    match x:
+        both: String | Int -> match both:
+            s: String -> String.len(s)
+            i: Int -> i
+        b: Bool -> if b: 1 else: 0
+fn main():
+    println(value("morrow"))
+    println(value(true))

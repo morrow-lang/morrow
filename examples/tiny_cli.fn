@@ -16,4 +16,4 @@ fn dispatch(command: String, value: String) -> Int:
         run_help()
 
 fn main() -> Int:
-    dispatch(command: "greet", value: "fern")
+    dispatch(command: "greet", value: "morrow")

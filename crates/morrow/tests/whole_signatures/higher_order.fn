@@ -1,0 +1,12 @@
+fn apply(action, value) -> action(value)
+fn compose(first, second) -> (value) -> first(second(value))
+fn increment(value) -> value + 1
+fn describe(value) -> "value={value}"
+fn make_adder(base) -> (value) -> base + value
+fn main():
+    println(apply(increment, 41))
+    println(apply(describe, true))
+    println(compose(describe, increment)(41))
+    println(make_adder("Mor")("row"))
+    println(make_adder(40)(2))
+    println(List.head(List.map([1, 2], increment)))

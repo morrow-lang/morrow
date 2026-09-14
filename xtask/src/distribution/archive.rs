@@ -134,7 +134,7 @@ pub(super) fn verify_contents(file: File) -> Result<(), String> {
         }
         let path = std::str::from_utf8(&path).map_err(|_| "archive name must be UTF-8")?;
         let (prefix, name) = path.split_once('/').ok_or("archive member lacks a root")?;
-        if !prefix.starts_with("fern-")
+        if !prefix.starts_with("morrow-")
             || prefix.len() > 192
             || !prefix
                 .bytes()
@@ -164,7 +164,7 @@ pub(super) fn verify_contents(file: File) -> Result<(), String> {
         if total > TOTAL_LIMIT {
             return Err("archive exceeds aggregate component limit".into());
         }
-        if name == "fern-package.json" {
+        if name == "morrow-package.json" {
             let mut marker = Vec::new();
             item.by_ref()
                 .take(65537)

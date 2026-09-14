@@ -11,7 +11,7 @@ use std::{
 };
 
 const MAX_RESULT: usize = 2 * 1024 * 1024;
-const DRIVER: &str = r#"<!doctype html><meta charset="utf-8"><title>Fern codec experiment</title><pre id="status">Starting</pre><script type="module">
+const DRIVER: &str = r#"<!doctype html><meta charset="utf-8"><title>Morrow codec experiment</title><pre id="status">Starting</pre><script type="module">
 const status = document.querySelector('#status');
 try {
   const names = ['json', 'cbor', 'protobuf'];
@@ -131,7 +131,7 @@ fn prepare(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
             Command::new(&bindgen)
                 .arg(
                     Path::new(&target)
-                        .join("wasm32-unknown-unknown/release/fern_network_codecs.wasm"),
+                        .join("wasm32-unknown-unknown/release/morrow_network_codecs.wasm"),
                 )
                 .args(["--target", "web", "--out-name", "codec", "--out-dir"])
                 .arg(directory.join(codec)),

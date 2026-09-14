@@ -36,7 +36,7 @@ jobs:
       - name: Upload verified archive and checksum
         uses: actions/upload-artifact@v4
         with:
-          name: fern-release-${{ matrix.os }}
+          name: morrow-release-${{ matrix.os }}
           path: |
             dist/*.tar.gz
             dist/*.tar.gz.sha256

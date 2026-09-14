@@ -1,6 +1,6 @@
-//! Build the repository's own documentation site with the staged compiler's `fern doc --site`.
+//! Build the repository's own documentation site with the staged compiler's `morrow doc --site`.
 //!
-//! The same generator that documents Fern libraries renders the project's guides, decision
+//! The same generator that documents Morrow libraries renders the project's guides, decision
 //! record, design and examples; `cargo doc` output for the Rust workspace is embedded beside it.
 use crate::execute;
 use std::{
@@ -19,19 +19,19 @@ pub const EXTRAS: &[&str] = &[
     "BUILD.md",
     "FERN_STYLE.md",
 ];
-const REPOSITORY: &str = "https://github.com/niklas-heer/fern";
+const REPOSITORY: &str = "https://github.com/morrow-lang/morrow";
 const MAX_COPIED_FILES: usize = 50_000;
 const MAX_COPIED_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 const MAX_COPY_DEPTH: usize = 32;
 
 /// Generate the site into `output`, then optionally add rustdoc under `output/rust`.
 pub fn run(root: &Path, bin: &Path, output: &Path, rust: bool) -> Result<(), String> {
-    let mut command = Command::new(bin.join("fern"));
+    let mut command = Command::new(bin.join("morrow"));
     command
         .current_dir(root)
         .args(["doc", "examples", "--inferred", "--site"])
         .arg(output)
-        .args(["--title", "Fern", "--version", env!("CARGO_PKG_VERSION")]);
+        .args(["--title", "Morrow", "--version", env!("CARGO_PKG_VERSION")]);
     for extra in EXTRAS {
         command.arg("--extras").arg(extra);
     }
@@ -39,7 +39,7 @@ pub fn run(root: &Path, bin: &Path, output: &Path, rust: bool) -> Result<(), Str
     if rust {
         command
             .arg("--link")
-            .arg("Rust API (rustdoc)=rust/fern_compiler/index.html");
+            .arg("Rust API (rustdoc)=rust/morrow_compiler/index.html");
     }
     execute(&mut command)?;
     if rust {

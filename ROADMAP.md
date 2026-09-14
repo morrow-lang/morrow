@@ -1,10 +1,19 @@
 # Fern Roadmap
 
-Last updated: 2026-09-14
+Last updated: 2026-09-15
 
 This file is the only active roadmap. Historical context is in [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Current Status Snapshot
+
+### Morrow rename (2026-09-15, Decision155)
+
+- [x] Rename all 12 workspace packages, component paths, CLI, runtime symbols and Cargo tooling. macOS ARM64 `cargo xtask check` passes: 2,249 Rust tests, 316 native-output fixtures, 20 examples, 63 dynamic programs, 295 atomic rejections and 64+192+231 fuzz cases; dependency versions and persisted cluster identities remain unchanged.
+- [ ] Adopt `.mr` source files, compiler discovery, editor registration, formatter and test/documentation fixtures; verify the full repository gate.
+- [ ] Update active documentation, public introductions, canonical URLs and `MORROW_STYLE.md`; preserve historical evidence and verify the full repository gate.
+- [ ] Replace old logo usage with a Morrow text mark and update browser/preview branding; verify web output and the full repository gate.
+- [ ] Transfer and rename the GitHub repository to `morrow-lang/morrow`, update metadata and origin, and create `morrow-lang/morrow-lang.github.io` for the docs site.
+- Owner follow-ups: register both domains, configure the `.dev` → `.org` redirect, complete the EUIPO/DPMA classes 9/42 check, and supply a new logo.
 
 - Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.
 - Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate aggregate WASM backend, typed Fern browser model/update/view and compiled native room actors are implemented. Optional durable room checkpoints pass native restart and real WebSocket acceptance. General framework packaging and scalable actor execution remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.

@@ -1,0 +1,8 @@
+fn inspect(x: Int | Result(Int, String)) -> Int:
+    match x:
+        n: Int -> n
+        result: Result(Int, String) -> match result:
+            Ok(n) -> n
+            Err(message) -> String.len(message)
+fn main():
+    println(inspect(Err("morrow")))

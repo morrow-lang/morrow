@@ -5,7 +5,7 @@ The Fibonacci sequence with a plain recursive definition.
 @doc """
 Return the `n`-th Fibonacci number, counting from `fib(0) == 0`.
 
-```fern
+```morrow
 fib(0)  # => 0
 fib(1)  # => 1
 fib(10)  # => 55

@@ -1,10 +1,10 @@
-# TUI Demo - showcasing Fern's terminal UI capabilities
+# TUI Demo - showcasing Morrow's terminal UI capabilities
 # This demonstrates Tui.Panel, Tui.Table, and Tui.Style modules
 
 fn main():
     # Create a welcome panel with cyan colored border (like Rich)
-    let welcome = Tui.Panel.new("Welcome to Fern TUI Demo!")
-    let welcome = Tui.Panel.title(welcome, "Fern")
+    let welcome = Tui.Panel.new("Welcome to Morrow TUI Demo!")
+    let welcome = Tui.Panel.title(welcome, "Morrow")
     let welcome = Tui.Panel.subtitle(welcome, "A friendly language")
     let welcome = Tui.Panel.border(welcome, "rounded")
     let welcome = Tui.Panel.border_color(welcome, "cyan")
@@ -65,7 +65,7 @@ fn main():
     let simple = Tui.Table.add_column(simple, "Value")
     let simple = Tui.Table.show_header(simple, 0)
     let simple = Tui.Table.border(simple, "rounded")
-    let r1 = ["Name", "Fern"]
+    let r1 = ["Name", "Morrow"]
     let simple = Tui.Table.add_row(simple, r1)
     let r2 = ["Version", "0.1.0"]
     let simple = Tui.Table.add_row(simple, r2)

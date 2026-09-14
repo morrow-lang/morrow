@@ -1,0 +1,15 @@
+fn guard(label: String, result: Bool) -> Bool:
+    println(label)
+    result
+fn inspect(x: Int | String | Bool) -> Int:
+    match x:
+        n: Int if guard("int", result: n > 0) -> n
+        group: Int | String if guard("group", result: true) -> match group:
+            n: Int -> n - 1
+            s: String -> String.len(s)
+        _: Bool -> 99
+        _: Int | String -> 100
+fn main():
+    println(inspect(-2))
+    println(inspect("morrow"))
+    println(inspect(true))

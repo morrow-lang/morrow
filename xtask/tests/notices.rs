@@ -71,8 +71,8 @@ fn browser_inventory_excludes_unreachable_native_workspace_dependencies() {
     let metadata = serde_json::json!({
         "workspace_members": ["browser", "runtime"],
         "packages": [
-            {"id":"browser", "name":"fern-browser", "source":null},
-            {"id":"runtime", "name":"fern-runtime", "source":null},
+            {"id":"browser", "name":"morrow-browser", "source":null},
+            {"id":"runtime", "name":"morrow-runtime", "source":null},
             {"id":"dom", "name":"web-sys", "source":"registry"},
             {"id":"sqlite", "name":"sqlite-wasm-rs", "source":"registry"}
         ],

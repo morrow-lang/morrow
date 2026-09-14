@@ -1,0 +1,15 @@
+fn widen(value: Int | String) -> Bool | String | Int: value
+fn size(value: Int | String) -> Int:
+    match value:
+        n: Int -> n
+        s: String -> String.len(s)
+fn broad(value: Bool | String | Int) -> Int:
+    match value:
+        b: Bool -> if b: 1 else: 0
+        n: Int -> n
+        s: String -> String.len(s)
+fn main():
+    let original: String | Int = "morrow"
+    let wider = widen(original)
+    println(size(original))
+    println(broad(wider))

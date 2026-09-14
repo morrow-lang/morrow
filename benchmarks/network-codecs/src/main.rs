@@ -1,4 +1,4 @@
-use fern_network_codecs::{
+use morrow_network_codecs::{
     Codec, Message, corpus, decode, decode_prepared, encode, encode_prepared, schema,
 };
 use serde_json::json;

@@ -1,3 +1,0 @@
-import api as inventory
-fn main():
-    inventory.describe(inventory.item("Fern", 42))

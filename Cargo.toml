@@ -8,7 +8,7 @@ version = "0.1.0"
 edition = "2024"
 rust-version = "1.100"
 license = "MIT"
-repository = "https://github.com/niklas-heer/fern"
+repository = "https://github.com/morrow-lang/morrow"
 
 [workspace.dependencies]
 libc = "=0.2.189"

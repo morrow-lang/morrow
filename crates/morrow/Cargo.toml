@@ -1,0 +1,45 @@
+[package]
+name = "morrow"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+# Decision112: explicit supported backend pins; Cargo.lock fixes transitive inputs.
+[dependencies]
+morrow-test-supervisor = { path = "../morrow-test-supervisor" }
+morrow-json = { path = "../morrow-json" }
+cranelift-codegen = { version = "=0.135.1", features = ["arm64", "x86"] }
+cranelift-frontend = { version = "=0.135.1" }
+cranelift-module = { version = "=0.135.1" }
+cranelift-object = { version = "=0.135.1" }
+cranelift-native = { version = "=0.135.1" }
+rustyline = { version = "=18.0.1", default-features = false, features = ["with-file-history"] }
+wasm-encoder = { version = "=0.259.0", default-features = false, features = ["std"] }
+wasmparser = { version = "=0.259.0", default-features = false, features = ["std", "validate", "features"] }
+
+[dev-dependencies]
+serde_json = "=1.0.151"
+libc.workspace = true
+wasmi = { version = "=2.0.0", default-features = false, features = ["std", "validate", "portable-dispatch"] }
+
+[lib]
+name = "morrow_compiler"
+path = "src/lib.rs"
+
+[[bin]]
+name = "morrow"
+path = "src/main.rs"
+
+# Decision107: strict supported lints, expanded only after auditing existing invariants.
+[lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+unimplemented = "deny"
+exit = "deny"
+unchecked_time_subtraction = "deny"
+unused_peekable = "deny"
+redundant_clone = "deny"
+or_fun_call = "deny"

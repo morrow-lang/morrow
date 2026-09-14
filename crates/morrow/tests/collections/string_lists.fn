@@ -1,0 +1,10 @@
+fn names() -> List(String):
+    ["Ada", "林", "Morrow"]
+
+fn main():
+    let values = names()
+    println(List.head(values))
+    println(List.get(values, 1))
+    println(List.head(List.tail(values)))
+    println(List.contains(values, String.concat("Mor", "row")))
+    println(List.contains(values, "missing"))

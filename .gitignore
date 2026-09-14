@@ -4,7 +4,7 @@
 /bin/
 /share/
 /dist/
-/.fern-task-*/
+/.morrow-task-*/
 
 # Developer-local files
 .DS_Store

@@ -1,5 +1,5 @@
 [package]
-name = "fern-message-path"
+name = "morrow-message-path"
 version = "0.0.0"
 edition = "2024"
 rust-version = "1.100"
@@ -8,9 +8,9 @@ publish = false
 [workspace]
 
 [dependencies]
-fern-network-codecs = { path = "../network-codecs" }
-fern-web-app = { path = "../../crates/fern-web-app" }
-fern-web-protocol = { path = "../../crates/fern-web-protocol" }
+morrow-network-codecs = { path = "../network-codecs" }
+morrow-web-app = { path = "../../crates/morrow-web-app" }
+morrow-web-protocol = { path = "../../crates/morrow-web-protocol" }
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "=1.0.151"
 tungstenite = { version = "=0.30.0", default-features = false, features = ["handshake"] }

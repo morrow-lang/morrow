@@ -16,9 +16,9 @@ use std::{
 pub const ASSETS: &[&str] = &[
     "index.html",
     "bootstrap.js",
-    "fern_browser.js",
-    "fern_browser_bg.wasm",
-    "fern_app.wasm",
+    "morrow_browser.js",
+    "morrow_browser_bg.wasm",
+    "morrow_app.wasm",
     "style.css",
 ];
 const MAX_ASSET: u64 = 8 * 1024 * 1024;
@@ -209,23 +209,23 @@ pub fn validate_static_linux(bytes: &[u8], target: &str) -> Result<(), String> {
 
 /// Build browser and worker artifacts, then embed them into one native preview server.
 pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
-    let server_target = env::var("FERN_WEB_TARGET").ok();
+    let server_target = env::var("MORROW_WEB_TARGET").ok();
     if server_target.as_deref().is_some_and(|target| {
         !matches!(
             target,
             "aarch64-unknown-linux-musl" | "x86_64-unknown-linux-musl"
         )
     }) {
-        return Err("FERN_WEB_TARGET supports aarch64-unknown-linux-musl or x86_64-unknown-linux-musl; omit it for a host build".into());
+        return Err("MORROW_WEB_TARGET supports aarch64-unknown-linux-musl or x86_64-unknown-linux-musl; omit it for a host build".into());
     }
     let output = match output {
         Some(path) => path.to_path_buf(),
         None => {
             fs::create_dir_all(root.join("dist")).map_err(|error| error.to_string())?;
             root.join(match server_target.as_deref() {
-                Some("aarch64-unknown-linux-musl") => "dist/fern-web-linux-arm64",
-                Some("x86_64-unknown-linux-musl") => "dist/fern-web-linux-x86_64",
-                _ => "dist/fern-web",
+                Some("aarch64-unknown-linux-musl") => "dist/morrow-web-linux-arm64",
+                Some("x86_64-unknown-linux-musl") => "dist/morrow-web-linux-x86_64",
+                _ => "dist/morrow-web",
             })
         }
     };
@@ -246,14 +246,14 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
     let work = crate::Temporary::new(&env::temp_dir())?;
     let assets = work.0.join("assets");
     fs::create_dir(&assets).map_err(|error| error.to_string())?;
-    crate::execute(cargo(root).args(["build", "--release", "--locked", "-p", "fern"]))?;
+    crate::execute(cargo(root).args(["build", "--release", "--locked", "-p", "morrow"]))?;
     crate::execute(
-        Command::new(target.join("release/fern"))
+        Command::new(target.join("release/morrow"))
             .current_dir(root)
             .args(["build", "--target=wasm32"])
             .arg(root.join("examples/web/checklist.fn"))
             .arg("-o")
-            .arg(assets.join("fern_app.wasm")),
+            .arg(assets.join("morrow_app.wasm")),
     )?;
     crate::execute(cargo(root).args([
         "build",
@@ -262,16 +262,16 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
         "--target",
         "wasm32-unknown-unknown",
         "-p",
-        "fern-browser",
+        "morrow-browser",
     ]))?;
     crate::execute(
         Command::new(&bindgen)
-            .arg(target.join("wasm32-unknown-unknown/release/fern_browser.wasm"))
+            .arg(target.join("wasm32-unknown-unknown/release/morrow_browser.wasm"))
             .args([
                 "--target",
                 "web",
                 "--out-name",
-                "fern_browser",
+                "morrow_browser",
                 "--no-typescript",
                 "--out-dir",
             ])
@@ -279,23 +279,23 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
     )?;
     for name in ["index.html", "style.css"] {
         let bytes = read_asset(
-            &root.join("crates/fern-browser/assets").join(name),
+            &root.join("crates/morrow-browser/assets").join(name),
             MAX_ASSET,
         )?;
         fs::write(assets.join(name), bytes).map_err(|error| error.to_string())?;
     }
-    // Only module loading is generated JavaScript; browser behavior is Rust/Fern.
+    // Only module loading is generated JavaScript; browser behavior is Rust/Morrow.
     fs::write(
         assets.join("bootstrap.js"),
-        "import init, { mount } from '/fern_browser.js';\nawait init();\nawait mount();\n",
+        "import init, { mount } from '/morrow_browser.js';\nawait init();\nawait mount();\n",
     )
     .map_err(|error| error.to_string())?;
     let revision = asset_digest(&assets)?;
     let integrities = integrity_manifest(&assets)?;
     crate::execute(
         cargo(root)
-            .env("FERN_WEB_CACHE_VERSION", &revision)
-            .env("FERN_WEB_ASSET_INTEGRITIES", integrities)
+            .env("MORROW_WEB_CACHE_VERSION", &revision)
+            .env("MORROW_WEB_ASSET_INTEGRITIES", integrities)
             .args([
                 "build",
                 "--release",
@@ -303,35 +303,38 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
                 "--target",
                 "wasm32-unknown-unknown",
                 "-p",
-                "fern-browser-worker",
+                "morrow-browser-worker",
             ]),
     )?;
     let worker = work.0.join("worker");
     crate::execute(
         Command::new(&bindgen)
-            .arg(target.join("wasm32-unknown-unknown/release/fern_browser_worker.wasm"))
+            .arg(target.join("wasm32-unknown-unknown/release/morrow_browser_worker.wasm"))
             .args([
                 "--target",
                 "no-modules",
                 "--out-name",
-                "fern_worker",
+                "morrow_worker",
                 "--no-typescript",
                 "--out-dir",
             ])
             .arg(&worker),
     )?;
-    let glue = String::from_utf8(read_asset(&worker.join("fern_worker.js"), 2 * 1024 * 1024)?)
-        .map_err(|error| error.to_string())?;
-    let wasm = read_asset(&worker.join("fern_worker_bg.wasm"), 2 * 1024 * 1024)?;
+    let glue = String::from_utf8(read_asset(
+        &worker.join("morrow_worker.js"),
+        2 * 1024 * 1024,
+    )?)
+    .map_err(|error| error.to_string())?;
+    let wasm = read_asset(&worker.join("morrow_worker_bg.wasm"), 2 * 1024 * 1024)?;
     fs::write(assets.join("worker.js"), worker_script(&glue, &wasm)?)
         .map_err(|error| error.to_string())?;
     let mut server = cargo(root);
-    server.env("FERN_WEB_ASSETS_DIR", &assets).args([
+    server.env("MORROW_WEB_ASSETS_DIR", &assets).args([
         "build",
         "--release",
         "--locked",
         "-p",
-        "fern-web",
+        "morrow-web",
     ]);
     let artifact = if let Some(triple) = &server_target {
         server.args(["--target", triple]);
@@ -342,9 +345,9 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
             ),
             "rust-lld",
         );
-        target.join(triple).join("release/fern-web")
+        target.join(triple).join("release/morrow-web")
     } else {
-        target.join("release/fern-web")
+        target.join("release/morrow-web")
     };
     crate::execute(&mut server)?;
     if let Some(triple) = &server_target {
@@ -356,7 +359,7 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
     let staging = crate::Temporary::new(parent)?;
-    let executable = staging.0.join("fern-web");
+    let executable = staging.0.join("morrow-web");
     fs::copy(artifact, &executable).map_err(|error| error.to_string())?;
     fs::rename(&executable, &output).map_err(|error| error.to_string())?;
     println!("Browser asset revision: {revision}");

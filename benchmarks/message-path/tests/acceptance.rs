@@ -1,4 +1,4 @@
-use fern_message_path::{Case, Codec, run};
+use morrow_message_path::{Case, Codec, run};
 
 #[test]
 fn each_codec_applies_exact_transitions_and_recovers_durable_state() {

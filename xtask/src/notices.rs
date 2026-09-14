@@ -82,7 +82,7 @@ pub fn target_packages(metadata: &Value, browser: bool) -> Result<Vec<Value>, St
             .filter(|package| {
                 matches!(
                     package["name"].as_str(),
-                    Some("fern-browser" | "fern-browser-worker")
+                    Some("morrow-browser" | "morrow-browser-worker")
                 )
             })
             .map(|package| field(package, "id").map(str::to_owned))

@@ -1,0 +1,13 @@
+fn source() -> List(Int):
+    println(1)
+    [4294967297, 7]
+fn index() -> Int:
+    println(2)
+    0
+fn main():
+    println(source()[index()])
+    println([[42]][0][0])
+    println(["morrow", "🌿"][1])
+    println([1.5, 2.5][1] + 1.0)
+    println([(1, 2)][0].1)
+    println([false, true][1])

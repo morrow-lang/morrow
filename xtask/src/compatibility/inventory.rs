@@ -19,31 +19,31 @@ pub fn invalid() -> Result<Vec<Value>, String> {
     for (group, text, count, preflight) in [
         (
             "actors",
-            include_str!("../../../crates/fern/tests/actors/invalid.json"),
+            include_str!("../../../crates/morrow/tests/actors/invalid.json"),
             16,
             Some("parse"),
         ),
         (
             "unions_native",
-            include_str!("../../../crates/fern/tests/unions_native/invalid.json"),
+            include_str!("../../../crates/morrow/tests/unions_native/invalid.json"),
             23,
             Some("fmt"),
         ),
         (
             "newtypes_native",
-            include_str!("../../../crates/fern/tests/newtypes_native/invalid.json"),
+            include_str!("../../../crates/morrow/tests/newtypes_native/invalid.json"),
             14,
             None,
         ),
         (
             "json_codecs_native",
-            include_str!("../../../crates/fern/tests/json_codecs_native/invalid.json"),
+            include_str!("../../../crates/morrow/tests/json_codecs_native/invalid.json"),
             28,
             None,
         ),
         (
             "json_unions_native",
-            include_str!("../../../crates/fern/tests/json_unions_native/invalid.json"),
+            include_str!("../../../crates/morrow/tests/json_unions_native/invalid.json"),
             10,
             None,
         ),

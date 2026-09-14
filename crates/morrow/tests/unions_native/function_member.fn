@@ -1,0 +1,9 @@
+fn make(n: Int) -> ((Int) -> Int) | String:
+    (x) -> x + n
+fn run(value: ((Int) -> Int) | String) -> Int:
+    match value:
+        f: (Int) -> Int -> f(2)
+        s: String -> String.len(s)
+fn main():
+    println(run(make(4294967296)))
+    println(run("morrow"))

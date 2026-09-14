@@ -176,7 +176,7 @@ impl Temporary {
     pub(super) fn new(parent: &Dir) -> io::Result<Self> {
         for _ in 0..100 {
             let child = format!(
-                ".fern-dist-{}-{}",
+                ".morrow-dist-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             );

@@ -1,0 +1,12 @@
+fn tail_size(tail: (String, Bool)) -> Int: 2
+fn unpack((head, ..tail)):
+    tail_size(tail) + head
+fn consume(value: (Int, String)) -> Unit: println("tuple")
+fn capture(value):
+    let (first, ..tail) = value
+    let callback = () -> tail
+    consume(value)
+    callback
+fn main():
+    println(unpack((3, "Morrow", true)))
+    println(capture((1, "saved"))().0)

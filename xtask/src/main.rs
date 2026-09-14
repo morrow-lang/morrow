@@ -45,7 +45,7 @@ fn run() -> Result<(), String> {
             "cargo xtask <command> [--release]\n\
 build                 Build and stage compiler, runtime and supervisor in bin/\n\
 web-build [output]    Build the browser preview and embed assets in one server executable\n\
-web-check [server]    Verify two real browser clients and offline reload (FERN_BROWSER required)\n\
+web-check [server]    Verify two real browser clients and offline reload (MORROW_BROWSER required)\n\
 simulate [options]    Run seeded virtual-time actor/application scenarios (--help for options)\n\
 docs [output] [--no-rust] Build the documentation site (guides, examples, rustdoc) in dist/docs\n\
 check                 Format, Clippy, workspace tests and native acceptance\n\
@@ -61,12 +61,12 @@ compatibility         Check native API and atomic rejection fixtures\n\
 perf <report.json>    Measure explicitly staged compiler/runtime components\n\
 package [directory]   Build a release and publish a verified host archive\n\
 install <prefix>      Build a release and install its complete layout\n\
-uninstall <prefix>    Remove only Fern installation components\n\
+uninstall <prefix>    Remove only Morrow installation components\n\
 verify <tar> <sha256> Validate a release archive without extracting it"
         ),
         "build" => {
             let bin = build::build(&root, release)?;
-            println!("Built {}", bin.join("fern").display());
+            println!("Built {}", bin.join("morrow").display());
         }
         "docs" if rest.len() <= 2 => {
             let rust = !rest.iter().any(|argument| argument == "--no-rust");
@@ -89,7 +89,7 @@ verify <tar> <sha256> Validate a release archive without extracting it"
             let server = rest
                 .first()
                 .map(PathBuf::from)
-                .unwrap_or_else(|| root.join("dist/fern-web"));
+                .unwrap_or_else(|| root.join("dist/morrow-web"));
             xtask::web::acceptance::run(&server)?;
         }
         "simulate" => {
@@ -97,7 +97,7 @@ verify <tar> <sha256> Validate a release archive without extracting it"
                 Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
             simulation
                 .current_dir(&root)
-                .args(["run", "--locked", "-p", "fern-sim"]);
+                .args(["run", "--locked", "-p", "morrow-sim"]);
             if release {
                 simulation.arg("--release");
             }

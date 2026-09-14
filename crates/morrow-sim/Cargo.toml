@@ -1,0 +1,18 @@
+[package]
+name = "morrow-sim"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+morrow = { path = "../morrow" }
+morrow-web-app = { path = "../morrow-web-app", features = ["simulation"] }
+morrow-web-protocol = { path = "../morrow-web-protocol" }
+morrow-runtime = { path = "../morrow-runtime", default-features = false, features = ["simulation"] }
+serde = { version = "=1.0.229", features = ["derive"] }
+serde_json = "=1.0.151"
+sha2 = "=0.11.0"
+libc.workspace = true

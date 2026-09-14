@@ -1,0 +1,192 @@
+[
+  {
+    "jsonrpc": "2.0",
+    "method": "initialize",
+    "params": {
+      "capabilities": {
+        "workspace": {
+          "workspaceEdit": {
+            "documentChanges": true
+          }
+        },
+        "textDocument": {
+          "rename": {
+            "prepareSupport": true
+          },
+          "codeAction": {
+            "codeActionLiteralSupport": {
+              "codeActionKind": {
+                "valueSet": [
+                  "source.fixAll"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "id": 1
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "initialized",
+    "params": {}
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didOpen",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn",
+        "languageId": "morrow",
+        "version": 1,
+        "text": "fn add(x: Int, y: Int) -> Int:\n    x + y\n\nfn main() -> Int:\n    ad\n"
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/completion",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn"
+      },
+      "position": {
+        "line": 4,
+        "character": 6
+      }
+    },
+    "id": 2
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/rename",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn"
+      },
+      "position": {
+        "line": 4,
+        "character": 5
+      },
+      "newName": "sum"
+    },
+    "id": 3
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didChange",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn",
+        "version": 2
+      },
+      "contentChanges": [
+        {
+          "text": "fn add(x: Int, y: Int) -> Int:\n    x + y\n\nfn main() -> Int:\n    add(x: 1, y: 2)\n"
+        }
+      ]
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/prepareRename",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn"
+      },
+      "position": {
+        "line": 4,
+        "character": 5
+      }
+    },
+    "id": 4
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/rename",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-main.fn"
+      },
+      "position": {
+        "line": 4,
+        "character": 5
+      },
+      "newName": "sum"
+    },
+    "id": 5
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/didOpen",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-result.fn",
+        "languageId": "morrow",
+        "version": 1,
+        "text": "fn main() -> Int:\n    fs.read(\"notes.txt\")  \n    0\n"
+      }
+    }
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/codeAction",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-result.fn"
+      },
+      "range": {
+        "start": {
+          "line": 1,
+          "character": 4
+        },
+        "end": {
+          "line": 1,
+          "character": 8
+        }
+      },
+      "context": {
+        "diagnostics": []
+      }
+    },
+    "id": 6
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "textDocument/codeAction",
+    "params": {
+      "textDocument": {
+        "uri": "untitled:lsp-rpc-result.fn"
+      },
+      "range": {
+        "start": {
+          "line": 1,
+          "character": 4
+        },
+        "end": {
+          "line": 1,
+          "character": 8
+        }
+      },
+      "context": {
+        "diagnostics": [],
+        "only": [
+          "quickfix"
+        ]
+      }
+    },
+    "id": 7
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "shutdown",
+    "params": {},
+    "id": 8
+  },
+  {
+    "jsonrpc": "2.0",
+    "method": "exit",
+    "params": {}
+  }
+]

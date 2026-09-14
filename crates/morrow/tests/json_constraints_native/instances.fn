@@ -1,0 +1,10 @@
+fn encode(value): json.encode(value)
+fn decode(text:String)->Result(a,json.Error): json.decode(text,a)
+fn main() -> Result(Unit,json.Error):
+    let number:Int=decode("9007199254740993")?
+    let text:String=decode("\"Morrow\"")?
+    println(encode(number)?)
+    println(encode(text)?)
+    let encoder:(Float)->Result(String,json.Error)=encode
+    println(encoder(-0.0)?)
+    Ok(())

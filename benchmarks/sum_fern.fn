@@ -1,9 +1,0 @@
-# Sum benchmark - using recursion (Fern style)
-fn sum_to(n: Int, acc: Int) -> Int:
-    if n <= 0: acc
-    else: sum_to(n: n - 1, acc: acc + n)
-
-fn main() -> Int:
-    let result = sum_to(n: 10000, acc: 0)
-    println(result)
-    0

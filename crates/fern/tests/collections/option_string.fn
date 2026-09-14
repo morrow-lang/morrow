@@ -1,9 +1,0 @@
-fn greet(value: Option(String)) -> String:
-    match value:
-        Some(name) -> String.concat("Hello, ", name)
-        None -> "Hello, stranger"
-
-fn main():
-    println(greet(Some("Fern")))
-    println(greet(None))
-    println(Option.unwrap_or(Some("retained pointer"), "fallback"))

@@ -6,7 +6,7 @@ Handle fallible operations explicitly, including opaque JSON values and errors.
 
 # Examples
 
-```fern
+```morrow
 let content: Result(String, Int) = fs.read("config.txt")
 println(Result.is_ok(content))
 let written: Result(Int, Int) = fs.write("out.txt", "hello")

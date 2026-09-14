@@ -8,7 +8,7 @@ Every function here is a pure expression; `if` produces a value, so no
 @doc """
 Absolute value without a sign operator.
 
-```fern
+```morrow
 abs(5)  # => 5
 abs(0 - 5)  # => 5
 ```
@@ -30,7 +30,7 @@ fn min(a: Int, b: Int) -> Int:
 @doc """
 Restrict `value` to the inclusive range `lo..hi`.
 
-```fern
+```morrow
 clamp(value: 5, lo: 0, hi: 10)  # => 5
 clamp(value: 15, lo: 0, hi: 10)  # => 10
 ```

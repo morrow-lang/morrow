@@ -1,0 +1,30 @@
+[package]
+name = "morrow-runtime"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[lib]
+crate-type = ["rlib", "staticlib"]
+
+[features]
+default = ["http", "sqlite"]
+http = ["dep:ureq"]
+sqlite = ["dep:rusqlite"]
+simulation = []
+
+[dependencies]
+morrow-json = { path = "../morrow-json" }
+libc.workspace = true
+rusqlite = { version = "=0.40.2", optional = true, features = ["bundled"] }
+ureq = { version = "=3.4.0", optional = true, default-features = false, features = ["rustls"] }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+
+[[test]]
+name = "io_protocols"
+harness = false

@@ -1,6 +1,6 @@
 # Compiled benchmark binaries
-fib_fern
-startup_fern
-sum_fern
+fib_morrow
+startup_morrow
+sum_morrow
 /tmp/fib_c
 /tmp/startup_c

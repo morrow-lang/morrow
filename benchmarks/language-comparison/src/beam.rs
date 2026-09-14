@@ -1,5 +1,5 @@
 //! Correctness-checked macOS BEAM comparison. No third-party harness dependencies.
-//! beam FERN_BATCH RUST_BATCH ELIXIR COMPILED_BEAM_DIRECTORY NEW_OUTPUT_DIRECTORY
+//! beam MORROW_BATCH RUST_BATCH ELIXIR COMPILED_BEAM_DIRECTORY NEW_OUTPUT_DIRECTORY
 mod oracle;
 
 use std::{env, fs, io::Write, path::Path, process::Command, time::Instant};
@@ -48,7 +48,7 @@ fn invocation(
             "-pa".into(),
             inputs[3].clone(),
             "-e".into(),
-            "FernComparison.main()".into(),
+            "MorrowComparison.main()".into(),
             "--".into(),
             "batch".into(),
         ]
@@ -80,7 +80,7 @@ fn main() {
     assert_eq!(
         args.len(),
         6,
-        "beam FERN_BATCH RUST_BATCH ELIXIR COMPILED_BEAM_DIRECTORY NEW_OUTPUT_DIRECTORY"
+        "beam MORROW_BATCH RUST_BATCH ELIXIR COMPILED_BEAM_DIRECTORY NEW_OUTPUT_DIRECTORY"
     );
     let inputs: Vec<String> = args[1..5]
         .iter()
@@ -151,7 +151,7 @@ fn main() {
         "-pa".into(),
         inputs[3].clone(),
         "-e".into(),
-        "FernComparison.main()".into(),
+        "MorrowComparison.main()".into(),
         "--".into(),
         "verify".into(),
     ]);
@@ -190,11 +190,11 @@ fn main() {
         }
     }
 
-    let labels = ["fern", "rust", "elixir-tuple", "elixir-struct"];
+    let labels = ["morrow", "rust", "elixir-tuple", "elixir-struct"];
     let mut csv = fs::File::create(out.join("measurements.csv")).unwrap();
     writeln!(csv, "implementation,mode,steps,seed,repeats,round,phase,elapsed_ms,per_workload_ms,peak_rss_bytes").unwrap();
     let mut summary = String::from(
-        "| Workload | Repeats/process | Fern ms/workload | Rust | Elixir tuples | Elixir structs |\n| --- | ---: | ---: | ---: | ---: | ---: |\n",
+        "| Workload | Repeats/process | Morrow ms/workload | Rust | Elixir tuples | Elixir structs |\n| --- | ---: | ---: | ---: | ---: | ---: |\n",
     );
     for (mode, steps, repeats) in [
         ("scalar", 0, 1),
@@ -248,9 +248,9 @@ fn main() {
                 }
             }
         }
-        let [fern, rust, tuple, structure] = times.map(median);
+        let [morrow, rust, tuple, structure] = times.map(median);
         let row = format!(
-            "| {mode} {steps} | {repeats} | {fern:.3} | {rust:.3} | {tuple:.3} | {structure:.3} |\n"
+            "| {mode} {steps} | {repeats} | {morrow:.3} | {rust:.3} | {tuple:.3} | {structure:.3} |\n"
         );
         print!("{row}");
         summary.push_str(&row);
@@ -270,7 +270,7 @@ fn main() {
             "-pa".into(),
             inputs[3].clone(),
             "-e".into(),
-            "FernComparison.main()".into(),
+            "MorrowComparison.main()".into(),
             "--".into(),
             "warm".into(),
             mode.into(),
@@ -332,10 +332,10 @@ mod tests {
             1234
         );
         assert_eq!(median(vec![3.0, 1.0, 2.0]), 2.0);
-        let inputs = ["/fern", "/rust", "/elixir", "/beam dir"].map(str::to_owned);
+        let inputs = ["/morrow", "/rust", "/elixir", "/beam dir"].map(str::to_owned);
         assert_eq!(
             invocation(&inputs, 0, "scalar", 2, 7, 10),
-            ["/fern", "scalar", "2", "7", "10"]
+            ["/morrow", "scalar", "2", "7", "10"]
         );
         assert_eq!(
             invocation(&inputs, 3, "model-struct", 2, 7, 10)

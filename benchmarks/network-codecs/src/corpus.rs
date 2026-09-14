@@ -14,7 +14,7 @@ pub fn fixtures() -> Vec<(String, Message)> {
         (
             "add",
             Mutation::Add {
-                label: "Learn Fern 🌿".into(),
+                label: "Learn Morrow 🌿".into(),
             },
         ),
         (
@@ -45,7 +45,7 @@ pub fn fixtures() -> Vec<(String, Message)> {
     }
     for count in [0, 1, 10, 100] {
         for (labels, label) in [
-            ("ascii", "Learn Fern".to_string()),
+            ("ascii", "Learn Morrow".to_string()),
             ("unicode", "こんにちは 🌿".repeat(10)),
             ("escaped", "\\".repeat(256)),
         ] {

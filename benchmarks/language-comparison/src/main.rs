@@ -10,7 +10,7 @@ use std::{
 };
 
 struct Tools {
-    fern: String,
+    morrow: String,
     rustc: String,
     bun: String,
     tsc: String,
@@ -19,7 +19,7 @@ struct Tools {
 impl Tools {
     fn load() -> Self {
         Self {
-            fern: env::var("FERN").unwrap_or_else(|_| "target/release/fern".into()),
+            morrow: env::var("MORROW").unwrap_or_else(|_| "target/release/morrow".into()),
             rustc: env::var("RUSTC").unwrap_or_else(|_| "rustc".into()),
             bun: env::var("BUN").unwrap_or_else(|_| "bun".into()),
             tsc: env::var("TSC").expect("TSC must name a pinned TypeScript bin/tsc file"),
@@ -28,8 +28,8 @@ impl Tools {
 
     fn check(&self, language: &str, source: &Path, out: &Path, strict: bool) -> Command {
         match language {
-            "fern" => {
-                let mut c = Command::new(&self.fern);
+            "morrow" => {
+                let mut c = Command::new(&self.morrow);
                 c.arg("check").arg(source);
                 c
             }
@@ -65,8 +65,8 @@ impl Tools {
 
     fn build(&self, language: &str, source: &Path, target: &Path) -> Command {
         match language {
-            "fern" => {
-                let mut c = Command::new(&self.fern);
+            "morrow" => {
+                let mut c = Command::new(&self.morrow);
                 c.arg("build").arg(source).arg("-o").arg(target);
                 c
             }
@@ -122,7 +122,7 @@ fn prepare(tools: &Tools, out: &Path) {
     fs::create_dir(out).expect("output directory must be new");
     let mut metadata = String::new();
     for (label, command) in [
-        ("fern", Command::new(&tools.fern).arg("--version")),
+        ("morrow", Command::new(&tools.morrow).arg("--version")),
         ("rust", Command::new(&tools.rustc).arg("-vV")),
         ("bun", Command::new(&tools.bun).arg("--version")),
         (
@@ -140,13 +140,13 @@ fn prepare(tools: &Tools, out: &Path) {
         ));
     }
     metadata.push_str(&format!(
-        "FERN_RUNTIME_LIB: {:?}\n",
-        env::var("FERN_RUNTIME_LIB")
+        "MORROW_RUNTIME_LIB: {:?}\n",
+        env::var("MORROW_RUNTIME_LIB")
     ));
     fs::write(out.join("environment.txt"), metadata).unwrap();
     let mut sizes = String::from("program,language,bytes\n");
     for name in ["startup", "workloads"] {
-        for (language, extension) in [("fern", "fn"), ("rust", "rs")] {
+        for (language, extension) in [("morrow", "fn"), ("rust", "rs")] {
             let source = PathBuf::from(format!(
                 "benchmarks/language-comparison/programs/{name}.{extension}"
             ));
@@ -192,7 +192,7 @@ fn verify(tools: &Tools, out: &Path) {
         (1_000, 7),
     ] {
         for (language, modes) in [
-            ("fern", vec!["scalar", "model", "precision"]),
+            ("morrow", vec!["scalar", "model", "precision"]),
             ("rust", vec!["scalar", "model", "mutable", "precision"]),
             (
                 "bun",
@@ -227,7 +227,7 @@ fn verify(tools: &Tools, out: &Path) {
         assert_eq!(String::from_utf8_lossy(&result.stdout), expected_stdout);
     }
     let mut observations = String::from("case,language,strict_extra,rejected\n");
-    for (case, fern_reject, rust_reject, ts_reject) in [
+    for (case, morrow_reject, rust_reject, ts_reject) in [
         ("exhaustive", true, true, true),
         ("result", true, false, false),
         ("labels", true, false, false),
@@ -235,7 +235,7 @@ fn verify(tools: &Tools, out: &Path) {
         ("newtypes", true, true, true),
     ] {
         for (language, extension, reject) in [
-            ("fern", "fn", fern_reject),
+            ("morrow", "fn", morrow_reject),
             ("rust", "rs", rust_reject),
             ("typescript", "ts", ts_reject),
         ] {
@@ -257,13 +257,13 @@ fn verify(tools: &Tools, out: &Path) {
                 let log = [result.stdout, result.stderr].concat();
                 if expected_reject {
                     let phrase = match (case, language) {
-                        ("exhaustive", "fern") => "match must be exhaustive",
+                        ("exhaustive", "morrow") => "match must be exhaustive",
                         ("exhaustive", "rust") => "E0004",
                         ("exhaustive" | "bounds", "typescript") => "TS2322",
-                        ("result", "fern") => "Result value must be handled",
+                        ("result", "morrow") => "Result value must be handled",
                         ("result", "rust") => "unused `Result`",
-                        ("labels", "fern") => "argument requires label",
-                        ("newtypes", "fern") => "UserId",
+                        ("labels", "morrow") => "argument requires label",
+                        ("newtypes", "morrow") => "UserId",
                         ("newtypes", "rust") => "E0308",
                         ("newtypes", "typescript") => "TS2345",
                         _ => unreachable!(),
@@ -283,13 +283,13 @@ fn verify(tools: &Tools, out: &Path) {
             }
             let original = fs::read_to_string(&source).unwrap();
             let fixed = match (case, language) {
-                ("exhaustive", "fern") => original.replace("    Paused\n", ""),
+                ("exhaustive", "morrow") => original.replace("    Paused\n", ""),
                 ("exhaustive", "rust") => original.replace(", Paused", "").replace("    Paused,\n", ""),
                 ("exhaustive", "typescript") => original.replace(" | \"paused\"", ""),
-                ("result", "fern") => original.replace("validate(-1)", "match validate(-1):\n        Ok(value) -> println(value)\n        Err(message) -> println(message)"),
+                ("result", "morrow") => original.replace("validate(-1)", "match validate(-1):\n        Ok(value) -> println(value)\n        Err(message) -> println(message)"),
                 ("result", "rust") => original.replace("validate(-1);", "let _ = validate(-1);"),
-                ("labels", "fern") => original.replace("transfer(100, 20)", "transfer(from: 100, to: 20)"),
-                ("newtypes", "fern" | "rust") => original.replace("ProductId(1)", "UserId(1)"),
+                ("labels", "morrow") => original.replace("transfer(100, 20)", "transfer(from: 100, to: 20)"),
+                ("newtypes", "morrow" | "rust") => original.replace("ProductId(1)", "UserId(1)"),
                 ("newtypes", "typescript") => original.replace("load(product)", "load(1 as UserId)"),
                 ("bounds", "typescript") => original.replace("values[3]", "values[3] ?? 0"),
                 _ => original,
@@ -299,7 +299,7 @@ fn verify(tools: &Tools, out: &Path) {
             success(&execute(&mut tools.check(language, &positive, out, true)));
         }
     }
-    for (language, extension) in [("fern", "fn"), ("rust", "rs")] {
+    for (language, extension) in [("morrow", "fn"), ("rust", "rs")] {
         let source = PathBuf::from(format!(
             "benchmarks/language-comparison/mutations/bounds.{extension}"
         ));
@@ -350,11 +350,11 @@ fn measure(tools: &Tools, out: &Path) {
         "RSS units/parser are explicit for macOS"
     );
     let cases = [
-        ("fern", "scalar", 20_000_000),
+        ("morrow", "scalar", 20_000_000),
         ("rust", "scalar", 20_000_000),
         ("bun", "scalar", 20_000_000),
         ("bun", "scalar-bigint", 20_000_000),
-        ("fern", "model", 10_000),
+        ("morrow", "model", 10_000),
         ("rust", "model", 10_000),
         ("bun", "model", 10_000),
         ("rust", "mutable", 10_000),
@@ -393,7 +393,7 @@ fn measure(tools: &Tools, out: &Path) {
         println!("Measurement round {} of 9 complete", iteration + 1);
     }
     for iteration in 0..21 {
-        for language in ["fern", "rust", "bun"] {
+        for language in ["morrow", "rust", "bun"] {
             let (wall, rss, result) = timed(&mut program(tools, out, language, "startup"));
             success(&result);
             assert_eq!(result.stdout, b"0\n");
@@ -403,7 +403,7 @@ fn measure(tools: &Tools, out: &Path) {
         }
     }
     for iteration in 0..5 {
-        for (language, extension) in [("fern", "fn"), ("rust", "rs"), ("typescript", "ts")] {
+        for (language, extension) in [("morrow", "fn"), ("rust", "rs"), ("typescript", "ts")] {
             let source = PathBuf::from(format!(
                 "benchmarks/language-comparison/programs/workloads.{extension}"
             ));

@@ -3,9 +3,9 @@ fn append(text: String) -> Unit:
         Ok(_) -> ()
         Err(_) -> ()
 fn test_good() -> Result(Unit, Int | String):
-    let value: Int | String = "fern"
+    let value: Int | String = "morrow"
     match value:
-        s: String -> if s == "fern": Ok(()) else: Err(s)
+        s: String -> if s == "morrow": Ok(()) else: Err(s)
         n: Int -> Err(n)
 fn test_failed() -> Result(Unit, Int | String): Err(4294967296)
 fn test_exit() -> Result(Unit, Int | String):

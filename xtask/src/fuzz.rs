@@ -18,7 +18,7 @@ pub fn run(root: &Path, bin: &Path, iterations: u32, seed: u64) -> Result<(), St
     let temporary = crate::Temporary::new(&std::env::temp_dir())?;
     let path = temporary.0.join("case.fn");
     let mut invoke = |action: &str, path: &Path| {
-        let mut command = Command::new(bin.join("fern"));
+        let mut command = Command::new(bin.join("morrow"));
         command.arg(action).arg(path);
         let output = crate::acceptance::capture(command, bin, root)?;
         if !matches!(output.status.code(), Some(0 | 1))
@@ -70,7 +70,7 @@ pub fn run(root: &Path, bin: &Path, iterations: u32, seed: u64) -> Result<(), St
     );
     Ok(())
 }
-type Invoke<'a> = dyn FnMut(&str, &Path) -> Result<fern_test_supervisor::Captured, String> + 'a;
+type Invoke<'a> = dyn FnMut(&str, &Path) -> Result<morrow_test_supervisor::Captured, String> + 'a;
 /// A successful formatting pass must be stable and remain parseable.
 fn grammar(path: &Path, invoke: &mut Invoke<'_>) -> Result<(), String> {
     for action in ["parse", "fmt"] {
@@ -83,7 +83,7 @@ fn grammar(path: &Path, invoke: &mut Invoke<'_>) -> Result<(), String> {
     }
     require_success("second parse", invoke("parse", path)?)
 }
-fn require_success(action: &str, output: fern_test_supervisor::Captured) -> Result<(), String> {
+fn require_success(action: &str, output: morrow_test_supervisor::Captured) -> Result<(), String> {
     if output.status.success() {
         Ok(())
     } else {
@@ -125,8 +125,8 @@ fn mutation(source: &str, path: &Path, invoke: &mut Invoke<'_>) -> Result<(), St
 mod tests {
     use super::*;
     use std::{fs, os::unix::process::ExitStatusExt, process::ExitStatus};
-    fn output(code: i32, bytes: &[u8]) -> fern_test_supervisor::Captured {
-        fern_test_supervisor::Captured {
+    fn output(code: i32, bytes: &[u8]) -> morrow_test_supervisor::Captured {
+        morrow_test_supervisor::Captured {
             status: ExitStatus::from_raw(code << 8),
             stdout: bytes.to_vec(),
             stderr: vec![],

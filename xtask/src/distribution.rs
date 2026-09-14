@@ -11,10 +11,10 @@ use std::{
 pub const MARKER: &str =
     "{\"format\":2,\"compiler\":\"rust\",\"backend\":\"cranelift\",\"runtime\":\"rust\"}\n";
 pub const REQUIRED: &[&str] = &[
-    "fern",
-    "fern-test-supervisor",
-    "libfern_runtime.a",
-    "fern-package.json",
+    "morrow",
+    "morrow-test-supervisor",
+    "libmorrow_runtime.a",
+    "morrow-package.json",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
 ];
@@ -28,7 +28,7 @@ struct Input {
     mode: u32,
 }
 fn executable(name: &str) -> bool {
-    ["fern", "fern-test-supervisor"].contains(&name)
+    ["morrow", "morrow-test-supervisor"].contains(&name)
 }
 fn validate_marker(bytes: &[u8]) -> Result<(), String> {
     if bytes.len() > 65536 {
@@ -79,7 +79,7 @@ fn inputs(staging: &Path) -> Result<Vec<Input>, String> {
         if total > TOTAL_LIMIT {
             return Err("release components exceed aggregate byte limit".into());
         }
-        if name == "fern-package.json" {
+        if name == "morrow-package.json" {
             let mut marker = Vec::new();
             Read::by_ref(&mut file)
                 .take(65537)
@@ -105,7 +105,7 @@ pub fn verify_layout(staging: &Path) -> Result<(), String> {
 pub fn write_marker(staging: &Path) -> Result<(), String> {
     let directory = Dir::open(staging, false).map_err(|e| e.to_string())?;
     directory
-        .destination("fern-package.json")
+        .destination("morrow-package.json")
         .map_err(|e| e.to_string())?;
     let mut temporary = Temporary::new(&directory).map_err(|e| e.to_string())?;
     let mut file = temporary.create("marker").map_err(|e| e.to_string())?;
@@ -116,7 +116,7 @@ pub fn write_marker(staging: &Path) -> Result<(), String> {
     file.sync_all().map_err(|e| e.to_string())?;
     temporary
         .dir
-        .rename("marker", &directory, "fern-package.json")
+        .rename("marker", &directory, "morrow-package.json")
         .map_err(|e| e.to_string())
 }
 fn version(value: &str) -> bool {
@@ -162,7 +162,7 @@ fn stem(version_text: &str) -> Result<String, String> {
         "x86_64" => "x86_64",
         _ => return Err("unsupported release architecture".into()),
     };
-    Ok(format!("fern-{version_text}-{os}-{arch}"))
+    Ok(format!("morrow-{version_text}-{os}-{arch}"))
 }
 /// Create and verify one host bundle before atomically publishing each completed file.
 pub fn package(
@@ -234,8 +234,8 @@ pub fn install(staging: &Path, prefix: &Path) -> Result<(), String> {
         .map_err(|e| format!("invalid install bin directory: {e}"))?;
     let share = directory
         .child(std::ffi::OsStr::new("share"), true)
-        .and_then(|d| d.child(std::ffi::OsStr::new("fern"), true))
-        .map_err(|e| format!("invalid install share/fern directory: {e}"))?;
+        .and_then(|d| d.child(std::ffi::OsStr::new("morrow"), true))
+        .map_err(|e| format!("invalid install share/morrow directory: {e}"))?;
     let location = |name: &str| {
         if ["LICENSE", "THIRD_PARTY_NOTICES.md", "README.md"].contains(&name) {
             &share
@@ -308,7 +308,7 @@ pub fn uninstall(prefix: &Path) -> Result<(), String> {
     let share = existing(
         directory
             .child(std::ffi::OsStr::new("share"), false)
-            .and_then(|directory| directory.child(std::ffi::OsStr::new("fern"), false)),
+            .and_then(|directory| directory.child(std::ffi::OsStr::new("morrow"), false)),
     )?;
     let location = |name: &str| {
         if ["LICENSE", "THIRD_PARTY_NOTICES.md", "README.md"].contains(&name) {

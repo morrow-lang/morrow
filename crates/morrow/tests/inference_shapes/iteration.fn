@@ -1,0 +1,18 @@
+fn visit_list(items):
+    for item in items:
+        println(item)
+    List.len(items)
+fn visit_map(items):
+    for (key, value) in items:
+        println(key + value)
+    Map.len(items)
+fn consume(value: Range) -> Unit: println("range")
+fn visit_range(items):
+    for item in items:
+        println(item)
+    consume(items)
+fn main():
+    println(visit_list([7, 8]))
+    println(visit_list(["Morrow"]))
+    println(visit_map(%{1: 2, 3: 4}))
+    visit_range(0..2)

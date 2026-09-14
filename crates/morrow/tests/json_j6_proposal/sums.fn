@@ -1,0 +1,14 @@
+type Event derive(Json):
+    Idle
+    Count(Int)
+    Named(label:String,active:Bool)
+fn main() -> Result(Unit,json.Error):
+    println(json.encode(Idle)?)
+    println(json.encode(Count(9007199254740993))?)
+    println(json.encode(Named("Morrow",true))?)
+    let value=json.decode("\{\"tag\":\"Count\",\"fields\":[42]\}",Event)?
+    match value:
+        Idle -> println(0)
+        Count(n) -> println(n)
+        Named(_,_) -> println(-1)
+    Ok(())
