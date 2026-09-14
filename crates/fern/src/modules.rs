@@ -1134,11 +1134,34 @@ fn resolve_global(name: &mut String, names: &NameMap, allow_builtin: bool) -> Re
     if let Some(value) = names.get(name) {
         *name = value.clone();
     } else if (name.contains('.') || name == "main") && !(allow_builtin && builtin_path(name)) {
-        return Err(failure(format!(
-            "{name} is private, not exported, or not imported"
-        )));
+        return Err(failure(unresolved_global(name, names, allow_builtin)));
     }
     Ok(())
+}
+
+/// Describe an unresolved qualified name: builtin modules name their missing member and the
+/// nearest existing API; other prefixes keep the import guidance with a nearest visible name.
+fn unresolved_global(name: &str, names: &NameMap, allow_builtin: bool) -> String {
+    let builtins = crate::check::builtin_api_names();
+    if allow_builtin
+        && let Some((prefix, member)) = name.rsplit_once('.')
+        && builtins.iter().any(|api| {
+            api.strip_prefix(prefix)
+                .is_some_and(|rest| rest.starts_with('.'))
+        })
+    {
+        let members = builtins.iter().copied().filter(|api| {
+            api.strip_prefix(prefix)
+                .is_some_and(|rest| rest.starts_with('.'))
+        });
+        let suggestion = crate::suggest::nearest_member(prefix, member, members)
+            .map_or_else(String::new, |found| format!("; did you mean '{found}'?"));
+        return format!("{prefix} has no function '{member}'{suggestion}");
+    }
+    format!(
+        "{name} is private, not exported, or not imported{}",
+        crate::suggest::hint(name, names.keys().map(String::as_str))
+    )
 }
 
 /// Builtin-qualified calls need no source import; arbitrary module prefixes do.

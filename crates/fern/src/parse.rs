@@ -76,6 +76,64 @@ enum Kind {
     End,
 }
 
+impl Kind {
+    /// Describe a token for diagnostics; literal spellings are shown, layout tokens are named.
+    fn describe(&self) -> String {
+        match self {
+            Kind::Name(name) if reserved(name) => format!("keyword '{name}'"),
+            Kind::Name(name) => format!("name '{name}'"),
+            Kind::Number(text) => format!("number '{text}'"),
+            Kind::Text(_) | Kind::StringOpen => "string literal".into(),
+            Kind::MultilineOpen => "multiline string".into(),
+            Kind::Comment => "comment".into(),
+            Kind::Doc(_) => "@doc comment".into(),
+            Kind::Newline => "end of line".into(),
+            Kind::Indent => "indentation".into(),
+            Kind::Dedent => "end of block".into(),
+            Kind::End => "end of file".into(),
+            Kind::MemberHole | Kind::LabelHole => "placeholder '_'".into(),
+            Kind::HoleOpen | Kind::HoleClose | Kind::StringClose | Kind::MultilineClose => {
+                "string delimiter".into()
+            }
+            Kind::Left => "'('".into(),
+            Kind::Right => "')'".into(),
+            Kind::LeftBracket => "'['".into(),
+            Kind::RightBracket => "']'".into(),
+            Kind::LeftBrace => "'{'".into(),
+            Kind::RightBrace => "'}'".into(),
+            Kind::Colon => "':'".into(),
+            Kind::Comma => "','".into(),
+            Kind::Dot => "'.'".into(),
+            Kind::Arrow => "'->'".into(),
+            Kind::Bind => "'<-'".into(),
+            Kind::Range => "'..'".into(),
+            Kind::RangeInclusive => "'..='".into(),
+            Kind::Pipe => "'|>'".into(),
+            Kind::Bar => "'|'".into(),
+            Kind::Assign => "'='".into(),
+            Kind::Plus => "'+'".into(),
+            Kind::Minus => "'-'".into(),
+            Kind::Star => "'*'".into(),
+            Kind::Power => "'**'".into(),
+            Kind::BitAnd => "'&&&'".into(),
+            Kind::BitOr => "'|||'".into(),
+            Kind::BitXor => "'^^^'".into(),
+            Kind::BitNot => "'~~~'".into(),
+            Kind::ShiftLeft => "'<<<'".into(),
+            Kind::ShiftRight => "'>>>'".into(),
+            Kind::Slash => "'/'".into(),
+            Kind::Percent => "'%'".into(),
+            Kind::Question => "'?'".into(),
+            Kind::Eq => "'=='".into(),
+            Kind::Ne => "'!='".into(),
+            Kind::Lt => "'<'".into(),
+            Kind::Le => "'<='".into(),
+            Kind::Gt => "'>'".into(),
+            Kind::Ge => "'>='".into(),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Token {
     kind: Kind,
@@ -1158,7 +1216,7 @@ fn punctuation(rest: &str, start: usize) -> ParseResult<(Kind, usize)> {
                     start,
                     end: start + c.len_utf8(),
                 },
-                format!("unsupported character {c:?} in Rust prototype"),
+                format!("unsupported character {c:?} in source"),
             ));
         }
     };
@@ -1800,10 +1858,10 @@ impl Parser {
                 let span = self.take().span;
                 Ok((name, span))
             }
-            _ => {
-                Err(self
-                    .error("expected identifier; this syntax is unsupported in the Rust prototype"))
-            }
+            kind => Err(self.error(&format!(
+                "expected an identifier but found {}",
+                kind.describe()
+            ))),
         }
     }
 
@@ -2300,9 +2358,9 @@ impl Parser {
             Kind::LeftBracket => self.list(token.span),
             Kind::Percent => self.map_or_update(token.span),
             Kind::Left => self.parenthesized(token.span),
-            _ => Err(Diagnostic::new(
+            kind => Err(Diagnostic::new(
                 token.span,
-                "expected expression; this syntax is unsupported in the Rust prototype",
+                format!("expected an expression but found {}", kind.describe()),
             )),
         }
     }

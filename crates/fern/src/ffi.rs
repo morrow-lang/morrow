@@ -189,17 +189,34 @@ pub fn reserved_type(name: &str) -> bool {
     )
 }
 
+/// Every spelling accepted by [`is_api`], for suggestions and completion inventories.
+pub const API_NAMES: &[&str] = &[
+    "Ptr.null",
+    "Ptr.is_null",
+    "Ptr.equal",
+    "Ptr.to_string",
+    "String.as_ptr",
+    "CInt8.from_int",
+    "CInt8.to_int",
+    "CInt16.from_int",
+    "CInt16.to_int",
+    "CInt32.from_int",
+    "CInt32.to_int",
+    "CUInt8.from_int",
+    "CUInt8.to_int",
+    "CUInt16.from_int",
+    "CUInt16.to_int",
+    "CUInt32.from_int",
+    "CUInt32.to_int",
+    "CUInt64.from_int",
+    "CUInt64.to_int",
+    "CFloat32.from_float",
+    "CFloat32.to_float",
+];
+
 /// Compiler-owned safe conversions and sealed pointer operations.
 pub fn is_api(name: &str) -> bool {
-    matches!(
-        name,
-        "Ptr.null" | "Ptr.is_null" | "Ptr.equal" | "Ptr.to_string" | "String.as_ptr"
-    ) || name.split_once('.').is_some_and(|(owner, method)| {
-        owner != "Ptr"
-            && reserved_type(owner)
-            && matches!(method, "from_int" | "to_int" | "from_float" | "to_float")
-            && ((owner == "CFloat32") == matches!(method, "from_float" | "to_float"))
-    })
+    API_NAMES.contains(&name)
 }
 
 /// Collect only explicit logical libraries from validated native call metadata.

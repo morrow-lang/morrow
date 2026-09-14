@@ -823,6 +823,23 @@ impl Checker<'_> {
             .find_map(|scope| scope.get(name).cloned())
     }
 
+    /// Append a nearest-spelling hint for an unresolved simple value name.
+    /// Declarations are module-qualified internally, so their source tails are compared;
+    /// qualified spellings are diagnosed by the module resolver before checking.
+    fn value_hint(&self, name: &str) -> String {
+        if name.contains('.') {
+            return String::new();
+        }
+        let candidates = self
+            .scopes
+            .iter()
+            .flat_map(|scope| scope.keys().map(String::as_str))
+            .chain(self.signatures.keys().map(|key| crate::suggest::tail(key)))
+            .chain(self.registry.constructor_names().map(crate::suggest::tail))
+            .chain(["Some", "None", "Ok", "Err", "print", "println"]);
+        crate::suggest::hint(name, candidates)
+    }
+
     /// Resolve `expr` at bounded `depth` into an expression retaining its type.
     fn expression(&mut self, expr: &ast::Expr, depth: usize) -> Checked<ir::Expr> {
         self.expression_expected(expr, None, depth)
@@ -1438,7 +1455,10 @@ impl Checker<'_> {
                 format!("runtime API '{name}' is unsupported: {}", omission.reason),
             ))
         } else {
-            Err(Diagnostic::new(span, format!("unknown function '{name}'")))
+            Err(Diagnostic::new(
+                span,
+                format!("unknown function '{name}'{}", self.value_hint(name)),
+            ))
         }
     }
 
@@ -1842,7 +1862,15 @@ impl Checker<'_> {
             .fields
             .iter()
             .position(|field| field == name)
-            .ok_or_else(|| Diagnostic::new(span, format!("unknown record field '{name}'")))?;
+            .ok_or_else(|| {
+                Diagnostic::new(
+                    span,
+                    format!(
+                        "unknown record field '{name}'{}",
+                        crate::suggest::hint(name, layout.fields.iter().map(String::as_str))
+                    ),
+                )
+            })?;
         Ok((
             ir::ExprKind::Field {
                 value: Box::new(value),
@@ -2152,6 +2180,64 @@ fn constructor(name: &str) -> Option<Constructor> {
         "Err" => Some(Constructor::Err),
         _ => None,
     }
+}
+
+/// Every source spelling accepted by [`builtin`], for suggestions and completion inventories.
+pub(crate) const BUILTIN_NAMES: &[&str] = &[
+    "Map.new",
+    "Map.get",
+    "Map.put",
+    "Map.delete",
+    "Map.len",
+    "Map.is_empty",
+    "Map.contains",
+    "Map.keys",
+    "Map.values",
+    "print",
+    "println",
+    "String.concat",
+    "String.eq",
+    "String.len",
+    "List.enumerate",
+    "List.map",
+    "List.fold",
+    "List.filter",
+    "List.find",
+    "List.any",
+    "List.all",
+    "Option.map",
+    "Result.map",
+    "Result.and_then",
+    "Result.unwrap_or_else",
+    "List.len",
+    "List.get",
+    "List.head",
+    "List.tail",
+    "List.is_empty",
+    "List.push",
+    "List.reverse",
+    "List.concat",
+    "List.contains",
+    "Option.is_some",
+    "Option.is_none",
+    "Option.unwrap_or",
+    "Result.is_ok",
+    "Result.is_err",
+    "Result.unwrap_or",
+];
+
+/// Qualified builtin, Set, foreign and runtime API spellings available without an import.
+pub(crate) fn builtin_api_names() -> Vec<&'static str> {
+    let mut names: Vec<&'static str> = BUILTIN_NAMES
+        .iter()
+        .copied()
+        .chain(sets::API_NAMES.iter().copied())
+        .chain(crate::ffi::API_NAMES.iter().copied())
+        .chain(runtime::names())
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
 }
 
 /// Return the stable builtin identity for an unshadowed source name.

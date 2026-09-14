@@ -20,6 +20,7 @@ pub mod presentation;
 pub mod repl;
 pub mod runtime;
 pub mod runtime_abi;
+pub mod suggest;
 pub(crate) mod unions;
 pub mod wasm;
 

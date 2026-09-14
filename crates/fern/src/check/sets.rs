@@ -3,24 +3,26 @@
 use super::*;
 use ir::{Builtin as B, Expr as E, ExprKind as K};
 
+/// The complete public set API; arbitrary qualified names remain module errors.
+pub(crate) const API_NAMES: &[&str] = &[
+    "Set.new",
+    "Set.insert",
+    "Set.delete",
+    "Set.contains",
+    "Set.len",
+    "Set.is_empty",
+    "Set.to_list",
+    "Set.from_list",
+    "Set.union",
+    "Set.intersection",
+    "Set.difference",
+    "Set.is_subset",
+    "Set.equal",
+];
+
 /// Recognize only the public set API; arbitrary qualified names remain module errors.
 pub(crate) fn is_api(name: &str) -> bool {
-    matches!(
-        name,
-        "Set.new"
-            | "Set.insert"
-            | "Set.delete"
-            | "Set.contains"
-            | "Set.len"
-            | "Set.is_empty"
-            | "Set.to_list"
-            | "Set.from_list"
-            | "Set.union"
-            | "Set.intersection"
-            | "Set.difference"
-            | "Set.is_subset"
-            | "Set.equal"
-    )
+    API_NAMES.contains(&name)
 }
 fn set(item: Type) -> Type {
     Type::Named("Set".into(), vec![item])

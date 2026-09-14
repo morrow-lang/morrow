@@ -100,7 +100,10 @@ impl Checker<'_> {
                 Type::Function(params, Box::new(result)),
             ));
         }
-        Err(Diagnostic::new(span, format!("unknown name '{name}'")))
+        Err(Diagnostic::new(
+            span,
+            format!("unknown name '{name}'{}", self.value_hint(name)),
+        ))
     }
 
     fn constant_reference(&mut self, name: &str, span: Span) -> Checked<TypedKind> {

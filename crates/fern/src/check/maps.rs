@@ -178,7 +178,14 @@ fn update_indices(fields: &[ast::RecordField], names: &[String]) -> Checked<Vec<
                 .iter()
                 .position(|name| name == &field.name)
                 .ok_or_else(|| {
-                    Diagnostic::new(field.span, format!("unknown record field '{}'", field.name))
+                    Diagnostic::new(
+                        field.span,
+                        format!(
+                            "unknown record field '{}'{}",
+                            field.name,
+                            crate::suggest::hint(&field.name, names.iter().map(String::as_str))
+                        ),
+                    )
                 })
         })
         .collect()

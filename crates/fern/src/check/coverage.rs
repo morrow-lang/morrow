@@ -104,10 +104,85 @@ fn retained_mode(
     {
         return Err(Diagnostic::new(
             span,
-            "match must be exhaustive; guards do not guarantee coverage",
+            format!(
+                "match must be exhaustive; guards do not guarantee coverage; missing: {}",
+                missing_cases(subject, &matrix, registry, &mut budget, span)?
+            ),
         ));
     }
     Ok(kept)
+}
+
+/// Name the top-level constructors that still admit an unmatched value, as source patterns.
+/// Nested payload gaps are reported through their enclosing constructor with wildcard fields.
+fn missing_cases(
+    subject: &Type,
+    matrix: &[Vec<Pattern>],
+    registry: &Registry,
+    budget: &mut usize,
+    span: Span,
+) -> Checked<String> {
+    let Some(heads) = finite_heads(subject, registry, span)? else {
+        return Ok("a wildcard arm such as '_'".to_owned());
+    };
+    let names = case_names(subject, registry, span)?;
+    let mut missing = Vec::new();
+    for (index, (head, payload)) in heads.into_iter().enumerate() {
+        let candidate = Pattern::Specific(head, vec![Pattern::Any; payload.len()]);
+        if useful(
+            matrix,
+            std::slice::from_ref(&candidate),
+            std::slice::from_ref(subject),
+            registry,
+            0,
+            budget,
+            span,
+        )? {
+            let fields = if payload.is_empty() {
+                String::new()
+            } else {
+                format!("({})", vec!["_"; payload.len()].join(", "))
+            };
+            let name = names.get(index).cloned().unwrap_or_else(|| "_".to_owned());
+            missing.push(format!("{name}{fields}"));
+        }
+    }
+    if missing.is_empty() {
+        return Ok("a wildcard arm such as '_'".to_owned());
+    }
+    Ok(missing.join(", "))
+}
+
+/// Source spellings for each finite head in [`finite_heads`] order, without payload markers.
+fn case_names(subject: &Type, registry: &Registry, span: Span) -> Checked<Vec<String>> {
+    Ok(match subject {
+        Type::Bool => vec!["true".to_owned(), "false".to_owned()],
+        Type::Unit => vec!["()".to_owned()],
+        Type::List(_) => vec!["[]".to_owned(), "[_, ..]".to_owned()],
+        Type::Option(_) => vec!["Some".to_owned(), "None".to_owned()],
+        Type::Result(..) => vec!["Ok".to_owned(), "Err".to_owned()],
+        Type::Tuple(_) => vec!["a tuple pattern".to_owned()],
+        Type::Union(members) => members
+            .iter()
+            .map(|member| {
+                let rendered = crate::presentation::render_type(
+                    member,
+                    crate::presentation::Limits::default(),
+                )
+                .unwrap_or_else(|_| "_".to_owned());
+                format!("a {rendered} member")
+            })
+            .collect(),
+        Type::Named(name, _) => {
+            let layout = registry.layout(subject, span)?;
+            if layout.variant_names.is_empty() {
+                vec![name.rsplit('.').next().unwrap_or(name).to_owned()]
+            } else {
+                layout.variant_names
+            }
+        }
+        _ => Vec::new(),
+    })
 }
 
 /// Convert resolved patterns into constructor matrices; binders behave as wildcards.

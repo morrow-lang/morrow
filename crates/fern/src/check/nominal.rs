@@ -159,10 +159,12 @@ impl Registry {
         while let Some(ty) = pending.pop() {
             match ty {
                 Type::Named(name, args) => {
-                    let decl = self
-                        .declarations
-                        .get(name)
-                        .ok_or_else(|| Diagnostic::new(span, format!("unknown type '{name}'")))?;
+                    let decl = self.declarations.get(name).ok_or_else(|| {
+                        Diagnostic::new(
+                            span,
+                            format!("unknown type '{name}'{}", self.type_hint(name)),
+                        )
+                    })?;
                     if args.len() != decl.parameters.len() {
                         return Err(Diagnostic::new(
                             span,
@@ -211,6 +213,27 @@ impl Registry {
         Ok(())
     }
 
+    /// Enumerate declared constructor spellings for unresolved-name suggestions.
+    pub(super) fn constructor_names(&self) -> impl Iterator<Item = &str> {
+        self.constructors.keys().map(String::as_str)
+    }
+
+    /// Nominal type spellings, including builtin types, for unresolved-annotation suggestions.
+    pub(super) fn type_hint(&self, name: &str) -> String {
+        const BUILTIN_TYPES: &[&str] = &[
+            "Int", "Float", "Bool", "String", "List", "Map", "Set", "Option", "Result", "Pid",
+        ];
+        crate::suggest::hint(
+            crate::suggest::tail(name),
+            self.declarations
+                .keys()
+                .chain(self.aliases.iter())
+                .chain(self.newtypes.iter())
+                .map(|key| crate::suggest::tail(key))
+                .chain(BUILTIN_TYPES.iter().copied()),
+        )
+    }
+
     /// Return owned constructor metadata, allowing the caller to allocate fresh variables.
     pub(super) fn constructor(
         &self,
@@ -236,10 +259,12 @@ impl Registry {
         let Type::Named(name, args) = ty else {
             return Err(Diagnostic::new(span, "field access requires a record type"));
         };
-        let decl = self
-            .declarations
-            .get(name)
-            .ok_or_else(|| Diagnostic::new(span, format!("unknown type '{name}'")))?;
+        let decl = self.declarations.get(name).ok_or_else(|| {
+            Diagnostic::new(
+                span,
+                format!("unknown type '{name}'{}", self.type_hint(name)),
+            )
+        })?;
         if args.len() != decl.parameters.len() {
             return Err(Diagnostic::new(span, "wrong nominal type argument count"));
         }
@@ -394,9 +419,16 @@ impl Registry {
             returns::charge_output(inference, &result, span)?;
             return Ok((index, result));
         }
+        let declared = decl.variants[0]
+            .fields
+            .iter()
+            .filter_map(|field| field.name.as_deref());
         Err(Diagnostic::new(
             span,
-            format!("unknown record field '{name}'"),
+            format!(
+                "unknown record field '{name}'{}",
+                crate::suggest::hint(name, declared)
+            ),
         ))
     }
 

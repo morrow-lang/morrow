@@ -1,4 +1,4 @@
-//! Source syntax for the bounded Rust prototype.
+//! Source syntax produced by the bounded Fern parser.
 use crate::{Constructor, Span, Type};
 
 #[derive(Clone, Debug, Default)]
