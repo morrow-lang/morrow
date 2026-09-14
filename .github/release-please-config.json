@@ -89,6 +89,16 @@
           "type": "toml",
           "path": "benchmarks/compiler-phases/Cargo.lock",
           "jsonpath": "$.package[?(@.name.value == 'fern-test-supervisor')].version"
+        },
+        {
+          "type": "toml",
+          "path": "benchmarks/network-codecs/Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-web-protocol')].version"
+        },
+        {
+          "type": "toml",
+          "path": "Cargo.lock",
+          "jsonpath": "$.package[?(@.name.value == 'fern-cluster')].version"
         }
       ]
     }

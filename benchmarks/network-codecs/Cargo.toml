@@ -1,0 +1,22 @@
+[package]
+name = "fern-network-codecs"
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.100"
+publish = false
+[workspace]
+[dependencies]
+fern-web-protocol = { path = "../../crates/fern-web-protocol" }
+serde_json = "=1.0.151"
+minicbor = { version = "=2.3.0", features = ["std", "derive"] }
+prost = { version = "=0.14.4", default-features = false, features = ["derive", "std"] }
+[profile.release]
+strip = true
+lto = "thin"
+codegen-units = 1
+[profile.dev]
+debug = 0
+incremental = false
+[profile.test]
+debug = 0
+incremental = false

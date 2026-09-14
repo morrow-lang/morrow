@@ -60,7 +60,11 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
         extra.iter().any(|value| value["path"] == "Cargo.toml"
             && value["jsonpath"] == "$.workspace.package.version")
     );
-    for lock_path in ["Cargo.lock", "benchmarks/compiler-phases/Cargo.lock"] {
+    for lock_path in [
+        "Cargo.lock",
+        "benchmarks/compiler-phases/Cargo.lock",
+        "benchmarks/network-codecs/Cargo.lock",
+    ] {
         let lock = read(lock_path);
         for block in lock
             .split("[[package]]")
@@ -74,7 +78,7 @@ fn release_metadata_updates_workspace_version_and_every_local_lock_entry() {
                         .and_then(|rest| rest.strip_suffix('"'))
                 })
                 .unwrap();
-            if name == "fern-phase-benchmarks" {
+            if matches!(name, "fern-phase-benchmarks" | "fern-network-codecs") {
                 continue;
             }
             assert!(

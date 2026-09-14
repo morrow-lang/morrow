@@ -112,12 +112,22 @@ Authentication stays responsive while a room executes, and admission limits
 remain shared across workers. See the [worker contract](docs/WEB_WORKERS.md)
 for room placement, revocation and durable-write behavior.
 
+**Connect multiple servers:** `fern-web --cluster-init` creates private node
+bundles; `FERN_WEB_CLUSTER` enables authenticated TLS routing to fixed room
+owners. Browsers keep their normal automatic WebSocket connection to a gateway.
+The [three-node guide](docs/CLUSTER.md) includes setup, delivery guarantees and
+the 10,000-mutation stress scenario. Membership is fixed; partitions do not
+trigger ownership takeover or replay uncertain mutations.
+
+The [protocol comparison](docs/NETWORK_PROTOCOL.md) explains the WebSocket/JSON
+default and measures CBOR/protobuf alternatives without adding them to production.
+
 See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
 offline behavior and the exact preview boundary.
 
 Open **`/admin`** after signing in to inspect uptime, resident memory, workers, rooms,
 connections and resource limits. The [system dashboard](docs/ADMIN_DASHBOARD.md)
-also provides authenticated JSON snapshots.
+also provides authenticated JSON snapshots and configured versus connected peers.
 
 ## Explore resilience
 
@@ -209,7 +219,8 @@ static servers of 2.75 MiB (ARM64) and 3.06 MiB (x86-64).
 
 Fern is ready to explore, build small programs with and contribute to. It remains
 an early preview: general actor preemption, generalized supervision, work
-stealing, clustering and a general application packaging API remain open.
+stealing, dynamic cluster membership, replicated failover, remote language PIDs
+and a general application packaging API remain open.
 The current checklist executes its complete typed model/update/view and native
 actor path, with optional durable room checkpoints. WASM supports bounded
 records, tagged sums, lists, tuples, Option/Result, UTF-8 strings, closures,

@@ -1,8 +1,9 @@
-//! Bounded native transport for the ephemeral collaborative Fern preview.
+//! Bounded HTTP and WebSocket gateway for native Fern room actors.
 #![forbid(unsafe_code)]
 mod admin;
 mod listener;
 mod owner;
+mod peer;
 mod socket;
 use axum::{
     Json, Router,
@@ -20,6 +21,8 @@ use tokio::sync::{Semaphore, oneshot};
 /// Explicit preview authentication and admission settings.
 #[derive(Clone)]
 pub struct Config {
+    /// Optional authenticated fixed-membership routing. Omit for a standalone node.
+    pub cluster: Option<fern_cluster::NodeSettings>,
     /// Fixed number of pinned Fern room workers. Room state never migrates live.
     pub workers: usize,
     /// Optional single-writer checkpoint directory. Omit for ephemeral rooms.
@@ -36,6 +39,7 @@ pub struct Config {
 impl Config {
     pub fn new(origin: String, access_key: String) -> Self {
         Self {
+            cluster: None,
             workers: std::thread::available_parallelism().map_or(1, |count| count.get().min(4)),
             data_dir: None,
             origin,
@@ -61,6 +65,8 @@ pub(crate) struct App {
     http: Arc<Semaphore>,
     assets: Assets,
     system: Arc<admin::System>,
+    cluster: Option<peer::Cluster>,
+    _cluster_stop: Option<Arc<tokio::sync::watch::Sender<()>>>,
 }
 /// Build a router inside a Tokio runtime. Serve it through [`BoundedListener`]
 /// (as [`serve`] does) to enforce admission before HTTP parsing. Authentication
@@ -93,6 +99,13 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
     }
     let sockets = Arc::new(Semaphore::new(config.limits.max_connections));
     let requests = owner::start(config.clone())?;
+    let (cluster, cluster_stop) = match config.cluster.clone() {
+        Some(settings) => {
+            let (cluster, stop) = peer::Cluster::start(settings, requests.clone())?;
+            (Some(cluster), Some(stop))
+        }
+        None => (None, None),
+    };
     let app = App {
         config: Arc::new(config),
         requests,
@@ -100,12 +113,14 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
         http: Arc::new(Semaphore::new(512)),
         assets,
         system: Arc::new(admin::System::new()),
+        cluster,
+        _cluster_stop: cluster_stop,
     };
     Ok(Router::new()
         .route("/session", get(session).post(login))
         .route("/logout", post(logout))
         .route("/ws", get(upgrade))
-        .route("/health", get(|| async { "fern-web ephemeral preview\n" }))
+        .route("/health", get(|| async { "fern-web preview\n" }))
         .route("/admin", get(admin::page))
         .route("/admin/", get(admin::page))
         .route("/admin/status", get(admin::status))

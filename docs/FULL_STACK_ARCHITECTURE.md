@@ -279,9 +279,11 @@ logout/revocation invalidates its namespace.
 
 One node must first demonstrate sustained work on multiple cores with bounded
 memory and fair progress. Shard state by room, tenant or another explicit key;
-one hot actor still serializes its work. Multi-node placement, routing, ownership
-epochs, failure detection and durable recovery are a later distributed-systems
-milestone. A WebSocket connection is not durable application state.
+one hot actor still serializes its work. [Fixed multi-node placement and routing](CLUSTER.md)
+now connect gateways to native room owners through authenticated TLS. Local
+checkpoint recovery and explicit uncertain completion are tested across real
+processes. Dynamic ownership epochs, replicated failover and distributed recovery
+remain separate milestones. A WebSocket connection is not durable application state.
 
 Embedded SQLite remains useful for local/single-node state. Adding server nodes
 does not turn independent SQLite files into a shared transactional database.

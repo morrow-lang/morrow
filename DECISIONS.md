@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 144 Measure codecs separately from transport and delivery semantics
+* **Date**: 2026-09-14
+* **Status**: Adopted; isolated codec correctness tests and native measurements pass
+* **Decision**: Keep bounded JSON over WebSocket for browsers and bounded JSON frames over TLS for peers. Compare native-i64 CBOR and protobuf adapters in an excluded benchmark workspace, preserving real message identities and required fields. Do not introduce gRPC-Web as the bidirectional browser channel.
+* **Context**: The current protocol already preserves full-width integers with decimal strings, bounds external records and distinguishes command identity from socket delivery. A smaller encoding does not supply backpressure, reconnection, idempotency or durable acknowledgement. Official gRPC-Web still lacks client/bidirectional streaming; protobuf itself is independent of gRPC.
+* **Consequences**: Forty-six actual message fixtures and explicit malformed-input tests compare bytes and native encode/decode costs. Binary candidates reduce some payloads substantially, but browser bundle size, allocation and end-to-end network performance remain unmeasured. Production dependencies do not acquire the benchmark codecs. See `docs/NETWORK_PROTOCOL.md` for primary sources, measurements and limitations.
+
+### 143 Connect fixed room owners through authenticated, bounded forwarding streams
+* **Date**: 2026-09-14
+* **Status**: Adopted; core simulations, real TLS and three-process fault/stress tests pass
+* **Decision**: Configure 1–16 nodes, choose room ownership with versioned rendezvous hashing, and authenticate each browser subscription's peer stream with mutual TLS plus certificate-bound node/boot/manifest identities. Keep ordinary standalone operation and browser WebSocket v1. Bind local checkpoint directories to immutable cluster/node/placement identities while separating certificate/address rotation from placement.
+* **Context**: A gateway should reach another server's native room actor without exchanging heap pointers or requiring a broker. A partition cannot safely grant a new owner authority over the same data. Retrying an uncertain mutation into a new process namespace could duplicate a committed effect.
+* **Consequences**: Persistent ordered streams carry typed owned commands, bounded outcomes and coalesced snapshots. Limits cover frames, streams, handshakes, ingress and pending commands. Owner-observed transport teardown or lease expiry invalidates delegated capabilities before queued native work executes; a partition can delay observation of gateway logout, and already admitted work may finish. Every replacement stream has a fresh namespace, with explicit browser uncertainty and no automatic mutation replay. Local checkpoint recovery is preserved; dynamic membership, replicated failover, remote language PIDs and distributed transactions remain separate capabilities. The independent stress test drives 10,024 durable mutations through two gateways to a third owner, then exercises balanced owners, slow readers, partitions and restart. See `docs/CLUSTER.md`.
+
 ### 142 Compose actor functions through typed returns and ordinary callback identities
 * **Date**: 2026-09-14
 * **Status**: Adopted; focused native, REPL, inference and independent simulation tests pass

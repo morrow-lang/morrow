@@ -1,0 +1,28 @@
+{
+  "date": "2026-09-14",
+  "hardware": "Apple M4,10 CPU cores,24GiB memory",
+  "os": "macOS26.5.1(25F80)",
+  "source_state": "measured draft implementation with repository protocol content; benchmark sources subsequently promoted without semantic changes",
+  "concurrency": "other project work/builds ran concurrently; timings are illustrative native microbenchmark observations, not uncontended performance claims",
+  "files": {
+    "benchmarks/network-codecs/src/adapter.rs": "e355fc320e90ffe58bd472566f3fc7cca765fc327883891f20093af134571ebf",
+    "benchmarks/network-codecs/src/lib.rs": "04517e168d8d9087438c3d25f6ae882fc8c29ae8dfb254f22e3b142c897c9ffd",
+    "benchmarks/network-codecs/src/schema.rs": "1e386b29c31e28904c0fd4a4bc7031106f369544a45cb6070761bda35904e60e",
+    "benchmarks/network-codecs/src/corpus.rs": "3aeb4f90b11c4269ae32acdae9ae5132216e179b3c35cf98bfbaf7802fda9837",
+    "benchmarks/network-codecs/src/main.rs": "c39d6a681a16db3cc14e9d7fa4e637c1eb6c5e58f17022523bd5c905be638fa6",
+    "benchmarks/network-codecs/src/validate.rs": "99f42e767be3e7e9543965d8dbda91c2dca90a6069c1193b26fcc8a17a657563",
+    "benchmarks/network-codecs/tests/correctness.rs": "d3c0b4e560fe148664e3cd74b3e7c7f642052f2a651106dc4b0be528050b64cd",
+    "benchmarks/network-codecs/Cargo.toml": "7b86425c3cd1722c88a00e0c3ba244acbb0385dd9bd0a25644617a9c6b9a3dc8",
+    "benchmarks/network-codecs/Cargo.lock": "5eaf602c9a8b7a0110881abfadf9ce1ced643cfbc8831bafaeada985a18860e9",
+    "crates/fern-web-protocol/src/hub.rs": "0e2e5d54bbb87b799e804411f4fd13175e88145cca8078ef12a12e1de3632ec7",
+    "crates/fern-web-protocol/src/budget.rs": "fe0725e1be6947e23241316d5e28aed00aaa8ffb7397d7c48bac7adc3fcf257a",
+    "crates/fern-web-protocol/src/client.rs": "3947e05f61a82af5392ef141d6035d9fea56862998b588a0ca472cd2453af24f",
+    "crates/fern-web-protocol/src/lib.rs": "7c1d43a41d1454f668712042dbf3703f4132d4c6e55088e67728259eea401ac4",
+    "crates/fern-web-protocol/src/domain.rs": "50acae0369daf75333cf47288fff5b6137a97d837114161b37a582d7025dcb52",
+    "crates/fern-web-protocol/src/wire.rs": "84373b0e3c1b85012c10fba26bf0dc6f0f55346d30113db2224afc846bea1618",
+    "crates/fern-web-protocol/Cargo.toml": "69155b74293e86c879ad8b3911ddab380e8e68a20c581e174b34db5a760669b4"
+  },
+  "source_baseline": "13ba895; protocol source content identified by SHA256",
+  "manifest_note": "Measured manifest used an absolute path dependency; promoted manifest uses the equivalent relative path.",
+  "runner_metadata_note": "After the recorded run, the runner replaced a fixed date/profile label with actual Unix timestamp/debug_assertions plus corpus-version/documented-profile fields; codec and timing loops were unchanged."
+}

@@ -5,7 +5,8 @@ browser host and an authenticated Rust HTTP/WebSocket server. It demonstrates
 local interaction, shared confirmed state and offline reload in one deployable
 server executable. The shared model/update/view runs in Fern, as does the native
 room actor. This remains an application preview: general framework packaging,
-fair multicore scheduling and distributed ownership have separate gates.
+general preemption and replicated distributed ownership have separate gates.
+[Configured fixed-owner clusters](CLUSTER.md) are available now.
 
 ## Build and run
 
@@ -46,10 +47,13 @@ The browser build fetches and executes this compiler output as `fern_app.wasm`.
 
 ## Ship a static Linux server
 
-Add the desired Linux musl standard library, then select that target:
+Build on Linux with the desired CPU architecture. Peer TLS uses rustls/ring;
+ring's third-party cryptography also needs a musl C compiler at build time.
+On Debian/Ubuntu, install `musl-tools`, then add the matching Rust target:
 
 ```sh
 rustup target add aarch64-unknown-linux-musl
+CC_aarch64_unknown_linux_musl=musl-gcc \
 FERN_WEB_TARGET=aarch64-unknown-linux-musl cargo xtask web-build
 ```
 
@@ -57,11 +61,16 @@ This produces `dist/fern-web-linux-arm64`. For x86-64:
 
 ```sh
 rustup target add x86_64-unknown-linux-musl
+CC_x86_64_unknown_linux_musl=musl-gcc \
 FERN_WEB_TARGET=x86_64-unknown-linux-musl cargo xtask web-build
 ```
 
-This produces `dist/fern-web-linux-x86_64`. The build selects Rust's bundled LLD
-linker and verifies the ELF architecture, absence of a dynamic interpreter and
+Cross-compiling from another CPU or OS requires a C compiler and musl sysroot for
+the destination architecture; installing Rust's target alone is insufficient.
+These are build tools, not deployment dependencies.
+
+The x86-64 build produces `dist/fern-web-linux-x86_64`. The build selects Rust's
+bundled LLD linker and verifies the ELF architecture, absence of a dynamic interpreter and
 absence of required shared libraries. These Linux outputs embed their browser
 assets and notices; deployment needs no asset directory, Fern compiler, Rust
 installation or shared libraries. A host build without `FERN_WEB_TARGET` retains
@@ -83,8 +92,9 @@ Binding outside loopback requires `FERN_WEB_ORIGIN`; loopback defaults to the
 listener's HTTP origin. `/health` provides a small readiness response.
 
 The static server is self-contained. Set `FERN_WEB_DATA_DIR` to a local directory
-to enable durable room checkpoints. Automatic clustering and built-in TLS
-termination remain separate features. The web server is a separate
+to enable durable room checkpoints. [Configured clusters](CLUSTER.md) use built-in
+mutual TLS for peer links; browser HTTPS termination and dynamic membership
+remain separate features. The web server is a separate
 workspace package, so ordinary CLI programs do not acquire its transport or
 browser dependencies.
 
@@ -194,9 +204,9 @@ commits share a serialized Rust checkpoint writer. The [worker contract](WEB_WOR
 records independent progress and cancellation tests.
 
 Rooms on the same worker still share its execution time. Continuation-step limits
-do not preempt arbitrary synchronous helper calls. General helper suspension,
-work stealing, complete native precise tracing and clustered ownership remain
-open. The wire envelope is a Rust schema; automatic Fern-to-wire schema generation
+do not preempt arbitrary synchronous native services. Typed Fern helper continuations
+and fixed-owner clusters are implemented; work stealing, complete native precise
+tracing and dynamic ownership/failover remain open. The wire envelope is a Rust schema; automatic Fern-to-wire schema generation
 and an application-independent build manifest are also separate work.
 
 ## Verification

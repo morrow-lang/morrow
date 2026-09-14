@@ -180,6 +180,49 @@ fn transparent_newtypes_add_only_a_work_step() {
 
 #[test]
 fn external_json_capacity_triggers_collection_and_releases_rust_graphs() {
+    const CHILD: &str = "FERN_JSON_CAPACITY_TEST_CHILD";
+    if std::env::var_os(CHILD).is_none() {
+        // Conservative collection may retain allocator addresses left on native
+        // stacks by unrelated concurrent tests. Keep the automatic-collection
+        // oracle intact, but give it fresh process allocator and stack history.
+        struct Process(Option<std::process::Child>);
+        impl Drop for Process {
+            fn drop(&mut self) {
+                if let Some(mut child) = self.0.take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+            }
+        }
+        let mut process = Process(Some(
+            std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "json_codec::budget_tests::external_json_capacity_triggers_collection_and_releases_rust_graphs",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .spawn()
+                .unwrap(),
+        ));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            if let Some(status) = process.0.as_mut().unwrap().try_wait().unwrap() {
+                // Reaping ends PID ownership; the guard must never signal it again.
+                process.0.take();
+                assert!(
+                    status.success(),
+                    "isolated JSON capacity oracle failed: {status}"
+                );
+                return;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "isolated JSON capacity oracle timed out"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
     let before = memory::stats();
     let mut weak = Vec::new();
     for _ in 0..20 {

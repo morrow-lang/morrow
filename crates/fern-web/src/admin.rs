@@ -1,6 +1,7 @@
 //! Authenticated, read-only system snapshots. No room contents or credentials.
 use super::*;
 use std::{fmt::Write, time::Instant};
+mod cluster;
 
 pub(super) struct System {
     started: Instant,
@@ -47,6 +48,7 @@ struct Status {
     namespace_limit: usize,
     session_limit: usize,
     runtime: owner::PoolSnapshot,
+    cluster: Option<peer::Observation>,
 }
 impl Status {
     fn read(app: &App) -> Self {
@@ -81,6 +83,7 @@ impl Status {
             namespace_limit: app.config.limits.max_namespaces,
             session_limit: app.config.max_sessions,
             runtime: app.requests.snapshot(),
+            cluster: app.cluster.as_ref().map(peer::Cluster::observe),
         }
     }
 }
@@ -198,6 +201,7 @@ fn render(status: &Status) -> String {
         status.websocket_limit,
         optional_bytes(status.memory.resident_bytes)
     );
+    cluster::render(&mut body, status.cluster.as_ref());
     body.push_str("<section class=panel><div class=section-heading><div><p class=eyebrow>ACTOR RUNTIME</p><h2>Workers, at a glance.</h2></div><span class=badge>Native Fern</span></div><div class=table-scroll tabindex=0 role=region aria-label=\"Worker observations\"><table><caption>Counts from each worker’s last completed observation; busy work may change them.</caption><thead><tr><th scope=col>Worker</th><th scope=col>State</th><th scope=col>Rooms</th><th scope=col>Namespaces</th><th scope=col>Connections</th><th scope=col>Subscriptions</th></tr></thead><tbody>");
     for worker in workers {
         let state = match worker.state {

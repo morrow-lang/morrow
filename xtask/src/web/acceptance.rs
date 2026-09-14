@@ -1,7 +1,9 @@
 //! Real Chromium acceptance uses owned processes/profiles and the DevTools protocol.
 mod integrity;
+mod startup;
 use base64::Engine as _;
 use serde_json::{Value, json};
+use startup::readiness;
 use std::{
     env, fs,
     net::TcpStream,
@@ -207,23 +209,6 @@ fn screenshot_png(screenshot: &Value) -> Result<Vec<u8>> {
     Ok(bytes)
 }
 
-fn readiness(path: &Path, predicate: impl Fn(&str) -> Option<String>) -> Result<String> {
-    let start = Instant::now();
-    while start.elapsed() < WAIT {
-        if let Ok(text) = fs::read_to_string(path)
-            && let Some(value) = predicate(&text)
-        {
-            return Ok(value);
-        }
-        thread::sleep(Duration::from_millis(25));
-    }
-    Err(format!(
-        "readiness timeout: {}\n{}",
-        path.display(),
-        fs::read_to_string(path).unwrap_or_default()
-    ))
-}
-
 /// Exercise actual generated browser artifacts and transport, including offline reload.
 pub fn run(server: &Path) -> Result<()> {
     run_mode(server, false)
@@ -256,20 +241,27 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
             Command::new(server)
                 .env("FERN_WEB_BIND", "127.0.0.1:0")
                 .env_remove("FERN_WEB_ORIGIN")
+                .env_remove("FERN_WEB_CLUSTER")
+                .env_remove("FERN_WEB_DATA_DIR")
                 .env("FERN_WEB_ACCESS_KEY", "fern-browser-test-key")
                 .stdout(Stdio::null())
                 .stderr(fs::File::create(&server_log).map_err(|error| error.to_string())?),
         )?);
-        readiness(&server_log, |text| {
-            text.lines().find_map(|line| {
-                line.split_once("browser origin ")
-                    .map(|(_, origin)| origin.to_owned())
-            })
-        })?
+        readiness(
+            server_process.as_ref().expect("owned server was spawned"),
+            &server_log,
+            &server_log,
+            |text| {
+                text.lines().find_map(|line| {
+                    line.split_once("browser origin ")
+                        .map(|(_, origin)| origin.to_owned())
+                })
+            },
+        )?
     };
     let profile = directory.0.join("profile");
     let browser_log = directory.0.join("browser.log");
-    let _browser = Process::spawn(
+    let browser_process = Process::spawn(
         Command::new(browser_path)
             .args([
                 "--headless=new",
@@ -284,12 +276,17 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
             .stdout(Stdio::null())
             .stderr(fs::File::create(&browser_log).map_err(|error| error.to_string())?),
     )?;
-    let endpoint = readiness(&profile.join("DevToolsActivePort"), |text| {
-        let mut lines = text.lines();
-        let port = lines.next()?.parse::<u16>().ok()?;
-        let path = lines.next()?.strip_prefix("/devtools/browser/")?;
-        Some(format!("ws://127.0.0.1:{port}/devtools/browser/{path}"))
-    })?;
+    let endpoint = readiness(
+        &browser_process,
+        &profile.join("DevToolsActivePort"),
+        &browser_log,
+        |text| {
+            let mut lines = text.lines();
+            let port = lines.next()?.parse::<u16>().ok()?;
+            let path = lines.next()?.strip_prefix("/devtools/browser/")?;
+            Some(format!("ws://127.0.0.1:{port}/devtools/browser/{path}"))
+        },
+    )?;
     let mut browser = Browser::connect(&endpoint)?;
     let first = browser.page(&origin)?;
     if integrity_only {
@@ -579,3 +576,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "acceptance/startup_tests.rs"]
+mod startup_tests;

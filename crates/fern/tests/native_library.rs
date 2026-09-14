@@ -105,11 +105,25 @@ fn main() {
     println!("native library survived fault");
 }
 "#).unwrap();
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let archive = root.join("target/debug/libfern_runtime.a");
+    let archive = std::env::var_os("FERN_RUNTIME_CORE_LIB")
+        .map(std::path::PathBuf::from)
+        .unwrap_or_else(|| {
+            // Cargo may use an external target directory and hashed build layout.
+            // Select this executable's prepared profile, as the native ABI suite does.
+            std::env::current_exe()
+                .unwrap()
+                .ancestors()
+                .find(|path| {
+                    path.file_name()
+                        .is_some_and(|name| name == "debug" || name == "release")
+                })
+                .expect("Cargo test executable has a profile directory")
+                .join("libfern_runtime.a")
+        });
     assert!(
         archive.is_file(),
-        "build fern-runtime before native library tests"
+        "build fern-runtime before native library tests: {}",
+        archive.display()
     );
     let executable = directory.join("host");
     let mut command = Command::new("rustc");

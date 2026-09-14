@@ -95,7 +95,13 @@ pub(crate) fn start(config: Config) -> std::io::Result<Pool> {
     let checkpoint = config
         .data_dir
         .as_deref()
-        .map(fern_web_app::SharedCheckpoint::open)
+        .map(|directory| match &config.cluster {
+            Some(settings) => fern_web_app::SharedCheckpoint::open_scoped(
+                directory,
+                &crate::peer::placement(settings),
+            ),
+            None => fern_web_app::SharedCheckpoint::open(directory),
+        })
         .transpose()?;
     start_with_factory(
         config,

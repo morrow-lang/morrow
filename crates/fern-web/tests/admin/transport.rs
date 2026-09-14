@@ -1,4 +1,6 @@
 use super::*;
+#[path = "cluster.rs"]
+mod cluster;
 
 fn body(response: &str) -> &str {
     response.split_once("\r\n\r\n").unwrap().1
@@ -37,6 +39,7 @@ async fn dashboard_requires_a_live_session_and_never_caches_system_information()
             assert!(valid.contains("script-src 'none'"));
             assert!(valid.contains("frame-ancestors 'none'"));
             assert!(body(&valid).contains("Fern system"));
+            assert!(body(&valid).contains("Standalone"));
             assert!(body(&valid).contains("Resident memory (RSS)"));
             assert!(body(&valid).contains("Peak resident memory"));
             assert!(body(&valid).contains("/admin/status"));
@@ -77,6 +80,11 @@ async fn dashboard_reports_the_real_server_configuration_and_socket_occupancy() 
     let initial: serde_json::Value = serde_json::from_str(body(&initial)).unwrap();
     assert_eq!(initial["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(initial["schema_version"], 1);
+    assert!(
+        initial
+            .get("cluster")
+            .is_some_and(serde_json::Value::is_null)
+    );
     assert_eq!(initial["operating_system"], std::env::consts::OS);
     assert_eq!(initial["architecture"], std::env::consts::ARCH);
     assert_eq!(initial["process_id"], std::process::id());

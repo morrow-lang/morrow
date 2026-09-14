@@ -18,7 +18,8 @@ WebAssembly browser application over a typed WebSocket protocol (Decision124).
 The [full-stack architecture](FULL_STACK_ARCHITECTURE.md) defines its staged
 acceptance. The current checklist runs Fern domain actors and a typed Fern browser
 model/update/view, with bounded reconnect behavior and optional local durable room
-checkpoints. Worker sharding and actor-owned heaps are implemented. General
+checkpoints. Worker sharding, actor-owned heaps and [fixed-owner server clusters](CLUSTER.md)
+are implemented and have independent real-process stress/fault tests. General
 external-event liveness, complete preemption, subtree supervision, replicated
 ownership and distributed recovery still need separate acceptance. Generated
 browser interop is permitted build output; authored implementation remains Rust

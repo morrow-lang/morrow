@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/*", "xtask"]
-exclude = ["benchmarks/compiler-phases"]
+exclude = ["benchmarks/compiler-phases", "benchmarks/network-codecs"]
 resolver = "3"
 
 [workspace.package]

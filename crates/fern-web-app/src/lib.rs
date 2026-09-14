@@ -19,6 +19,15 @@ impl SharedCheckpoint {
             directory,
         )?))))
     }
+    /// Bind an empty checkpoint directory to one immutable cluster placement.
+    /// Reopening requires the exact identity; existing unscoped room data needs
+    /// an explicit offline migration. This is local fencing, not consensus.
+    pub fn open_scoped(directory: &std::path::Path, placement: &str) -> std::io::Result<Self> {
+        Ok(Self(Arc::new(Mutex::new(checkpoint::Store::open_scoped(
+            directory,
+            Some(placement),
+        )?))))
+    }
     fn state(&self, room: &str) -> Result<Option<checkpoint::State>, Error> {
         Ok(self
             .0

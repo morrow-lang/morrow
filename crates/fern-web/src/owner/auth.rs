@@ -9,6 +9,15 @@ pub(crate) struct Authentication {
     expires: Instant,
 }
 impl Authentication {
+    pub fn remaining_ms(&self) -> u32 {
+        if !self.capability().valid() {
+            return 0;
+        }
+        self.expires
+            .saturating_duration_since(Instant::now())
+            .as_millis()
+            .min(3_600_000) as u32
+    }
     pub fn capability(&self) -> Capability {
         Capability {
             principal: self.token.clone(),
@@ -24,6 +33,17 @@ pub(crate) struct Capability {
     expires: Instant,
 }
 impl Capability {
+    pub(crate) fn delegated(
+        principal: String,
+        revoked: watch::Receiver<bool>,
+        lease_ms: u32,
+    ) -> Self {
+        Self {
+            principal,
+            revoked,
+            expires: Instant::now() + Duration::from_millis(u64::from(lease_ms)),
+        }
+    }
     pub fn valid(&self) -> bool {
         Instant::now() < self.expires
             && !*self.revoked.borrow()

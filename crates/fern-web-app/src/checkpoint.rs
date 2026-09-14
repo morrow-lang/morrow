@@ -178,6 +178,21 @@ impl Drop for Temporary<'_> {
 
 impl Store {
     pub(super) fn open(path: &Path) -> io::Result<Self> {
+        Self::open_scoped(path, None)
+    }
+    pub(super) fn open_scoped(path: &Path, placement: Option<&str>) -> io::Result<Self> {
+        if placement.is_some_and(|value| {
+            value.is_empty()
+                || value.len() > 256
+                || !value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || b"/._-".contains(&byte))
+        }) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "invalid checkpoint placement identity",
+            ));
+        }
         let mut builder = fs::DirBuilder::new();
         builder.recursive(true);
         {
@@ -223,7 +238,7 @@ impl Store {
                 (snapshot.rooms, Some(file))
             }
         };
-        let store = Self {
+        let mut store = Self {
             path,
             directory,
             lock,
@@ -231,7 +246,37 @@ impl Store {
             rooms,
         };
         store.check_ownership()?;
+        store.bind_placement(placement)?;
         Ok(store)
+    }
+    fn bind_placement(&mut self, placement: Option<&str>) -> io::Result<()> {
+        let mut stored = String::new();
+        Read::by_ref(&mut self.lock)
+            .take(513)
+            .read_to_string(&mut stored)?;
+        if stored.len() > 512 {
+            return Err(io::Error::other(
+                "checkpoint placement metadata exceeds limit",
+            ));
+        }
+        let requested =
+            placement.map(|identity| format!("fern-cluster-placement-v1\n{identity}\n"));
+        match requested {
+            None if stored.is_empty() => Ok(()),
+            Some(requested) if stored == requested => Ok(()),
+            Some(requested) if stored.is_empty() && self.rooms.is_empty() => {
+                // The existing retained file carries the exclusive writer lock.
+                // Pin placement before any room can be created or acknowledged.
+                self.check_ownership()?;
+                self.lock.write_all(requested.as_bytes())?;
+                self.lock.sync_all()?;
+                self.directory.sync_all()?;
+                self.check_ownership()
+            }
+            _ => Err(io::Error::other(
+                "checkpoint placement differs; explicit offline migration is required",
+            )),
+        }
     }
     fn check_ownership(&self) -> io::Result<()> {
         let metadata = fs::symlink_metadata(&self.path)?;
@@ -336,6 +381,47 @@ mod tests {
         fn drop(&mut self) {
             let _ = fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn cluster_placement_is_persistent_and_cannot_be_silently_changed() {
+        let directory = Directory::new();
+        drop(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).unwrap());
+        assert!(Store::open(&directory.0).is_err());
+        assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-b/manifest-one")).is_err());
+        assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-two")).is_err());
+        assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).is_ok());
+    }
+
+    #[test]
+    fn cluster_placement_cannot_adopt_existing_unscoped_room_state() {
+        let directory = Directory::new();
+        let mut store = Store::open(&directory.0).unwrap();
+        store
+            .commit(
+                "room",
+                &DomainChange {
+                    tasks: vec![Task {
+                        id: Decimal(1),
+                        label: "preserve me".into(),
+                        done: false,
+                    }],
+                    next_id: 2,
+                    status: Status::Applied,
+                },
+            )
+            .unwrap();
+        drop(store);
+        assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).is_err());
+        assert_eq!(
+            Store::open(&directory.0)
+                .unwrap()
+                .get("room")
+                .unwrap()
+                .tasks[0]
+                .label,
+            "preserve me"
+        );
     }
 
     #[test]
