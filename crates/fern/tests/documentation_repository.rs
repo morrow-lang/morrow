@@ -127,6 +127,78 @@ fn parser_owned_doc_extraction_retains_nested_source() {
     verify(&snippets[0].code).unwrap();
 }
 
+/// Fenced ```fern blocks of one Markdown guide; `fern ignore` fences are exempt from checking.
+fn fern_fences(markdown: &str) -> Vec<String> {
+    let mut snippets = Vec::new();
+    let mut current: Option<(bool, String)> = None;
+    for line in markdown.lines() {
+        let trimmed = line.trim();
+        match &mut current {
+            Some((checked, code)) => {
+                if trimmed.starts_with("```") {
+                    if *checked {
+                        snippets.push(std::mem::take(code));
+                    }
+                    current = None;
+                } else {
+                    code.push_str(line);
+                    code.push('\n');
+                }
+            }
+            None => {
+                if let Some(info) = trimmed.strip_prefix("```") {
+                    let mut words = info.split_whitespace();
+                    let language = words.next().unwrap_or("");
+                    let ignored = words.any(|word| word == "ignore");
+                    current = Some((language == "fern" && !ignored, String::new()));
+                }
+            }
+        }
+    }
+    snippets
+}
+
+/// Every checked example in the language guides must typecheck; guides are user-facing and
+/// an example that fails `fern check` is a documentation defect.
+#[test]
+fn language_guide_snippets_typecheck() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/language");
+    let mut guides: Vec<PathBuf> = fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "md"))
+        .collect();
+    guides.sort();
+    assert!(!guides.is_empty(), "language guides disappeared");
+    let mut count = 0;
+    for path in guides {
+        let markdown = fs::read_to_string(&path).unwrap();
+        for (index, snippet) in fern_fences(&markdown).iter().enumerate() {
+            verify(snippet).unwrap_or_else(|error| {
+                panic!(
+                    "{} example {}: {error}\n{snippet}",
+                    path.display(),
+                    index + 1
+                )
+            });
+            count += 1;
+        }
+    }
+    assert!(count > 0, "language guide coverage disappeared");
+}
+
+#[test]
+fn fenced_snippets_are_extracted_literally_and_ignored_fences_are_skipped() {
+    let markdown = "text\n```fern\nfn main(): ()\n```\n\n```fern ignore\nbroken(\n```\n\n```sh\nfern run\n```\n\n```fern\n    indented()\n```\n";
+    assert_eq!(
+        fern_fences(markdown),
+        vec![
+            "fn main(): ()\n".to_string(),
+            "    indented()\n".to_string()
+        ]
+    );
+}
+
 #[test]
 fn all_public_example_and_stdlib_documentation_snippets_typecheck() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
