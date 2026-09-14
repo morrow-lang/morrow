@@ -59,6 +59,10 @@ fn verify(code: &str) -> Result<(), String> {
     if typecheck(code).is_ok() {
         return Ok(());
     }
+    // Declaration-only snippets (functions, types, traits) need an entry point to check.
+    if !code.contains("fn main(") && typecheck(&format!("{code}\nfn main(): ()\n")).is_ok() {
+        return Ok(());
+    }
     if code
         .lines()
         .all(|line| line.trim().is_empty() || line.trim_start().starts_with('#'))
