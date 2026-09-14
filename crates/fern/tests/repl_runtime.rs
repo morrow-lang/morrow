@@ -64,6 +64,46 @@ fn byte_indices_slices_replacements_and_repetition_match_native() {
 }
 
 #[test]
+fn positional_access_and_integer_parsing_match_native_contracts() {
+    for (expression, expected) in [
+        ("Option.unwrap_or(List.at([1, 2, 3], 2), -1)", "3\n"),
+        ("Option.unwrap_or(List.at([1, 2, 3], 3), -1)", "-1\n"),
+        ("Option.unwrap_or(List.at([1, 2, 3], -1), -1)", "-1\n"),
+        ("Option.unwrap_or(List.first([\"a\", \"b\"]), \"z\")", "a\n"),
+        ("Option.unwrap_or(List.last([\"a\", \"b\"]), \"z\")", "b\n"),
+        ("Option.is_none(List.first(List.drop([1], 1)))", "true\n"),
+        ("Option.is_none(List.last(List.take([1], 0)))", "true\n"),
+        ("List.len(List.take([1, 2, 3], 2))", "2\n"),
+        ("List.len(List.take([1, 2, 3], -1))", "0\n"),
+        ("List.len(List.take([1, 2, 3], 99))", "3\n"),
+        ("List.len(List.drop([1, 2, 3], 2))", "1\n"),
+        ("List.len(List.drop([1, 2, 3], 99))", "0\n"),
+        ("List.len(List.drop([1, 2, 3], -1))", "3\n"),
+        (
+            "Option.unwrap_or(List.first(List.drop([1, 2, 3], 2)), 0)",
+            "3\n",
+        ),
+        ("Option.unwrap_or(Int.parse(\"42\"), 0)", "42\n"),
+        ("Option.unwrap_or(Int.parse(\"+7\"), 0)", "7\n"),
+        (
+            "Option.unwrap_or(Int.parse(\"-9223372036854775808\"), 0)",
+            "-9223372036854775808\n",
+        ),
+        (
+            "Option.is_none(Int.parse(\"9223372036854775808\"))",
+            "true\n",
+        ),
+        ("Option.is_none(Int.parse(\"\"))", "true\n"),
+        ("Option.is_none(Int.parse(\"-\"))", "true\n"),
+        ("Option.is_none(Int.parse(\" 1\"))", "true\n"),
+        ("Option.is_none(Int.parse(\"1.0\"))", "true\n"),
+        ("Option.is_none(Int.parse(\"１２\"))", "true\n"),
+    ] {
+        assert_eq!(output(expression).unwrap(), expected, "{expression}");
+    }
+}
+
+#[test]
 fn list_aliases_share_values_and_sum_predicates_preserve_tags() {
     let mut session = Session::default();
     session.evaluate("let xs = [1, 2]").unwrap();

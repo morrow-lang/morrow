@@ -1464,6 +1464,12 @@
     "stderr": ""
   },
   {
+    "file": "sequences/safe_access.fn",
+    "exit": 0,
+    "stdout": "some -9223372036854775808\nsome 9223372036854775807\nnone\nnone\nsome -9223372036854775808\nsome 9223372036854775807\nnone\nnone\n2\n0\n3\n2\n0\n3\nsome 0\nsome 9223372036854775807\n3\nmoss\nsome 42\nsome -9223372036854775808\nsome 7\nnone\nnone\nnone\nnone\nnone\n42\n",
+    "stderr": ""
+  },
+  {
     "file": "sequences/order.fn",
     "exit": 0,
     "stdout": "source\n2\n2\n",

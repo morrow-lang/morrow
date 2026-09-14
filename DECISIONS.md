@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 150 Provide non-faulting positional list access and exact integer parsing
+* **Date**: 2026-09-14
+* **Status**: Adopted; independent runtime ABI, native output, REPL and inventory tests pass
+* **Decision**: Add `List.at`, `List.first`, `List.last` returning full-width heap `Option(a)`, `List.take`/`List.drop` clamping their count into `0..=len`, and `Int.parse` accepting exactly `[+-]?[0-9]+` within i64 range as `Option(Int)`. Keep `List.get` and `List.head` as the faulting forms.
+* **Context**: The only positional accessors faulted on invalid positions, and no source API converted text to an integer, so ordinary programs either faulted at runtime or pattern-matched around `List.is_empty` and `String.is_decimal`. Fern's error model requires such absence to be a visible `Option`, not a process fault.
+* **Consequences**: The runtime encodes `None` as `Err(0)` and `Some` as `Ok(word)` through the existing heap Result helpers, so payloads such as `Int` minimum survive. Negative and oversized counts never wrap. `Int.parse` deliberately rejects whitespace, separators, radix prefixes, exponents and non-ASCII digits; callers normalize text first. The browser target keeps its existing limited runtime surface. See `docs/STDLIB_API_REFERENCE.md`.
+
+### 149 Name the nearest known symbol and the missing cases in diagnostics
+* **Date**: 2026-09-14
+* **Status**: Adopted; independent checker, parser and suggestion-distance tests pass
+* **Decision**: Attach a bounded "did you mean" hint to unknown name, function, constructor, record-field, type and module-member diagnostics using optimal string alignment distance over the visible candidates plus a small synonym table. Report the uncovered constructors or scalar cases in non-exhaustive match errors. Replace parser "unsupported in the Rust prototype" wording with the token actually found.
+* **Context**: Misspelled or guessed API names produced the misleading "is private, not exported, or not imported" message, and exhaustiveness errors did not state what was missing. The prototype wording no longer described the shipping compiler.
+* **Consequences**: Suggestions are limited to a distance proportional to the name length, a fixed number of candidates and a fixed name length, so diagnostics stay deterministic and cheap. The synonym table covers common names from other languages (`length`, `upper`, `nth`, `to_int`); it does not attempt cross-module suggestions. Missing-case lists are truncated after a fixed count and are informational; the exhaustiveness proof itself is unchanged.
+
 ### 148 Expose safe constant arithmetic and retain integer tail parameters in SSA
 * **Date**: 2026-09-14
 * **Status**: Adopted; independent lowering, native arithmetic, seeded tail-state and paired performance checks pass

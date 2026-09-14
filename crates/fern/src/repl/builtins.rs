@@ -117,6 +117,9 @@ impl Machine {
         if let Some(value) = strings(signature.symbol, &args) {
             return value;
         }
+        if let Some(value) = positional(signature.symbol, &args) {
+            return value;
+        }
         if self.comptime {
             return Err(fault(
                 "this host API is not available during comptime evaluation",
@@ -205,6 +208,40 @@ fn option(value: Option<usize>) -> Value {
         || Value::Sum(1, Rc::new(Vec::new())),
         |n| sum(0, Value::Int(n as i64)),
     )
+}
+fn optional(value: Option<Value>) -> Value {
+    value.map_or_else(|| Value::Sum(1, Rc::new(Vec::new())), |value| sum(0, value))
+}
+
+/// Non-faulting positional access mirrors the native clamping and `None` contracts exactly.
+fn positional(symbol: &str, args: &[Value]) -> Option<Eval<Value>> {
+    let clamp = |count: &i64, len: usize| usize::try_from(*count).map_or(0, |n| n.min(len));
+    Some(match (symbol, args) {
+        ("fern_list_at", [Value::List(xs), Value::Int(i)]) => Ok(optional(
+            usize::try_from(*i).ok().and_then(|i| xs.get(i)).cloned(),
+        )),
+        ("fern_list_first", [Value::List(xs)]) => Ok(optional(xs.first().cloned())),
+        ("fern_list_last", [Value::List(xs)]) => Ok(optional(xs.last().cloned())),
+        ("fern_list_take", [Value::List(xs), Value::Int(n)]) => {
+            let count = clamp(n, xs.len());
+            list(count, xs.iter().take(count).cloned())
+        }
+        ("fern_list_drop", [Value::List(xs), Value::Int(n)]) => {
+            let count = clamp(n, xs.len());
+            list(xs.len() - count, xs.iter().skip(count).cloned())
+        }
+        ("fern_int_parse", [Value::String(text)]) => {
+            let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+            let exact = !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit());
+            Ok(optional(
+                exact
+                    .then(|| text.parse::<i64>().ok())
+                    .flatten()
+                    .map(Value::Int),
+            ))
+        }
+        _ => return None,
+    })
 }
 
 /// Preserve the runtime's ASCII case conversion and exact four-character trim set.

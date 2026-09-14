@@ -479,6 +479,7 @@ const ENTRIES: &[Entry] = &[
         Bool,
         "fern_str_is_empty",
     ),
+    entry(&["Int.parse"], &[String], OptionInt, "fern_int_parse"),
     returned(
         entry(
             &["String.index_of"],
@@ -522,6 +523,11 @@ const ENTRIES: &[Entry] = &[
     entry(&["List.len", "list_len"], &[ListA], Int, "fern_list_len"),
     entry(&["List.get", "list_get"], &[ListA, Int], A, "fern_list_get"),
     entry(&["List.head", "list_head"], &[ListA], A, "fern_list_head"),
+    entry(&["List.at"], &[ListA, Int], OptionA, "fern_list_at"),
+    entry(&["List.first"], &[ListA], OptionA, "fern_list_first"),
+    entry(&["List.last"], &[ListA], OptionA, "fern_list_last"),
+    entry(&["List.take"], &[ListA, Int], ListA, "fern_list_take"),
+    entry(&["List.drop"], &[ListA, Int], ListA, "fern_list_drop"),
     entry(
         &["List.tail", "list_tail"],
         &[ListA],

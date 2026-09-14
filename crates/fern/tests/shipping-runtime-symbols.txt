@@ -9,6 +9,7 @@ fern_println_str
 fern_print_bool
 fern_println_bool
 fern_int_to_str
+fern_int_parse
 fern_bool_to_str
 fern_str_len
 fern_str_concat
@@ -50,6 +51,11 @@ fern_list_reverse
 fern_list_concat
 fern_list_head
 fern_list_tail
+fern_list_at
+fern_list_first
+fern_list_last
+fern_list_take
+fern_list_drop
 fern_list_is_empty
 fern_list_contains
 fern_list_contains_str

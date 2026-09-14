@@ -64,6 +64,57 @@ pub unsafe extern "C" fn fern_list_get(list: *const List, index: i64) -> i64 {
         .copied()
         .unwrap_or_else(|| abi::fault("list index out of bounds"))
 }
+/// Read an element as a full-width heap Option; out-of-range indexes are `None`.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_at(list: *const List, index: i64) -> i64 {
+    let values = unsafe { elements(list) };
+    heap_option(
+        usize::try_from(index)
+            .ok()
+            .and_then(|i| values.get(i))
+            .copied(),
+    )
+}
+/// Return the first element as a heap Option; empty lists are `None`.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_first(list: *const List) -> i64 {
+    heap_option(unsafe { elements(list) }.first().copied())
+}
+/// Return the last element as a heap Option; empty lists are `None`.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_last(list: *const List) -> i64 {
+    heap_option(unsafe { elements(list) }.last().copied())
+}
+/// Copy at most `count` leading elements; negative counts yield an empty list.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_take(list: *const List, count: i64) -> *mut List {
+    let values = unsafe { elements(list) };
+    abi::list(&values[..clamp(count, values.len())])
+}
+/// Copy the elements after the first `count`; negative counts keep every element.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_drop(list: *const List, count: i64) -> *mut List {
+    let values = unsafe { elements(list) };
+    abi::list(&values[clamp(count, values.len())..])
+}
+/// Clamp a source count into `0..=len` without wrapping negative or oversized values.
+fn clamp(count: i64, len: usize) -> usize {
+    usize::try_from(count).map_or(0, |count| count.min(len))
+}
+/// Encode the compiler's full-width Option representation: `Some` is `Ok(word)`, `None` is `Err(0)`.
+fn heap_option(value: Option<i64>) -> i64 {
+    value.map_or_else(|| abi::result_err(0), abi::result_ok)
+}
 /// Append to a uniquely owned literal builder.
 /// # Safety
 /// The live List must be uniquely mutable for this call; its values may be shared.

@@ -68,6 +68,28 @@ for lexical UTF-8 ordering, without locale collation or Unicode normalization.
 empty string. Both execute in native, REPL and WASM programs under their target's
 string and resource limits. The built-in value traits use these portable helpers.
 
+### Non-faulting positional access and integer parsing
+
+```fern
+List.at(items: List(a), index: Int) -> Option(a)
+List.first(items: List(a)) -> Option(a)
+List.last(items: List(a)) -> Option(a)
+List.take(items: List(a), count: Int) -> List(a)
+List.drop(items: List(a), count: Int) -> List(a)
+Int.parse(text: String) -> Option(Int)
+```
+
+`List.get` and `List.head` fault on invalid positions; these APIs never fault.
+`List.at` returns `None` for negative or out-of-range indexes, and `List.first`
+and `List.last` return `None` for empty lists. Every `Some` payload is the
+full-width element word. `List.take` and `List.drop` clamp the count into
+`0..=List.len(items)`: negative counts take nothing or drop nothing, oversized
+counts take everything or drop everything, and the source list is never aliased.
+`Int.parse` accepts exactly `[+-]?[0-9]+` within the signed 64-bit range; leading
+or trailing whitespace, separators, radix prefixes, exponents, non-ASCII digits
+and out-of-range values yield `None`. Native, REPL and comptime evaluation share
+these contracts.
+
 [`Set(a)`](SETS.md) adds thirteen immutable collection operations with a distinct
 nominal identity, insertion-ordered iteration and membership equality. Its key
 types and complexity guarantees follow the documented Set contract.

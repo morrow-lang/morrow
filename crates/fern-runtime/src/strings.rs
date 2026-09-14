@@ -46,6 +46,25 @@ print_scalar!(
     i64,
     |v: i64| v.to_string()
 );
+
+/// Parse exact ASCII decimal text with an optional sign into a full-width heap Option Int.
+/// Whitespace, separators, radix prefixes, exponents and out-of-range values are `None`.
+/// # Safety
+/// Input must be a live NUL-terminated UTF-8 string.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_int_parse(text: *const c_char) -> i64 {
+    let text = unsafe { abi::text(text) };
+    parse_int(text).map_or_else(|| abi::result_err(0), abi::result_ok)
+}
+
+/// Accept `[+-]?[0-9]+` within i64 range; Rust's parser already rejects other spellings.
+fn parse_int(text: &str) -> Option<i64> {
+    let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return None;
+    }
+    text.parse::<i64>().ok()
+}
 print_scalar!(
     fern_print_float,
     fern_println_float,
