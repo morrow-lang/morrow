@@ -54,7 +54,7 @@ print_scalar!(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fern_int_parse(text: *const c_char) -> i64 {
     let text = unsafe { abi::text(text) };
-    parse_int(text).map_or_else(|| abi::result_err(0), abi::result_ok)
+    abi::heap_option(parse_int(text))
 }
 
 /// Accept `[+-]?[0-9]+` within i64 range; Rust's parser already rejects other spellings.

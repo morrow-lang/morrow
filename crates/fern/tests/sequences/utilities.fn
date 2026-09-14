@@ -1,0 +1,29 @@
+newtype Score derive(Show) = Score(Int)
+
+fn main():
+    let xs = [3, -9223372036854775808, 1, 9223372036854775807, 0]
+    println(List.sort(xs))
+    println(xs)
+    println(List.sort(["pear", "Apple", "apple", "", "éclair", "zebra"]))
+    println(List.sort([true, false, true]))
+    println(List.sort([2.5, -0.5, 1.0]))
+    println(List.sort([Score(3), Score(-1), Score(2)]))
+    println(List.range(0, 5))
+    println(List.range(-2, 1))
+    println(List.range(3, 3))
+    println(List.range(3, -3))
+    println(List.len(List.range(-9223372036854775808, -9223372036854775807)))
+    println(List.sum([1, 2, 3]))
+    println(List.sum(List.range(1, 101)))
+    println(List.sum(List.take([1], 0)))
+    println(List.sum([9223372036854775807, 1]))
+    let pairs = List.zip([1, 2, 3], ["a", "b"])
+    println(pairs)
+    println(List.len(List.zip(List.range(0, 3), List.take([true], 0))))
+    for (number, letter) in pairs:
+        println("{number}{letter}")
+    let dotted = List.zip([9223372036854775807, 2], [1, -9223372036854775808])
+    match List.last(dotted):
+        Some((left, right)) -> println(left + right)
+        None -> println("empty")
+    println(List.sum(List.map(List.zip([1, 2], [10, 20]), (pair: (Int, Int)) -> pair.0 * pair.1)))

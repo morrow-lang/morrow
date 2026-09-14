@@ -522,10 +522,23 @@ fn compound_equality_and_printing_are_not_pointer_operations() {
         }),
         "operator",
     );
-    rejects(
-        Type::Unit,
-        call("println", vec![value]),
-        "print argument must be",
+    // Printing a compound routes through its Show implementation, never the raw pointer word.
+    let program = checked(Type::Unit, call("println", vec![value])).unwrap();
+    let test = program.functions.iter().find(|f| f.name == "test").unwrap();
+    let ir::ExprKind::Call { args, .. } = &test.body.kind else {
+        panic!("println must remain a call: {:?}", test.body.kind);
+    };
+    assert_eq!(args[0].ty, Type::String, "{:?}", args[0]);
+    assert!(
+        matches!(
+            &args[0].kind,
+            ir::ExprKind::Call {
+                target: ir::CallTarget::Function(_),
+                ..
+            }
+        ),
+        "{:?}",
+        args[0].kind
     );
 }
 

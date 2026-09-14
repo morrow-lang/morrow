@@ -1,0 +1,25 @@
+fn describe(value: Option(Int)) -> String:
+    match value:
+        Some(n) -> "ok {n}"
+        None -> "overflow"
+
+fn main():
+    println(describe(Int.checked_add(1, 2)))
+    println(describe(Int.checked_add(9223372036854775807, 1)))
+    println(describe(Int.checked_add(-9223372036854775808, -1)))
+    println(describe(Int.checked_sub(-9223372036854775808, 1)))
+    println(describe(Int.checked_sub(-1, 9223372036854775807)))
+    println(describe(Int.checked_mul(4294967296, 2147483648)))
+    println(describe(Int.checked_mul(-2147483648, 4294967296)))
+    println(describe(Int.checked_div(7, 2)))
+    println(describe(Int.checked_div(7, 0)))
+    println(describe(Int.checked_div(-9223372036854775808, -1)))
+    println(describe(Int.checked_rem(-7, 2)))
+    println(describe(Int.checked_rem(7, 0)))
+    println(describe(Int.checked_rem(-9223372036854775808, -1)))
+    println(describe(Int.checked_neg(5)))
+    println(describe(Int.checked_neg(-9223372036854775808)))
+    println(Int.checked_add(1, 2))
+    let total = Option.unwrap_or(Int.checked_mul(1000000, 1000000), -1)
+    println(total)
+    println(Option.unwrap_or(Int.checked_mul(10000000000, 10000000000), -1))

@@ -14,6 +14,7 @@ pub(super) enum Capability {
     Display,
     Print,
     Contains,
+    Sort,
     MapKey,
 }
 
@@ -45,7 +46,7 @@ impl Capability {
             Self::Numeric | Self::Order => matches!(ty, Type::Int | Type::Float),
             Self::MapKey => scalar(ty),
             Self::Equality if matches!(ty, Type::Pid(_)) => true,
-            Self::Equality | Self::Display | Self::Print | Self::Contains => {
+            Self::Equality | Self::Display | Self::Print | Self::Contains | Self::Sort => {
                 scalar(ty) || *ty == Type::Float
             }
         }
@@ -63,8 +64,11 @@ impl Capability {
             Self::Order => "ordering operator requires Int or Float operands",
             Self::Equality => "equality operator requires Int, Float, Bool, or String operands",
             Self::Display => "interpolation requires Int, Float, Bool, or String",
-            Self::Print => "print argument must be Int, Bool, String, or Float",
+            Self::Print => {
+                "print argument must be Int, Bool, String, Float, or a type that implements Show"
+            }
             Self::Contains => "List.contains requires scalar Int, Float, Bool, or String elements",
+            Self::Sort => "List.sort requires Int, Float, Bool, or String elements",
             Self::MapKey => "map key must be Int, Bool, or String",
         }
     }
@@ -114,7 +118,7 @@ impl Inference {
     fn capability_type(&self, capability: Capability, mut ty: Type, span: Span) -> Checked<Type> {
         if !matches!(
             capability,
-            Capability::Equality | Capability::Contains | Capability::MapKey
+            Capability::Equality | Capability::Contains | Capability::Sort | Capability::MapKey
         ) {
             return Ok(ty);
         }

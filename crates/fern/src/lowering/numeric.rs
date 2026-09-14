@@ -144,6 +144,45 @@ impl Emitter<'_> {
         self.scalar_contains_ordered(list, value, locals, depth, false)
     }
 
+    /// Select the element-directed sort helper; Float words sort by bit-decoded total order.
+    pub(super) fn scalar_sort(
+        &mut self,
+        args: &[Expr],
+        span: Span,
+        locals: &mut Locals,
+        depth: usize,
+    ) -> Lowering<(Type, String)> {
+        let [list] = args else {
+            return Err(invalid(span, "List.sort requires one argument"));
+        };
+        let Type::List(item) = &list.ty else {
+            return Err(invalid(span, "List.sort requires List"));
+        };
+        nominal::resolved(item, &self.layouts, span, 0)?;
+        let symbol = match self.representation(item) {
+            Type::Int | Type::Bool => "fern_list_sort",
+            Type::Float => "fern_list_sort_float",
+            Type::String => "fern_list_sort_str",
+            _ => {
+                return Err(invalid(
+                    span,
+                    "List.sort requires Int, Float, Bool, or String elements",
+                ));
+            }
+        };
+        let value = self.expr(list, locals, depth)?;
+        let sorted = self.assign(
+            locals,
+            list.ty.clone(),
+            NativeOperation::Call {
+                callee: native_operand(&format!("${symbol}")),
+                args: vec![(Scalar::I64, native_operand(&(value)))],
+                variadic: None,
+            },
+        );
+        Ok((list.ty.clone(), sorted))
+    }
+
     /// Preserve caller operand order while sharing scalar equality and ABI validation.
     pub(super) fn scalar_contains_ordered(
         &mut self,

@@ -1,7 +1,7 @@
 //! Coherent static traits share generic requirement propagation and monomorphization.
 use super::*;
 mod derive;
-pub(super) use derive::expand;
+pub(super) use derive::{expand, prelude_conflicts};
 
 #[derive(Default)]
 pub(super) struct Registry {
@@ -395,12 +395,20 @@ impl Registry {
                 return Ok((implementation, values));
             }
         }
+        let trait_name = &self.declarations[id].name;
+        let rendered = crate::presentation::render_type(ty, crate::presentation::Limits::default())
+            .map(|text| format!("type {text}"))
+            .unwrap_or_else(|_| "type".to_owned());
+        let hint = if matches!(ty, Type::Named(_, _))
+            && matches!(trait_name.as_str(), "Show" | "Eq" | "Ord" | "Clone")
+        {
+            format!("; add derive({trait_name}) to its declaration or write an impl")
+        } else {
+            String::new()
+        };
         Err(Diagnostic::new(
             span,
-            format!(
-                "type has no implementation of {}",
-                self.declarations[id].name
-            ),
+            format!("{rendered} has no implementation of {trait_name}{hint}"),
         ))
     }
 

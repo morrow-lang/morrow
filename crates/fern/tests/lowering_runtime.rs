@@ -216,6 +216,7 @@ fn concrete(ty: &Type) -> Type {
         Type::List(item) => Type::List(Box::new(concrete(item))),
         Type::Option(item) => Type::Option(Box::new(concrete(item))),
         Type::Result(ok, err) => Type::Result(Box::new(concrete(ok)), Box::new(concrete(err))),
+        Type::Tuple(items) => Type::Tuple(items.iter().map(concrete).collect()),
         _ => ty.clone(),
     }
 }

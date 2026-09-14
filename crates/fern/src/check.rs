@@ -41,6 +41,11 @@ const MAX_FUNCTIONS: usize = 4096;
 const MAX_PARAMETERS: usize = 255;
 const MAX_TYPE_DEPTH: usize = 128;
 const MAX_TYPE_NODES: usize = 4096;
+/// Internal marker: printing a structured value needs the trait prelude that was not expanded.
+/// The pipeline retries once with the prelude forced; the message is also the final user report
+/// when the program defines conflicting prelude names.
+const SHOW_PRELUDE_REQUIRED: &str =
+    "print argument must be Int, Bool, String, Float, or a type that implements Show";
 type Checked<T> = Result<T, Diagnostic>;
 type TypedKind = (ir::ExprKind, Type);
 
@@ -165,13 +170,37 @@ fn pipeline<T>(
     pipeline_mode(source, finish, true)
 }
 /// The private test mode exposes typed IR for testing individual proof stages independently.
+/// Printing a structured value activates the trait prelude on demand: the first pass runs without
+/// it, and only its specific marker failure triggers one forced-prelude pass.
 fn pipeline_mode<T>(
     source: &ast::Program,
     finish: impl FnOnce(&ast::Program, &nominal::Registry, &HashMap<String, Signature>) -> Checked<T>,
     prove_results: bool,
 ) -> Checked<(ir::Program, T)> {
+    let mut finish = Some(finish);
+    match pipeline_pass(source, &mut finish, prove_results, false) {
+        Err(failure)
+            if failure.message.ends_with(SHOW_PRELUDE_REQUIRED)
+                && finish.is_some()
+                && !traits::prelude_conflicts(source) =>
+        {
+            pipeline_pass(source, &mut finish, prove_results, true)
+        }
+        outcome => outcome,
+    }
+}
+
+fn pipeline_pass<T, F>(
+    source: &ast::Program,
+    finish: &mut Option<F>,
+    prove_results: bool,
+    force_prelude: bool,
+) -> Checked<(ir::Program, T)>
+where
+    F: FnOnce(&ast::Program, &nominal::Registry, &HashMap<String, Signature>) -> Checked<T>,
+{
     preflight::check(source)?;
-    let trait_source = traits::expand(source)?;
+    let trait_source = traits::expand(source, force_prelude)?;
     let source = trait_source.as_ref();
     preflight::check(source)?;
     let expanded = aliases::expand(source)?;
@@ -223,6 +252,9 @@ fn pipeline_mode<T>(
         let work = obligations::templates(templates, &registry, &roots, &abstract_traits)?;
         obligations::check(&ir, work)?;
     }
+    let finish = finish
+        .take()
+        .ok_or_else(|| Diagnostic::new(Span::default(), "analysis finisher already consumed"))?;
     let facts = finish(&program, &registry, &signatures)?;
     crate::repl::comptime::fold(&program, &mut ir)?;
     Ok((ir, facts))
@@ -2152,8 +2184,19 @@ fn validate_builtin(
         ir::CallTarget::Runtime(id) => {
             let signature = runtime::signature(id)
                 .ok_or_else(|| Diagnostic::new(span, "invalid runtime registry identity"))?;
-            (signature.operation == runtime::Operation::ScalarContains)
-                .then_some((Capability::Contains, 1))
+            match signature.operation {
+                runtime::Operation::ScalarContains => Some((Capability::Contains, 1)),
+                runtime::Operation::ScalarSort => {
+                    let list = args
+                        .first()
+                        .ok_or_else(|| Diagnostic::new(span, "List.sort requires one argument"))?;
+                    if let Type::List(item) = inference.resolve(&list.ty, span)? {
+                        inference.require(Capability::Sort, &item, span)?;
+                    }
+                    None
+                }
+                _ => None,
+            }
         }
         ir::CallTarget::Builtin(ir::Builtin::Print | ir::Builtin::Println) => {
             Some((Capability::Print, 0))

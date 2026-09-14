@@ -46,6 +46,12 @@ fn return_type(template: &Type, bindings: &HashMap<String, Type>, span: Span) ->
             Box::new(return_type(ok, bindings, span)?),
             Box::new(return_type(err, bindings, span)?),
         )),
+        Type::Tuple(items) => Ok(Type::Tuple(
+            items
+                .iter()
+                .map(|item| return_type(item, bindings, span))
+                .collect::<Lowering<Vec<_>>>()?,
+        )),
         _ => Ok(template.clone()),
     }
 }
@@ -77,6 +83,9 @@ impl Emitter<'_> {
         }
         if signature.operation == RuntimeOperation::ScalarContains {
             return self.scalar_contains(args, span, locals, depth);
+        }
+        if signature.operation == RuntimeOperation::ScalarSort {
+            return self.scalar_sort(args, span, locals, depth);
         }
         let symbol = self.test_runtime_symbol(runtime_symbol(&signature, args, span)?);
         if signature.operation == RuntimeOperation::JsonObject {

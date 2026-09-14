@@ -10,6 +10,12 @@ fern_print_bool
 fern_println_bool
 fern_int_to_str
 fern_int_parse
+fern_int_checked_add
+fern_int_checked_sub
+fern_int_checked_mul
+fern_int_checked_div
+fern_int_checked_rem
+fern_int_checked_neg
 fern_bool_to_str
 fern_str_len
 fern_str_concat
@@ -56,6 +62,12 @@ fern_list_first
 fern_list_last
 fern_list_take
 fern_list_drop
+fern_list_sum
+fern_list_range
+fern_list_zip
+fern_list_sort
+fern_list_sort_float
+fern_list_sort_str
 fern_list_is_empty
 fern_list_contains
 fern_list_contains_str

@@ -4,6 +4,20 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 152 Print structured values through Show with an on-demand prelude
+* **Date**: 2026-09-14
+* **Status**: Adopted; checker, REPL and native output tests pass
+* **Decision**: `print`/`println` keep the direct path for `Int`, `Float`, `Bool` and `String`. For lists, maps, options, results, tuples, nominal types and unions the checker rewrites the argument to a call of the `Show` trait method, using exactly the path a hand-written `show(value)` takes. When the trait prelude is not active, the checker fails with a marker diagnostic and the pipeline reruns once with the prelude forced, unless the program itself declares a prelude name. Pair tuple instances are always derived because pairs arise from `List.zip`, `List.enumerate` and runtime results without tuple syntax.
+* **Context**: `println([1, 2])` was rejected with a scalar-only message although a derived `Show` already existed for every structural type. Activating the prelude for every program would add parsing and checking work and would collide with user declarations of `Ordering` or `show`. Types are unknown before checking, so activation must be demand-driven.
+* **Consequences**: Programs printing only scalars are unchanged and pay nothing. Programs printing structured values check twice at most, and only when they use no other trait feature. Generic parameters keep the existing print capability, so `fn f(x: a): println(x)` still requires scalar instantiations. `Unit` and function values remain rejected. A missing `Show` reports the rendered type with a derive hint. `Show(String)` remains the raw text, so strings inside lists print without quotes, matching existing derived output.
+
+### 151 Report argument type mismatches before missing labels; add sort, zip, range, sum and checked arithmetic
+* **Date**: 2026-09-14
+* **Status**: Adopted; independent runtime ABI, native output, REPL and inventory tests pass
+* **Decision**: Check argument types before enforcing required labels so a wrong type is the first report; a call with correct types and a missing label still fails. Add `List.sort` (element-directed: Int/Bool words, Float total order, String bytes, rejecting other elements at check time through a `Sort` capability), `List.zip` (runtime-built compiler-layout pair tuples), `List.range` (half-open, bounded) and `List.sum` (wrapping). Add `Int.checked_add/sub/mul/div/rem/neg` returning `Option(Int)`.
+* **Context**: `add(1, "two")` reported only the missing label (Decision 7), hiding the type error. Sorting, pairing, counting and summing required hand-written recursion, and the documented wrapping default (Decision 55) had no checked companion.
+* **Consequences**: Label requirements are unchanged in meaning; only diagnostic order differs. `List.sort` on structured elements is a checker error rather than a runtime comparison; ordering by a `compare` function remains future work. Range and zip fault beyond 16,777,216 elements like other allocation limits. The runtime symbol inventory grows to 295 and the lowering audit substitutes tuple return schemes. See `docs/STDLIB_API_REFERENCE.md`.
+
 ### 150 Provide non-faulting positional list access and exact integer parsing
 * **Date**: 2026-09-14
 * **Status**: Adopted; independent runtime ABI, native output, REPL and inventory tests pass

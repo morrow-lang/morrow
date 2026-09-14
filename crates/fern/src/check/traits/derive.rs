@@ -22,8 +22,50 @@ type Ordering:
     Greater
 "#;
 
-pub(in crate::check) fn expand(source: &ast::Program) -> Checked<Cow<'_, ast::Program>> {
-    if source.traits.is_empty()
+/// Names the prelude introduces; a program declaring any of them cannot receive a forced prelude.
+const PRELUDE_NAMES: &[&str] = &[
+    "show",
+    "eq",
+    "neq",
+    "compare",
+    "clone",
+    "to_json",
+    "from_json",
+    "Show",
+    "Eq",
+    "Ord",
+    "Clone",
+    "Json",
+    "Ordering",
+    "Less",
+    "Equal",
+    "Greater",
+];
+
+/// Whether forcing the prelude would collide with user declarations instead of helping.
+pub(in crate::check) fn prelude_conflicts(source: &ast::Program) -> bool {
+    source
+        .functions
+        .iter()
+        .map(|f| f.name.as_str())
+        .chain(source.traits.iter().map(|t| t.name.as_str()))
+        .chain(source.types.iter().map(|t| t.name.as_str()))
+        .chain(source.newtypes.iter().map(|t| t.name.as_str()))
+        .chain(
+            source
+                .types
+                .iter()
+                .flat_map(|t| t.variants.iter().map(|v| v.name.as_str())),
+        )
+        .any(|name| PRELUDE_NAMES.contains(&name))
+}
+
+pub(in crate::check) fn expand(
+    source: &ast::Program,
+    force: bool,
+) -> Checked<Cow<'_, ast::Program>> {
+    if !force
+        && source.traits.is_empty()
         && source.implementations.is_empty()
         && source.functions.iter().all(|f| f.constraints.is_empty())
         && source

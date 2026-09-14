@@ -255,7 +255,7 @@ fn every_declared_runtime_entry_point_is_registered_or_explicitly_inventoried() 
         declarations += 1;
     }
     assert!(
-        declarations == 283,
+        declarations == 295,
         "symbol audit must preserve the complete shipping runtime inventory"
     );
 }

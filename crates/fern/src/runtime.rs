@@ -95,6 +95,8 @@ pub enum Operation {
     InvertBool,
     /// Accept Int/Float/Bool/String; Float uses a typed helper and String uses semantic comparison.
     ScalarContains,
+    /// Sort Int/Bool words, Float bit patterns or String pointers with element-directed helpers.
+    ScalarSort,
     /// Source padding applies equally to vertical and horizontal native arguments.
     UniformPadding,
     /// Convert a source border name into the audited native FernBoxStyle enum.
@@ -254,6 +256,9 @@ enum Shape {
     Unit,
     A,
     ListA,
+    ListB,
+    ListInt,
+    ListPairAB,
     ListString,
     OptionA,
     OptionInt,
@@ -308,6 +313,12 @@ impl Shape {
             Self::Unit => Type::Unit,
             Self::A => Type::Generic("a".into()),
             Self::ListA => Type::List(Box::new(Type::Generic("a".into()))),
+            Self::ListB => Type::List(Box::new(Type::Generic("b".into()))),
+            Self::ListInt => Type::List(Box::new(Type::Int)),
+            Self::ListPairAB => Type::List(Box::new(Type::Tuple(vec![
+                Type::Generic("a".into()),
+                Type::Generic("b".into()),
+            ]))),
             Self::ListString => Type::List(Box::new(Type::String)),
             Self::OptionA => Type::Option(Box::new(Type::Generic("a".into()))),
             Self::OptionInt => Type::Option(Box::new(Type::Int)),
@@ -480,6 +491,42 @@ const ENTRIES: &[Entry] = &[
         "fern_str_is_empty",
     ),
     entry(&["Int.parse"], &[String], OptionInt, "fern_int_parse"),
+    entry(
+        &["Int.checked_add"],
+        &[Int, Int],
+        OptionInt,
+        "fern_int_checked_add",
+    ),
+    entry(
+        &["Int.checked_sub"],
+        &[Int, Int],
+        OptionInt,
+        "fern_int_checked_sub",
+    ),
+    entry(
+        &["Int.checked_mul"],
+        &[Int, Int],
+        OptionInt,
+        "fern_int_checked_mul",
+    ),
+    entry(
+        &["Int.checked_div"],
+        &[Int, Int],
+        OptionInt,
+        "fern_int_checked_div",
+    ),
+    entry(
+        &["Int.checked_rem"],
+        &[Int, Int],
+        OptionInt,
+        "fern_int_checked_rem",
+    ),
+    entry(
+        &["Int.checked_neg"],
+        &[Int],
+        OptionInt,
+        "fern_int_checked_neg",
+    ),
     returned(
         entry(
             &["String.index_of"],
@@ -528,6 +575,13 @@ const ENTRIES: &[Entry] = &[
     entry(&["List.last"], &[ListA], OptionA, "fern_list_last"),
     entry(&["List.take"], &[ListA, Int], ListA, "fern_list_take"),
     entry(&["List.drop"], &[ListA, Int], ListA, "fern_list_drop"),
+    entry(&["List.sum"], &[ListInt], Int, "fern_list_sum"),
+    entry(&["List.range"], &[Int, Int], ListInt, "fern_list_range"),
+    entry(&["List.zip"], &[ListA, ListB], ListPairAB, "fern_list_zip"),
+    operation(
+        entry(&["List.sort"], &[ListA], ListA, "fern_list_sort"),
+        Operation::ScalarSort,
+    ),
     entry(
         &["List.tail", "list_tail"],
         &[ListA],
@@ -1630,5 +1684,9 @@ const OMISSIONS: &[Omission] = &[
     Omission {
         names: &["fern_list_contains_str"],
         reason: "Selected only by type-directed List.contains String dispatch; not an independent public source API.",
+    },
+    Omission {
+        names: &["fern_list_sort_float", "fern_list_sort_str"],
+        reason: "Selected only by type-directed List.sort Float/String dispatch; not independent public source APIs.",
     },
 ];

@@ -43,7 +43,8 @@ fn constrained_generic_operations_keep_existing_domains() {
 
 #[test]
 fn unused_known_bad_capabilities_fail_inside_generic_bodies() {
-    for body in ["println([1])", "\"{[1]}\"", "[1] + [2]", "-[1]"] {
+    // Lists print through Show (Decision 152); Unit remains a known-bad print argument.
+    for body in ["println(())", "\"{[1]}\"", "[1] + [2]", "-[1]"] {
         rejected(&format!("fn bad(x: a): {body}\nfn main(): 0\n"));
     }
 }

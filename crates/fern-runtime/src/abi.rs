@@ -113,6 +113,11 @@ pub fn result_err(value: i64) -> i64 {
     owned(ResultValue { tag: 1, value }, 4) as i64
 }
 
+/// Encode the compiler's full-width Option representation: `Some` is `Ok(word)`, `None` is `Err(0)`.
+pub fn heap_option(value: Option<i64>) -> i64 {
+    value.map_or_else(|| result_err(0), result_ok)
+}
+
 /// Encode the legacy scalar Option returned by the native string helpers.
 /// Source Options themselves use the compiler's full-width heap representation.
 pub fn option_some(value: i64) -> i64 {

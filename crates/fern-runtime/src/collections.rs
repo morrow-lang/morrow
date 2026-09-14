@@ -1,6 +1,6 @@
 //! Native immutable list operations with explicit mutable literal construction.
 use crate::{
-    abi::{self, List},
+    abi::{self, List, heap_option},
     memory,
 };
 use std::ffi::c_char;
@@ -111,9 +111,87 @@ pub unsafe extern "C" fn fern_list_drop(list: *const List, count: i64) -> *mut L
 fn clamp(count: i64, len: usize) -> usize {
     usize::try_from(count).map_or(0, |count| count.min(len))
 }
-/// Encode the compiler's full-width Option representation: `Some` is `Ok(word)`, `None` is `Err(0)`.
-fn heap_option(value: Option<i64>) -> i64 {
-    value.map_or_else(|| abi::result_err(0), abi::result_ok)
+/// Largest list any single range or zip call may materialize (128 MiB of words).
+const MAX_BUILT_ELEMENTS: usize = 1 << 24;
+
+/// Sum Int elements with the language's wrapping addition.
+/// # Safety
+/// List must be a live initialized allocation of Int words.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_sum(list: *const List) -> i64 {
+    unsafe { elements(list) }
+        .iter()
+        .fold(0_i64, |total, value| total.wrapping_add(*value))
+}
+/// Build `[start, start + 1, .., end - 1]`; an end at or below start is empty.
+#[unsafe(no_mangle)]
+pub extern "C" fn fern_list_range(start: i64, end: i64) -> *mut List {
+    let count = (i128::from(end) - i128::from(start)).max(0);
+    let count = usize::try_from(count)
+        .ok()
+        .filter(|count| *count <= MAX_BUILT_ELEMENTS)
+        .unwrap_or_else(|| abi::fault("list size limit exceeded"));
+    let values: Vec<i64> = (0..count).map(|offset| start + offset as i64).collect();
+    abi::list(&values)
+}
+/// Pair elements positionally into compiler-layout tuples, stopping at the shorter list.
+/// # Safety
+/// Both lists must be live initialized allocations.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_zip(left: *const List, right: *const List) -> *mut List {
+    let (left_words, right_words) = unsafe { (elements(left), elements(right)) };
+    let sources = [left as usize, right as usize];
+    // SAFETY: the fixed array keeps both source lists alive across tuple allocation.
+    let _sources_root = unsafe { memory::root_range(sources.as_ptr(), sources.len()) };
+    let count = left_words.len().min(right_words.len());
+    if count > MAX_BUILT_ELEMENTS {
+        abi::fault("list size limit exceeded");
+    }
+    let mut tuples = vec![0_i64; count];
+    // SAFETY: tuples has fixed length/capacity and is not reallocated under the guard.
+    let _root = unsafe { memory::root_range(tuples.as_ptr().cast(), tuples.len()) };
+    for (slot, (a, b)) in tuples.iter_mut().zip(left_words.iter().zip(right_words)) {
+        // Structural tuples are `fern_alloc` blocks holding a zero tag then their field words.
+        let tuple = memory::alloc(24, false).cast::<i64>();
+        // SAFETY: the fresh 24-byte block is aligned and exclusively owned here.
+        unsafe {
+            tuple.write(0);
+            tuple.add(1).write(*a);
+            tuple.add(2).write(*b);
+        }
+        *slot = tuple as i64;
+    }
+    abi::list(&tuples)
+}
+/// Sort Int or Bool words ascending into a new list.
+/// # Safety
+/// List must be a live initialized allocation.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_sort(list: *const List) -> *mut List {
+    let mut values = unsafe { elements(list) }.to_vec();
+    values.sort_unstable();
+    abi::list(&values)
+}
+/// Sort Float bit patterns by IEEE total order into a new list.
+/// # Safety
+/// List must be a live initialized allocation of Float words.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_sort_float(list: *const List) -> *mut List {
+    let mut values = unsafe { elements(list) }.to_vec();
+    values.sort_by(|a, b| f64::from_bits(*a as u64).total_cmp(&f64::from_bits(*b as u64)));
+    abi::list(&values)
+}
+/// Sort strings by UTF-8 byte order, matching `String.compare`, into a new list.
+/// # Safety
+/// List must be a live initialized allocation of managed string pointers.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_list_sort_str(list: *const List) -> *mut List {
+    let mut values = unsafe { elements(list) }.to_vec();
+    // SAFETY: every element is a live NUL-terminated managed string retained by the list.
+    values.sort_by(|a, b| unsafe {
+        abi::raw_bytes(*a as *const c_char).cmp(abi::raw_bytes(*b as *const c_char))
+    });
+    abi::list(&values)
 }
 /// Append to a uniquely owned literal builder.
 /// # Safety

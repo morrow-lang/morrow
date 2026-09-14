@@ -13,6 +13,25 @@ pub extern "C" fn fern_result_ok(value: i64) -> i64 {
 pub extern "C" fn fern_result_err(value: i64) -> i64 {
     abi::result_err(value)
 }
+macro_rules! checked_binary {
+    ($name:ident, $method:ident) => {
+        #[doc = "Full-width checked integer operation; overflow or an invalid divisor is `None`."]
+        #[unsafe(no_mangle)]
+        pub extern "C" fn $name(left: i64, right: i64) -> i64 {
+            abi::heap_option(left.$method(right))
+        }
+    };
+}
+checked_binary!(fern_int_checked_add, checked_add);
+checked_binary!(fern_int_checked_sub, checked_sub);
+checked_binary!(fern_int_checked_mul, checked_mul);
+checked_binary!(fern_int_checked_div, checked_div);
+checked_binary!(fern_int_checked_rem, checked_rem);
+/// Negate without wrapping; the minimum value is `None`.
+#[unsafe(no_mangle)]
+pub extern "C" fn fern_int_checked_neg(value: i64) -> i64 {
+    abi::heap_option(value.checked_neg())
+}
 /// Inspect a native Result tag.
 /// # Safety
 /// `value` must be a live ResultValue address.

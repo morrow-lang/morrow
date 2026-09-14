@@ -190,7 +190,7 @@ pub(super) fn uses_trait_prelude(program: &ast::Program) -> Checked<bool> {
     Ok(false)
 }
 
-/// Generate tuple instances only for arities present in source, retaining the language's bound.
+/// Generate tuple instances for pairs and every arity present in source, retaining the language's bound.
 pub(super) fn trait_tuple_arities(
     program: &ast::Program,
 ) -> Checked<std::collections::BTreeSet<usize>> {
@@ -212,6 +212,8 @@ pub(super) fn trait_tuple_arities(
         walker.clause(function)?;
     }
     let mut tuples = walker.tuples;
+    // Pairs also arise without tuple syntax, from List.zip, List.enumerate and runtime results.
+    tuples.insert(2);
     let mut pending: Vec<_> = program
         .functions
         .iter()

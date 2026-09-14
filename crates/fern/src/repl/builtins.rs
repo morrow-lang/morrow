@@ -213,6 +213,20 @@ fn optional(value: Option<Value>) -> Value {
     value.map_or_else(|| Value::Sum(1, Rc::new(Vec::new())), |value| sum(0, value))
 }
 
+fn checked(value: Option<i64>) -> Value {
+    optional(value.map(Value::Int))
+}
+/// Mirror the native element-directed sort: Int/Bool numeric, Float total order, String bytes.
+fn order(a: &Value, b: &Value) -> std::cmp::Ordering {
+    match (a, b) {
+        (Value::Int(a), Value::Int(b)) => a.cmp(b),
+        (Value::Bool(a), Value::Bool(b)) => a.cmp(b),
+        (Value::Float(a), Value::Float(b)) => a.total_cmp(b),
+        (Value::String(a), Value::String(b)) => a.as_bytes().cmp(b.as_bytes()),
+        _ => std::cmp::Ordering::Equal,
+    }
+}
+
 /// Non-faulting positional access mirrors the native clamping and `None` contracts exactly.
 fn positional(symbol: &str, args: &[Value]) -> Option<Eval<Value>> {
     let clamp = |count: &i64, len: usize| usize::try_from(*count).map_or(0, |n| n.min(len));
@@ -230,6 +244,38 @@ fn positional(symbol: &str, args: &[Value]) -> Option<Eval<Value>> {
             let count = clamp(n, xs.len());
             list(xs.len() - count, xs.iter().skip(count).cloned())
         }
+        ("fern_list_sum", [Value::List(xs)]) => {
+            Ok(Value::Int(xs.iter().fold(0, |total, x| match x {
+                Value::Int(n) => total.wrapping_add(*n),
+                _ => total,
+            })))
+        }
+        ("fern_list_range", [Value::Int(start), Value::Int(end)]) => {
+            match usize::try_from((i128::from(*end) - i128::from(*start)).max(0)) {
+                Ok(count) => list(
+                    count,
+                    (0..count).map(|offset| Value::Int(start + offset as i64)),
+                ),
+                Err(_) => Err(fault("interactive list limit exceeded")),
+            }
+        }
+        ("fern_list_zip", [Value::List(a), Value::List(b)]) => list(
+            a.len().min(b.len()),
+            a.iter()
+                .zip(b.iter())
+                .map(|(x, y)| Value::Sum(0, Rc::new(vec![x.clone(), y.clone()]))),
+        ),
+        ("fern_list_sort", [Value::List(xs)]) => {
+            let mut sorted = xs.as_ref().clone();
+            sorted.sort_by(order);
+            list(sorted.len(), sorted.into_iter())
+        }
+        ("fern_int_checked_add", [Value::Int(a), Value::Int(b)]) => Ok(checked(a.checked_add(*b))),
+        ("fern_int_checked_sub", [Value::Int(a), Value::Int(b)]) => Ok(checked(a.checked_sub(*b))),
+        ("fern_int_checked_mul", [Value::Int(a), Value::Int(b)]) => Ok(checked(a.checked_mul(*b))),
+        ("fern_int_checked_div", [Value::Int(a), Value::Int(b)]) => Ok(checked(a.checked_div(*b))),
+        ("fern_int_checked_rem", [Value::Int(a), Value::Int(b)]) => Ok(checked(a.checked_rem(*b))),
+        ("fern_int_checked_neg", [Value::Int(a)]) => Ok(checked(a.checked_neg())),
         ("fern_int_parse", [Value::String(text)]) => {
             let digits = text.strip_prefix(['+', '-']).unwrap_or(text);
             let exact = !digits.is_empty() && digits.bytes().all(|byte| byte.is_ascii_digit());

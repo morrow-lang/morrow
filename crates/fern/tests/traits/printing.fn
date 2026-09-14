@@ -1,0 +1,41 @@
+type Point derive(Show):
+    x: Int
+    y: Int
+
+type Shape derive(Show):
+    Circle(Int)
+    Square(Int, Int)
+    Dot
+
+newtype UserId derive(Show) = UserId(Int)
+
+fn parse(text: String) -> Result(Int, String):
+    match Int.parse(text):
+        Some(n) -> Ok(n)
+        None -> Err("not a number: {text}")
+
+fn main():
+    println([1, 2, 3])
+    println(["a", "b"])
+    println([[1], [], [2, 3]])
+    println(Some(9223372036854775807))
+    let none: Option(Int) = None
+    println(none)
+    println((1, "two", true, 2.5))
+    println(parse("42"))
+    println(parse("x"))
+    println(Point(-9223372036854775808, 2))
+    println([Circle(1), Square(2, 3), Dot])
+    println(UserId(7))
+    println(Some(Point(1, 2)))
+    let table = Map.put(Map.put(Map.new(), "b", [2]), "a", [1])
+    println(table)
+    print([1])
+    print((2, 3))
+    println(Some("!"))
+    println(List.zip([1, 2], ["x", "y"]))
+    println(List.enumerate(["p", "q"]))
+    println("plain")
+    println(7)
+    println(1.5)
+    println(true)

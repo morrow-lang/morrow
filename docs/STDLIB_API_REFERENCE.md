@@ -90,6 +90,47 @@ or trailing whitespace, separators, radix prefixes, exponents, non-ASCII digits
 and out-of-range values yield `None`. Native, REPL and comptime evaluation share
 these contracts.
 
+### List utilities
+
+```fern
+List.sort(items: List(a)) -> List(a)
+List.zip(left: List(a), right: List(b)) -> List((a, b))
+List.range(start: Int, end: Int) -> List(Int)
+List.sum(items: List(Int)) -> Int
+```
+
+`List.sort` returns a new ascending list and requires `Int`, `Float`, `Bool` or
+`String` elements (or newtypes over them); the checker rejects other element types.
+Strings order by UTF-8 bytes like `String.compare`; Floats use IEEE total order, so
+`-0.0` sorts before `0.0` and NaN sorts last. `List.zip` pairs positionally and
+stops at the shorter list. `List.range` is half-open: `List.range(0, 3)` is
+`[0, 1, 2]` and an end at or below the start is empty. `List.sum` uses the
+language's wrapping addition and returns `0` for an empty list. Ranges and zips
+above 16,777,216 elements fault with the list size limit.
+
+### Checked integer arithmetic
+
+```fern
+Int.checked_add(left: Int, right: Int) -> Option(Int)
+Int.checked_sub(left: Int, right: Int) -> Option(Int)
+Int.checked_mul(left: Int, right: Int) -> Option(Int)
+Int.checked_div(left: Int, right: Int) -> Option(Int)
+Int.checked_rem(left: Int, right: Int) -> Option(Int)
+Int.checked_neg(value: Int) -> Option(Int)
+```
+
+The operators `+ - *` wrap and `/ %` fault on zero (Decision 55). These functions
+return `None` instead for overflow, a zero divisor and `Int.min / -1`; every `Some`
+payload is the exact 64-bit result.
+
+### Printing structured values
+
+`print` and `println` accept `Int`, `Float`, `Bool` and `String` directly. Any
+other value type is printed through its `Show` implementation, so lists, options,
+results, tuples, maps and types declared with `derive(Show)` print without an
+explicit `show(...)` call. A type without `Show` is rejected at check time with a
+hint to derive it. `Unit` and function values remain rejected.
+
 [`Set(a)`](SETS.md) adds thirteen immutable collection operations with a distinct
 nominal identity, insertion-ordered iteration and membership equality. Its key
 types and complexity guarantees follow the documented Set contract.

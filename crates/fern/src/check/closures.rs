@@ -308,20 +308,71 @@ impl Checker<'_> {
         }
         let (target, params, result) = self.resolve_callable(name, span)?;
         self.constrain_result(&result, expected, span)?;
-        let order = if let Some(signature) = self.signatures.get(name) {
+        // A wrong argument type is the more useful report; a missing label waits until types agree.
+        let (order, missing_label) = if let Some(signature) = self.signatures.get(name) {
             let order = labels::order(args, &signature.labels, span)?;
-            labels::required(args, signature, &order)?;
-            order
+            let missing = labels::required(args, signature, &order).err();
+            (order, missing)
         } else {
-            (0..args.len()).collect()
+            ((0..args.len()).collect(), None)
         };
         let written = if self.signatures.contains_key(name) {
             order.iter().map(|index| params[*index].clone()).collect()
         } else {
             params
         };
-        let args = self.call_arguments(args, &written, span, depth)?;
+        let mut args = self.call_arguments(args, &written, span, depth)?;
+        if let Some(missing) = missing_label {
+            return Err(missing);
+        }
+        if matches!(
+            target,
+            ir::CallTarget::Builtin(ir::Builtin::Print | ir::Builtin::Println)
+        ) && let Some(value) = args.pop()
+        {
+            args.push(self.shown(value, span)?);
+        }
         Ok(self.ordered_call(target, args, &order, result, span))
+    }
+
+    /// Print structured values through their `Show` implementation; scalars keep the direct path.
+    /// Generic parameters retain the existing print capability so templates stay unchanged.
+    fn shown(&mut self, value: ir::Expr, span: Span) -> Checked<ir::Expr> {
+        let resolved = self.inference.resolve(&value.ty, value.span)?;
+        if !matches!(
+            resolved,
+            Type::List(_)
+                | Type::Map(_, _)
+                | Type::Option(_)
+                | Type::Result(_, _)
+                | Type::Tuple(_)
+                | Type::Named(_, _)
+                | Type::Union(_)
+        ) {
+            return Ok(value);
+        }
+        let is_trait_method = self
+            .registry
+            .traits
+            .methods
+            .get("show")
+            .is_some_and(|(id, _)| self.registry.traits.name(*id) == Some("Show"));
+        if !is_trait_method || !self.signatures.contains_key("show") {
+            return Err(Diagnostic::new(value.span, super::SHOW_PRELUDE_REQUIRED));
+        }
+        let (target, params, result) = self.resolve_callable("show", span)?;
+        let [param] = params.as_slice() else {
+            return Err(Diagnostic::new(span, "show requires exactly one parameter"));
+        };
+        self.inference
+            .unify(&value.ty, param, value.span, "print argument")?;
+        let value_span = value.span;
+        let (kind, ty) = self.ordered_call(target, vec![value], &[0], result, span);
+        Ok(ir::Expr {
+            kind,
+            ty,
+            span: value_span,
+        })
     }
 
     /// Feed compatible result context into arguments; report outer shape errors after argument errors.
