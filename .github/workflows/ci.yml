@@ -70,6 +70,7 @@ jobs:
           mkdir -p "$RUNNER_TEMP/fern-typescript"
           bun add --cwd "$RUNNER_TEMP/fern-typescript" --exact typescript@6.0.2
           rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/main.rs -o "$RUNNER_TEMP/fern-language-runner"
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/immutable.rs -o "$RUNNER_TEMP/fern-immutable-runner"
           rustc --edition=2024 --test benchmarks/language-comparison/src/oracle.rs -o "$RUNNER_TEMP/fern-language-oracles"
           "$RUNNER_TEMP/fern-language-oracles"
           export FERN="$PWD/bin/fern"

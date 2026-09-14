@@ -1,0 +1,349 @@
+Analysis of sampling workloads-fern (pid 48401) every 1 millisecond
+Process:         workloads-fern [48401]
+Path:            /private/tmp/*/workloads-fern
+Load Address:    0x104b80000
+Identifier:      workloads-fern
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  rtk [48385]
+Target Type:     live task
+
+Date/Time:       2026-09-14 18:06:46.869 +0200
+Launch Time:     2026-09-14 18:06:39.545 +0200
+OS Version:      macOS 26.5.1 (25F80)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         2992K
+Physical footprint (peak):  2992K
+Idle exit:                  untracked
+----
+
+Call graph:
+    4261 Thread_7387366   DispatchQueue_1: com.apple.main-thread  (serial)
+      4261 start  (in dyld) + 6992  [0x18f613e00]
+        4261 main  (in workloads-fern) + 20  [0x104b8e954]
+          4261 fern_main  (in workloads-fern) + 36  [0x104b81a38]
+            4261 f5  (in workloads-fern) + 504  [0x104b81188]
+              4260 f4  (in workloads-fern) + 276  [0x104b80eec]
+              + 3529 f3  (in workloads-fern) + 352  [0x104b80d50]
+              + ! 2082 f6  (in workloads-fern) + 288  [0x104b81568]
+              + ! : 916 fern_gc_frame_leave  (in workloads-fern) + 220  [0x104b8df2c]
+              + ! : | 481 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 352  [0x104b88594]
+              + ! : | + 217 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 104  [0x104b882bc]
+              + ! : | + ! 135 _platform_memmove  (in libsystem_platform.dylib) + 428,460,...  [0x18f9db50c,0x18f9db52c,...]
+              + ! : | + ! 82 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | + 158 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 80  [0x104b882a4]
+              + ! : | + ! 120 _platform_memmove  (in libsystem_platform.dylib) + 428,0,...  [0x18f9db50c,0x18f9db360,...]
+              + ! : | + ! 38 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | + 106 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 40,332,...  [0x104b8827c,0x104b883a0,...]
+              + ! : | 354 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 96,24,...  [0x104b88494,0x104b8844c,...]
+              + ! : | 81 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 392,396  [0x104b883dc,0x104b883e0]
+              + ! : 843 fern_gc_frame_leave  (in workloads-fern) + 84  [0x104b8dea4]
+              + ! : | 439 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 352  [0x104b88594]
+              + ! : | + 201 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 104  [0x104b882bc]
+              + ! : | + ! 131 _platform_memmove  (in libsystem_platform.dylib) + 428,0,...  [0x18f9db50c,0x18f9db360,...]
+              + ! : | + ! 70 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | + 120 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 116,332,...  [0x104b882c8,0x104b883a0,...]
+              + ! : | + 118 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 80  [0x104b882a4]
+              + ! : | +   118 _platform_memmove  (in libsystem_platform.dylib) + 0,428,...  [0x18f9db360,0x18f9db50c,...]
+              + ! : | 324 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 96,124,...  [0x104b88494,0x104b884b0,...]
+              + ! : | 80 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 396,392,...  [0x104b883e0,0x104b883dc,...]
+              + ! : 178 fern_gc_frame_leave  (in workloads-fern) + 92,52,...  [0x104b8deac,0x104b8de84,...]
+              + ! : 98 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 424,420  [0x104b885dc,0x104b885d8]
+              + ! : 47 fern_gc_frame_leave  (in workloads-fern) + 36  [0x104b8de74]
+              + ! :   47 _tlv_get_addr  (in libdyld.dylib) + 20  [0x18f5dc39c]
+              + ! 1021 f6  (in workloads-fern) + 104  [0x104b814b0]
+              + ! : 384 fern_gc_frame_enter  (in workloads-fern) + 300  [0x104b8dd9c]
+              + ! : | 384 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 116,320,...  [0x104b8b5b4,0x104b8b680,...]
+              + ! : 321 fern_gc_frame_enter  (in workloads-fern) + 256  [0x104b8dd70]
+              + ! : | 321 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 116,152,...  [0x104b8b5b4,0x104b8b5d8,...]
+              + ! : 248 fern_gc_frame_enter  (in workloads-fern) + 16,164,...  [0x104b8dc80,0x104b8dd14,...]
+              + ! : 38 fern_gc_frame_enter  (in workloads-fern) + 64  [0x104b8dcb0]
+              + ! : | 38 _tlv_get_addr  (in libdyld.dylib) + 12,20  [0x18f5dc394,0x18f5dc39c]
+              + ! : 30 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 296,292,...  [0x104b8b668,0x104b8b664,...]
+              + ! 137 f6  (in workloads-fern) + 140,64,...  [0x104b814d4,0x104b81488,...]
+              + ! 111 f6  (in workloads-fern) + 264  [0x104b81550]
+              + ! : 111 fern_rs_run_defers  (in workloads-fern) + 40,24,...  [0x104b81710,0x104b81700,...]
+              + ! 68 fern_gc_frame_enter  (in workloads-fern) + 328,320  [0x104b8ddb8,0x104b8ddb0]
+              + ! 43 fern_gc_frame_leave  (in workloads-fern) + 236,244  [0x104b8df3c,0x104b8df44]
+              + ! 41 fern_rs_run_defers  (in workloads-fern) + 84  [0x104b8173c]
+              + ! 26 f6  (in workloads-fern) + 200  [0x104b81510]
+              + !   25 fern_alloc  (in workloads-fern) + 16  [0x104b8dac4]
+              + !   | 22 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 432  [0x104b8c300]
+              + !   | + 9 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 72  [0x104b89908]
+              + !   | + ! 5 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 40,420,...  [0x18f7f3efc,0x18f7f4078,...]
+              + !   | + ! 3 _xzm_malloc_zone_malloc_type_calloc_entry  (in libsystem_malloc.dylib) + 12,160,...  [0x18f7fd024,0x18f7fd0b8,...]
+              + !   | + ! 1 _malloc_zone_calloc  (in libsystem_malloc.dylib) + 12  [0x18f7fe274]
+              + !   | + 8 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 236,60,...  [0x104b899ac,0x104b898fc,...]
+              + !   | + 2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 508  [0x104b89abc]
+              + !   | + ! 2 _platform_memmove  (in libsystem_platform.dylib) + 624,648  [0x18f9db5d0,0x18f9db5e8]
+              + !   | + 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 480  [0x104b89aa0]
+              + !   | + ! 1 _platform_memmove  (in libsystem_platform.dylib) + 484  [0x18f9db544]
+              + !   | + 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 672  [0x104b89b60]
+              + !   | + ! 1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x18f9db50c]
+              + !   | + 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 1076  [0x104b89cf4]
+              + !   | +   1 _platform_memmove  (in libsystem_platform.dylib) + 684  [0x18f9db60c]
+              + !   | 2 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 104,344  [0x104b8c1b8,0x104b8c2a8]
+              + !   | 1 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 44  [0x104b8c17c]
+              + !   |   1 _tlv_get_addr  (in libdyld.dylib) + 20  [0x18f5dc39c]
+              + !   1 fern_alloc  (in workloads-fern) + 16  [0x104b8dac4]
+              + 216 f3  (in workloads-fern) + 248  [0x104b80ce8]
+              + ! 156 fern_list_with_capacity  (in workloads-fern) + 84  [0x104b8e330]
+              + ! : 124 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 244  [0x104b8c244]
+              + ! : | 123 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory7collect  (in workloads-fern) + 44  [0x104b8c3f4]
+              + ! : | + 123 _RNvNtNtCsdy36D3hR9NG_12fern_runtime6memory5heaps7collect  (in workloads-fern) + 992  [0x104b8ce90]
+              + ! : | +   55 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern) + 380,1620,...  [0x104b8a3a8,0x104b8a880,...]
+              + ! : | +   36 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern) + 2740  [0x104b8ace0]
+              + ! : | +   ! 9 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 304  [0x104b87edc]
+              + ! : | +   ! : 3 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in workloads-fern) + 160  [0x104b87748]
+              + ! : | +   ! : | 3 _platform_memmove  (in libsystem_platform.dylib) + 436,24  [0x18f9db514,0x18f9db378]
+              + ! : | +   ! : 3 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in workloads-fern) + 232  [0x104b87790]
+              + ! : | +   ! : | 2 _platform_memmove  (in libsystem_platform.dylib) + 372  [0x18f9db4d4]
+              + ! : | +   ! : | 1 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | +   ! : 1 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in workloads-fern) + 192  [0x104b87768]
+              + ! : | +   ! : | 1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x18f9db50c]
+              + ! : | +   ! : 1 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in workloads-fern) + 300  [0x104b877d4]
+              + ! : | +   ! : | 1 _platform_memmove  (in libsystem_platform.dylib) + 460  [0x18f9db52c]
+              + ! : | +   ! : 1 _xzm_free  (in libsystem_malloc.dylib) + 1568  [0x18f7ef68c]
+              + ! : | +   ! 8 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 12,80,...  [0x104b87db8,0x104b87dfc,...]
+              + ! : | +   ! 6 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 88  [0x104b87e04]
+              + ! : | +   ! : 3 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | +   ! : 3 _platform_memmove  (in libsystem_platform.dylib) + 24,428,...  [0x18f9db378,0x18f9db50c,...]
+              + ! : | +   ! 5 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 128  [0x104b87e2c]
+              + ! : | +   ! : 4 _platform_memmove  (in libsystem_platform.dylib) + 24,372  [0x18f9db378,0x18f9db4d4]
+              + ! : | +   ! : 1 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | +   ! 3 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 340  [0x104b87f00]
+              + ! : | +   ! : 2 _RNvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE15bulk_steal_leftB1n_  (in workloads-fern) + 36,236  [0x104b88d84,0x104b88e4c]
+              + ! : | +   ! : 1 _RNvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE15bulk_steal_leftB1n_  (in workloads-fern) + 132  [0x104b88de4]
+              + ! : | +   ! :   1 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | +   ! 2 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 744  [0x104b88094]
+              + ! : | +   ! : 1 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | +   ! : 1 _platform_memmove  (in libsystem_platform.dylib) + 436  [0x18f9db514]
+              + ! : | +   ! 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 812  [0x104b880d8]
+              + ! : | +   ! : 1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x18f9db50c]
+              + ! : | +   ! 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 1076  [0x104b881e0]
+              + ! : | +   ! : 1 _RNvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE15bulk_steal_leftB1n_  (in workloads-fern) + 296  [0x104b88e88]
+              + ! : | +   ! 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 1096  [0x104b881f4]
+              + ! : | +   !   1 _RNvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE16bulk_steal_rightB1n_  (in workloads-fern) + 276  [0x104b8908c]
+              + ! : | +   !     1 _platform_memmove  (in libsystem_platform.dylib) + 228  [0x18f9db444]
+              + ! : | +   26 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern) + 2492  [0x104b8abe8]
+              + ! : | +   ! 13 _xzm_free  (in libsystem_malloc.dylib) + 996,196,...  [0x18f7ef450,0x18f7ef130,...]
+              + ! : | +   ! 6 _free  (in libsystem_malloc.dylib) + 108,0,...  [0x18f7fecb8,0x18f7fec4c,...]
+              + ! : | +   ! 5 _xzm_free  (in libsystem_malloc.dylib) + 352  [0x18f7ef1cc]
+              + ! : | +   ! : 4 _platform_memset  (in libsystem_platform.dylib) + 180,208  [0x18f9db144,0x18f9db160]
+              + ! : | +   ! : 1 __bzero  (in libsystem_platform.dylib) + 0  [0x18f9db030]
+              + ! : | +   ! 1 DYLD-STUB$$free  (in workloads-fern) + 4  [0x104bc7238]
+              + ! : | +   ! 1 _xzm_chunk_batch_list_push  (in libsystem_malloc.dylib) + 44  [0x18f7f6b68]
+              + ! : | +   2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern) + 2156  [0x104b8aa98]
+              + ! : | +   ! 2 _RNvMs4_NtCs8B0rgHCZPyS_5alloc7raw_vecINtB5_6RawVecOaE8grow_oneCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 60  [0x104bc2a68]
+              + ! : | +   !   2 _RNvMs5_NtCs8B0rgHCZPyS_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 224  [0x104bc2b88]
+              + ! : | +   !     2 _realloc  (in libsystem_malloc.dylib) + 452  [0x18f7fee90]
+              + ! : | +   !       2 _malloc_zone_realloc  (in libsystem_malloc.dylib) + 148  [0x18f7fe674]
+              + ! : | +   !         1 xzm_realloc  (in libsystem_malloc.dylib) + 780  [0x18f7eee00]
+              + ! : | +   !         : 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x18f7f577c]
+              + ! : | +   !         :   1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 620  [0x18f7f6180]
+              + ! : | +   !         :     1 _xzm_xzone_malloc_from_empty_freelist_chunk  (in libsystem_malloc.dylib) + 112  [0x18f7f69d8]
+              + ! : | +   !         1 xzm_realloc  (in libsystem_malloc.dylib) + 876  [0x18f7eee60]
+              + ! : | +   !           1 _xzm_free  (in libsystem_malloc.dylib) + 776  [0x18f7ef374]
+              + ! : | +   2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern) + 2584  [0x104b8ac44]
+              + ! : | +   ! 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 304  [0x104b87edc]
+              + ! : | +   ! : 1 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in workloads-fern) + 276  [0x104b877bc]
+              + ! : | +   ! :   1 _platform_memmove  (in libsystem_platform.dylib) + 180  [0x18f9db414]
+              + ! : | +   ! 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern) + 852  [0x104b88100]
+              + ! : | +   !   1 _platform_memmove  (in libsystem_platform.dylib) + 180  [0x18f9db414]
+              + ! : | +   2 _xzm_free  (in libsystem_malloc.dylib) + 1568  [0x18f7ef68c]
+              + ! : | 1 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory7collect  (in workloads-fern) + 28  [0x104b8c3e4]
+              + ! : |   1 _RNvNtNtCsdy36D3hR9NG_12fern_runtime6memory8platform8snapshot  (in workloads-fern) + 136  [0x104b8d040]
+              + ! : |     1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 260  [0x18f7f573c]
+              + ! : |       1 _malloc_ulock_self_owner_value  (in libsystem_malloc.dylib) + 4  [0x18f7f5f08]
+              + ! : 30 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 432  [0x104b8c300]
+              + ! : | 17 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 268,216,...  [0x104b899cc,0x104b89998,...]
+              + ! : | 8 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 72  [0x104b89908]
+              + ! : | + 5 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 420,96  [0x18f7f4078,0x18f7f3f34]
+              + ! : | + 2 _xzm_xzone_malloc  (in libsystem_malloc.dylib) + 8  [0x18f7ee8c8]
+              + ! : | + 1 _malloc_zone_calloc  (in libsystem_malloc.dylib) + 44  [0x18f7fe294]
+              + ! : | 3 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 588  [0x104b89b0c]
+              + ! : | + 1 _xzm_xzone_malloc  (in libsystem_malloc.dylib) + 324  [0x18f7eea04]
+              + ! : | + 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x18f7f577c]
+              + ! : | + ! 1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 336  [0x18f7f6064]
+              + ! : | + !   1 _xzm_xzone_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 228  [0x18f7f5bfc]
+              + ! : | + 1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 336  [0x18f7f4024]
+              + ! : | 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 508  [0x104b89abc]
+              + ! : | + 1 _platform_memmove  (in libsystem_platform.dylib) + 624  [0x18f9db5d0]
+              + ! : | 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 1120  [0x104b89d20]
+              + ! : |   1 _platform_memmove  (in libsystem_platform.dylib) + 0  [0x18f9db360]
+              + ! : 2 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 36,396  [0x104b8c174,0x104b8c2dc]
+              + ! 52 fern_list_with_capacity  (in workloads-fern) + 48  [0x104b8e30c]
+              + ! : 50 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 432  [0x104b8c300]
+              + ! : | 26 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 72  [0x104b89908]
+              + ! : | + 10 _platform_memset  (in libsystem_platform.dylib) + 140  [0x18f9db11c]
+              + ! : | + 7 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 88,92,...  [0x18f7f3f2c,0x18f7f3f30,...]
+              + ! : | + 4 _xzm_malloc_zone_malloc_type_calloc_entry  (in libsystem_malloc.dylib) + 208,12  [0x18f7fd0e8,0x18f7fd024]
+              + ! : | + 3 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x18f7f577c]
+              + ! : | + ! 2 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 860  [0x18f7f6270]
+              + ! : | + ! : 2 xzm_chunk_mark_used  (in libsystem_malloc.dylib) + 188  [0x18f7d6ecc]
+              + ! : | + ! :   2 _xzm_reclaim_mark_used  (in libsystem_malloc.dylib) + 124  [0x18f7d6f7c]
+              + ! : | + ! :     2 _xzm_reclaim_mark_used_locked  (in libsystem_malloc.dylib) + 60  [0x18f7d9a50]
+              + ! : | + ! :       2 mach_vm_reclaim_try_cancel  (in libsystem_kernel.dylib) + 260  [0x18f9a12c8]
+              + ! : | + ! :         2 mach_absolute_time  (in libsystem_kernel.dylib) + 108,112  [0x18f98e10c,0x18f98e110]
+              + ! : | + ! 1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 892  [0x18f7f6290]
+              + ! : | + !   1 _xzm_xzone_malloc_from_empty_freelist_chunk  (in libsystem_malloc.dylib) + 280  [0x18f7f6a80]
+              + ! : | + 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 248  [0x18f7f5730]
+              + ! : | + ! 1 _xzm_xzone_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 200  [0x18f7f5be0]
+              + ! : | + 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 652  [0x18f7f58c4]
+              + ! : | 21 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 244,268,...  [0x104b899b4,0x104b899cc,...]
+              + ! : | 2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 672  [0x104b89b60]
+              + ! : | + 1 DYLD-STUB$$memcpy  (in workloads-fern) + 4  [0x104bc7280]
+              + ! : | + 1 _platform_memmove  (in libsystem_platform.dylib) + 420  [0x18f9db504]
+              + ! : | 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 588  [0x104b89b0c]
+              + ! : |   1 _xzm_xzone_malloc  (in libsystem_malloc.dylib) + 8  [0x18f7ee8c8]
+              + ! : 2 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 64,260  [0x104b8c190,0x104b8c254]
+              + ! 4 fern_list_with_capacity  (in workloads-fern) + 68  [0x104b8e320]
+              + ! : 3 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory10root_range  (in workloads-fern) + 256  [0x104b8c0a8]
+              + ! : | 3 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 76,116,...  [0x104b8b58c,0x104b8b5b4,...]
+              + ! : 1 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory10root_range  (in workloads-fern) + 216  [0x104b8c080]
+              + ! 3 fern_list_with_capacity  (in workloads-fern) + 128  [0x104b8e35c]
+              + ! : 2 _RNvXs1_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB5_4RootNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in workloads-fern) + 192  [0x104b8d750]
+              + ! : | 2 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 352  [0x104b88594]
+              + ! : |   2 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 20,332  [0x104b88268,0x104b883a0]
+              + ! : 1 _RNvXs1_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB5_4RootNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in workloads-fern) + 4  [0x104b8d694]
+              + ! 1 fern_list_with_capacity  (in workloads-fern) + 24  [0x104b8e2f4]
+              + 163 f3  (in workloads-fern) + 260,376,...  [0x104b80cf4,0x104b80d68,...]
+              + 127 f3  (in workloads-fern) + 328  [0x104b80d38]
+              + ! 127 fern_list_get  (in workloads-fern) + 32,12,...  [0x104b8dfbc,0x104b8dfa8,...]
+              + 64 f6  (in workloads-fern) + 312  [0x104b81580]
+              + 54 f3  (in workloads-fern) + 396  [0x104b80d7c]
+              + ! 54 fern_list_push_mut  (in workloads-fern) + 32  [0x104b8e20c]
+              + 42 fern_list_push_mut  (in workloads-fern) + 148  [0x104b8e280]
+              + 29 f3  (in workloads-fern) + 164  [0x104b80c94]
+              + ! 28 fern_alloc  (in workloads-fern) + 16  [0x104b8dac4]
+              + ! : 25 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 432  [0x104b8c300]
+              + ! : | 5 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 72  [0x104b89908]
+              + ! : | + 2 _malloc_zone_calloc  (in libsystem_malloc.dylib) + 12,104  [0x18f7fe274,0x18f7fe2d0]
+              + ! : | + 2 _xzm_malloc_zone_malloc_type_calloc_entry  (in libsystem_malloc.dylib) + 160,284  [0x18f7fd0b8,0x18f7fd134]
+              + ! : | + 1 _xzm_xzone_malloc  (in libsystem_malloc.dylib) + 324  [0x18f7eea04]
+              + ! : | 5 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 480  [0x104b89aa0]
+              + ! : | + 5 _platform_memmove  (in libsystem_platform.dylib) + 484,464,...  [0x18f9db544,0x18f9db530,...]
+              + ! : | 5 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 508  [0x104b89abc]
+              + ! : | + 5 _platform_memmove  (in libsystem_platform.dylib) + 624,640,...  [0x18f9db5d0,0x18f9db5e0,...]
+              + ! : | 4 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 236,268,...  [0x104b899ac,0x104b899cc,...]
+              + ! : | 2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 588  [0x104b89b0c]
+              + ! : | + 1 DYLD-STUB$$malloc  (in workloads-fern) + 4  [0x104bc7268]
+              + ! : | + 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x18f7f577c]
+              + ! : | +   1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 336  [0x18f7f6064]
+              + ! : | +     1 _xzm_xzone_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 932  [0x18f7f5ebc]
+              + ! : | 2 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 1076  [0x104b89cf4]
+              + ! : | + 2 _platform_memmove  (in libsystem_platform.dylib) + 676  [0x18f9db604]
+              + ! : | 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 816  [0x104b89bf0]
+              + ! : | + 1 DYLD-STUB$$memmove  (in workloads-fern) + 4  [0x104bc728c]
+              + ! : | 1 _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern) + 1120  [0x104b89d20]
+              + ! : |   1 _platform_memmove  (in libsystem_platform.dylib) + 624  [0x18f9db5d0]
+              + ! : 3 _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern) + 156,344,...  [0x104b8c1ec,0x104b8c2a8,...]
+              + ! 1 fern_alloc  (in workloads-fern) + 16  [0x104b8dac4]
+              + 24 f3  (in workloads-fern) + 452  [0x104b80db4]
+              + ! 20 fern_gc_frame_leave  (in workloads-fern) + 84  [0x104b8dea4]
+              + ! : 14 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 48,352,...  [0x104b88464,0x104b88594,...]
+              + ! : 6 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 352  [0x104b88594]
+              + ! :   3 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 44  [0x104b88280]
+              + ! :   2 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 80  [0x104b882a4]
+              + ! :   + 2 _platform_memmove  (in libsystem_platform.dylib) + 428,460  [0x18f9db50c,0x18f9db52c]
+              + ! :   1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 104  [0x104b882bc]
+              + ! :     1 _platform_memmove  (in libsystem_platform.dylib) + 0  [0x18f9db360]
+              + ! 3 fern_gc_frame_leave  (in workloads-fern) + 52,84,...  [0x104b8de84,0x104b8dea4,...]
+              + ! 1 fern_gc_frame_leave  (in workloads-fern) + 220  [0x104b8df2c]
+              + !   1 _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 96  [0x104b88494]
+              + 10 f3  (in workloads-fern) + 120  [0x104b80c68]
+              + ! 6 fern_gc_frame_enter  (in workloads-fern) + 256  [0x104b8dd70]
+              + ! : 6 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 260,68,...  [0x104b8b644,0x104b8b584,...]
+              + ! 2 fern_gc_frame_enter  (in workloads-fern) + 16,112  [0x104b8dc80,0x104b8dce0]
+              + ! 1 fern_gc_frame_enter  (in workloads-fern) + 64  [0x104b8dcb0]
+              + ! : 1 _tlv_get_addr  (in libdyld.dylib) + 20  [0x18f5dc39c]
+              + ! 1 fern_gc_frame_enter  (in workloads-fern) + 300  [0x104b8dd9c]
+              + !   1 _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 120  [0x104b8b5b8]
+              + 2 fern_rs_run_defers  (in workloads-fern) + 84  [0x104b8173c]
+              1 f4  (in workloads-fern) + 236  [0x104b80ec4]
+                1 fern_rs_int_div  (in workloads-fern) + 4  [0x104b81964]
+
+Total number in stack (recursive counted multiple, when >=5):
+        28       _platform_memmove  (in libsystem_platform.dylib) + 0  [0x18f9db360]
+        9       DYLD-STUB$$memmove  (in workloads-fern) + 0  [0x104bc7288]
+        6       _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 0  [0x104b88254]
+        6       _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 0  [0x104b8b540]
+        5       _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern) + 0  [0x104b88434]
+
+Sort by top of stack, same collapsed (when >= 5):
+        _RINvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB6_8BTreeMapjTjjEE6removejECsdy36D3hR9NG_12fern_runtime  (in workloads-fern)        791
+        _RNvMsi_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3mapINtB5_8BTreeMapjTjjEE6insertCsdy36D3hR9NG_12fern_runtime  (in workloads-fern)        745
+        _platform_memmove  (in libsystem_platform.dylib)        547
+        _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjTjjENtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCNvMs5_NtNtB7_3map5entryINtB2A_13OccupiedEntryjB1M_E9remove_kv0NtNtBb_5alloc6GlobalECsdy36D3hR9NG_12fern_runtime  (in workloads-fern)        392
+        fern_gc_frame_enter  (in workloads-fern)        318
+        fern_gc_frame_leave  (in workloads-fern)        224
+        f6  (in workloads-fern)        201
+        DYLD-STUB$$memmove  (in workloads-fern)        198
+        f3  (in workloads-fern)        163
+        fern_rs_run_defers  (in workloads-fern)        154
+        fern_list_get  (in workloads-fern)        127
+        fern_list_push_mut  (in workloads-fern)        96
+        _tlv_get_addr  (in libdyld.dylib)        87
+        _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap5trace  (in workloads-fern)        55
+        _RNvMs_NtCsdy36D3hR9NG_12fern_runtime6memoryNtB4_4Heap15allocate_layout  (in workloads-fern)        50
+        _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib)        18
+        _xzm_free  (in libsystem_malloc.dylib)        17
+        _platform_memset  (in libsystem_platform.dylib)        14
+        _RNvNtCsdy36D3hR9NG_12fern_runtime6memory5alloc  (in workloads-fern)        9
+        _xzm_malloc_zone_malloc_type_calloc_entry  (in libsystem_malloc.dylib)        9
+        _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsdy36D3hR9NG_12fern_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3g_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3g_INtB3g_8BTreeMapjB1M_E6retainNCNvMs_B1O_NtB1O_4Heap5trace0E0NtNtBb_5alloc6GlobalE0B5Q_EB1Q_  (in workloads-fern)        8
+        _free  (in libsystem_malloc.dylib)        6
+        _xzm_xzone_malloc  (in libsystem_malloc.dylib)        5
+
+Binary Images:
+       0x104b80000 -        0x104bd66c7 +workloads-fern (0) <E510D8AC-24CD-35EA-A64B-3780ED88F1F5> /tmp/*/workloads-fern
+       0x18f56c000 -        0x18f5beb4b  libobjc.A.dylib (951.7) <FF1D8AE4-ABEF-35F1-A30A-1183B9CB414F> /usr/lib/libobjc.A.dylib
+       0x18f5bf000 -        0x18f5f3d07  libdyld.dylib (1378) <B147D877-D0C2-388F-B38D-D3132E39905F> /usr/lib/system/libdyld.dylib
+       0x18f5f4000 -        0x18f69a217  dyld (1.0.0 - 1378) <A237EF81-B68B-37BA-A165-92C965529534> /usr/lib/dyld
+       0x18f69b000 -        0x18f69e228  libsystem_blocks.dylib (96) <CC947089-488D-316B-A9C7-46DEC0F73145> /usr/lib/system/libsystem_blocks.dylib
+       0x18f69f000 -        0x18f6f355f  libxpc.dylib (3102.120.13) <C40FCAE8-7A17-3D82-87CB-3DA4802ADEF1> /usr/lib/system/libxpc.dylib
+       0x18f6f4000 -        0x18f7149ff  libsystem_trace.dylib (1861.120.4) <D0FABAB3-5AE7-3F10-8C62-60CBF5D70850> /usr/lib/system/libsystem_trace.dylib
+       0x18f715000 -        0x18f7c35f7  libcorecrypto.dylib (1922.121.1) <A01A158D-6FE7-3B1C-A2C4-6BCB90D7314A> /usr/lib/system/libcorecrypto.dylib
+       0x18f7c4000 -        0x18f8141d7  libsystem_malloc.dylib (812.100.31) <5FAE4807-4D2B-3A95-A63A-DD96D3DA11B4> /usr/lib/system/libsystem_malloc.dylib
+       0x18f815000 -        0x18f85c23f  libdispatch.dylib (1542.100.32) <F071EFE4-299F-3089-ACC4-0025B8FFB52A> /usr/lib/system/libdispatch.dylib
+       0x18f85d000 -        0x18f85fffb  libsystem_featureflags.dylib (103) <71FCFFBD-85F8-3365-AFE0-BECEA4369122> /usr/lib/system/libsystem_featureflags.dylib
+       0x18f860000 -        0x18f8e0d9f  libsystem_c.dylib (1752.120.2) <694B7881-1BF3-3D0F-8F19-B50AE4E8EF8A> /usr/lib/system/libsystem_c.dylib
+       0x18f8e1000 -        0x18f971ae7  libc++.1.dylib (2100.43) <5013C0F8-84A9-3B56-9FEB-C353816A750F> /usr/lib/libc++.1.dylib
+       0x18f972000 -        0x18f98c75f  libc++abi.dylib (2100.43) <E482D257-E5A0-3816-BD97-7B39342958DA> /usr/lib/libc++abi.dylib
+       0x18f98d000 -        0x18f9ca2af  libsystem_kernel.dylib (12377.121.6) <CC1CF985-BC65-3725-809F-4C1E36B8F4BA> /usr/lib/system/libsystem_kernel.dylib
+       0x18f9cb000 -        0x18f9d7b3b  libsystem_pthread.dylib (539.100.4) <4F33683C-18C8-39A1-800B-2E3BD43BCC13> /usr/lib/system/libsystem_pthread.dylib
+       0x18f9d8000 -        0x18f9e0963  libsystem_platform.dylib (375.120.2) <160FD864-8D15-36FC-9E97-9725388CFAFE> /usr/lib/system/libsystem_platform.dylib
+       0x18f9e1000 -        0x18fa106eb  libsystem_info.dylib (600) <3D62F2D9-F516-31BF-83C7-E203D872300B> /usr/lib/system/libsystem_info.dylib
+       0x1939a8000 -        0x1939b1e5f  libsystem_darwin.dylib (1752.120.2) <8858F025-745A-388E-9544-080781CC9A69> /usr/lib/system/libsystem_darwin.dylib
+       0x193e13000 -        0x193e251b6  libsystem_notify.dylib (348.120.4) <64D76451-1E0C-369B-A631-54DA3140E083> /usr/lib/system/libsystem_notify.dylib
+       0x1960e0000 -        0x1960faf7b  libsystem_networkextension.dylib (2226.121.1) <0331EE20-A1FB-3C0D-990A-F65939CFF505> /usr/lib/system/libsystem_networkextension.dylib
+       0x19617d000 -        0x196194fdf  libsystem_asl.dylib (406) <F40838DF-2F15-3F62-970F-DEE25706BF1B> /usr/lib/system/libsystem_asl.dylib
+       0x197d3b000 -        0x197d43387  libsystem_symptoms.dylib (2169.120.7) <F5029F5C-1BF3-31C7-892E-BC8606AC829E> /usr/lib/system/libsystem_symptoms.dylib
+       0x19bfdf000 -        0x19c017257  libsystem_containermanager.dylib (725.120.2) <518BE44D-AA31-31E6-B44B-A37AD5E47040> /usr/lib/system/libsystem_containermanager.dylib
+       0x19d3f0000 -        0x19d3f45d7  libsystem_configuration.dylib (1405.120.5) <0F7BBC1C-3D50-3E59-A31F-E4672A80BCEB> /usr/lib/system/libsystem_configuration.dylib
+       0x19d3f5000 -        0x19d3fb8cf  libsystem_sandbox.dylib (2680.120.12) <EC3A75EA-44C0-3A0B-9BF7-71C117B0A9C6> /usr/lib/system/libsystem_sandbox.dylib
+       0x19ea4f000 -        0x19ea521fb  libquarantine.dylib (196.120.2) <5849009B-ACA3-3796-94C4-BBDF8D300EBA> /usr/lib/system/libquarantine.dylib
+       0x19f1ee000 -        0x19f1f4d03  libsystem_coreservices.dylib (191.4.5) <9576143B-C303-35A3-BA63-1FD06EDA2BB1> /usr/lib/system/libsystem_coreservices.dylib
+       0x19f779000 -        0x19f7b6a77  libsystem_m.dylib (3312.100.1) <A7E0863C-101A-31A0-922B-ED9B02626151> /usr/lib/system/libsystem_m.dylib
+       0x19f7b7000 -        0x19f7b7c9b  libcharset.1.dylib (115.120.2) <338A5252-594A-3AC5-B274-5AB3CE5820C6> /usr/lib/libcharset.1.dylib
+       0x19f7b8000 -        0x19f7bb527  libmacho.dylib (1378) <755441B4-C034-3E3A-8E3C-F424FBB28261> /usr/lib/system/libmacho.dylib
+       0x19f7d5000 -        0x19f7e23a7  libcommonCrypto.dylib (600035) <CE357BB1-2D49-37CC-9FFE-D093936B1475> /usr/lib/system/libcommonCrypto.dylib
+       0x19f7e3000 -        0x19f7ecca3  libunwind.dylib (2100.2) <FC8F0C4E-6FB0-3E27-ABEF-B0FA720CD5E4> /usr/lib/system/libunwind.dylib
+       0x19f7f5000 -        0x19f7ff7ff  libcopyfile.dylib (240) <8ACFAC7A-88E9-3EF4-853F-A9140FF110E5> /usr/lib/system/libcopyfile.dylib
+       0x19f800000 -        0x19f803987  libcompiler_rt.dylib (103.3) <AA79151F-C19D-3C7C-92F8-B10F04D82C1C> /usr/lib/system/libcompiler_rt.dylib
+       0x19f804000 -        0x19f80878b  libsystem_collections.dylib (1752.120.2) <72DB5BE7-EF78-37D0-8AAD-53E37CFE4287> /usr/lib/system/libsystem_collections.dylib
+       0x19f809000 -        0x19f80c4cf  libsystem_secinit.dylib (168.100.7) <E525C566-CDA4-3D99-B12B-1615FD54A1F3> /usr/lib/system/libsystem_secinit.dylib
+       0x19f80d000 -        0x19f80fbf7  libremovefile.dylib (85.100.6) <635E661D-80A7-340D-A165-3F7D318FDFC9> /usr/lib/system/libremovefile.dylib
+       0x19f810000 -        0x19f810f27  libkeymgr.dylib (31) <8C08891A-DF1C-3DCC-AB64-4742FD6BE9BA> /usr/lib/system/libkeymgr.dylib
+       0x19f811000 -        0x19f819e37  libsystem_dnssd.dylib (2881.120.11) <6F45DF3F-233B-3BC3-BA8C-B43E7DA884BF> /usr/lib/system/libsystem_dnssd.dylib
+       0x19f81a000 -        0x19f81f09b  libcache.dylib (95) <189B576E-6176-3F82-8FA4-5914B0BEAEE7> /usr/lib/system/libcache.dylib
+       0x19f820000 -        0x19f821ce3  libSystem.B.dylib (1356) <D65E4112-C151-3FF8-BEB7-4841436012D6> /usr/lib/libSystem.B.dylib
+       0x19f85a000 -        0x19f8612bb  libiconv.2.dylib (115.120.2) <7C02D8F4-1921-323C-9D3D-A5D9B0ACDD78> /usr/lib/libiconv.2.dylib
+       0x292a57000 -        0x292a5e349  libRosetta.dylib (367.9) <8651ED4F-6506-3788-B56B-32EE414A85CA> /usr/lib/libRosetta.dylib
+       0x294674000 -        0x294677a4b  libsystem_darwindirectory.dylib (122) <CF277A2C-C818-3F16-8B3F-3C7B39FCD164> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x294678000 -        0x2946815d3  libsystem_eligibility.dylib (319.121.1) <DDAC0531-0262-3DDC-8EC8-80EB9438847A> /usr/lib/system/libsystem_eligibility.dylib
+       0x294682000 -        0x29468988b  libsystem_sanitizers.dylib (26.1) <44C4234F-8B2D-38D3-A774-B4B3C75AF3A7> /usr/lib/system/libsystem_sanitizers.dylib
+       0x29468a000 -        0x29468abb7  libsystem_trial.dylib (474.2.18.2) <68C583BA-AFF5-3916-86AE-6E38BFEF98D6> /usr/lib/system/libsystem_trial.dylib

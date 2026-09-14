@@ -25,8 +25,16 @@ struct Store {
     next_heap: usize,
     slots: BTreeMap<usize, Slot>,
     next_frame: usize,
-    frames: BTreeMap<usize, (usize, usize)>,
+    // Calls normally retire in reverse order. Reuse this storage across callbacks
+    // instead of allocating tree nodes for each short-lived root registration.
+    frames: Vec<Frame>,
     retired_collections: usize,
+}
+struct Frame {
+    token: usize,
+    heap: usize,
+    pointer: usize,
+    words: usize,
 }
 impl Store {
     fn new() -> Self {
@@ -35,7 +43,7 @@ impl Store {
             next_heap: 0,
             slots: BTreeMap::from([(0, Slot::invocation())]),
             next_frame: 0,
-            frames: BTreeMap::new(),
+            frames: Vec::new(),
             retired_collections: 0,
         }
     }
@@ -49,7 +57,7 @@ impl Store {
             if let Some(root) = self.slots[&id].control_root {
                 self.slots.get_mut(&0).unwrap().heap.roots.remove(&root);
             }
-            self.frames.retain(|_, (heap, _)| *heap != id);
+            self.frames.retain(|frame| frame.heap != id);
             self.retired_collections += self.slots[&id].heap.collections;
             self.slots.remove(&id);
         }
@@ -103,10 +111,11 @@ pub(super) fn collect(roots: &[usize]) -> Stats {
     STORE.with(|store| {
         let mut store = store.borrow_mut();
         let active = store.active;
+        let mut controls = Vec::new();
         if active == 0 {
             // Foreign payload is never scanned. Metadata survives exactly as long
             // as its wrapper allocation, including until that heap's next sweep.
-            let mut controls = roots.to_vec();
+            controls.extend_from_slice(roots);
             for (&id, slot) in &store.slots {
                 if id != 0 {
                     controls.extend(
@@ -117,9 +126,20 @@ pub(super) fn collect(roots: &[usize]) -> Stats {
                     );
                 }
             }
-            store.slots.get_mut(&0).unwrap().heap.trace(&controls)
+        }
+        let roots = if active == 0 { &controls } else { roots };
+        let Store { slots, frames, .. } = &mut *store;
+        let heap = &mut slots.get_mut(&active).unwrap().heap;
+        if frames.is_empty() {
+            heap.trace(roots)
         } else {
-            store.slots.get_mut(&active).unwrap().heap.trace(roots)
+            // Borrow registrations while tracing only their owning heap. Scan
+            // slots in place, without copying potentially large frame contents.
+            let ranges = frames
+                .iter()
+                .filter(|frame| frame.heap == active)
+                .map(|frame| (frame.pointer, frame.words));
+            heap.trace_ranges(roots, ranges)
         }
     })
 }
@@ -306,13 +326,17 @@ pub unsafe extern "C" fn fern_gc_frame_enter(slots: *const usize, words: usize) 
     STORE.with(|store| {
         let mut store = store.borrow_mut();
         let heap = store.active;
-        let root = register(&mut store.slots.get_mut(&heap).unwrap().heap, slots, words);
         store.next_frame = store
             .next_frame
             .checked_add(1)
             .unwrap_or_else(|| std::process::abort());
         let token = store.next_frame;
-        store.frames.insert(token, (heap, root));
+        store.frames.push(Frame {
+            token,
+            heap,
+            pointer: slots as usize,
+            words,
+        });
         token
     })
 }
@@ -321,10 +345,16 @@ pub unsafe extern "C" fn fern_gc_frame_enter(slots: *const usize, words: usize) 
 pub extern "C" fn fern_gc_frame_leave(token: usize) {
     STORE.with(|store| {
         let mut store = store.borrow_mut();
-        if let Some((heap, root)) = store.frames.remove(&token)
-            && let Some(slot) = store.slots.get_mut(&heap)
+        if store
+            .frames
+            .last()
+            .is_some_and(|frame| frame.token == token)
         {
-            slot.heap.roots.remove(&root);
+            // Avoid even a zero-length memmove on the ordinary callback exit.
+            store.frames.pop();
+        } else if let Some(index) = store.frames.iter().rposition(|frame| frame.token == token) {
+            // Unusual cross-heap/out-of-order exits retain the remaining order.
+            store.frames.remove(index);
         }
     });
 }

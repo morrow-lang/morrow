@@ -119,14 +119,22 @@ impl Heap {
         }
     }
     fn trace(&mut self, roots: &[usize]) -> Stats {
+        self.trace_ranges(roots, std::iter::empty())
+    }
+    fn trace_ranges(
+        &mut self,
+        roots: &[usize],
+        frames: impl Iterator<Item = (usize, usize)>,
+    ) -> Stats {
         let mut pending = Vec::new();
         for &root in roots {
             self.mark(root, &mut pending);
         }
         let ranges: Vec<_> = self.roots.values().copied().collect();
-        for (start, words) in ranges {
+        for (start, words) in ranges.into_iter().chain(frames) {
             for offset in 0..words {
-                // SAFETY: the Root registration contract guarantees this live range.
+                // SAFETY: Root and native-frame registration contracts guarantee
+                // this range remains readable on the collecting thread.
                 self.mark(unsafe { platform::word(start + offset * 8) }, &mut pending);
             }
         }

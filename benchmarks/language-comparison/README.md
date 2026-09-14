@@ -6,6 +6,10 @@ output oracles; compiler rejection is measured separately from runtime behavior.
 The comparison sources in Rust and TypeScript are intentional test subjects.
 Repository orchestration remains Rust.
 
+**Update:** the [immutable callback optimization](IMMUTABLE.md) makes the same
+model workload 2.73–2.94× faster through cheaper GC frame bookkeeping. Results
+below retain the original baseline and its configuration.
+
 ## Recorded results, 2026-09-14
 
 Apple M4, 24 GiB RAM, macOS 26.5.1, ARM64; Fern source `472d30c`, Rust

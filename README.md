@@ -173,9 +173,13 @@ tests current Fern, optimized Rust and Bun 1.4.2 against independent output
 oracles. On one Apple M4, 20 million scalar steps took **76 ms in Fern**, **57 ms
 in Rust**, and **247 ms with Bun BigInt / 520 ms with Bun Number**. An immutable
 256-entry model updated 10,000 times took **71 / 3.6 / 13.9 ms** in Fern / Rust /
-Bun. These are specific whole-process workloads, not a universal language ranking.
+Bun. The subsequent [immutable implementation improvement](benchmarks/language-comparison/IMMUTABLE.md)
+reduced Fern's 10,000-update time to **25.9 ms**, a **2.73× speedup** in a fresh
+paired comparison, with approximately **3.47 MiB RSS**. At 100,000 updates the
+speedup was **2.94×**. These are specific whole-process workloads, not a universal
+language ranking.
 
-Fern's model process used a median peak **3.48 MiB RSS**, compared with Rust's
+The original model process used a median peak **3.48 MiB RSS**, compared with Rust's
 **1.55 MiB** and Bun's **30.33 MiB**. Its compiled workload was **568,104 bytes**
 on macOS. Small-source checking and builds were quick, but collection/model work
 is a clear performance weakness. Generated native code currently uses Cranelift

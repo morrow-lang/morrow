@@ -2589,3 +2589,5 @@ assert_eq!(*fault, 1);
         b"sibling\n0\n1\n2\nworker cleanup\n"
     );
 }
+#[path = "support/immutable_gc_backend.rs"]
+mod immutable_gc_backend;

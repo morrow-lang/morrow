@@ -213,3 +213,144 @@ fn active_heap_retirement_waits_for_callback_scope_and_finalizes_once() {
         assert_eq!(count.get(), 1);
     }
 }
+
+#[test]
+fn native_frame_lifetimes_match_seeded_cross_heap_model() {
+    struct Finalized(Rc<std::cell::Cell<bool>>);
+    impl Drop for Finalized {
+        fn drop(&mut self) {
+            assert!(!self.0.replace(true), "managed value finalized twice");
+        }
+    }
+    struct Entry {
+        heap: usize,
+        token: usize,
+        active: bool,
+        finalized: Rc<std::cell::Cell<bool>>,
+        // The stable registration storage outlives its frame, including retirement.
+        _words: Box<[usize; 1]>,
+    }
+    for seed in 0..32u64 {
+        let mut random = seed + 1;
+        let mut next = || {
+            random ^= random << 13;
+            random ^= random >> 7;
+            random ^= random << 17;
+            random
+        };
+        // SAFETY: control objects belong to the invocation heap. The actor heaps
+        // own and retire their registrations before these controls can disappear.
+        let actors = unsafe {
+            let a = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
+            let b = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
+            [a, b]
+        };
+        let mut entries: Vec<Entry> = Vec::new();
+        for _ in 0..256 {
+            let heap = actors[(next() & 1) as usize];
+            let _scope = enter_heap(heap);
+            match next() % 4 {
+                0 => {
+                    let finalized = Rc::new(std::cell::Cell::new(false));
+                    // SAFETY: the owned Rust flag holds no managed pointers; its
+                    // finalizer cannot reenter GC. Registration precedes collection.
+                    let value = unsafe { managed(Finalized(finalized.clone()), 0) };
+                    let words = Box::new([value as usize]);
+                    let token = unsafe { fern_gc_frame_enter(words.as_ptr(), 1) };
+                    assert!(entries.iter().all(|entry| entry.token != token));
+                    entries.push(Entry {
+                        heap,
+                        token,
+                        active: true,
+                        finalized,
+                        _words: words,
+                    });
+                }
+                1 | 2 if !entries.is_empty() => {
+                    // Includes out-of-order, repeated/stale, and foreign-heap leave.
+                    let index = next() as usize % entries.len();
+                    fern_gc_frame_leave(entries[index].token);
+                    entries[index].active = false;
+                }
+                _ => {
+                    // SAFETY: each live value has its own stable registered slot;
+                    // this oracle deliberately ignores all conservative stack words.
+                    unsafe { fern_gc_collect_precise() };
+                    for entry in &entries {
+                        if entry.heap == heap {
+                            assert_eq!(entry.finalized.get(), !entry.active, "seed {seed}");
+                        } else if entry.active {
+                            assert!(!entry.finalized.get(), "foreign heap collected");
+                        }
+                    }
+                }
+            }
+        }
+        // Retiring a heap invalidates all its remaining frames, even though their
+        // externally owned slots remain alive and their tokens may be left later.
+        for heap in actors {
+            retire_heap(heap);
+            assert!(
+                entries
+                    .iter()
+                    .filter(|entry| entry.heap == heap)
+                    .all(|entry| entry.finalized.get())
+            );
+        }
+        for entry in entries.iter().rev() {
+            fern_gc_frame_leave(entry.token);
+        }
+    }
+}
+
+#[test]
+fn native_frames_read_updated_slots_and_do_not_root_foreign_heap_addresses() {
+    // SAFETY: stable boxed slots remain readable through each matching leave.
+    // Ownership assertions never dereference a collected allocation.
+    unsafe {
+        let first = alloc(16, true);
+        let mut frame_word = Box::new(first as usize);
+        let frame = fern_gc_frame_enter(&*frame_word, 1);
+        let persistent = alloc(16, true);
+        let persistent_word = Box::new(persistent as usize);
+        let root = root_range(&*persistent_word, 1);
+        let empty = fern_gc_frame_enter(std::ptr::null(), 0);
+        fern_gc_collect_precise();
+        assert!(heap_owns(0, first.cast()));
+        assert!(heap_owns(0, persistent.cast()));
+
+        *frame_word = 0;
+        fern_gc_collect_precise();
+        assert!(!heap_owns(0, first.cast()));
+        assert!(heap_owns(0, persistent.cast()));
+
+        let replacement = alloc(16, true);
+        *frame_word = replacement as usize;
+        fern_gc_collect_precise();
+        assert!(heap_owns(0, replacement.cast()));
+        fern_gc_frame_leave(empty);
+        fern_gc_frame_leave(frame);
+        fern_gc_collect_precise();
+        assert!(!heap_owns(0, replacement.cast()));
+        assert!(heap_owns(0, persistent.cast()));
+        drop(root);
+
+        let actor = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
+        let foreign = {
+            let _scope = enter_heap(actor);
+            alloc(16, true)
+        };
+        *frame_word = foreign as usize;
+        let invocation_frame = fern_gc_frame_enter(&*frame_word, 1);
+        {
+            let _scope = enter_heap(actor);
+            fern_gc_collect_precise();
+            assert!(
+                !heap_owns(actor, foreign.cast()),
+                "foreign frame rooted actor data"
+            );
+        }
+        fern_gc_frame_leave(invocation_frame);
+        retire_heap(actor);
+    }
+}
