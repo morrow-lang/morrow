@@ -572,6 +572,7 @@ impl Emitter<'_, '_> {
                     "fern_str_len" => Some((strings::LEN, 1, Type::Int)),
                     "fern_str_concat" => Some((strings::CONCAT, 2, Type::String)),
                     "fern_str_eq" => Some((strings::EQ, 2, Type::Bool)),
+                    "fern_str_quote" => Some((strings::QUOTE, 1, Type::String)),
                     _ => None,
                 })
             }

@@ -309,6 +309,7 @@ pub enum Builtin {
     MapKeys,
     MapValues,
     ListMap,
+    ListSortBy,
     ListFold,
     ListFilter,
     ListFind,

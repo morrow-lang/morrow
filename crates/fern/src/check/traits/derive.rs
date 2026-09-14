@@ -107,10 +107,11 @@ pub(in crate::check) fn expand(
     );
     for ty in ["Int", "Float", "Bool", "String", "()"] {
         if !existing.contains("Show") {
-            let body = if ty == "()" {
-                "\"()\"".to_owned()
-            } else {
-                "\"{value}\"".to_owned()
+            // Strings show as literals so structural text stays unambiguous: `["a", ""]`.
+            let body = match ty {
+                "()" => "\"()\"".to_owned(),
+                "String" => "String.quote(value)".to_owned(),
+                _ => "\"{value}\"".to_owned(),
             };
             generated.push_str(&format!(
                 "impl Show({ty}):\n    fn show(value: {ty}) -> String: {body}\n"
@@ -132,6 +133,8 @@ pub(in crate::check) fn expand(
         generated.push_str("impl Ord(String):\n    fn compare(left: String, right: String) -> Ordering:\n        let order = String.compare(left, right)\n        if order < 0: Less else: if order > 0: Greater else: Equal\n");
         generated.push_str("impl Ord(Int):\n    fn compare(left: Int, right: Int) -> Ordering:\n        if left < right: Less else: if left > right: Greater else: Equal\n");
         generated.push_str("impl Ord(Bool):\n    fn compare(left: Bool, right: Bool) -> Ordering:\n        if left == right: Equal else: if right: Less else: Greater\n");
+        // NaN is unordered: it compares Equal to everything rather than faulting.
+        generated.push_str("impl Ord(Float):\n    fn compare(left: Float, right: Float) -> Ordering:\n        if left < right: Less else: if left > right: Greater else: Equal\n");
         generated
             .push_str("impl Ord(()):\n    fn compare(left: (), right: ()) -> Ordering: Equal\n");
     }

@@ -47,6 +47,8 @@ mod collection_calls;
 mod collection_fold;
 #[path = "obligations/collection_search.rs"]
 mod collection_search;
+#[path = "obligations/collection_sort.rs"]
+mod collection_sort;
 #[path = "obligations/effect_shapes.rs"]
 mod effect_shapes;
 #[path = "obligations/flow.rs"]

@@ -14,9 +14,18 @@ fn parse(text: String) -> Result(Int, String):
         Some(n) -> Ok(n)
         None -> Err("not a number: {text}")
 
+fn show_twice(value: a):
+    println(value)
+    println([value])
+
 fn main():
     println([1, 2, 3])
     println(["a", "b"])
+    println(["", "say \"hi\"", "back\\slash", "tab\tline\nbreak"])
+    println(show("plain"))
+    show_twice(1)
+    show_twice("s")
+    show_twice(Some(Point(0, 0)))
     println([[1], [], [2, 3]])
     println(Some(9223372036854775807))
     let none: Option(Int) = None

@@ -94,15 +94,24 @@ these contracts.
 
 ```fern
 List.sort(items: List(a)) -> List(a)
+List.sort_by(items: List(a), compare: (a, a) -> Ordering) -> List(a)
 List.zip(left: List(a), right: List(b)) -> List((a, b))
 List.range(start: Int, end: Int) -> List(Int)
 List.sum(items: List(Int)) -> Int
 ```
 
-`List.sort` returns a new ascending list and requires `Int`, `Float`, `Bool` or
-`String` elements (or newtypes over them); the checker rejects other element types.
-Strings order by UTF-8 bytes like `String.compare`; Floats use IEEE total order, so
-`-0.0` sorts before `0.0` and NaN sorts last. `List.zip` pairs positionally and
+`List.sort` returns a new ascending list. `Int`, `Float`, `Bool` and `String`
+elements (or newtypes over them) use the runtime orders: strings order by UTF-8
+bytes like `String.compare`; Floats use IEEE total order, so `-0.0` sorts before
+`0.0` and NaN sorts last. Every other element type, including generic parameters,
+sorts through the `Ord` method `compare`, so records need `derive(Ord)` and the
+checker names the missing implementation otherwise. Tuples, options and lists use
+the derived lexicographic order; `Ord(Float)` compares NaN as `Equal`.
+`List.sort_by` orders by any comparator returning `Ordering` and both sorts are
+stable: elements that compare `Equal` keep their input order. Comparisons run as
+ordinary Fern calls; the runtime only schedules which positions to compare, so a
+comparator may allocate, fault or handle Results like any function. Sorting is
+unavailable in the browser target when it needs a comparator. `List.zip` pairs positionally and
 stops at the shorter list. `List.range` is half-open: `List.range(0, 3)` is
 `[0, 1, 2]` and an end at or below the start is empty. `List.sum` uses the
 language's wrapping addition and returns `0` for an empty list. Ranges and zips
@@ -128,8 +137,14 @@ payload is the exact 64-bit result.
 `print` and `println` accept `Int`, `Float`, `Bool` and `String` directly. Any
 other value type is printed through its `Show` implementation, so lists, options,
 results, tuples, maps and types declared with `derive(Show)` print without an
-explicit `show(...)` call. A type without `Show` is rejected at check time with a
-hint to derive it. `Unit` and function values remain rejected.
+explicit `show(...)` call, and a generic parameter prints through `Show` of the
+caller's type. A type without `Show` is rejected at check time with a hint to
+derive it. `Unit` and function values remain rejected.
+
+`show(text)` and strings nested in structured values render as Fern literals:
+`println(["a", ""])` prints `["a", ""]`, and `"`, `\`, newline, carriage return
+and tab are escaped as `\" \\ \n \r \t`. `println(text)` of a plain string still
+prints the raw text. `String.quote(text) -> String` exposes the same spelling.
 
 [`Set(a)`](SETS.md) adds thirteen immutable collection operations with a distinct
 nominal identity, insertion-ordered iteration and membership equality. Its key

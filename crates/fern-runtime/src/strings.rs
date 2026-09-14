@@ -106,6 +106,25 @@ unary_string!(fern_str_trim_end, |s: &str| s
     .trim_end_matches(whitespace)
     .to_owned());
 unary_string!(fern_str_to_upper, |s: &str| s.to_ascii_uppercase());
+unary_string!(fern_str_quote, |s: &str| quote(s));
+
+/// Spell text as a Fern string literal: quotes plus `\" \\ \n \r \t` escapes, other bytes verbatim.
+fn quote(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
 unary_string!(fern_str_to_lower, |s: &str| s.to_ascii_lowercase());
 
 macro_rules! compare_string {

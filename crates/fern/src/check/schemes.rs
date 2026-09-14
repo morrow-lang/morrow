@@ -114,6 +114,16 @@ impl Inference {
         Err(Diagnostic::new(span, capability.message()))
     }
 
+    /// Whether the runtime's scalar sort orders this element type, looking through newtypes.
+    pub(super) fn sorts_as_scalar(&self, ty: &Type, span: Span) -> Checked<bool> {
+        let resolved = self.resolve(ty, span)?;
+        let unwrapped = self.capability_type(Capability::Sort, resolved, span)?;
+        Ok(matches!(
+            unwrapped,
+            Type::Int | Type::Bool | Type::Float | Type::String
+        ))
+    }
+
     /// Only value equality and key capabilities pass through distinct unboxed identities.
     fn capability_type(&self, capability: Capability, mut ty: Type, span: Span) -> Checked<Type> {
         if !matches!(

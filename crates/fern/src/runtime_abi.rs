@@ -162,6 +162,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_str_len"
         | "fern_str_lines"
         | "fern_str_to_lower"
+        | "fern_str_quote"
         | "fern_str_to_upper"
         | "fern_str_trim"
         | "fern_str_trim_end"
@@ -324,7 +325,11 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_tree_add"
         | "fern_write_file"
         | "strstr" => (&[I64, I64], Some(I64), None),
-        "fern_list_push_mut" | "fern_term_move_to" => (&[I64, I64], None, None),
+        "fern_list_push_mut" | "fern_sort_report" | "fern_term_move_to" => {
+            (&[I64, I64], None, None)
+        }
+        "fern_sort_begin" | "fern_sort_next" => (&[I64], Some(I64), None),
+        "fern_sort_finish" => (&[I64, I64], Some(I64), None),
         "write" => (&[I32, I64, I64], Some(I64), None),
         "fern_exec_args_bounded"
         | "fern_list_fold"

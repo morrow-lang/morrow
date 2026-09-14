@@ -30,6 +30,7 @@ fern_str_trim
 fern_str_trim_start
 fern_str_trim_end
 fern_str_to_upper
+fern_str_quote
 fern_str_to_lower
 fern_str_replace
 fern_str_split_is_valid
@@ -88,6 +89,10 @@ fern_option_unwrap
 fern_option_map
 fern_option_unwrap_or
 fern_set_args
+fern_sort_begin
+fern_sort_finish
+fern_sort_next
+fern_sort_report
 fern_args_count
 fern_arg
 fern_args

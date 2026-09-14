@@ -46,6 +46,14 @@ const MAX_TYPE_NODES: usize = 4096;
 /// when the program defines conflicting prelude names.
 const SHOW_PRELUDE_REQUIRED: &str =
     "print argument must be Int, Bool, String, Float, or a type that implements Show";
+/// Internal marker: sorting structured elements needs `Ord`/`Ordering` from the trait prelude.
+const ORD_PRELUDE_REQUIRED: &str =
+    "sorting requires Int, Bool, String, Float elements or a type that implements Ord";
+
+/// Which first-pass failures are retried once with the trait prelude forced.
+fn needs_prelude(message: &str) -> bool {
+    message.ends_with(SHOW_PRELUDE_REQUIRED) || message.ends_with(ORD_PRELUDE_REQUIRED)
+}
 type Checked<T> = Result<T, Diagnostic>;
 type TypedKind = (ir::ExprKind, Type);
 
@@ -170,8 +178,8 @@ fn pipeline<T>(
     pipeline_mode(source, finish, true)
 }
 /// The private test mode exposes typed IR for testing individual proof stages independently.
-/// Printing a structured value activates the trait prelude on demand: the first pass runs without
-/// it, and only its specific marker failure triggers one forced-prelude pass.
+/// Printing or sorting a structured value activates the trait prelude on demand: the first pass
+/// runs without it, and only a specific marker failure triggers one forced-prelude pass.
 fn pipeline_mode<T>(
     source: &ast::Program,
     finish: impl FnOnce(&ast::Program, &nominal::Registry, &HashMap<String, Signature>) -> Checked<T>,
@@ -180,7 +188,7 @@ fn pipeline_mode<T>(
     let mut finish = Some(finish);
     match pipeline_pass(source, &mut finish, prove_results, false) {
         Err(failure)
-            if failure.message.ends_with(SHOW_PRELUDE_REQUIRED)
+            if needs_prelude(&failure.message)
                 && finish.is_some()
                 && !traits::prelude_conflicts(source) =>
         {
@@ -2243,6 +2251,7 @@ pub(crate) const BUILTIN_NAMES: &[&str] = &[
     "String.len",
     "List.enumerate",
     "List.map",
+    "List.sort_by",
     "List.fold",
     "List.filter",
     "List.find",
@@ -2304,6 +2313,7 @@ pub(crate) fn builtin(name: &str) -> Option<ir::Builtin> {
         "String.len" => StringLen,
         "List.enumerate" => ListEnumerate,
         "List.map" => ListMap,
+        "List.sort_by" => ListSortBy,
         "List.fold" => ListFold,
         "List.filter" => ListFilter,
         "List.find" => ListFind,

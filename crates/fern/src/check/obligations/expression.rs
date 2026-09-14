@@ -196,6 +196,9 @@ impl Engine<'_> {
             ir::CallTarget::Builtin(builtin @ (ir::Builtin::ListMap | ir::Builtin::ListFilter)) => {
                 self.collection_transform(builtin, &values, args, &expr.ty, expr.span)
             }
+            ir::CallTarget::Builtin(ir::Builtin::ListSortBy) => {
+                self.collection_sort(&values, args, &expr.ty, expr.span)
+            }
             ir::CallTarget::Builtin(builtin) => self.builtin(builtin, &values, &expr.ty, expr.span),
             ir::CallTarget::Runtime(_) => self.fresh(&expr.ty, None, expr.span, 0),
             ir::CallTarget::Function(id) => {

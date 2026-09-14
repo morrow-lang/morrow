@@ -466,6 +466,7 @@ const ENTRIES: &[Entry] = &[
         String,
         "fern_str_to_upper",
     ),
+    entry(&["String.quote"], &[String], String, "fern_str_quote"),
     entry(
         &["String.to_lower", "str_to_lower"],
         &[String],
@@ -1663,9 +1664,13 @@ const OMISSIONS: &[Omission] = &[
             "fern_rc_set_flags",
             "fern_rc_type_tag",
             "fern_set_args",
+            "fern_sort_begin",
+            "fern_sort_finish",
+            "fern_sort_next",
+            "fern_sort_report",
             "fern_str_list_free",
         ],
-        reason: "Compiler-owned allocation, reference bookkeeping, mutation, or process initialization; not public source-callable stdlib APIs.",
+        reason: "Compiler-owned allocation, reference bookkeeping, mutation, sort driving, or process initialization; not public source-callable stdlib APIs.",
     },
     Omission {
         names: &["fern_list_dir"],

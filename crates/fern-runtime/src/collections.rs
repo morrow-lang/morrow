@@ -163,6 +163,137 @@ pub unsafe extern "C" fn fern_list_zip(left: *const List, right: *const List) ->
     }
     abi::list(&tuples)
 }
+/// Resumable stable bottom-up merge sort over element positions. Compiled code
+/// drives it: `next` yields the pair to compare, `report` supplies the ordering,
+/// `finish` materializes the permutation. Element comparison never leaves Fern.
+pub struct SortState {
+    len: usize,
+    width: usize,
+    source: Vec<usize>,
+    target: Vec<usize>,
+    run: usize,
+    left: usize,
+    right: usize,
+    out: usize,
+    pending: Option<(usize, usize)>,
+}
+
+impl SortState {
+    fn new(len: usize) -> Self {
+        Self {
+            len,
+            width: 1,
+            source: (0..len).collect(),
+            target: vec![0; len],
+            run: 0,
+            left: 0,
+            right: 0,
+            out: 0,
+            pending: None,
+        }
+    }
+
+    /// Advance to the next comparison, or complete the sort and return `None`.
+    fn advance(&mut self) -> Option<(usize, usize)> {
+        if let Some(pair) = self.pending {
+            return Some(pair);
+        }
+        loop {
+            if self.width >= self.len.max(1) {
+                return None;
+            }
+            let start = self.run;
+            if start >= self.len {
+                std::mem::swap(&mut self.source, &mut self.target);
+                self.width = self.width.saturating_mul(2);
+                self.run = 0;
+                self.out = 0;
+                continue;
+            }
+            let middle = (start + self.width).min(self.len);
+            let end = (start + 2 * self.width).min(self.len);
+            if self.out == start {
+                self.left = start;
+                self.right = middle;
+            }
+            if self.left < middle && self.right < end {
+                let pair = (self.source[self.left], self.source[self.right]);
+                self.pending = Some(pair);
+                return Some(pair);
+            }
+            while self.left < middle {
+                self.target[self.out] = self.source[self.left];
+                self.left += 1;
+                self.out += 1;
+            }
+            while self.right < end {
+                self.target[self.out] = self.source[self.right];
+                self.right += 1;
+                self.out += 1;
+            }
+            self.run = end;
+        }
+    }
+
+    /// Consume the pending comparison; `greater` means the left element sorts after the right.
+    fn report(&mut self, greater: bool) {
+        if self.pending.take().is_none() {
+            abi::fault("sort report without a pending comparison");
+        }
+        if greater {
+            self.target[self.out] = self.source[self.right];
+            self.right += 1;
+        } else {
+            self.target[self.out] = self.source[self.left];
+            self.left += 1;
+        }
+        self.out += 1;
+    }
+}
+
+/// Begin sorting `len` positions; the returned object is finalized by the collector.
+#[unsafe(no_mangle)]
+pub extern "C" fn fern_sort_begin(len: i64) -> *mut SortState {
+    let len = usize::try_from(len)
+        .ok()
+        .filter(|len| *len <= MAX_BUILT_ELEMENTS)
+        .unwrap_or_else(|| abi::fault("list size limit exceeded"));
+    let state = SortState::new(len);
+    // SAFETY: the state owns only plain Rust vectors, never managed pointers.
+    unsafe { memory::managed(state, len.saturating_mul(16)) }
+}
+/// Next pair to compare packed as `left << 32 | right`, or -1 once the order is final.
+/// # Safety
+/// `state` must come from `fern_sort_begin` and remain unfinished.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_sort_next(state: *mut SortState) -> i64 {
+    match unsafe { &mut *state }.advance() {
+        Some((left, right)) => ((left as i64) << 32) | right as i64,
+        None => -1,
+    }
+}
+/// Record the comparison result for the pair last returned by `fern_sort_next`.
+/// Any positive value means the left element is greater; zero or negative keeps it first.
+/// # Safety
+/// `state` must come from `fern_sort_begin` with a pending pair.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_sort_report(state: *mut SortState, ordering: i64) {
+    unsafe { &mut *state }.report(ordering > 0);
+}
+/// Copy `list` into the sorted order; the list length must equal the state's length.
+/// # Safety
+/// `state` must be complete (`fern_sort_next` returned -1) and `list` live.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_sort_finish(state: *mut SortState, list: *const List) -> *mut List {
+    let state = unsafe { &*state };
+    let values = unsafe { elements(list) };
+    if state.pending.is_some() || state.width < state.len.max(1) || values.len() != state.len {
+        abi::fault("sort finished before its order was complete");
+    }
+    let sorted: Vec<i64> = state.source.iter().map(|index| values[*index]).collect();
+    abi::list(&sorted)
+}
+
 /// Sort Int or Bool words ascending into a new list.
 /// # Safety
 /// List must be a live initialized allocation.

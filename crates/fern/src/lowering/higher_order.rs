@@ -6,6 +6,7 @@ pub(super) fn is_higher_order(builtin: Builtin) -> bool {
     matches!(
         builtin,
         Builtin::ListMap
+            | Builtin::ListSortBy
             | Builtin::ListFold
             | Builtin::ListFilter
             | Builtin::ListFind
@@ -35,6 +36,16 @@ pub(super) fn signature(builtin: Builtin, args: &[Expr], span: Span) -> Lowering
     };
     let (expected, output) = match (&args[0].ty, builtin) {
         (Type::List(item), Builtin::ListMap) => (vec![*item.clone()], Type::List(returned.clone())),
+        (Type::List(item), Builtin::ListSortBy) => {
+            if !matches!(&**returned, Type::Named(name, params) if name == "Ordering" && params.is_empty())
+            {
+                return Err(invalid(
+                    span,
+                    "List.sort_by comparator must return Ordering",
+                ));
+            }
+            (vec![*item.clone(), *item.clone()], args[0].ty.clone())
+        }
         (Type::List(item), Builtin::ListFold) => {
             expect_type(*returned.clone(), args[1].ty.clone(), span)?;
             (vec![args[1].ty.clone(), *item.clone()], args[1].ty.clone())
@@ -141,7 +152,9 @@ impl Emitter<'_> {
         for arg in args {
             values.push(self.expr(arg, locals, depth)?);
         }
-        let value = if matches!(args[0].ty, Type::List(_)) {
+        let value = if builtin == Builtin::ListSortBy {
+            self.sort_by(args, &values, locals)?
+        } else if matches!(args[0].ty, Type::List(_)) {
             self.higher_list(builtin, args, &values, &result, locals)?
         } else {
             self.higher_sum(builtin, args, &values, &result, locals)
@@ -232,6 +245,139 @@ impl Emitter<'_> {
             Builtin::ListFold => flow.accumulator,
             _ => self.loop_search_result(&flow, builtin, result, &raw, locals),
         })
+    }
+
+    /// Stable merge sort driven by the runtime state machine: compiled code performs
+    /// every comparison through the typed closure, the runtime only chooses which
+    /// positions to compare and materializes the final permutation.
+    fn sort_by(
+        &mut self,
+        args: &[Expr],
+        values: &[String],
+        locals: &mut Locals,
+    ) -> Lowering<String> {
+        let Type::List(item) = &args[0].ty else {
+            unreachable!("signature validated")
+        };
+        let Type::Function(_, ordering) = &args[1].ty else {
+            unreachable!("signature validated")
+        };
+        let layout = self
+            .layouts
+            .get(ordering)
+            .ok_or_else(|| invalid(args[1].span, "Ordering requires a concrete nominal layout"))?;
+        if layout.variants.len() != 3 || layout.variants.iter().any(|fields| !fields.is_empty()) {
+            return Err(invalid(
+                args[1].span,
+                "Ordering layout must have exactly the payload-free Less, Equal, Greater variants",
+            ));
+        }
+        let collection = &values[0];
+        let callback = &values[1];
+        let call = |callee: &str, args: Vec<Operand>| NativeOperation::Call {
+            callee: native_operand(callee),
+            args: args.into_iter().map(|arg| (Scalar::I64, arg)).collect(),
+            variadic: None,
+        };
+        let length = self.assign(
+            locals,
+            Type::Int,
+            call("$fern_list_len", vec![native_operand(collection)]),
+        );
+        // The immutable source stays rooted for the whole loop; positions come from
+        // the runtime and are always below `length`, so slot reads stay in bounds.
+        let data = self.higher_list_data(collection, locals);
+        let state = self.assign(
+            locals,
+            Type::Int,
+            call("$fern_sort_begin", vec![native_operand(&length)]),
+        );
+        // The state is a collector-managed object: keep it alive across callbacks.
+        self.root_pointer(locals, &state);
+        let head = locals.label();
+        let body = locals.label();
+        let done = locals.label();
+        self.output.statement(Statement::Jump(head.clone()));
+        self.start_block(locals, &head);
+        let pair = self.assign(
+            locals,
+            Type::Int,
+            call("$fern_sort_next", vec![native_operand(&state)]),
+        );
+        let pending = self.assign(
+            locals,
+            Type::Bool,
+            NativeOperation::Binary(
+                MachineBinary::Compare(Comparison::SGe, Scalar::I64),
+                native_operand(&pair),
+                native_operand("0"),
+            ),
+        );
+        self.output.statement(Statement::Branch {
+            condition: native_operand(&pending),
+            then_label: body.clone(),
+            else_label: done.clone(),
+        });
+        self.start_block(locals, &body);
+        let left = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Shr,
+                native_operand(&pair),
+                native_operand("32"),
+            ),
+        );
+        let right = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::And,
+                native_operand(&pair),
+                native_operand("4294967295"),
+            ),
+        );
+        let mut elements = Vec::new();
+        for index in [&left, &right] {
+            let address = self.higher_list_slot(&data, index, locals);
+            let raw = self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Load(LoadKind::I64, native_operand(&address)),
+            );
+            elements.push((*item.clone(), self.unpack(locals, item, raw)));
+        }
+        let outcome =
+            self.invoke_callback_values(&args[1], callback, &elements, ordering, locals)?;
+        // Ordering values are payload-free variants: the tag word orders Less < Equal < Greater.
+        let tag = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Load(LoadKind::I64, native_operand(&outcome)),
+        );
+        let signum = self.assign(
+            locals,
+            Type::Int,
+            NativeOperation::Binary(
+                MachineBinary::Sub,
+                native_operand(&tag),
+                native_operand("1"),
+            ),
+        );
+        self.output.statement(Statement::Effect(call(
+            "$fern_sort_report",
+            vec![native_operand(&state), native_operand(&signum)],
+        )));
+        self.output.statement(Statement::Jump(head));
+        self.start_block(locals, &done);
+        Ok(self.assign(
+            locals,
+            args[0].ty.clone(),
+            call(
+                "$fern_sort_finish",
+                vec![native_operand(&state), native_operand(collection)],
+            ),
+        ))
     }
 
     /// Runtime list capacity must be positive even when mapping an empty collection.

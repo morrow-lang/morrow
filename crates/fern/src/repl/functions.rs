@@ -10,6 +10,7 @@ impl Machine {
             (ListMap | ListFilter | ListFind | ListAny | ListAll, [Value::List(xs), callback]) => {
                 self.list_callback(builtin, xs, callback)
             }
+            (ListSortBy, [Value::List(xs), callback]) => self.sort_by(xs, callback),
             (ListFold, [Value::List(xs), initial, callback]) => {
                 let mut value = initial.clone();
                 for item in xs.iter() {
@@ -23,6 +24,41 @@ impl Machine {
             ) => self.sum_callback(builtin, value, *tag, fields, callback),
             _ => self.map_builtin(builtin, args),
         }
+    }
+    /// Stable bottom-up merge sort; only a `Greater` comparator result moves the right element first.
+    /// This matches the native sort driver's comparison contract, not merely its output.
+    fn sort_by(&mut self, xs: &[Value], callback: &Value) -> Eval<Value> {
+        if xs.len() > 65_536 {
+            return Err(fault("interactive list limit exceeded"));
+        }
+        let mut items = xs.to_vec();
+        let mut width = 1;
+        while width < items.len() {
+            let mut merged = Vec::with_capacity(items.len());
+            for run in items.chunks(2 * width) {
+                let (left, right) = run.split_at(width.min(run.len()));
+                let (mut i, mut j) = (0, 0);
+                while i < left.len() && j < right.len() {
+                    let ordering =
+                        self.invoke(callback, vec![left[i].clone(), right[j].clone()])?;
+                    let Value::Sum(tag, _) = ordering else {
+                        return Err(fault("invalid comparator result"));
+                    };
+                    if tag == 2 {
+                        merged.push(right[j].clone());
+                        j += 1;
+                    } else {
+                        merged.push(left[i].clone());
+                        i += 1;
+                    }
+                }
+                merged.extend_from_slice(&left[i..]);
+                merged.extend_from_slice(&right[j..]);
+            }
+            items = merged;
+            width *= 2;
+        }
+        Ok(Value::List(Rc::new(items)))
     }
     /// Preserve input order and terminate predicates at their first deciding element.
     fn list_callback(

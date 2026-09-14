@@ -20,7 +20,8 @@ pub(super) const CONCAT: u32 = 4;
 pub(super) const LEN: u32 = 5;
 pub(super) const EQ: u32 = 6;
 pub(super) const INT_TEXT: u32 = 7;
-pub(super) const COUNT: u32 = 8;
+pub(super) const QUOTE: u32 = 8;
+pub(super) const COUNT: u32 = 9;
 const ROOT_BYTES: i32 = 65_536;
 const LITERAL_BYTES: i32 = 1_048_576;
 const STRING_BYTES: i32 = 4096;
@@ -169,6 +170,7 @@ impl Runtime {
             (vec![V::I32], V::I64),
             (vec![V::I32, V::I32], V::I32),
             (vec![V::I64], V::I32),
+            (vec![V::I32], V::I32),
         ] {
             functions.function(types.len());
             types.ty().function(params, [result]);
@@ -239,7 +241,124 @@ impl Runtime {
         ));
         code.function(&equal());
         code.function(&integer_text(self.first));
+        code.function(&quote(self.first));
     }
+}
+
+/// Bytes that `String.quote` prefixes with a backslash, paired with their escape letter.
+const QUOTE_ESCAPES: [(i32, i32); 5] = [
+    (b'"' as i32, b'"' as i32),
+    (b'\\' as i32, b'\\' as i32),
+    (b'\n' as i32, b'n' as i32),
+    (b'\r' as i32, b'r' as i32),
+    (b'\t' as i32, b't' as i32),
+];
+
+/// Spell a string as a Fern literal with the same escapes as the native runtime.
+/// parameter 0: source; locals 1: length, 2: index, 3: extra bytes, 4: output, 5: byte, 6: cursor.
+fn quote(first: u32) -> Function {
+    let load_byte = |local: u32| {
+        [
+            I::LocalGet(local),
+            I::I32Const(8),
+            I::I32Add,
+            I::LocalGet(2),
+            I::I32Add,
+            I::I32Load8U(byte()),
+            I::LocalSet(5),
+        ]
+    };
+    let mut code = vec![I::LocalGet(0), I::I32Load(mem(0)), I::LocalSet(1)];
+    // Pass one: count escaped bytes so the allocation is exact.
+    code.extend([I::Block(B::Empty), I::Loop(B::Empty)]);
+    code.extend([I::LocalGet(2), I::LocalGet(1), I::I32GeU, I::BrIf(1)]);
+    code.extend(load_byte(0));
+    for (source, _) in QUOTE_ESCAPES {
+        code.extend([
+            I::LocalGet(5),
+            I::I32Const(source),
+            I::I32Eq,
+            I::If(B::Empty),
+            I::LocalGet(3),
+            I::I32Const(1),
+            I::I32Add,
+            I::LocalSet(3),
+            I::End,
+        ]);
+    }
+    code.extend([
+        I::LocalGet(2),
+        I::I32Const(1),
+        I::I32Add,
+        I::LocalSet(2),
+        I::Br(0),
+        I::End,
+        I::End,
+    ]);
+    // Allocate length + escapes + two quotes; the allocator traps beyond the slot limit.
+    code.extend([
+        I::LocalGet(1),
+        I::LocalGet(3),
+        I::I32Add,
+        I::I32Const(2),
+        I::I32Add,
+        I::Call(first + ALLOC),
+        I::LocalSet(4),
+        I::LocalGet(4),
+        I::I32Const(b'"' as i32),
+        I::I32Store8(MemArg {
+            offset: 8,
+            align: 0,
+            memory_index: 0,
+        }),
+        I::I32Const(1),
+        I::LocalSet(6),
+        I::I32Const(0),
+        I::LocalSet(2),
+    ]);
+    let store_at_cursor = |value: Vec<I<'static>>| {
+        let mut out = vec![I::LocalGet(4), I::LocalGet(6), I::I32Add];
+        out.extend(value);
+        out.extend([
+            I::I32Store8(MemArg {
+                offset: 8,
+                align: 0,
+                memory_index: 0,
+            }),
+            I::LocalGet(6),
+            I::I32Const(1),
+            I::I32Add,
+            I::LocalSet(6),
+        ]);
+        out
+    };
+    // Pass two: copy bytes, expanding escapes.
+    code.extend([I::Block(B::Empty), I::Loop(B::Empty)]);
+    code.extend([I::LocalGet(2), I::LocalGet(1), I::I32GeU, I::BrIf(1)]);
+    code.extend(load_byte(0));
+    for (source, letter) in QUOTE_ESCAPES {
+        code.extend([
+            I::LocalGet(5),
+            I::I32Const(source),
+            I::I32Eq,
+            I::If(B::Empty),
+        ]);
+        code.extend(store_at_cursor(vec![I::I32Const(b'\\' as i32)]));
+        code.extend([I::I32Const(letter), I::LocalSet(5), I::End]);
+    }
+    code.extend(store_at_cursor(vec![I::LocalGet(5)]));
+    code.extend([
+        I::LocalGet(2),
+        I::I32Const(1),
+        I::I32Add,
+        I::LocalSet(2),
+        I::Br(0),
+        I::End,
+        I::End,
+    ]);
+    code.extend(store_at_cursor(vec![I::I32Const(b'"' as i32)]));
+    code.push(I::LocalGet(4));
+    body(6, code)
 }
 
 fn integer_text(first: u32) -> Function {

@@ -213,6 +213,24 @@ fn optional(value: Option<Value>) -> Value {
     value.map_or_else(|| Value::Sum(1, Rc::new(Vec::new())), |value| sum(0, value))
 }
 
+/// Mirror the native `String.quote` literal spelling exactly.
+fn quote(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 2);
+    out.push('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
 fn checked(value: Option<i64>) -> Value {
     optional(value.map(Value::Int))
 }
@@ -303,6 +321,7 @@ fn strings(symbol: &str, args: &[Value]) -> Option<Eval<Value>> {
         }
         ("fern_str_to_upper", [Value::String(s)]) => ascii_case(s, true),
         ("fern_str_to_lower", [Value::String(s)]) => ascii_case(s, false),
+        ("fern_str_quote", [Value::String(s)]) => string(&quote(s)),
         ("fern_str_trim", [Value::String(s)]) => string(s.trim_matches(whitespace)),
         ("fern_str_trim_start", [Value::String(s)]) => string(s.trim_start_matches(whitespace)),
         ("fern_str_trim_end", [Value::String(s)]) => string(s.trim_end_matches(whitespace)),

@@ -55,6 +55,10 @@ fn order() -> Int:
         Greater -> 1
 fn lists() -> Bool:
     show(clone([Point(3, 7)])) == "[Point(x: 3, y: 7)]"
+fn quoted() -> Bool:
+    show(["a", "", "say \"hi\"", "back\\slash", "line\nbreak\ttab", "é🌿"]) == "[\"a\", \"\", \"say \\\"hi\\\"\", \"back\\\\slash\", \"line\\nbreak\\ttab\", \"é🌿\"]"
+fn literal() -> Bool:
+    String.quote("x\"y") == "\"x\\\"y\"" and String.quote("") == "\"\""
 "#;
     let program = check::check_library(&parse::parse(source).unwrap()).unwrap();
     let bytes = wasm::compile(&program).unwrap();
@@ -66,7 +70,7 @@ fn lists() -> Bool:
         .instantiate_and_start(&mut store, &module)
         .unwrap();
     for _ in 0..100 {
-        for name in ["values", "lists"] {
+        for name in ["values", "lists", "quoted", "literal"] {
             assert_eq!(
                 instance
                     .get_typed_func::<(), i32>(&store, name)

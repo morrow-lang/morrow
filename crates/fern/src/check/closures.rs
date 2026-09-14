@@ -307,6 +307,12 @@ impl Checker<'_> {
             return self.construct(constructor, args, expected, span, depth);
         }
         let (target, params, result) = self.resolve_callable(name, span)?;
+        if matches!(target, ir::CallTarget::Builtin(ir::Builtin::ListSortBy))
+            && self.registry.constructor("Less").is_none()
+        {
+            // The comparator's `Ordering` result lives in the trait prelude.
+            return Err(Diagnostic::new(span, super::ORD_PRELUDE_REQUIRED));
+        }
         self.constrain_result(&result, expected, span)?;
         // A wrong argument type is the more useful report; a missing label waits until types agree.
         let (order, missing_label) = if let Some(signature) = self.signatures.get(name) {
@@ -332,23 +338,59 @@ impl Checker<'_> {
         {
             args.push(self.shown(value, span)?);
         }
+        if let ir::CallTarget::Runtime(id) = target
+            && runtime::signature(id)
+                .is_some_and(|signature| signature.operation == runtime::Operation::ScalarSort)
+            && let Some(sorted) = self.trait_sort(&mut args, span)?
+        {
+            return Ok(sorted);
+        }
         Ok(self.ordered_call(target, args, &order, result, span))
     }
 
+    /// `List.sort` over structured or generic elements sorts through the `Ord` method `compare`;
+    /// scalar elements keep the runtime word/float/byte orders.
+    fn trait_sort(&mut self, args: &mut Vec<ir::Expr>, span: Span) -> Checked<Option<TypedKind>> {
+        let [list] = args.as_slice() else {
+            return Ok(None);
+        };
+        let Type::List(item) = self.inference.resolve(&list.ty, list.span)? else {
+            return Ok(None);
+        };
+        if !structured(&item) || self.inference.sorts_as_scalar(&item, list.span)? {
+            return Ok(None);
+        }
+        let is_trait_method = self
+            .registry
+            .traits
+            .methods
+            .get("compare")
+            .is_some_and(|(id, _)| self.registry.traits.name(*id) == Some("Ord"));
+        if !is_trait_method || !self.signatures.contains_key("compare") {
+            return Err(Diagnostic::new(list.span, super::ORD_PRELUDE_REQUIRED));
+        }
+        let (kind, ty) = self.global_name("compare", span)?;
+        let compare = ir::Expr { kind, ty, span };
+        let (params, result) = self.higher_order_signature(ir::Builtin::ListSortBy);
+        let list = args.pop().expect("one argument");
+        self.inference
+            .unify(&list.ty, &params[0], list.span, "List.sort argument")?;
+        self.inference
+            .unify(&compare.ty, &params[1], span, "List.sort comparator")?;
+        Ok(Some(self.ordered_call(
+            ir::CallTarget::Builtin(ir::Builtin::ListSortBy),
+            vec![list, compare],
+            &[0, 1],
+            result,
+            span,
+        )))
+    }
+
     /// Print structured values through their `Show` implementation; scalars keep the direct path.
-    /// Generic parameters retain the existing print capability so templates stay unchanged.
+    /// Generic parameters also route through `show`, so templates require `Show(a)` of callers.
     fn shown(&mut self, value: ir::Expr, span: Span) -> Checked<ir::Expr> {
         let resolved = self.inference.resolve(&value.ty, value.span)?;
-        if !matches!(
-            resolved,
-            Type::List(_)
-                | Type::Map(_, _)
-                | Type::Option(_)
-                | Type::Result(_, _)
-                | Type::Tuple(_)
-                | Type::Named(_, _)
-                | Type::Union(_)
-        ) {
+        if !structured(&resolved) {
             return Ok(value);
         }
         let is_trait_method = self
@@ -358,6 +400,11 @@ impl Checker<'_> {
             .get("show")
             .is_some_and(|(id, _)| self.registry.traits.name(*id) == Some("Show"));
         if !is_trait_method || !self.signatures.contains_key("show") {
+            // A program-defined `show` shadows the prelude: generic parameters then keep the
+            // direct print capability (scalar instantiations only) instead of failing outright.
+            if matches!(resolved, Type::Generic(_)) && self.signatures.contains_key("show") {
+                return Ok(value);
+            }
             return Err(Diagnostic::new(value.span, super::SHOW_PRELUDE_REQUIRED));
         }
         let (target, params, result) = self.resolve_callable("show", span)?;
@@ -523,6 +570,16 @@ impl Checker<'_> {
                 vec![list, callback(vec![a], b.clone())],
                 Type::List(Box::new(b)),
             ),
+            ListSortBy => (
+                vec![
+                    list.clone(),
+                    callback(
+                        vec![a.clone(), a],
+                        Type::Named("Ordering".to_owned(), vec![]),
+                    ),
+                ],
+                list,
+            ),
             ListFold => (
                 vec![list, b.clone(), callback(vec![b.clone(), a], b.clone())],
                 b,
@@ -552,6 +609,21 @@ impl Checker<'_> {
             _ => unreachable!("higher-order signature called only for combinators"),
         }
     }
+}
+
+/// Types whose printing and ordering dispatch through derived trait implementations.
+fn structured(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::List(_)
+            | Type::Map(_, _)
+            | Type::Option(_)
+            | Type::Result(_, _)
+            | Type::Tuple(_)
+            | Type::Named(_, _)
+            | Type::Union(_)
+            | Type::Generic(_)
+    )
 }
 
 /// Capture original lexical IDs deterministically; nested lambdas expose transitive free values.

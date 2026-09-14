@@ -1,0 +1,36 @@
+type Person derive(Show, Eq, Ord, Clone):
+    name: String
+    age: Int
+
+type Priority derive(Show, Eq, Ord):
+    Low
+    High
+
+fn by_age(left: Person, right: Person) -> Ordering:
+    compare(left: left.age, right: right.age)
+
+fn sorted(items: List(a)) -> List(a):
+    List.sort(items)
+
+fn descending(items: List(Int)) -> List(Int):
+    List.sort_by(items, (l: Int, r: Int) -> compare(left: r, right: l))
+
+fn main():
+    let people = [Person("Cy", 40), Person("Ada", 36), Person("Bo", 40), Person("Al", 36)]
+    println(List.sort(people))
+    println(List.sort_by(people, by_age))
+    println(List.sort_by(people, (l: Person, r: Person) -> compare(left: r.age, right: l.age)))
+    println(List.sort([(2, "b"), (1, "z"), (2, "a")]))
+    println(List.sort([Some(3), None, Some(1)]))
+    println(List.sort([[3, 1], [], [2]]))
+    println(List.sort([High, Low, High]))
+    println(sorted([3, 1, 2]))
+    println(sorted(["b", "a"]))
+    println(sorted([2.5, -1.0]))
+    println(descending([5, 3, 9]))
+    println(descending([]))
+    println(descending([7]))
+    let big = List.sort_by(List.range(0, 20000), (l: Int, r: Int) -> compare(left: r, right: l))
+    println(List.first(big))
+    println(List.last(big))
+    println(List.len(big))

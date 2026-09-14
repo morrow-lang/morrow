@@ -249,7 +249,7 @@ fn map_and_tuple_derives_use_structural_value_semantics() {
     );
     assert_eq!(
         session.evaluate(&format!("show({a})")).unwrap(),
-        "\"Data(entries: %{a: 1, b: 2}, pair: (7, fern))\" : String\n"
+        "\"Data(entries: %{\\\"a\\\": 1, \\\"b\\\": 2}, pair: (7, \\\"fern\\\"))\" : String\n"
     );
 }
 
