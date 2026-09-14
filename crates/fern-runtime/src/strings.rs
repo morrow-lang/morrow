@@ -103,6 +103,11 @@ macro_rules! compare_string {
     };
 }
 compare_string!(fern_str_eq, |a: &str, b: &str| a == b);
+compare_string!(fern_str_compare, |a: &str, b: &str| match a.cmp(b) {
+    std::cmp::Ordering::Less => -1,
+    std::cmp::Ordering::Equal => 0,
+    std::cmp::Ordering::Greater => 1,
+});
 compare_string!(fern_str_starts_with, |a: &str, b: &str| a.starts_with(b));
 compare_string!(fern_str_ends_with, |a: &str, b: &str| a.ends_with(b));
 compare_string!(fern_str_contains, |a: &str, b: &str| a.contains(b));

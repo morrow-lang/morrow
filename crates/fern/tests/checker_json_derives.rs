@@ -4,7 +4,7 @@ use fern_compiler::{check, format, parse};
 fn unused_derived_records_validate_every_payload_and_trait() {
     for (source, message) in [
         (
-            "type User derive(Show):\n    age:Int\n",
+            "type User derive(UnknownTrait):\n    age:Int\n",
             "unsupported derive trait",
         ),
         (

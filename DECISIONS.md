@@ -4,6 +4,83 @@ This document tracks major architectural and technical decisions made during the
 
 ## Project Decision Log
 
+### 142 Compose actor functions through typed returns and ordinary callback identities
+* **Date**: 2026-09-14
+* **Status**: Adopted; focused native, REPL, inference and independent simulation tests pass
+* **Decision**: Infer mailbox effects across lexical direct-call components and refine recursive components before generalization. Permit receiving helpers to return typed values, carrying Result duties through ordinary call summaries. Normalize `with` and `?` into checked control flow, and dispatch ordinary captured callbacks through their original identities into typed actor copies. Give each List callback element an explicit continuation boundary; preserve Option/Result branch selection.
+* **Context**: A helper that waits for a value should compose with a caller that handles its Result without a dummy receive or source-order-dependent annotation. A function value should preserve its lexical captures and result ABI while allowing recursive actor work to yield. Treating receiving calls as empty Result provenance would silently discard errors.
+* **Consequences**: Spawned initializers still return Unit. Non-tail receiving helpers, strict operands, shared error handlers and collection callbacks preserve full-width values, source evaluation order and logical cleanup under collection. Private list builders stay unpublished until map/filter completion. First-class actor-effect helpers still reject rather than capturing an execution-context pointer. Older REPL closures retain their original checked program through a bounded synchronous fallback; current-program actor callbacks use resumable dispatch. Independent native and interactive models cover branch selection, short-circuit behavior, callback factories, Unicode/Float/Int payloads, sibling progress, cancellation and Result-duty rejection. See `docs/ACTOR_CONTINUATIONS.md` and `docs/REPL_ACTORS.md`.
+
+### 141 Keep actor cleanup attached to logical function activations
+* **Date**: 2026-09-13
+* **Status**: Adopted; native and REPL lifecycle tests and deterministic scope simulation pass
+* **Decision**: Retain a traced cleanup stack per actor. Enter and leave logical source-function scopes across physical callback suspension, register captured Unit cleanup adapters in LIFO order, and drain all remaining scopes during fault retirement or explicit cancellation. Keep cleanup invocation synchronous and reject actor suspension from deferred bodies.
+* **Context**: A physical callback may finish while its source function is still waiting for a message. Running `defer` at that callback return would release resources too early; omitting it on cancellation would leak source-level resource lifetimes.
+* **Consequences**: Tail callers retain pending cleanup until the callee returns. Return values and deferred captures remain rooted through collection. Cleanup failures do not skip later callbacks and never replace an earlier source fault. Scopes and callbacks share a 4,096-entry admission limit, with retained-byte accounting released on retirement. Independent native and REPL oracles verify receive/return/cancel/fault order, precise collection, admission failure and recovery. A 64-by-256-operation simulation compares runtime scopes against a separate stack model. Blocking or nonterminating native cleanup still requires application discipline; this is not arbitrary instruction preemption.
+
+### 140 Run source actors interactively under deterministic virtual time
+* **Date**: 2026-09-13
+* **Status**: Adopted; REPL and FernSim transcript/replay tests pass
+* **Decision**: Reuse validated actor continuation IR in the Rust interpreter, with a session-owned FIFO scheduler, selective mailboxes, monotonically issued Pids and virtual deadlines. Retain dormant actors and their original checked code across interactive entries. Expose read-only reports, explicit cancellation and a bounded source-transcript FernSim bridge.
+* **Context**: Syntax accepted by the compiler should be useful for interactive development and reproducible failure tests. Reimplementing a separate source actor model would drift from native continuation semantics; real sleeps would make short simulations slow and timing-dependent.
+* **Consequences**: The virtual clock advances between runnable turns and jumps to the next deadline when idle. New bindings roll back after an entry failure, while already executed actor effects retain their meaning. Restarted actors have new identities; stale Pids stay stale. Limits cover actors, messages, value/code graphs, transcript bytes and evaluator work. Explicit `:stop`, reset, quit and EOF run pending cleanup. Rust embedders explicitly stop a session when source cleanup is required. Three-seed message models and an independent eight-seed supervision/fault/cancellation campaign compare exact output and scheduler state, then replay the reports. See `docs/REPL_ACTORS.md`.
+
+### 139 Execute custom JSON methods inside a shared codec boundary
+* **Date**: 2026-09-13
+* **Status**: Adopted; focused native, REPL, quota and forced-collection tests pass
+* **Decision**: Make `Json(a)` a statically resolved trait with fallible `to_json` and `from_json` methods. Concrete codec plans retain validated function identities; native descriptors use width-preserving callback thunks and an explicit managed-payload flag. Custom wire shapes are opaque to the conservative union and nullability proof.
+* **Context**: Derived structural codecs cannot express domain-specific encodings such as string-form user identifiers. Running arbitrary trial decoders would create ambiguous branch priority. Independent callback allowances would let nested or caught failures reset a resource budget.
+* **Consequences**: Native and REPL custom methods compose inside structural plans and generic wrappers. Nested JSON operations share work, allocation, node and recursion limits; quota failure in an infallible constructor unwinds cleanup and becomes JSON error 4. Ordinary faults preserve the original fault and unwind callers normally. Explicit error paths compose with their containing JSON pointer. Native callback tests cover scalar widths, full-width integers, managed siblings, forced collection, recursive codecs and recovery after exhaustion. Native callbacks remain ordinary application code, without separate instruction preemption. JSON APIs are not yet part of the portable WASM runtime. See `docs/CUSTOM_JSON.md`.
+
+### 138 Preserve logical call and loop state in typed actor continuations
+* **Date**: 2026-09-13
+* **Status**: Adopted; native scheduling, ABI and deterministic polling tests pass
+* **Decision**: Normalize strict operands once in source order and compile actor-reachable direct helper calls and collection loops into separate continuation functions. Typed return frames support non-tail and mutual recursion without retaining native call stacks. Keep ordinary synchronous function entry points for CLI and non-actor calls.
+* **Context**: Unit tail calls alone left recursive value-producing helpers and collection loops able to monopolize a scheduler callback. Calling a nested scheduler from an ordinary native function would retain unbounded native stacks and break ownership.
+* **Consequences**: List, Map and Range loops retain immutable state, lexical exits and receive behavior; inclusive maximum endpoints do not overflow. Managed return frames consume explicit resource budgets, while eligible tail calls reuse continuations. Independent tests verify sibling progress, strict operand order, full-width tuple results, Unicode and collection under seeded polling. Blocking foreign/runtime calls still require an asynchronous service adapter. Suspension eligibility and cleanup evolution are documented in `docs/ACTOR_CONTINUATIONS.md`.
+
+### 137 Refine JSON unions with bounded structural evidence
+* **Date**: 2026-09-13
+* **Status**: Adopted; focused compiler, REPL, native and precise-GC tests pass
+* **Decision**: Extend the shared symbolic/concrete wire proof with tuple elements, required record-field children and shared-tag sum payloads. A finite incompatible child proves the alternatives disjoint; recursive pairs are conservatively unresolved. Keep kind and shallow selection first, then inspect borrowed nested shapes only when several candidates remain. Decode the unique selected member once.
+* **Context**: Same-key records containing numbers versus strings were rejected even though their wire domains cannot overlap. Trial decoding would introduce arm priority, speculative allocation and inconsistent error reporting. Structural metadata can distinguish these records without executing a decoder.
+* **Consequences**: The original aggregate proof and runtime work/depth allowances cover nested traversal. Two optional fields may both be absent; Int/Float, empty Lists and dynamic JSON retain their overlap rules. Existing primitive conversion errors remain unchanged after a unique selection. Every shared sum tag must have disjoint payloads; a common empty constructor remains ambiguous. Independent seeded REPL/native wire oracles cover full-width integers and Unicode; native tests prove allocation-free selection, collection-safe construction and reclamation. Obsolete Int/String record rejection cases now test actual Int/Float overlap, alongside new positive behavior tests.
+
+### 136 Keep foreign ABI and pointer ownership explicit
+* **Date**: 2026-09-13
+* **Status**: Adopted; source, native ABI, conversion simulation and forced-GC tests pass
+* **Decision**: Support `foreign "C" fn ... -> ... as "symbol" from "logical_library"` with exact physical ABI metadata, checked compiler-owned narrow scalar types and sealed `Ptr(a)` handles. String borrows retain their owners; returned pointers conservatively retain owners from pointer arguments, including interior returns. Import UTF-8 through a bounded fallible copy.
+* **Context**: The old raw mutable-pointer sketch did not fit Fern's immutable value and actor-isolation model. Rust adapters and mature third-party libraries remain useful, but an unrestricted Int cannot safely stand for both a C integer and a pointer.
+* **Consequences**: Foreign declarations are a trusted native boundary. The compiler checks signatures and literal linker names; it cannot prove a foreign library's ABI declaration, address validity, freeing or retention contract. Source code cannot forge addresses, dereference pointers, mutate hidden fields, or send/serialize Ptr values. REPL, comptime and browser execution reject foreign effects. Narrow constructors preserve Result obligations; foreign-returned unsigned 64-bit values retain all bits. Independent tests exercise exact widths, 36 mixed register/stack arguments, 1,024 seeded transports, 4,096 floating bit patterns, real source/library linking and precise-GC owner lifetimes. See `docs/FFI.md`.
+
+### 135 Run portable language values in bounded WASM memory
+* **Date**: 2026-09-13
+* **Status**: Adopted; focused Wasmi, CLI and deterministic stress tests pass
+* **Decision**: Reuse the bounded precise aggregate heap for closures, maps, sets, ranges and unions. Resolve indirect calls through a closed typed dispatch set. Restore roots per loop turn and retain function-owned deferred callbacks in a traced LIFO chain. Propagate language faults through cleanup before reporting a host trap.
+* **Context**: The browser application needs ordinary Fern functions and collections, including captured values and cleanup behavior. A separate reduced application language would undermine shared native/browser code.
+* **Consequences**: The existing managed i64 host-handle ABI, fixed memory ceilings and capability boundary remain. Language faults and failed cleanup run remaining defers; external host fuel exhaustion or stack cancellation still bypass language cleanup. Generic specializations receive distinct export identities. Independent tests include 1,024 seeded ordered-map transitions, 9,000 closure/GC turns and a deterministic cleanup/fuel oracle. Native host capabilities remain target-specific; see `docs/WASM_LANGUAGE.md`.
+
+### 134 Implement immutable Sets over the existing traced collection representation
+* **Date**: 2026-09-13
+* **Status**: Adopted; checker, REPL, native simulations and precise-GC tests pass
+* **Decision**: Give `Set(a)` a sealed nominal identity with hidden `Map(a, Unit)` storage. Lower thirteen Set operations and membership into checked collection operations, preserving deterministic insertion order and existing key equality.
+* **Context**: Sets need distinct source types without a second collector representation or a backend-specific implementation. Exposing the underlying Map would break the abstraction and complicate generic APIs.
+* **Consequences**: Set/Map interchange and user construction of hidden storage reject. Current key domains are Int, Bool, String and supported scalar newtypes. Model-based tests check membership, ordering, persistence and full-width keys. Forced collection exposed and fixed the Map.put output-list root across nested pair allocation. A separate Map.keys Result-shape fix gives its fresh key list accurate provenance without acknowledging Results in map values. See `docs/SETS.md`.
+
+### 133 Evaluate constants with the checked language and no host capabilities
+* **Date**: 2026-09-13
+* **Status**: Adopted; focused checker, REPL, editor and native tests pass
+* **Decision**: Parse `const name[: Type] = comptime:` as a value declaration using the ordinary body grammar. After type specialization and Result proof, run its closed initializer in the bounded Rust evaluator and replace it with ordinary typed constant data. Reject unresolved constant types, including unused polymorphic initializers.
+* **Context**: Compile-time computation should use Fern's own arithmetic and collection semantics without spawning a native executable or granting the compiler filesystem/network access. Empty unconstrained constants must not become unevaluated generic templates that hide effects.
+* **Consequences**: All constants evaluate under shared work/data limits. Host effects, output, actors and foreign calls reject before execution; failures leave the prior REPL session intact. Public annotations, module visibility, formatting and LSP value presentation follow existing conventions. Embedded aggregates may allocate their representation at runtime, but do not rerun their initializer computation. AST reflection, general inline comptime expressions and opaque host resources are outside this constant-data feature. See `docs/COMPTIME.md`.
+
+### 132 Resolve coherent traits statically and derive value behavior explicitly
+* **Date**: 2026-09-13
+* **Status**: Adopted; checker, native, REPL, WASM and seeded semantic tests pass
+* **Decision**: Support single-parameter traits, default methods, parent bounds, explicit `where` requirements and coherent generic implementations. Resolve concrete methods during specialization. Derive Show, Eq, Ord and Clone for supported structural values; keep floating-point and Map ordering absent rather than inventing a total order.
+* **Context**: The language design promises reusable checked behavior beyond intrinsic operators. Abstract methods need conservative proof contracts without executable placeholder bodies. Module ownership and overlap checks keep dispatch predictable for library authors.
+* **Consequences**: Implementations require ownership of the trait or nominal target, exact method contracts and satisfied requirements. Resolution has shared work/depth bounds. The executable contains ordinary functions, with no runtime dictionaries or trait objects. Abstract function identities remain reserved through closure lifting. Private inference, module visibility, multiple clauses, formatting and generic Result provenance participate in acceptance. See `docs/TRAITS.md`.
+
 ### 131 Observe pinned workers without queuing behind their callbacks
 * **Date**: 2026-09-13
 * **Status**: Adopted; acceptance tracked in the roadmap

@@ -172,8 +172,10 @@ UTF-8 strings for this application. Managed browser exports use positive i64
 BigInt handles with checked types and generations; releasing a handle removes
 its host root. A bounded UTF-8 scratch buffer transfers strings. The host never
 receives a raw Fern heap address. Generated loader/binding JavaScript remains a
-build artifact. Maps, closures/indirect calls and native service capabilities
-still reject on the WASM target.
+build artifact. Maps, sets, closures, indirect calls, collection callbacks,
+ranges, iteration, Result propagation and deferred cleanup also execute on the
+portable target; [language support and limits](WASM_LANGUAGE.md) describe the
+current contract. Native service capabilities remain unavailable in browser modules.
 
 The native server links compiled Fern object code at build time. Each room keeps
 its canonical state in a typed actor with copied messages and isolated payload

@@ -128,6 +128,11 @@ pub enum Operation {
         args: Vec<(Scalar, Operand)>,
         variadic: Option<usize>,
     },
+    /// A trusted foreign call with exact physical C widths independent of Fern registers.
+    ForeignCall {
+        declaration: crate::ffi::Declaration,
+        args: Vec<(Scalar, Operand)>,
+    },
     Phi(Vec<(String, Operand)>),
 }
 /// Control-flow and effect stream within one function.

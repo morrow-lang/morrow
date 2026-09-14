@@ -122,15 +122,20 @@ locations and hints; fix the earliest error first, then check again. Use
 
 ## Explore working examples
 
+- [Language tour](../examples/language_tour.fn): traits, compile-time constants,
+  Sets, JSON round trips and cleanup in one tested program.
 - [Tiny CLI](../examples/tiny_cli.fn): command dispatch and string output.
 - [Actor mailboxes](../examples/actor_app.fn): enqueue and explicitly receive messages.
 - [HTTP errors](../examples/http_api.fn): deterministic client error handling.
 - [Terminal project view](../examples/tui_project.fn): tree and log formatting.
 - [File operations](../examples/file_io.fn): reads, writes, and Result matching.
 
-The examples have executable regression coverage in `cargo xtask check`.
-The default Rust compiler exposes the deterministic mailbox/lifecycle model used
-by these examples and runs [bounded typed native actors](RUST_ACTORS.md). The
-compiler and runtime are implemented in Rust. Generalized suspension,
-typed supervision and actor REPL/FernSim parity remain open. The [readiness checklist](RELEASE_READINESS.md)
-records the remaining language work.
+`cargo xtask check` typechecks all examples and runs independent native execution
+fixtures, including a native and interactive output oracle for the language tour.
+The Rust compiler runs [bounded typed native actors](ACTOR_CONTINUATIONS.md),
+with [logical cleanup](ACTOR_CLEANUP.md) and an
+[interactive virtual-time scheduler](REPL_ACTORS.md). Static traits and explicit
+bounds compose with private inference; the [target matrix](LANGUAGE_STATUS.md)
+describes the implemented native, REPL and WASM contracts. The
+[readiness checklist](RELEASE_READINESS.md) records remaining language and product
+work, including broader supervision trees and distributed recovery.

@@ -319,6 +319,9 @@ impl Lower<'_, '_> {
         {
             return self.call(callee, args, *variadic, requested);
         }
+        if let Operation::ForeignCall { declaration, args } = operation {
+            return self.foreign_call(declaration, args, requested);
+        }
         let ty = requested.ok_or("non-call instruction used as effect")?;
         let value = match operation {
             Operation::Unary(op, operand) => self.unary(*op, operand, ty)?,
@@ -343,7 +346,7 @@ impl Lower<'_, '_> {
                 ));
                 self.builder.ins().stack_addr(types::I64, slot, 0)
             }
-            Operation::Phi(_) | Operation::Call { .. } => {
+            Operation::Phi(_) | Operation::Call { .. } | Operation::ForeignCall { .. } => {
                 return Err("invalid instruction position".into());
             }
         };
@@ -419,6 +422,65 @@ impl Lower<'_, '_> {
             BinaryOp::Compare(..) => return Err("comparison dispatch failed".into()),
         })
     }
+    /// Narrow to the declared C representation, then restore signedness/full logical width.
+    fn foreign_call(
+        &mut self,
+        declaration: &crate::ffi::Declaration,
+        args: &[(Scalar, Operand)],
+        requested: Option<Scalar>,
+    ) -> Result<Option<Value>, String> {
+        use crate::ffi::AbiType;
+        let (id, _) = self
+            .backend
+            .foreign
+            .get(&declaration.symbol)
+            .ok_or("undeclared foreign function")?;
+        let id = *id;
+        let mut values = Vec::new();
+        for ((logical, arg), physical) in args.iter().zip(&declaration.params) {
+            let value = self.operand(arg, *logical)?;
+            let value = if *physical == AbiType::F32 {
+                self.builder.ins().fdemote(types::F32, value)
+            } else if *physical == AbiType::Bool {
+                self.builder.ins().icmp_imm_u(IntCC::NotEqual, value, 0)
+            } else {
+                self.coerce(
+                    value,
+                    super::foreign::abi_param(physical)?.value_type,
+                    false,
+                )?
+            };
+            values.push(value);
+        }
+        let reference = self
+            .backend
+            .module
+            .declare_func_in_func(id, self.builder.func);
+        let call = self.builder.ins().call(reference, &values);
+        let Some(logical) = requested else {
+            return Ok(None);
+        };
+        let value = self
+            .builder
+            .inst_results(call)
+            .first()
+            .copied()
+            .ok_or("void foreign call cannot produce a value")?;
+        let value = if declaration.result == AbiType::F32 {
+            self.builder.ins().fpromote(types::F64, value)
+        } else {
+            self.coerce(
+                value,
+                native_type(logical),
+                matches!(
+                    declaration.result,
+                    AbiType::I8 | AbiType::I16 | AbiType::I32
+                ),
+            )?
+        };
+        Ok(Some(value))
+    }
+
     /// Honor the provided argument width before canonical ABI conversion and optional result discard.
     fn call(
         &mut self,

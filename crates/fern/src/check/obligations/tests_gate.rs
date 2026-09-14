@@ -81,6 +81,6 @@ fn codec_validation_and_template_obligations_share_one_budget() {
     let registry = super::super::nominal::Registry::new(&ast).unwrap();
     registry.codec_template_work.set(WORK_LIMIT);
     let roots = HashSet::from([program.functions[0].id.0]);
-    let error = gate::templates(program.functions, &registry, &roots).unwrap_err();
+    let error = gate::templates(program.functions, &registry, &roots, &HashSet::new()).unwrap_err();
     assert!(error.message.contains("limit"), "{error:?}");
 }

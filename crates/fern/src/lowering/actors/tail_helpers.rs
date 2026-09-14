@@ -1,8 +1,8 @@
-//! Discover a bounded Unit-tail subset without changing ordinary helper calls.
+//! Discover bounded actor copies along recursive and iterative direct-call paths.
 use super::*;
 
-/// Only actor-reachable tail paths leading to recursion opt into resumable
-/// copies. Finite helpers keep their existing scheduling and ordinary ABI.
+/// Recursive and iterative paths opt into resumable copies. Finite straight-line
+/// helpers preserve scheduling; every original function retains its ordinary ABI.
 pub(super) fn discover(
     program: &ir::Program,
     layouts: &HashMap<Type, &ir::TypeLayout>,
@@ -33,23 +33,25 @@ pub(super) fn discover(
     let mut types = BTreeMap::new();
     let mut eligible = BTreeSet::new();
     for function in &program.functions {
-        if function.mailbox.is_some() || function.return_type != Type::Unit {
+        if function.mailbox.is_some() || function.name == "main" {
             continue;
         }
         let mut captures_owned = true;
         for param in function.params.iter().chain(&function.captures) {
             charge(&mut work, function.body.span)?;
             let owned = *types.entry(param.ty.clone()).or_insert_with(|| {
-                validate::sendable(&param.ty, layouts, function.body.span).is_ok()
+                validate::frame_owned(&param.ty, layouts, function.body.span).is_ok()
             });
             captures_owned &= owned;
         }
+        captures_owned &=
+            validate::frame_owned(&function.return_type, layouts, function.body.span).is_ok();
         if captures_owned && body_supported(&function.body, &mut work)? {
             eligible.insert(function.id.0);
             // An entry may arrive through a local alias or another ordinary
             // closure value. Descriptors can dispatch every zero-argument Unit
             // callable without rewriting any ordinary call to that identity.
-            if function.params.is_empty() {
+            if function.params.is_empty() && function.return_type == Type::Unit {
                 roots.insert(function.id.0);
             }
         }
@@ -57,7 +59,9 @@ pub(super) fn discover(
     let mut selected = BTreeSet::new();
     let mut edges = BTreeMap::<usize, BTreeSet<usize>>::new();
     let mut visited = BTreeSet::new();
-    let mut pending: Vec<_> = roots.into_iter().collect();
+    // A callable may arrive through arbitrarily many local aliases or function returns.
+    // Prepare every owned cycle in an actor-bearing program; ordinary ABIs stay intact.
+    let mut pending: Vec<_> = roots.into_iter().chain(eligible.iter().copied()).collect();
     while let Some(id) = pending.pop() {
         if !visited.insert(id) {
             continue;
@@ -69,8 +73,19 @@ pub(super) fn discover(
             continue;
         }
         edges.entry(id).or_default();
-        for callee in tail_calls(&function.body, &mut work)? {
-            if !eligible.contains(&callee) || !functions[&callee].captures.is_empty() {
+        let mut expressions = vec![&function.body];
+        while let Some(expr) = expressions.pop() {
+            charge(&mut work, expr.span)?;
+            if requires_step(expr) {
+                edges.entry(id).or_default().insert(id);
+                if function.mailbox.is_none() {
+                    selected.insert(id);
+                }
+            }
+            expressions.extend(ir::children(expr));
+        }
+        for callee in direct_calls(&function.body, &mut work)? {
+            if !eligible.contains(&callee) {
                 continue;
             }
             if function.mailbox.is_none() {
@@ -106,84 +121,48 @@ pub(super) fn discover(
         }
     }
     selected.retain(|id| degrees.get(id).is_some_and(|&degree| degree != 0));
+    // Every actor-callable collection loop has an explicit bounded iteration step.
+    // Ordinary invocations still target the original synchronous function.
+    for function in &program.functions {
+        if eligible.contains(&function.id.0) {
+            let mut pending = vec![&function.body];
+            while let Some(expr) = pending.pop() {
+                charge(&mut work, expr.span)?;
+                if requires_step(expr) {
+                    selected.insert(function.id.0);
+                    break;
+                }
+                pending.extend(ir::children(expr));
+            }
+        }
+    }
     Ok(selected)
 }
 
-/// Defer needs a dynamic cleanup continuation; loops/With need their own state
-/// machines. Preserve those existing bodies synchronously in this first subset.
+/// Walk every source child before selecting a copy; normalization handles strict operands.
 fn body_supported(body: &Expr, work: &mut usize) -> Lowering<bool> {
     let mut pending = vec![body];
     while let Some(expr) = pending.pop() {
         charge(work, expr.span)?;
-        match &expr.kind {
-            ExprKind::Defer(_) | ExprKind::For { .. } | ExprKind::With { .. } => return Ok(false),
-            ExprKind::If { condition, .. } if lower::needs(condition) => return Ok(false),
-            ExprKind::Match { value, .. } if lower::needs(value) => return Ok(false),
-            ExprKind::Block(stmts) => {
-                for stmt in stmts {
-                    if let Stmt::LetElse {
-                        value, else_branch, ..
-                    } = stmt
-                        && (lower::needs(value) || lower::needs(else_branch))
-                    {
-                        return Ok(false);
-                    }
-                }
-            }
-            ExprKind::Return(_) | ExprKind::If { .. } | ExprKind::Match { .. } => {}
-            _ if ir::children(expr).into_iter().any(lower::needs) => return Ok(false),
-            _ => {}
-        }
         pending.extend(ir::children(expr));
     }
     Ok(true)
 }
 
-fn tail_calls(body: &Expr, work: &mut usize) -> Lowering<BTreeSet<usize>> {
+fn direct_calls(body: &Expr, work: &mut usize) -> Lowering<BTreeSet<usize>> {
     let mut calls = BTreeSet::new();
-    let mut pending = vec![(body, true)];
-    while let Some((expr, tail)) = pending.pop() {
+    let mut pending = vec![body];
+    while let Some(expr) = pending.pop() {
         charge(work, expr.span)?;
-        match &expr.kind {
-            ExprKind::Call {
-                target: CallTarget::Function(id),
-                ..
-            } if tail => {
-                calls.insert(id.0);
-            }
-            ExprKind::Return(value) => pending.push((value, true)),
-            ExprKind::Block(stmts) => {
-                for (index, stmt) in stmts.iter().enumerate() {
-                    match stmt {
-                        Stmt::Expr(value) => {
-                            pending.push((value, tail && index + 1 == stmts.len()))
-                        }
-                        Stmt::Let { value, .. } => pending.push((value, false)),
-                        Stmt::LetElse { .. } => {}
-                    }
-                }
-            }
-            ExprKind::If {
-                then_branch,
-                else_branch,
-                ..
-            } => {
-                pending.push((then_branch, tail));
-                if let Some(otherwise) = else_branch {
-                    pending.push((otherwise, tail));
-                }
-            }
-            ExprKind::Match { arms, .. } => {
-                pending.extend(arms.iter().map(|arm| (&arm.body, tail)))
-            }
-            ExprKind::Actor(ir::ActorExpr::Receive { arms, timeout, .. }) => {
-                pending.extend(arms.iter().map(|arm| (&arm.body, tail)));
-                if let Some((_, body)) = timeout {
-                    pending.push((body, tail));
-                }
-            }
-            _ => {}
+        if let ExprKind::Call {
+            target: CallTarget::Function(id),
+            ..
         }
+        | ExprKind::Closure { function: id, .. } = &expr.kind
+        {
+            calls.insert(id.0);
+        }
+        pending.extend(ir::children(expr));
     }
     Ok(calls)
 }
@@ -191,11 +170,15 @@ fn tail_calls(body: &Expr, work: &mut usize) -> Lowering<BTreeSet<usize>> {
 fn charge(work: &mut usize, span: Span) -> Lowering<()> {
     *work += 1;
     if *work > MAX_NODES {
-        Err(invalid(
-            span,
-            "actor tail-helper discovery work limit exceeded",
-        ))
+        Err(invalid(span, "actor helper discovery work limit exceeded"))
     } else {
         Ok(())
     }
+}
+
+fn requires_step(expr: &Expr) -> bool {
+    matches!(
+        expr.kind,
+        ExprKind::For { .. } | ExprKind::Defer(_) | ExprKind::Invoke { .. }
+    ) || matches!(expr.kind, ExprKind::Call { target: CallTarget::Builtin(b), .. } if crate::lowering::higher_order::is_higher_order(b))
 }

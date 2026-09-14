@@ -1,0 +1,24 @@
+sibling
+map factory
+none
+map factory
+map callback 2
+🌿 80
+map factory
+outer 🌿
+map factory
+map callback 2
+🌿 80
+bind factory
+outer 🌿
+bind factory
+bind callback 2
+🌿 80
+bind factory
+bind callback -1
+inner
+fallback factory
+fallback callback outer 🌿
+78
+fallback factory
+2

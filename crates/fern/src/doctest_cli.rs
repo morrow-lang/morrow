@@ -196,7 +196,8 @@ fn execute_program(program: &ir::Program, timeout: Duration) -> Result<(), Strin
     let object = fern_compiler::cranelift::emit_object(&machine)?;
     let workspace =
         native::Workspace::new(&std::env::temp_dir()).map_err(|error| error.to_string())?;
-    let executable = native::compile_object(&object, &workspace)?;
+    let libraries = fern_compiler::ffi::libraries(&machine)?;
+    let executable = native::compile_object_with_libraries(&object, &workspace, &libraries)?;
     let result = native::capture::run(&executable, timeout)?;
     if result.status.success() {
         return Ok(());

@@ -114,7 +114,7 @@ fn strict_record_keysets_are_conservative_and_definition_order_independent() {
     }
     for order in ["A | B", "B | A"] {
         let s = format!(
-            "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:String\ntype Choice={order}\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n"
+            "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:Float\ntype Choice={order}\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n"
         );
         rejects(&s, "not provably disjoint");
     }

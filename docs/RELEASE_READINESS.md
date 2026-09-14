@@ -5,8 +5,9 @@ are implemented in Rust. Native compilation uses Cranelift. The Rust LSP remains
 available; Tree-sitter and the old C/QBE/bootstrap setup have been removed.
 
 The supported language includes checked modules, generics, aliases/newtypes,
-finite unions, closures, collections, Result handling, derived JSON codecs and
-bounded cooperative actors. File/process APIs, SQLite lifecycle operations,
+finite unions, closures, immutable Sets, compile-time constants, static traits and
+explicit bounds, structural and custom JSON codecs, Result handling and bounded
+cooperative actors. Portable language values also execute through the WASM backend. File/process APIs, SQLite lifecycle operations,
 HTTP clients, regex and terminal widgets have executable regression coverage.
 See the [standard library reference](STDLIB_API_REFERENCE.md) and [roadmap](../ROADMAP.md).
 
@@ -15,19 +16,24 @@ See the [standard library reference](STDLIB_API_REFERENCE.md) and [roadmap](../R
 The active product direction is supervised native actors plus a reactive Fern
 WebAssembly browser application over a typed WebSocket protocol (Decision124).
 The [full-stack architecture](FULL_STACK_ARCHITECTURE.md) defines its staged
-acceptance. Actor-owned heaps, fair resumable scheduling, external-event liveness,
-typed supervision, a browser ABI/backend and bounded reconnect semantics must be
-proved before claiming an Elixir/Phoenix alternative. The first browser/server
-demo is single-node and explicitly ephemeral; durability and distributed recovery
-are separate gates. Generated browser interop is permitted build output, while
-implementation remains Rust-authored and application logic remains Fern.
+acceptance. The current checklist runs Fern domain actors and a typed Fern browser
+model/update/view, with bounded reconnect behavior and optional local durable room
+checkpoints. Worker sharding and actor-owned heaps are implemented. General
+external-event liveness, complete preemption, subtree supervision, replicated
+ownership and distributed recovery still need separate acceptance. Generated
+browser interop is permitted build output; authored implementation remains Rust
+and application logic remains Fern.
 
-The rewrite preserves supported behavior; it does not implement every proposal
-in [DESIGN.md](../DESIGN.md). Open work includes generalized actor suspension and
-typed supervision, actor REPL parity, deeper JSON union discrimination and custom
-traits, HTTP serving, typed SQL query APIs, Sets and remaining standard modules,
-advanced ownership/reuse analysis and a WASM backend. Unsupported forms must keep
-explicit diagnostics. A successful typecheck alone does not certify execution.
+The implementation does not cover every proposal in [DESIGN.md](../DESIGN.md).
+Direct actor helper recursion and loops now use typed continuation frames; see
+[actor continuations](ACTOR_CONTINUATIONS.md) for the exact scheduling and cleanup
+boundaries. [Traits](TRAITS.md), [Sets](SETS.md), [compile-time constants](COMPTIME.md),
+[native FFI](FFI.md), [deep JSON unions](JSON_TYPED_CODECS.md),
+[custom JSON methods](CUSTOM_JSON.md) and the [portable WASM subset](WASM_LANGUAGE.md)
+have focused execution tests. HTTP framework packaging, broader SQL query APIs,
+remaining standard modules, advanced ownership/reuse optimization and the complete
+syntax/target parity audit remain open. Unsupported forms must keep explicit
+diagnostics. A successful typecheck alone does not certify execution.
 
 The native collector is Rust-owned tracing GC. SQLite uses rusqlite's bundled
 library; HTTP uses ureq/rustls with certificate verification and Rust-wrapped

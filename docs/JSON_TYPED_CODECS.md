@@ -73,11 +73,12 @@ are reused. Native descriptor output has a separate aggregate 16 MiB limit. Thes
 bounds also apply to independently supplied executable IR, including inactive
 function bodies. Source type targets never enter executable IR.
 
-`test_rust_json_codecs.py` verifies native source behavior and atomic rejection;
-`test_runtime_json_codecs.py` checks the ABI, shared sibling allowance, exact path
-boundary and preservation of original errors in debug, release and ASan/UBSan.
-The same source corpus is exercised in the REPL. Existing dynamic JSON runtime
-and numeric-oracle gates remain required.
+`cargo xtask check` verifies native source behavior, atomic rejection, runtime ABI,
+shared sibling allowances, exact paths and preservation of original errors.
+The same source corpus is exercised in the REPL. Rust runtime tests also force
+precise collection during nested decoding. Existing dynamic JSON runtime and
+numeric-oracle gates remain required; historical sanitizer evidence predates
+the current Rust implementation.
 
 ## Regular recursive records
 
@@ -180,8 +181,30 @@ This does not change source Map key policy: a structural union cannot itself be 
 source Map key. Generic `Map(k,v) | String` retains the exact JsonStringKey(k)
 requirement until independently inferred concrete instantiation.
 
-Encoding forwards only the selected member's wire value. Decoding selects exactly one member before invoking its decoder. Int and Float overlap; record fields are not inspected to distinguish same-key records; arbitrary List shapes overlap; dynamic JSON overlaps every kind. Strict records use actual required/allowed key sets, with optional status only for actual Option fields. A nullable newtype field remains required. Exact tuple lengths and distinct source constructor-tag sets can discriminate. Newtypes inherit their payload's wire shape without merging nominal source identity.
+Encoding forwards only the selected member's wire value. Decoding selects exactly
+one member before invoking its decoder. Strict records use actual required and
+allowed keys, with optional status only for actual Option fields. A nullable
+newtype field remains required. Exact tuple lengths and distinct source
+constructor tags can discriminate. Newtypes inherit their payload's wire shape
+without merging nominal source identity.
+
+Nested required fields and tuple positions can also discriminate. For example,
+records with `payload.value: Int` versus `payload.value: String`, or tuples
+`(Int, String)` versus `(String, Int)`, are disjoint. At least one record branch
+must require the discriminating field: two optional fields can both be absent.
+Int and Float overlap, arbitrary List shapes overlap at the empty list, and
+dynamic JSON overlaps every kind. Recursive schemas need a finite discriminator;
+a repeated recursive pair alone proves nothing. Shared sum tags can use payload
+arity or nested payload shapes: `Event(Int) | Event(String)` is valid when the
+only constructor is `Payload(a)`. Adding a shared zero-field `Empty` constructor
+makes those alternatives overlap and is rejected. The proof remains conservative
+for unconstrained list elements and map values.
 
 Unique JSON-kind selection preserves original numeric/text errors. All-sum object unions select a known source tag before strict envelope errors. Mixed record/sum unions use strict key sets first. No unique member is code14 `no unique JSON union member`, at the current parent path with offset -1. Existing standalone sum code13 and codes1–12 are unchanged. No candidate decoder or JSON Pointer allocation is used for selection.
+
+Only when kind and shallow structure leave multiple candidates does selection
+inspect borrowed nested shapes. Once selected, the member decodes exactly once.
+Numeric conversion still owns precision and range errors; structural selection
+does not try conversions or choose a fallback based on declaration order.
 
 Compiler profile propagation, pair comparisons and type/name work consume the existing aggregate400k allowances, with precharged queues/storage. Concrete plans validate inactive entries too. Native selectors share the original64MiB work allowance with decoding and perform no candidate allocations. Existing input/output/allocation/node/depth limits remain; transparent dispatch adds charged codec steps.

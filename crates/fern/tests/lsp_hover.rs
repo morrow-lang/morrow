@@ -67,6 +67,27 @@ fn hover_reports_final_types_docs_and_generic_requirements() {
 }
 
 #[test]
+fn constants_have_value_signatures_in_hover_and_completion() {
+    let declaration = "@doc \"\"\"Computed configuration.\"\"\"\nconst ans§wer = comptime:\n    40 + 2\nfn main(): println(answer)\n";
+    let response = query(declaration, "hover");
+    assert!(response.contains("const answer: Int"), "{response}");
+    assert!(!response.contains("fn answer"), "{response}");
+    let response = query(
+        "const answer = comptime:\n    42\nfn main(): println(ans§wer)\n",
+        "completion",
+    );
+    let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let items = value["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+    let item = items
+        .iter()
+        .find(|item| item["label"] == "answer")
+        .unwrap_or_else(|| panic!("{response}"));
+    assert_eq!(item["kind"], 21, "constant completion kind");
+}
+
+#[test]
 fn local_hover_respects_shadowing_and_interpolation() {
     let response = query(
         "fn main():\n    let value=1\n    let value=\"text\"\n    println(\"{val§ue}\")\n",
@@ -371,4 +392,67 @@ fn hover_documentation_belongs_to_its_exact_declaration() {
         assert!(response.contains(expected), "{response}");
         assert!(!response.contains(excluded), "{response}");
     }
+}
+
+#[test]
+fn traits_have_documented_declaration_hover_and_bound_navigation() {
+    let source =
+        "@doc \"\"\"A readable value.\"\"\"\ntrait Lab§el(a):\n    fn label(value: a) -> String\n";
+    let response = query(source, "hover");
+    assert!(response.contains("trait Label(a)"), "{response}");
+    assert!(response.contains("A readable value."), "{response}");
+    let response = query(
+        "trait Label(a):\n    fn label(value: a) -> String\nfn describe(value: a) -> String where Lab§el(a): label(value)\n",
+        "definition",
+    );
+    assert!(response.contains("\"line\":0"), "{response}");
+    assert!(response.contains("\"character\":6"), "{response}");
+}
+
+#[test]
+fn trait_method_and_implementation_locals_show_public_source_names() {
+    let response = query(
+        "trait Label(a):\n    fn lab§el(value: a) -> String\n",
+        "hover",
+    );
+    assert!(
+        response.contains("fn label(value: a) -> String"),
+        "{response}"
+    );
+    let source = "trait Label(a):\n    fn label(value: a) -> String\ntype Item:\n    number: Int\nimpl Label(Item):\n    fn label(value: Item) -> String: \"{val§ue.number}\"\n";
+    let response = query(source, "hover");
+    assert!(response.contains("value: Item"), "{response}");
+    assert!(!response.contains("$impl"), "{response}");
+    let response = query(
+        "trait Label(a):\n    fn label(value: a) -> String\nfn desc§ribe(value: a) -> String where Label(a): label(value)\n",
+        "hover",
+    );
+    assert!(response.contains("where Label(a)"), "{response}");
+}
+
+#[test]
+fn trait_bound_completion_lists_trait_names_without_internal_methods() {
+    let response = query(
+        "trait Label(a):\n    fn label(value: a) -> String\nimpl Label(Int):\n    fn label(value: Int) -> String: \"{value}\"\nfn describe(value: a) -> String where Lab§el(a): label(value)\n",
+        "completion",
+    );
+    let value: serde_json::Value = serde_json::from_str(&response).unwrap();
+    let items = value["result"]["items"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+    let item = items
+        .iter()
+        .find(|item| item["label"] == "Label")
+        .unwrap_or_else(|| panic!("{response}"));
+    assert_eq!(item["kind"], 8);
+    assert!(!response.contains("$impl"), "{response}");
+}
+
+#[test]
+fn inferred_trait_requirements_name_the_actual_trait() {
+    let response = query(
+        "trait Label(a):\n    fn label(value: a) -> String\nfn desc§ribe(value): label(value)\n",
+        "hover",
+    );
+    assert!(response.contains("Requires a: Label"), "{response}");
 }

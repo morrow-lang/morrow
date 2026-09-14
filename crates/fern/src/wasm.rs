@@ -33,8 +33,32 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
         return Err(invalid(Span::default(), "function limit exceeded"));
     }
     crate::ir::reject_probes(program)?;
+    validate_types(program)?;
     let runtime = strings::Runtime::prepare(program)?;
     let mut identities = BTreeMap::new();
+    for function in &program.functions {
+        if function.name.len() > 65_536 {
+            return Err(invalid(
+                function.body.span,
+                "function export name limit exceeded",
+            ));
+        }
+    }
+    let mut multiplicity = BTreeMap::new();
+    for function in &program.functions {
+        *multiplicity.entry(function.name.as_str()).or_insert(0usize) += 1;
+    }
+    let export_names: Vec<_> = program
+        .functions
+        .iter()
+        .map(|function| {
+            if multiplicity[function.name.as_str()] > 1 {
+                format!("{}::specialization::{}", function.name, function.id.0)
+            } else {
+                function.name.clone()
+            }
+        })
+        .collect();
     let mut names = BTreeSet::new();
     let mut types = TypeSection::new();
     let mut functions = FunctionSection::new();
@@ -42,13 +66,10 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
     let mut export_bytes = 0usize;
     for (index, function) in program.functions.iter().enumerate() {
         let span = function.body.span;
-        if function.mailbox.is_some() || !function.captures.is_empty() {
-            return Err(invalid(
-                span,
-                "actors and captured closures require a managed browser runtime",
-            ));
+        if function.mailbox.is_some() {
+            return Err(invalid(span, "actors require a native runtime"));
         }
-        if function.name.len() > 65_536 || !names.insert(&function.name) {
+        if function.name.len() > 65_536 || !names.insert(&export_names[index]) {
             return Err(invalid(span, "invalid or duplicate function export name"));
         }
         export_bytes += function.name.len();
@@ -62,19 +83,23 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
         {
             return Err(invalid(span, "duplicate function identity"));
         }
-        if function.params.len() > 1024 || function.local_count > 65_536 {
+        if function.params.len() + function.captures.len() > 1024
+            || function.captures.len() > 511
+            || function.local_count > 65_536
+        {
             return Err(invalid(span, "function local or parameter limit exceeded"));
         }
         let params = function
-            .params
+            .captures
             .iter()
+            .chain(&function.params)
             .map(|p| value_type(&p.ty, span))
             .collect::<Result<Vec<_>>>()?;
         let result = value_type(&function.return_type, span)?;
         types.ty().function(params, [result]);
         functions.function(index);
         if runtime.is_none() {
-            exports.export(&function.name, ExportKind::Func, index);
+            exports.export(&export_names[index as usize], ExportKind::Func, index);
         }
     }
     if let Some(runtime) = &runtime {
@@ -95,6 +120,9 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
         runtime.code(&mut code);
         host::code(runtime, &mut code);
         for (index, function) in program.functions.iter().enumerate() {
+            if !function.captures.is_empty() {
+                continue;
+            }
             let managed_signature =
                 managed(&function.return_type) || function.params.iter().any(|p| managed(&p.ty));
             let wrapper_index = functions.len();
@@ -122,14 +150,16 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
             }
             exports.export(
                 &if managed_signature {
-                    format!("fern::{}", function.name)
+                    format!("fern::{}", export_names[index])
                 } else {
-                    function.name.clone()
+                    export_names[index].clone()
                 },
                 ExportKind::Func,
                 wrapper_index,
             );
             let mut wrapper = wasm_encoder::Function::new([]);
+            wrapper.instruction(&wasm_encoder::Instruction::I32Const(0));
+            wrapper.instruction(&wasm_encoder::Instruction::GlobalSet(2));
             wrapper.instruction(&wasm_encoder::Instruction::I32Const(0));
             wrapper.instruction(&wasm_encoder::Instruction::GlobalSet(0));
             for param in 0..function.params.len() {
@@ -147,6 +177,12 @@ pub fn compile(program: &ir::Program) -> Result<Vec<u8>> {
                 }
             }
             wrapper.instruction(&wasm_encoder::Instruction::Call(index as u32));
+            wrapper.instruction(&wasm_encoder::Instruction::GlobalGet(2));
+            wrapper.instruction(&wasm_encoder::Instruction::If(
+                wasm_encoder::BlockType::Empty,
+            ));
+            wrapper.instruction(&wasm_encoder::Instruction::Unreachable);
+            wrapper.instruction(&wasm_encoder::Instruction::End);
             if managed(&function.return_type) {
                 wrapper.instruction(&wasm_encoder::Instruction::I32Const(
                     runtime.type_ids[&function.return_type] as i32,
@@ -213,6 +249,10 @@ fn managed(ty: &Type) -> bool {
             | Type::Option(_)
             | Type::Result(_, _)
             | Type::List(_)
+            | Type::Map(_, _)
+            | Type::Function(_, _)
+            | Type::Range
+            | Type::Union(_)
     )
 }
 
@@ -254,4 +294,119 @@ fn expect(actual: &Type, expected: &Type, span: Span) -> Result<()> {
             format!("expected {expected:?}, got {actual:?}"),
         ))
     }
+}
+
+/// Bound caller-built semantic types before hashing, cloning or formatting them.
+fn validate_types(program: &ir::Program) -> Result<()> {
+    let mut roots = Vec::new();
+    for function in &program.functions {
+        roots.push(&function.return_type);
+        roots.extend(
+            function
+                .params
+                .iter()
+                .chain(&function.captures)
+                .map(|p| &p.ty),
+        );
+        let mut expressions = vec![&function.body];
+        while let Some(expr) = expressions.pop() {
+            roots.push(&expr.ty);
+            expressions.extend(ir::children(expr));
+        }
+    }
+    for layout in &program.types {
+        roots.push(&layout.ty);
+        roots.extend(layout.variants.iter().flatten());
+    }
+    let mut pending: Vec<_> = roots.into_iter().map(|ty| (ty, 0)).collect();
+    let mut work = 0usize;
+    let mut unions = Vec::new();
+    let mut keys = Vec::new();
+    while let Some((ty, depth)) = pending.pop() {
+        work += 1;
+        if work > 400_000 || depth >= 128 {
+            return Err(invalid(Span::default(), "type complexity limit exceeded"));
+        }
+        let mut child = |ty| pending.push((ty, depth + 1));
+        match ty {
+            Type::List(item) | Type::Option(item) => child(item.as_ref()),
+            Type::Map(key, value) | Type::Result(key, value) => {
+                if matches!(ty, Type::Map(_, _)) {
+                    keys.push(key.as_ref());
+                }
+                child(key.as_ref());
+                child(value.as_ref());
+            }
+            Type::Union(items) => {
+                unions.push(items);
+                if !(2..=128).contains(&items.len())
+                    || items.iter().any(|item| matches!(item, Type::Union(_)))
+                {
+                    return Err(invalid(Span::default(), "union members must be canonical"));
+                }
+                for item in items {
+                    child(item);
+                }
+            }
+            Type::Tuple(items) | Type::Named(_, items) => {
+                for item in items {
+                    child(item);
+                }
+            }
+            Type::Function(params, result) => {
+                child(result.as_ref());
+                for param in params {
+                    child(param);
+                }
+            }
+            Type::Never => {}
+            _ => {
+                value_type(ty, Span::default())?;
+            }
+        }
+    }
+    for members in unions {
+        if members.windows(2).any(|pair| pair[0] >= pair[1]) {
+            return Err(invalid(
+                Span::default(),
+                "union members must be sorted and distinct",
+            ));
+        }
+    }
+    for mut key in keys {
+        let mut depth = 0;
+        while matches!(key, Type::Named(_, _)) {
+            depth += 1;
+            if depth > 128 {
+                return Err(invalid(Span::default(), "map key representation cycle"));
+            }
+            let layout = program
+                .types
+                .iter()
+                .find(|layout| &layout.ty == key)
+                .ok_or_else(|| {
+                    invalid(
+                        Span::default(),
+                        "map key requires a resolved scalar newtype",
+                    )
+                })?;
+            if layout.storage != ir::LayoutStorage::Unboxed
+                || layout.variants.len() != 1
+                || layout.variants[0].len() != 1
+            {
+                return Err(invalid(
+                    Span::default(),
+                    "map key requires a scalar newtype",
+                ));
+            }
+            key = &layout.variants[0][0];
+        }
+        if !matches!(key, Type::Int | Type::Bool | Type::String) {
+            return Err(invalid(
+                Span::default(),
+                "map keys require Int, Bool, String, or scalar newtypes",
+            ));
+        }
+    }
+    Ok(())
 }

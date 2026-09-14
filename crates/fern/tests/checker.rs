@@ -43,6 +43,7 @@ fn fun(n: &str, ty: Option<Type>, body: Expr) -> Function {
         syntax: FunctionSyntax::Colon,
         name: n.into(),
         params: vec![],
+        constraints: vec![],
         return_type: ty,
         body,
         span: Span::default(),

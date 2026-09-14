@@ -29,11 +29,13 @@ fn newtype_codec_derive_does_not_launder_results_or_null_collisions() {
         "newtype Raw = Raw(Int)\nfn main():match json.encode(Raw(1)):\n    Ok(_) -> ()\n    Err(_) -> ()\n",
         "newtype Bad derive(Json) = Bad(Result(Int,String))\nfn main():()\n",
         "newtype Nullable derive(Json) = Nullable(Unit)\ntype Bad derive(Json):\n    value:Option(Nullable)\nfn main():()\n",
-        "newtype Bad derive(Show) = Bad(Int)\nfn main():()\n",
+        "newtype Bad derive(UnknownTrait) = Bad(Int)\nfn main():()\n",
     ] {
         let ast = parse::parse(source).unwrap();
         assert!(check::check(&ast).is_err(), "{source}");
     }
+    check::check(&parse::parse("newtype Bad derive(Show) = Bad(Int)\nfn main():()\n").unwrap())
+        .unwrap();
 }
 #[test]
 fn malformed_newtype_derives_use_the_existing_nonempty_list_grammar() {

@@ -1,5 +1,6 @@
 //! Descriptor-only selection cannot execute or allocate a candidate payload.
 use super::*;
+mod nested;
 mod selectors;
 impl Execution<'_, '_> {
     /// The interpreter stores semantic member identity; native values already store its ordinal.
@@ -80,6 +81,21 @@ impl Execution<'_, '_> {
             }
         }
         if count == 1 {
+            return Ok(selected);
+        }
+        if count == 0 {
+            return Err(error(14, -1));
+        }
+        count = 0;
+        for (index, child) in children.iter().enumerate() {
+            if self.shape_matches(*child, input, sum_only, 0)?
+                && self.nested_matches(*child, input, 0)?
+            {
+                count += 1;
+                selected = index;
+            }
+        }
+        if count == 1 {
             Ok(selected)
         } else {
             Err(error(14, -1))
@@ -96,7 +112,7 @@ impl Execution<'_, '_> {
             Wire::String => 8,
             Wire::List(_) | Wire::Tuple(_) => 16,
             Wire::Record(_) | Wire::Map(_) | Wire::Sum(_) => 32,
-            Wire::Dynamic => 63,
+            Wire::Dynamic | Wire::Custom { .. } => 63,
             Wire::Newtype(child) => self.wire_mask(*child, depth + 1)?,
             Wire::Option(child) => 1 | self.wire_mask(*child, depth + 1)?,
             Wire::Union(children) => {
@@ -114,7 +130,7 @@ impl Execution<'_, '_> {
         let plan = self.plan;
         Ok(match &plan.entries[id].kind {
             Wire::Sum(_) => 1,
-            Wire::Record(_) | Wire::Map(_) | Wire::Dynamic => 2,
+            Wire::Record(_) | Wire::Map(_) | Wire::Dynamic | Wire::Custom { .. } => 2,
             Wire::Newtype(child) | Wire::Option(child) => self.sum_profile(*child, depth + 1)?,
             Wire::Union(children) => {
                 let mut mask = 0;

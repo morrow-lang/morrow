@@ -1,6 +1,7 @@
 //! Independent, bounded lexer and recursive-descent parser for the prototype.
 mod actors;
 mod inspection;
+mod traits;
 mod type_arguments;
 pub use inspection::{debug_ast, debug_tokens};
 mod label_recovery;
@@ -1277,8 +1278,18 @@ impl Parser {
             if self.word("fn") {
                 let function = self.function(public)?;
                 self.add_clause(&mut program, &mut groups, function, documented)?;
+            } else if self.word("foreign") {
+                let function = self.foreign_function(public)?;
+                self.add_clause(&mut program, &mut groups, function, documented)?;
+            } else if self.word("const") {
+                let constant = self.constant(public)?;
+                self.add_clause(&mut program, &mut groups, constant, documented)?;
             } else if self.word("type") {
                 self.type_declaration(&mut program, public)?;
+            } else if self.word("trait") {
+                self.trait_declaration(&mut program, public)?;
+            } else if self.word("impl") && !public {
+                self.implementation(&mut program)?;
             } else if self.word("newtype") {
                 self.newtype_declaration(&mut program, public)?;
             } else if self.word("import") {
@@ -1597,7 +1608,12 @@ impl Parser {
         let Some((text, span)) = pending else {
             return Ok(false);
         };
-        if !self.word("fn") && !self.word("type") && !self.word("newtype") {
+        if !self.word("fn")
+            && !self.word("type")
+            && !self.word("newtype")
+            && !self.word("const")
+            && !self.word("trait")
+        {
             return Err(self.error("@doc must precede a function or type declaration"));
         }
         let target = match self.tokens.get(self.position + 1).map(|t| &t.kind) {
@@ -1656,7 +1672,7 @@ impl Parser {
         } else {
             None
         };
-        let (return_type, syntax) = self.function_body_separator()?;
+        let (return_type, syntax, constraints) = self.function_body_separator()?;
         let body = self.suite()?;
         if self.current().kind != Kind::End
             && self.current().kind != Kind::Dedent
@@ -1666,6 +1682,7 @@ impl Parser {
             return Err(self.error("expected end of line after function body"));
         }
         Ok(Function {
+            constraints,
             public,
             name,
             params,
@@ -1747,25 +1764,33 @@ impl Parser {
     }
 
     /// Try one bounded type annotation; an arrow without a following type-colon begins a body.
-    fn function_body_separator(&mut self) -> ParseResult<(Option<Type>, FunctionSyntax)> {
+    fn function_body_separator(
+        &mut self,
+    ) -> ParseResult<(Option<Type>, FunctionSyntax, Vec<crate::ast::TraitBound>)> {
         if !self.eat(&Kind::Arrow) {
             self.expect(Kind::Colon, "expected ':' or '->' before function body")?;
-            return Ok((None, FunctionSyntax::Colon));
+            return Ok((None, FunctionSyntax::Colon, Vec::new()));
         }
         let position = self.position;
         let depth = self.depth;
         let spans = self.type_spans.as_ref().map_or(0, Vec::len);
-        if let Ok(ty) = self.ty()
-            && self.eat(&Kind::Colon)
-        {
-            return Ok((Some(ty), FunctionSyntax::Colon));
+        if let Ok(ty) = self.ty() {
+            if self.word("where") {
+                self.take();
+                let constraints = self.trait_bounds()?;
+                self.expect(Kind::Colon, "expected ':' after where constraints")?;
+                return Ok((Some(ty), FunctionSyntax::Colon, constraints));
+            }
+            if self.eat(&Kind::Colon) {
+                return Ok((Some(ty), FunctionSyntax::Colon, Vec::new()));
+            }
         }
         self.position = position;
         self.depth = depth;
         if let Some(recorded) = &mut self.type_spans {
             recorded.truncate(spans);
         }
-        Ok((None, FunctionSyntax::Arrow))
+        Ok((None, FunctionSyntax::Arrow, Vec::new()))
     }
 
     /// Read a non-reserved identifier for a binding/function/parameter.
@@ -3288,6 +3313,8 @@ fn reserved(name: &str) -> bool {
     matches!(
         name,
         "fn" | "let"
+            | "const"
+            | "comptime"
             | "if"
             | "else"
             | "true"
@@ -3613,3 +3640,8 @@ mod continuation_tests {
         }
     }
 }
+
+mod comptime;
+
+#[path = "parse/foreign.rs"]
+mod foreign;

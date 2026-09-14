@@ -3,7 +3,7 @@
   "union_array": "type Choice=List(Int) | List(String)\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n",
   "union_nullable": "type Choice=Unit | Option(Int)\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n",
   "union_option": "type Choice=Option(Int) | Int\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n",
-  "union_record_values": "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:String\ntype Choice=A | B\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n",
+  "union_record_values": "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:Float\ntype Choice=A | B\nfn read()->Result(Choice,json.Error):json.decode(\"null\",Choice)\nfn main():()\n",
   "inline_number": "fn read():json.decode(\"null\",Int | Float)\nfn main():()\n",
   "inline_array": "fn read():json.decode(\"null\",List(Int) | List(String))\nfn main():()\n",
   "inline_key": "fn read():json.decode(\"null\",Map(Int, Int | String))\nfn main():()\n",

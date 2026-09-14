@@ -99,6 +99,12 @@ impl Checker<'_> {
         }
         super::returns::shape_ready(&self.inference, &base.ty, span)?;
         let ty = self.inference.resolve(&base.ty, span)?;
+        if matches!(&ty, Type::Named(name, _) if name == "Ptr") {
+            return Err(Diagnostic::new(
+                span,
+                "Ptr storage is private; use the Ptr APIs",
+            ));
+        }
         let layout = self.registry.layout(&ty, span)?;
         if layout.fields.is_empty() {
             return Err(Diagnostic::new(span, "record update requires a record"));

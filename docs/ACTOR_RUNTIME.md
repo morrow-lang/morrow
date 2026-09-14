@@ -22,21 +22,20 @@ Native compiler frames register typed reference roots. Runtime allocation helper
 still use conservative stack/register discovery, and objects are scanned
 conservatively; this is not yet a fully precise collector.
 
-The scheduler executes FIFO continuation callbacks on one thread. Supported
-receives and receiving tail calls suspend into explicit continuation frames.
-Statically known actor entries also use resumable copies of direct Unit tail-call
-paths that lead to recursive cycles. Each such call publishes its typed argument
-frame, returns from the native stack and queues the next callback, allowing
-siblings to progress. Ordinary calls to the same functions retain their ABI and
-synchronous behavior; finite helper chains keep their existing scheduling.
+The scheduler executes FIFO continuation callbacks on one thread. Typed return
+frames let direct receiving helpers return values and suspend through recursion,
+strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
+combinators use bounded resumable copies; their non-actor entry points retain the
+original synchronous ABI. [Logical cleanup scopes](ACTOR_CLEANUP.md) preserve
+`defer` across suspension, failure and cancellation.
 
-This initial tail-call subset requires owned parameter/capture types and excludes
-bodies containing `defer`, `for` or `with`. Non-tail calls, numeric-result
-recursion, indirect calls and loops remain synchronous inside a callback, without
-an instruction budget or preemption. One native invocation has no parallel
-workers. The [web host](WEB_WORKERS.md) runs independent room invocations on
-pinned threads; native PIDs never cross those threads. Cross-process PIDs and
-distributed scheduler guarantees remain unimplemented.
+This is cooperative source-level suspension, with explicit graph and callback
+limits. Blocking native services and arbitrary instruction preemption remain
+outside that contract. First-class actor-effect helpers remain restricted; see
+[actor continuations](ACTOR_CONTINUATIONS.md) for exact eligibility. One native
+invocation has no parallel workers. The [web host](WEB_WORKERS.md) runs independent
+room invocations on pinned threads; native PIDs never cross those threads.
+Cross-process PIDs and distributed scheduler guarantees remain unimplemented.
 
 ## Typed failure and restart
 
@@ -199,9 +198,10 @@ verification of the Rust runtime; those earlier totals are not silently reused.
 
 The compatibility mailbox scheduler does not execute actor functions or
 suspend/resume them. The typed native scheduler executes real actor functions
-with isolated heaps and bounded single-child supervision, but generalized fair
-suspension, typed supervisor trees, synchronous
-request/reply and REPL/FernSim parity remain open. Compatibility supervision
+with isolated heaps, composable suspension and bounded single-child supervision.
+The REPL and FernSim now execute checked source continuations under virtual time.
+Typed supervisor trees, a standard synchronous request/reply API and complete
+external-event/instruction fairness remain open. Compatibility supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
 Automatic ancestor escalation and descendant subtree recreation after supervisor
 restart remain incomplete. Linked exits are notifications rather than full

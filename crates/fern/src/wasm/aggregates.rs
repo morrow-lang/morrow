@@ -12,7 +12,7 @@ pub(super) fn mem(offset: u64) -> MemArg {
 }
 
 impl Emitter<'_, '_> {
-    fn fields(&self, ty: &Type, tag: usize, span: Span) -> Result<Vec<Type>> {
+    pub(super) fn fields(&self, ty: &Type, tag: usize, span: Span) -> Result<Vec<Type>> {
         match ty {
             Type::Unit if tag == 0 => Ok(vec![]),
             Type::Tuple(fields) if tag == 0 => Ok(fields.clone()),
@@ -206,6 +206,9 @@ impl Emitter<'_, '_> {
         locals: &mut Locals,
         span: Span,
     ) -> Result<()> {
+        if let Pattern::UnionSelect { narrowed, binding } = pattern {
+            return self.union_pattern(narrowed, binding.as_ref(), value, ty, locals, span);
+        }
         if let Pattern::List { prefix, rest } = pattern {
             let Type::List(item) = ty else {
                 return Err(invalid(span, "list pattern has non-list input"));

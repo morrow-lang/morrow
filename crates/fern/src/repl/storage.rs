@@ -97,7 +97,25 @@ impl<'a> CodeBudget<'a> {
         self.bytes += std::mem::size_of::<ir::Expr>();
         self.pending.push(Part::Type(&expr.ty));
         match &expr.kind {
-            Actor(_) => return Err("managed actors are not supported in the REPL yet".into()),
+            ForeignCall { declaration, args } => {
+                declaration.validate(expr.span).map_err(|e| e.message)?;
+                self.bytes +=
+                    declaration.symbol.len() + declaration.library.as_ref().map_or(0, |s| s.len());
+                self.expressions(args);
+            }
+            Actor(actor) => {
+                self.pending
+                    .extend(crate::actors::children(actor).into_iter().map(Part::Expr));
+                match actor {
+                    ir::ActorExpr::Receive { arms, .. }
+                    | ir::ActorExpr::Lowered(crate::actors::Lowered {
+                        operation: crate::actors::Operation::Select { arms, .. },
+                    }) => self
+                        .pending
+                        .extend(arms.iter().map(|a| Part::Pattern(&a.pattern))),
+                    _ => {}
+                }
+            }
             JsonCodecTemplate { .. } => {
                 return Err("JSON codec template cannot enter executable IR".into());
             }
@@ -338,6 +356,7 @@ mod tests {
 
     fn closure(program: Rc<ir::Program>) -> Value {
         Value::Closure(Rc::new(ClosureValue {
+            actor_entries: Rc::default(),
             program,
             function: ir::FunctionId(0),
             captures: Vec::new(),

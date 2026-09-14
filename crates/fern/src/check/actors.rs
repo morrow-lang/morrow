@@ -6,6 +6,7 @@ pub(super) fn attach(
     program: &ast::Program,
     registry: &nominal::Registry,
     signatures: &mut HashMap<String, Signature>,
+    inference: &mut Inference,
 ) -> Checked<()> {
     for function in &program.functions {
         let Some(mailbox) = mailbox(&function.body, registry)? else {
@@ -18,6 +19,103 @@ pub(super) fn attach(
         for generic in nominal::generics([mailbox]) {
             if !signature.generics.contains(&generic) {
                 signature.generics.push(generic);
+            }
+        }
+    }
+    if !signatures
+        .values()
+        .any(|signature| signature.mailbox.is_some())
+    {
+        return Ok(());
+    }
+    let graph = dependencies::owned_calls(program)?;
+    inference
+        .probe_work
+        .set(inference.probe_work.get().saturating_add(graph.work));
+    if inference.probe_work.get() > MAX_EXPR_COUNT * 4 {
+        return Err(Diagnostic::new(
+            Span::default(),
+            "actor effect inference work limit exceeded",
+        ));
+    }
+    // Propagate effect presence once along reverse lexical call edges. A reference to a
+    // receiving function, or creation of a receiving closure, does not suspend its owner.
+    let mut callers = vec![Vec::new(); graph.groups.len()];
+    let mut pending = Vec::new();
+    for (index, group) in graph.groups.iter().enumerate() {
+        if signatures[&group.name].mailbox.is_some() {
+            pending.push(index);
+        }
+        for &callee in &group.callees {
+            callers[callee].push(index);
+        }
+    }
+    while let Some(callee) = pending.pop() {
+        for &caller in &callers[callee] {
+            let signature = signatures
+                .get_mut(&graph.groups[caller].name)
+                .expect("registered caller");
+            if signature.mailbox.is_none() {
+                let generic = format!("$mailbox_call{caller}");
+                signature.mailbox = Some(Type::Generic(generic.clone()));
+                signature.generics.push(generic);
+                pending.push(caller);
+            }
+        }
+    }
+    // Infer callees before callers. Recursive components share existential mailbox slots
+    // until every body has contributed its constraints, then publish independent schemes.
+    for component in &graph.components {
+        let mut candidates = Vec::new();
+        for &index in component {
+            let group = &graph.groups[index];
+            let signature = signatures.get_mut(&group.name).expect("registered actor");
+            let Some(mailbox) = signature.mailbox.clone() else {
+                continue;
+            };
+            let variables: HashMap<_, _> = nominal::generics([mailbox.clone()])
+                .into_iter()
+                .filter(|name| name.starts_with("$mailbox"))
+                .map(|name| (name, inference.fresh()))
+                .collect();
+            if variables.is_empty() {
+                continue;
+            }
+            let candidate = nominal::substitute(&mailbox, &variables)?;
+            signature.mailbox = Some(candidate.clone());
+            signature
+                .generics
+                .retain(|name| !variables.contains_key(name));
+            candidates.push((index, candidate));
+        }
+        for &(index, _) in &candidates {
+            for function in &program.functions[graph.groups[index].clauses.clone()] {
+                let previous = (
+                    inference.whole_signature,
+                    inference.probing,
+                    inference.template,
+                );
+                inference.whole_signature = true;
+                let result = returns::probe(function, registry, signatures, inference);
+                inference.whole_signature = previous.0;
+                inference.probing = previous.1;
+                inference.template = previous.2;
+                if let Err(error) = result
+                    && !error.message.contains(returns::WAITING)
+                {
+                    return Err(error);
+                }
+            }
+        }
+        for (index, candidate) in candidates {
+            let group = &graph.groups[index];
+            let mailbox = generalize(&inference.resolve(&candidate, group.span)?);
+            let signature = signatures.get_mut(&group.name).expect("registered actor");
+            signature.mailbox = Some(mailbox.clone());
+            for generic in nominal::generics([mailbox]) {
+                if !signature.generics.contains(&generic) {
+                    signature.generics.push(generic);
+                }
             }
         }
     }
@@ -448,12 +546,6 @@ impl Checker<'_> {
         };
         self.inference
             .unify(&mailbox, &owner, span, "actor call mailbox")?;
-        self.inference.unify(
-            &result,
-            &Type::Unit,
-            span,
-            "receiving actor function result",
-        )?;
         self.constrain_result(&result, expected, span)?;
         let ir::ExprKind::FunctionValue {
             target: ir::CallTarget::Function(id),
@@ -498,8 +590,9 @@ impl Checker<'_> {
                 return true;
             }
             let name = match &expr.kind {
-                ast::ExprKind::Call { name, .. } => Some(name),
-                ast::ExprKind::GlobalCall { resolved, .. } => Some(resolved),
+                ast::ExprKind::Call { name, .. } | ast::ExprKind::Pipe { name, .. } => Some(name),
+                ast::ExprKind::GlobalCall { resolved, .. }
+                | ast::ExprKind::GlobalPipe { resolved, .. } => Some(resolved),
                 _ => None,
             };
             if name.is_some_and(|name| {
@@ -544,6 +637,12 @@ impl Checker<'_> {
                 Type::List(item) | Type::Option(item) => pending.push(*item),
                 Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),
                 Type::Map(key, value) => pending.extend([*key, *value]),
+                Type::Named(ref name, _) if name == "Ptr" => {
+                    return Err(Diagnostic::new(
+                        span,
+                        "foreign pointers cannot cross actor boundaries",
+                    ));
+                }
                 Type::Named(_, _) => pending.extend(
                     self.registry
                         .layout(&ty, span)?

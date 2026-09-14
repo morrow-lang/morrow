@@ -609,6 +609,7 @@ String   # UTF-8 encoded text
 Bool     # true or false
 List(a)  # Immutable list of elements of type a
 Map(k, v)  # Immutable map with keys of type k and values of type v
+Set(a)     # Immutable unique elements; see docs/SETS.md for supported key types
 Result(ok, err)  # Result type for error handling
 Option(a)  # Optional value (Some(a) or None)
 ```
@@ -2185,7 +2186,8 @@ send(pool, Broadcast(Notification("Server restarting")))
 
 ### Concurrency Primitives
 
-Standard library provides common patterns:
+The planned standard library will package these common patterns. The following
+APIs are architectural sketches, not the current executable module reference:
 
 ```
 # stdlib/concurrent/cache.fn
@@ -3171,7 +3173,7 @@ println(true)          # "true"
 ### FFI (Foreign Function Interface) ✅ Decided
 
 1. **Foreign declarations**: `foreign "C" fn name(params) -> return_type`
-2. **Type mapping**: Primitives map directly, pointers explicit (`*const`, `*mut`)
+2. **Type mapping**: Exact C-width scalar types and sealed `Ptr(a)` handles; see [FFI](docs/FFI.md)
 3. **Safety**: Stdlib wraps unsafe C code in safe Fern APIs
 4. **Users never see pointers**: Only stdlib authors use FFI
 5. **Linking**: Automatic linking with specified C libraries
@@ -3261,7 +3263,11 @@ const validated_regex = comptime:
     regex.compile("[a-z]+") or compile_error("invalid regex")
 ```
 
-**Timeline**: v0.5+ (after core language is stable)
+**Implemented now**: bounded, pure `const name = comptime:` evaluation with
+ordinary Fern arithmetic, collections, nominal values and closures. See
+[compile-time constants](docs/COMPTIME.md) for exact limits and execution tests.
+Type reflection/code-generation helpers and compile-time native resources in the
+illustrative examples above remain design proposals.
 
 ### Tooling ✅ Decided
 
@@ -3619,164 +3625,26 @@ None! All major design decisions have been made. Ready to start implementation.
 
 ## FFI (Foreign Function Interface)
 
-Fern provides a simple, safe way to call C libraries for system integration and performance-critical code.
-
-### Foreign Declarations
-
-Declare C functions using the `foreign` keyword:
+Native foreign declarations are implemented with explicit C scalar widths and
+sealed `Ptr(a)` handles. See [the FFI contract](docs/FFI.md) for supported syntax,
+checked conversions, ownership obligations, linker behavior and acceptance tests.
 
 ```fern
-# Basic foreign function
-foreign "C" fn strlen(s: *const u8) -> usize
+foreign "C" fn absolute(value: Int) -> Int as "llabs"
+foreign "C" fn cosine(value: Float) -> Float as "cos" from "m"
 
-# With custom C name
-foreign "C" fn rust_name(params) -> return_type as "c_function_name"
-
-# From specific library
-foreign "C" fn sqlite3_open(path: *const u8, db: *mut *Database) -> i32 from "libsql"
+fn main():
+    println(absolute(-42))
+    println(cosine(0.0))
 ```
 
-### Type Mappings
-
-**Primitive types (safe, automatic):**
-- `Int` → `int64_t`
-- `Float` → `double`
-- `Bool` → `bool`
-- `()` → `void`
-
-**Pointer types (unsafe, explicit):**
-- `*const T` → `const T*` (read-only pointer)
-- `*mut T` → `T*` (mutable pointer)
-- `*const u8` → `const char*` (C strings)
-
-**String conversion:**
-- Fern `String` → must use `.as_ptr()` to get `*const u8`
-- No automatic conversion (explicit is safer)
-
-### Example: libSQL Wrapper
-
-```fern
-# stdlib/db/sql.fn
-
-# Foreign declarations (unsafe, low-level)
-foreign "C" fn sqlite3_open(
-    filename: *const u8,
-    ppDb: *mut *Database
-) -> i32 from "libsql"
-
-foreign "C" fn sqlite3_exec(
-    db: *Database,
-    sql: *const u8,
-    callback: *const (),
-    arg: *const (),
-    errmsg: *mut *u8
-) -> i32 from "libsql"
-
-foreign "C" fn sqlite3_close(db: *Database) -> i32 from "libsql"
-
-# Opaque wrapper type
-pub type Database:
-    ptr: *mut ()
-
-# Safe Fern API (users call this)
-pub fn open(path: String) -> Result(Database, SqlError):
-    let mut db_ptr: *mut () = null
-    let result = sqlite3_open(path.as_ptr(), &mut db_ptr)
-    
-    return Err(SqlError.from_code(result)) if result != 0
-    Ok(Database(db_ptr))
-
-pub fn execute(db: Database, sql: String) -> Result((), SqlError):
-    let result = sqlite3_exec(db.ptr, sql.as_ptr(), null, null, null)
-    return Err(SqlError.from_code(result)) if result != 0
-    Ok(())
-
-pub fn close(db: Database) -> Result((), SqlError):
-    let result = sqlite3_close(db.ptr)
-    return Err(SqlError.from_code(result)) if result != 0
-    Ok(())
-```
-
-**User code (completely safe):**
-```fern
-import db.sql
-
-fn main() -> Result((), Error):
-    let db = sql.open("app.db")?  # Safe, no pointers
-    sql.execute(db, "CREATE TABLE users (...)")?
-    sql.close(db)?
-    Ok(())
-```
-
-### Safety Model
-
-**Three layers:**
-
-1. **Foreign layer** (unsafe, stdlib only)
-   - Direct C interop
-   - Pointers, manual memory management
-   - **Can receive NULL pointers from C**
-   - Only stdlib authors touch this
-
-2. **Wrapper layer** (safe Fern, stdlib)
-   - Wraps foreign functions
-   - **Handles NULL pointer checks**
-   - Converts C NULL to `Option(None)` or `Result(Err)`
-   - Returns safe Fern types
-
-3. **User layer** (safe Fern, users)
-   - Never sees pointers or NULL
-   - Type-safe, immutable
-   - Compiler-checked
-
-**NULL Pointer Handling at FFI Boundary:**
-
-```fern
-# stdlib/db/sql.fn
-
-foreign "C" fn sqlite3_open(
-    filename: *const u8,
-    ppDb: *mut *Database
-) -> i32 from "libsql"
-
-@doc """
-Opens a database connection.
-
-Returns Err if the file cannot be opened or if a NULL pointer is returned.
-"""
-pub fn open(path: String) -> Result(Database, SqlError):
-    let mut db_ptr: *mut () = null
-    let result = sqlite3_open(path.as_ptr(), &mut db_ptr)
-    
-    # Check for errors
-    return Err(SqlError.from_code(result)) if result != 0
-    
-    # Check for NULL pointer (defensive)
-    return Err(SqlError.null_pointer()) if db_ptr == null
-    
-    # Safe to wrap - guaranteed non-null
-    Ok(Database(db_ptr))
-```
-
-**Key principles:**
-- C can return NULL - stdlib must check for it
-- All NULL checks happen in wrapper layer
-- Users never see NULL - only `Option` or `Result`
-- Wrapper functions convert C NULL to Fern-safe types:
-  - `NULL` → `None` for optional values
-  - `NULL` → `Err(...)` for required values
-
-**Example: Optional return value**
-```fern
-# C function that can return NULL
-foreign "C" fn get_user(id: i32) -> *User from "libdb"
-
-# Safe wrapper
-pub fn find_user(id: Int) -> Option(User):
-    let ptr = get_user(id)
-    return None if ptr == null
-    Some(unsafe_deref(ptr))  # Internal stdlib function
-```
+The original raw-pointer sketch (`*mut`, `*const`, address-of, mutable output
+parameters and arbitrary dereference) is superseded by this sealed boundary.
+Those sketches are not supported syntax. Rust adapters translate complex C
+interfaces to explicit scalars and typed handles. Foreign declarations are
+trusted contracts, not a guarantee that arbitrary C code is memory safe.
+Borrowed String owners survive returned interior pointers and collection;
+foreign-owned allocation and destruction remain the wrapper author's contract.
 
 ### Performance Escape Hatch
 

@@ -162,6 +162,10 @@ fn concrete_entry(entry: Plan) -> Checked<wire::Entry> {
         Kind::String => wire::Kind::String,
         Kind::Unit => wire::Kind::Unit,
         Kind::Dynamic => wire::Kind::Dynamic,
+        Kind::Custom { encode, decode } => wire::Kind::Custom {
+            encode: wire::Callback::Source(encode),
+            decode: wire::Callback::Source(decode),
+        },
         Kind::Newtype(id) => wire::Kind::Newtype(id.0),
         Kind::List(id) => wire::Kind::List(id.0),
         Kind::Option(id) => wire::Kind::Option(id.0),

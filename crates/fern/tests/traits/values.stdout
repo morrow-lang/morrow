@@ -1,0 +1,8 @@
+10
+Point(x: 9223372036854775807, y: -9223372036854775808)
+true
+true
+-1
+Branch([Leaf(1), Branch([Leaf(2), Leaf(3)])])
+true
+-1

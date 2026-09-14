@@ -21,7 +21,7 @@
   },
   {
     "name": "invalid_4",
-    "source": "fn worker():\n    defer println(\"cleanup\")\n    receive:\n        1 -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
+    "source": "fn cleanup():\n    receive:\n        1 -> ()\nfn worker():\n    defer cleanup()\n    receive:\n        1 -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
     "diagnostic": "defer"
   },
   {
@@ -56,13 +56,13 @@
   },
   {
     "name": "invalid_11",
-    "source": "fn worker():\n    for index in 0..2:\n        receive:\n            1 -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
-    "diagnostic": "suspension position"
+    "source": "fn next() -> Bool:\n    receive:\n        1 -> true\nfn worker():\n    receive:\n        1 if next() -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
+    "diagnostic": "guard"
   },
   {
     "name": "invalid_12",
-    "source": "fn worker():\n    receive:\n        1 -> worker()\n    println(\"after recursive actor\")\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
-    "diagnostic": "tail position"
+    "source": "fn other():\n    receive:\n        \"wrong\" -> ()\nfn worker():\n    receive:\n        1 -> other()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
+    "diagnostic": "mailbox"
   },
   {
     "name": "invalid_13",

@@ -132,11 +132,29 @@ fn execute(command: &mut Command, stage: &str) -> Result<Output, String> {
 }
 
 /// Accept backend-produced object bytes without resolving QBE or invoking an assembler.
-pub fn compile_object(bytes: &[u8], workspace: &Workspace) -> Result<PathBuf, String> {
+/// Link validated logical foreign libraries as individual literal linker arguments.
+pub fn compile_object_with_libraries(
+    bytes: &[u8],
+    workspace: &Workspace,
+    libraries: &[String],
+) -> Result<PathBuf, String> {
+    if libraries.len() > 64 {
+        return Err("foreign library limit exceeded (64)".into());
+    }
+    for library in libraries {
+        fern_compiler::ffi::Declaration {
+            symbol: "validation".into(),
+            library: Some(library.clone()),
+            params: vec![],
+            result: fern_compiler::ffi::AbiType::Void,
+        }
+        .validate(fern_compiler::Span::default())
+        .map_err(|e| e.message)?;
+    }
     let runtime = runtime_archive()?;
     let object = workspace.file("program.o");
     fs::write(&object, bytes).map_err(|error| format!("cannot write object: {error}"))?;
-    link_object(&object, &runtime, workspace)
+    link_object(&object, &runtime, workspace, libraries)
 }
 
 /// Resolve and validate the common runtime before executing native tools.
@@ -152,13 +170,19 @@ fn runtime_archive() -> Result<PathBuf, String> {
 }
 
 /// Link one compiler-owned object into the same workspace for atomic caller publication.
-fn link_object(object: &Path, runtime: &Path, workspace: &Workspace) -> Result<PathBuf, String> {
+fn link_object(
+    object: &Path,
+    runtime: &Path,
+    workspace: &Workspace,
+    libraries: &[String],
+) -> Result<PathBuf, String> {
     let executable = workspace.file("program");
     let compiler = env::var_os("CC").unwrap_or_else(|| "cc".into());
     execute(
         Command::new(compiler)
             .arg(object)
             .arg(runtime)
+            .args(libraries.iter().map(|name| format!("-l{name}")))
             .args(system_libraries())
             .arg("-o")
             .arg(&executable),

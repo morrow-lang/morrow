@@ -5,6 +5,7 @@ use std::{collections::HashMap, io::BufRead, rc::Rc};
 #[derive(Clone, Debug, PartialEq)]
 enum Value {
     Int(i64),
+    Pid(actors::Pid),
     Float(f64),
     Bool(bool),
     String(Rc<String>),
@@ -30,6 +31,7 @@ struct ClosureValue {
     program: Rc<ir::Program>,
     function: ir::FunctionId,
     captures: Vec<Value>,
+    actor_entries: Rc<std::collections::BTreeMap<usize, usize>>,
 }
 impl PartialEq for ClosureValue {
     fn eq(&self, other: &Self) -> bool {
@@ -38,6 +40,7 @@ impl PartialEq for ClosureValue {
 }
 #[derive(Debug)]
 enum Failure {
+    JsonLimit,
     Message(String),
     Return(Value),
     Break,
@@ -51,10 +54,12 @@ fn fault(message: impl Into<String>) -> Failure {
 /// An isolated session retaining successful definitions and values, never replaying effects.
 #[derive(Default)]
 pub struct Session {
+    simulation: bool,
     definitions: String,
     bindings: Vec<String>,
     values: HashMap<usize, Value>,
     statements: usize,
+    actors: actors::Scheduler,
 }
 impl Session {
     /// Inspect an expression using the checker without evaluating it or retained effects.
@@ -101,7 +106,7 @@ impl Session {
         let program = format!("{definitions}\nfn main():\n{indented}");
         let syntax = parse::parse(&program).map_err(|e| e.message)?;
         let typed = Rc::new(check::check(&syntax).map_err(|e| e.message)?);
-        crate::actors::reject_interactive(&syntax)?;
+        let (typed, actor_entries) = actors::prepare(typed)?;
         let main = typed
             .functions
             .iter()
@@ -115,11 +120,17 @@ impl Session {
             return Ok(String::new());
         }
         let mut machine = Machine::new(typed.clone(), self.values.clone());
+        machine.actors = std::mem::take(&mut self.actors);
+        machine.simulation = self.simulation;
+        machine.actor_entries = actor_entries;
         let result = machine.statements(&statements[self.statements..]);
         let result = machine.finish(result);
+        let result = result.and_then(|value| machine.run_actors().map(|()| value));
+        self.actors = std::mem::take(&mut machine.actors);
         let value = match result {
             Ok(value) => value,
             Err(Failure::Message(message)) => return Err(message),
+            Err(Failure::JsonLimit) => return Err("JSON resource limit exceeded".into()),
             Err(Failure::Return(_)) => return Err("return outside an interactive function".into()),
             Err(Failure::Break | Failure::Continue) => {
                 return Err("loop control outside a loop".into());
@@ -146,6 +157,11 @@ impl Session {
     }
 }
 struct Machine {
+    comptime: bool,
+    simulation: bool,
+    actors: actors::Scheduler,
+    actor_entries: Rc<std::collections::BTreeMap<usize, usize>>,
+    current_actor: Option<u64>,
     program: Rc<ir::Program>,
     locals: HashMap<usize, Value>,
     output: String,
@@ -161,6 +177,11 @@ impl Machine {
     /// Initialize one evaluation entry with fresh work and cleanup budgets.
     fn new(program: Rc<ir::Program>, locals: HashMap<usize, Value>) -> Self {
         Self {
+            comptime: false,
+            simulation: false,
+            actors: actors::Scheduler::default(),
+            actor_entries: Rc::default(),
+            current_actor: None,
             program,
             locals,
             output: String::new(),
@@ -185,9 +206,11 @@ impl Machine {
     fn node(&mut self, expr: &ir::Expr) -> Eval<Value> {
         use ir::ExprKind::*;
         match &expr.kind {
-            Actor(_) => Err(Failure::Message(
-                "managed actors are not supported in the REPL yet".into(),
+            ForeignCall { .. } => Err(Failure::Message(
+                "foreign calls require native execution and cannot run in the REPL or comptime"
+                    .into(),
             )),
+            Actor(actor) => self.actor(actor),
             JsonCodec { .. } | JsonCodecTemplate { .. } | EditorHole { .. } | Probe { .. } => {
                 self.codec_node(expr)
             }
@@ -301,6 +324,7 @@ impl Machine {
             program: self.program.clone(),
             function,
             captures,
+            actor_entries: self.actor_entries.clone(),
         })))
     }
     /// Read a checked structural or nominal field from immutable storage.
@@ -412,12 +436,15 @@ impl Machine {
         let Value::Closure(closure) = value else {
             return Err(fault("value is not callable"));
         };
-        self.function(
+        let previous = std::mem::replace(&mut self.actor_entries, closure.actor_entries.clone());
+        let result = self.function(
             closure.program.clone(),
             closure.function,
             &closure.captures,
             args,
-        )
+        );
+        self.actor_entries = previous;
+        result
     }
     /// Restore caller code and locals on success, error, or Result propagation.
     fn function(
@@ -563,6 +590,7 @@ fn display(value: &Value) -> String {
     match value {
         Value::Union(value) => display(&value.value),
         Value::Int(n) => n.to_string(),
+        Value::Pid(pid) => format!("Pid({})", pid.id),
         Value::Float(n) => float_text(*n),
         Value::Bool(v) => v.to_string(),
         Value::String(s) => format!("{s:?}"),
@@ -689,6 +717,9 @@ fn graph_budget<'a>(values: impl Iterator<Item = &'a Value>) -> Result<(), Strin
                         bytes.saturating_add(closure.captures.len() * std::mem::size_of::<Value>());
                     pending.extend(closure.captures.iter());
                 }
+                if seen.insert(Rc::as_ptr(&closure.actor_entries) as usize) {
+                    bytes = bytes.saturating_add(closure.actor_entries.len() * 64);
+                }
                 if programs.insert(Rc::as_ptr(&closure.program) as usize) {
                     let (code_bytes, code_nodes) = storage::program_size(&closure.program)?;
                     bytes = bytes.saturating_add(code_bytes);
@@ -715,6 +746,23 @@ fn display_typed(
         return "…".into();
     }
     *budget -= 1;
+    if matches!(ty, Type::Named(name, _) if name == "Ptr") {
+        return "Ptr(<opaque>)".into();
+    }
+    if let (Value::Map(entries), Type::Named(name, args)) = (value, ty)
+        && name == "Set"
+        && args.len() == 1
+    {
+        let mut shown = entries
+            .iter()
+            .take(64)
+            .map(|(key, _)| display_typed(key, &args[0], syntax, layouts, budget))
+            .collect::<Vec<_>>();
+        if entries.len() > 64 {
+            shown.push("…".into());
+        }
+        return format!("Set([{}])", shown.join(", "));
+    }
     if let Some(layout) = layouts
         .iter()
         .find(|layout| layout.ty == *ty && layout.storage == ir::LayoutStorage::Unboxed)
@@ -828,6 +876,15 @@ fn constructor_types(
                 .and_then(|layout| layout.variants.get(tag));
             match (variant, fields) {
                 (Some(variant), Some(fields)) => (variant.name.clone(), fields.clone()),
+                (None, Some(fields)) => (
+                    layouts
+                        .iter()
+                        .find(|layout| &layout.ty == ty)
+                        .and_then(|layout| layout.variant_names.get(tag))
+                        .cloned()
+                        .unwrap_or_else(|| name.clone()),
+                    fields.clone(),
+                ),
                 _ => (name.clone(), vec![]),
             }
         }
@@ -921,59 +978,74 @@ fn serve_lines<W: std::io::Write>(
         )
         .map_err(|e| e.to_string())?;
     }
-    loop {
-        output.flush().map_err(|error| error.to_string())?;
-        let (line, read) = match read_line(pending.is_empty() && !pasting, &mut output)? {
-            Input::Line(line) => (line, 1),
-            Input::End => (String::new(), 0),
-            Input::Interrupted => {
-                pending.clear();
+    let serving = (|| -> Result<(), String> {
+        loop {
+            output.flush().map_err(|error| error.to_string())?;
+            let (line, read) = match read_line(pending.is_empty() && !pasting, &mut output)? {
+                Input::Line(line) => (line, 1),
+                Input::End => (String::new(), 0),
+                Input::Interrupted => {
+                    pending.clear();
+                    pasting = false;
+                    continue;
+                }
+            };
+            if line.len() + pending.len() > 1024 * 1024 {
+                return Err("interactive input limit exceeded".into());
+            }
+            let entry = line.trim_end_matches(['\r', '\n']);
+            if pasting {
+                if read == 0 {
+                    writeln!(output, "error: unfinished paste; use :end to submit")
+                        .map_err(|e| e.to_string())?;
+                    break;
+                }
+                if entry != ":end" {
+                    pending.push_str(entry);
+                    pending.push('\n');
+                    continue;
+                }
                 pasting = false;
+            } else if pending.is_empty() && read != 0 && entry.starts_with(':') {
+                if !repl_command(entry, &mut session, &mut pasting, &mut output)? {
+                    break;
+                }
                 continue;
+            } else if !pending.is_empty() || parse::line_continues(entry) {
+                if !entry.trim().is_empty() {
+                    pending.push_str(entry);
+                    pending.push('\n');
+                    continue;
+                }
+            } else {
+                pending.push_str(entry);
             }
-        };
-        if line.len() + pending.len() > 1024 * 1024 {
-            return Err("interactive input limit exceeded".into());
-        }
-        let entry = line.trim_end_matches(['\r', '\n']);
-        if pasting {
+            if !pending.trim().is_empty() {
+                match session.evaluate(&pending) {
+                    Ok(text) => write!(output, "{text}").map_err(|e| e.to_string())?,
+                    Err(message) => {
+                        writeln!(output, "error: {message}").map_err(|e| e.to_string())?
+                    }
+                }
+            }
+            pending.clear();
             if read == 0 {
-                writeln!(output, "error: unfinished paste; use :end to submit")
-                    .map_err(|e| e.to_string())?;
                 break;
             }
-            if entry != ":end" {
-                pending.push_str(entry);
-                pending.push('\n');
-                continue;
-            }
-            pasting = false;
-        } else if pending.is_empty() && read != 0 && entry.starts_with(':') {
-            if !repl_command(entry, &mut session, &mut pasting, &mut output)? {
-                break;
-            }
-            continue;
-        } else if !pending.is_empty() || parse::line_continues(entry) {
-            if !entry.trim().is_empty() {
-                pending.push_str(entry);
-                pending.push('\n');
-                continue;
-            }
-        } else {
-            pending.push_str(entry);
         }
-        if !pending.trim().is_empty() {
-            match session.evaluate(&pending) {
-                Ok(text) => write!(output, "{text}").map_err(|e| e.to_string())?,
-                Err(message) => writeln!(output, "error: {message}").map_err(|e| e.to_string())?,
-            }
-        }
-        pending.clear();
-        if read == 0 {
-            break;
-        }
+        Ok(())
+    })();
+    let cleanup = stop_repl_actors(&mut session, &mut output);
+    serving.and(cleanup)
+}
+
+/// Terminal exit and reset are explicit actor cancellation boundaries.
+fn stop_repl_actors(session: &mut Session, output: &mut impl std::io::Write) -> Result<(), String> {
+    match session.stop_actors() {
+        Ok(text) => write!(output, "{text}"),
+        Err(message) => writeln!(output, "error: {message}"),
     }
-    Ok(())
+    .map_err(|e| e.to_string())
 }
 
 /// Handle commands only between entries so source text retains its ordinary meaning.
@@ -997,10 +1069,15 @@ fn repl_command(
     }
     match entry {
         ":quit" | ":q" => return Ok(false),
-        ":reset" => *session = Session::default(),
+        ":stop" => stop_repl_actors(session, output)?,
+        ":actors" => writeln!(output, "{:?}", session.actor_report()).map_err(|e| e.to_string())?,
+        ":reset" => {
+            stop_repl_actors(session, output)?;
+            *session = Session::default();
+        },
         ":paste" => *pasting = true,
         ":clear" => write!(output, "\x1b[H\x1b[2J").map_err(|error| error.to_string())?,
-        ":help" | ":h" => writeln!(output, "Enter expressions, let bindings, or typed functions. Commands: :help (:h), :type (:t) <expression>, :clear, :reset, :quit (:q). Use :paste then :end to submit multiple function clauses together. Native-only APIs report a diagnostic here.").map_err(|e| e.to_string())?,
+        ":help" | ":h" => writeln!(output, "Enter expressions, let bindings, or typed functions. Commands: :help (:h), :type (:t) <expression>, :clear, :reset, :actors, :stop, :quit (:q). Use :paste then :end to submit multiple function clauses together. Native-only APIs report a diagnostic here.").map_err(|e| e.to_string())?,
         _ => writeln!(output, "error: unknown interactive command").map_err(|e| e.to_string())?,
     }
     Ok(true)
@@ -1016,9 +1093,21 @@ fn repl_prompt(output: &mut impl std::io::Write, ready: bool) -> Result<(), Stri
 
 /// Classify retained declarations using the same explicit source keywords as the parser.
 fn declaration_source(source: &str) -> bool {
+    let source = source
+        .lines()
+        .map(str::trim_start)
+        .find(|line| !line.is_empty() && !line.starts_with('#'))
+        .unwrap_or("");
     [
+        "trait ",
+        "pub trait ",
+        "impl ",
+        "const ",
+        "pub const ",
         "fn ",
         "type ",
+        "foreign ",
+        "pub foreign ",
         "newtype ",
         "pub fn ",
         "pub type ",
@@ -1038,3 +1127,9 @@ impl Machine {
         result
     }
 }
+
+pub(crate) mod comptime;
+
+mod actors;
+
+pub use actors::{ActorReplay, ActorReport, simulate_actors};

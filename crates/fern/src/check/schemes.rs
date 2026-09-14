@@ -3,6 +3,7 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(super) enum Capability {
+    Trait(usize),
     Json,
     JsonNonNull,
     JsonStringKey,
@@ -38,6 +39,7 @@ impl Capability {
     /// Mirror concrete language domains; representation width never determines membership.
     fn accepts(self, ty: &Type) -> bool {
         match self {
+            Self::Trait(_) => false,
             Self::Json | Self::JsonNonNull | Self::JsonStringKey => false,
             Self::Add => matches!(ty, Type::Int | Type::Float | Type::String),
             Self::Numeric | Self::Order => matches!(ty, Type::Int | Type::Float),
@@ -52,6 +54,7 @@ impl Capability {
     /// Keep intrinsic diagnostics meaningful at both definitions and instantiated call sites.
     fn message(self) -> &'static str {
         match self {
+            Self::Trait(_) => "type requires a trait implementation",
             Self::Json => "type requires a Json codec",
             Self::JsonNonNull => "Json Option payload must not accept null",
             Self::JsonStringKey => "JSON object keys must have type String",
@@ -220,7 +223,7 @@ impl Checker<'_> {
         };
         let name = &self.inference.call_names[&id.0];
         let signature = &self.signatures[name];
-        if signature.generics.is_empty() {
+        if signature.generics.is_empty() && signature.requirements.is_empty() {
             return Ok(());
         }
         let mut values = HashMap::new();
@@ -318,6 +321,9 @@ pub(super) fn validate(
     let mut schemes = Vec::new();
     let mut bodies = Vec::new();
     for function in &program.functions {
+        if function.syntax == ast::FunctionSyntax::Trait {
+            continue;
+        }
         if signatures[&function.name].generics.is_empty() {
             continue;
         }
@@ -344,6 +350,9 @@ pub(super) fn proof_bodies(
     mut work: usize,
 ) -> Checked<Vec<ir::Function>> {
     for function in &program.functions {
+        if function.syntax == ast::FunctionSyntax::Trait {
+            continue;
+        }
         if !signatures[&function.name].generics.is_empty() {
             continue;
         }
@@ -363,6 +372,7 @@ fn check_scheme(
 ) -> Checked<(Scheme, ir::Function, Vec<Requirement>, usize)> {
     let signature = &signatures[&function.name];
     let inference = Inference {
+        requirements: std::cell::RefCell::new(signature.requirements.clone()),
         newtypes: registry.newtype_definitions(),
         newtype_work: registry.newtype_budget(),
         template: true,
@@ -477,7 +487,11 @@ fn instantiate_call(
     for requirement in &signature.requirements {
         codecs::retention(registry, requirement, &[])?;
         let ty = nominal::substitute(&requirement.ty, &values)?;
-        if codecs::is_json(requirement.capability) {
+        if let Capability::Trait(id) = requirement.capability {
+            registry
+                .traits
+                .require(id, &ty, inference, call.span, registry)?;
+        } else if codecs::is_json(requirement.capability) {
             codecs::require(inference, registry, requirement.capability, &ty, call.span)?;
         } else {
             inference.require(requirement.capability, &ty, call.span)?;
@@ -543,6 +557,7 @@ mod tests {
             ..Inference::default()
         };
         let signature = Signature {
+            constant: false,
             mailbox: None,
             labels: Vec::new(),
             required_labels: Vec::new(),

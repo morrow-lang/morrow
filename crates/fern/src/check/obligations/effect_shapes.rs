@@ -61,6 +61,15 @@ impl Engine<'_> {
         if !matches!(ty, Type::Function(..)) {
             return self.unsupported(span);
         }
+        if self.abstract_trait(*function) && shapes.is_empty() {
+            return self.node(
+                Region::Callable {
+                    function: *function,
+                    captures: Vec::new(),
+                },
+                span,
+            );
+        }
         let target = self.effect_function(*function, span)?;
         if target.captures.len() != shapes.len() {
             return self.unsupported(span);

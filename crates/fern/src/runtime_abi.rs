@@ -55,6 +55,9 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_term_restore_cursor"
         | "fern_term_save_cursor"
         | "fern_term_show_cursor" => (&[], None, None),
+        "fern_ffi_float32" => (&[F64], Some(I64), None),
+        "fern_ffi_borrow_string" => (&[I64], Some(I64), None),
+        "fern_ffi_read_string" => (&[I64, I64], Some(I64), None),
         "fern_gc_frame_enter" => (&[I64, I64], Some(I64), None),
         "fern_gc_frame_leave" => (&[I64], None, None),
         "fern_float_to_str" | "fern_json_value_from_float" => (&[F64], Some(I64), None),
@@ -116,6 +119,8 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_log_info"
         | "fern_log_warn"
         | "fern_managed_fault"
+        | "fern_managed_scope_enter"
+        | "fern_managed_scope_leave"
         | "fern_tui_fault_enter"
         | "fern_option_is_some"
         | "fern_option_some"
@@ -219,6 +224,10 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_term_right"
         | "fern_term_up" => (&[I64], None, None),
         "pow" => (&[F64, F64], Some(F64), None),
+        "fern_json_codec_scope_check" => (&[I64], None, None),
+        "fern_json_codec_encode_context" | "fern_json_codec_decode_context" => {
+            (&[I64, I64, I64], Some(I64), None)
+        }
         "fern_set_args" => (&[I32, I64], None, None),
         "fern_prompt_select" => (&[I64, I64], Some(I32), None),
         "fern_actor_demonitor"
@@ -244,6 +253,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_list_map"
         | "fern_list_push"
         | "fern_managed_continue"
+        | "fern_managed_scope_defer"
         | "fern_managed_supervised_current"
         | "fern_managed_poll"
         | "fern_managed_port"
@@ -277,6 +287,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "fern_str_contains"
         | "fern_str_ends_with"
         | "fern_str_eq"
+        | "fern_str_compare"
         | "fern_str_index_of"
         | "fern_str_join"
         | "fern_str_repeat"

@@ -102,6 +102,11 @@ impl CodecTemplateToken {
 
 #[derive(Clone, Debug)]
 pub enum ExprKind {
+    /// Checked native-only C call; pointer values are sealed Fern handles until native lowering.
+    ForeignCall {
+        declaration: crate::ffi::Declaration,
+        args: Vec<Expr>,
+    },
     Actor(ActorExpr),
     JsonCodecTemplate {
         direction: crate::json_codec::Direction,
@@ -375,7 +380,8 @@ pub(crate) fn children(expr: &Expr) -> Vec<&Expr> {
         | ExprKind::Try(value)
         | ExprKind::Field { value, .. } => vec![value],
         ExprKind::Binary { left, right, .. } => vec![left, right],
-        ExprKind::Call { args, .. }
+        ExprKind::ForeignCall { args, .. }
+        | ExprKind::Call { args, .. }
         | ExprKind::Interpolate(args)
         | ExprKind::Tuple(args)
         | ExprKind::List(args)

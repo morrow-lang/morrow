@@ -1,0 +1,35 @@
+fn pair(n: Int) -> Result((Int, String), String):
+    receive:
+        1 -> ()
+    if n < 0: Err("bad {n}") else: Ok((n, "🌿"))
+fn question(n: Int) -> Result(String, String):
+    defer println("try cleanup {n}")
+    let (value, text) = pair(n)?
+    Ok("{text} {value}")
+fn sequence(n: Int) -> Result(String, String):
+    defer println("with cleanup {n}")
+    with
+        (value, text) <- pair(n),
+        (next, _) <- pair(value + 1)
+    do
+        Ok("{text} {next}")
+fn handled(n: Int):
+    defer println("handled cleanup {n}")
+    with
+        (value, text) <- pair(n),
+        (next, _) <- pair(if value == 0: -9 else: value + 1)
+    do
+        println("handled {n}: {text} {next}")
+    else
+        Err(error) -> println("handled {n}: {error}")
+fn worker(mode: Int, n: Int):
+    if mode == 0:
+        match question(n):
+            Ok(text) -> println("try {n}: {text}")
+            Err(error) -> println("try {n}: {error}")
+    else:
+        if mode == 1:
+            match sequence(n):
+                Ok(text) -> println("with {n}: {text}")
+                Err(error) -> println("with {n}: {error}")
+        else: handled(n)

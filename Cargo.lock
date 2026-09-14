@@ -529,6 +529,7 @@ dependencies = [
 name = "fern-sim"
 version = "0.1.0"
 dependencies = [
+ "fern",
  "fern-runtime",
  "fern-web-app",
  "fern-web-protocol",

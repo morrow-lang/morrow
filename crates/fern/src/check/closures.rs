@@ -140,6 +140,12 @@ impl Checker<'_> {
         depth: usize,
     ) -> Checked<TypedKind> {
         if let ast::ExprKind::Field { value, name } = &callee.kind
+            && name == "as_ptr"
+        {
+            let value = self.expression(value, depth)?;
+            return self.foreign_string_borrow(value, args, span);
+        }
+        if let ast::ExprKind::Field { value, name } = &callee.kind
             && name == "enumerate"
         {
             let value = self.expression(value, depth)?;
@@ -222,6 +228,14 @@ impl Checker<'_> {
         span: Span,
         depth: usize,
     ) -> Checked<TypedKind> {
+        if let Some(receiver) = name.strip_suffix(".as_ptr")
+            && self
+                .local(receiver.split('.').next().unwrap_or(receiver))
+                .is_some()
+        {
+            let (kind, ty) = self.name(receiver, span)?;
+            return self.foreign_string_borrow(ir::Expr { kind, ty, span }, args, span);
+        }
         if let Some(receiver) = name.strip_suffix(".enumerate")
             && self
                 .local(receiver.split('.').next().unwrap_or(receiver))
@@ -251,6 +265,16 @@ impl Checker<'_> {
         span: Span,
         depth: usize,
     ) -> Checked<TypedKind> {
+        if self.constant_path(name) {
+            let (kind, ty) = self.global_name(name, span)?;
+            return self.invoke(ir::Expr { kind, ty, span }, args, expected, span, depth);
+        }
+        if crate::ffi::is_api(name) {
+            return self.foreign_api(name, args, expected, span, depth);
+        }
+        if sets::is_api(name) {
+            return self.set_call(name, args, expected, span, depth);
+        }
         if matches!(name, "spawn" | "send" | "supervise" | "supervised_current") {
             return self.actor_call(name, args, expected, span, depth);
         }

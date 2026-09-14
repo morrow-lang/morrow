@@ -92,3 +92,60 @@ fn symbolic_unknown_does_not_hide_a_concrete_overlapping_pair() {
             .contains("not provably disjoint")
     );
 }
+
+#[test]
+fn nested_record_proof_matches_exhaustive_independent_finite_wire_intersections() {
+    // Each field is absent, required Number/String/Bool, or optional of those.
+    // Enumerate all 49 schemas on each side and all 25 tiny JSON objects.
+    for a in 0..49usize {
+        for b in 0..49usize {
+            let left = [a % 7, a / 7];
+            let right = [b % 7, b / 7];
+            let accepts = |schema: [usize; 2], values: [usize; 2]| {
+                schema
+                    .into_iter()
+                    .zip(values)
+                    .all(|(field, value)| match field {
+                        0 => value == 0, // absent field
+                        1..=3 => value == field + 1,
+                        _ => value <= 1 || value == field - 2, // absent/null or payload
+                    })
+            };
+            let overlap = (0..25usize).any(|input| {
+                let value = [input % 5, input / 5];
+                accepts(left, value) && accepts(right, value)
+            });
+            let mut nodes = vec![
+                Node::leaf(Shape::Number),
+                Node::leaf(Shape::String),
+                Node::leaf(Shape::Bool),
+            ];
+            for id in 0..3 {
+                nodes.push(Node::follow(vec![id], true, false));
+            }
+            for schema in [left, right] {
+                let mut keys = Vec::new();
+                let mut children = Vec::new();
+                for (name, field) in ["a", "b"].into_iter().zip(schema) {
+                    if field == 0 {
+                        continue;
+                    }
+                    keys.push(Key {
+                        name,
+                        required: field <= 3,
+                    });
+                    children.push(field - 1);
+                }
+                let mut node = Node::leaf(Shape::Object(keys));
+                node.children = children;
+                nodes.push(node);
+            }
+            nodes.push(Node::follow(vec![6, 7], false, true));
+            assert_eq!(
+                validate(&nodes, &mut 0, Span::default()).is_ok(),
+                !overlap,
+                "schemas {left:?} and {right:?}"
+            );
+        }
+    }
+}

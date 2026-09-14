@@ -1,0 +1,22 @@
+newtype UserId = UserId(Int)
+impl Json(UserId):
+    fn to_json(value: UserId) -> Result(json.Value, json.Error):
+        json.from_string("user-{value.0}")
+    fn from_json(value: json.Value) -> Result(UserId, json.Error):
+        let text = json.as_string(value)?
+        let number = json.parse(String.replace(text, "user-", ""))?
+        Ok(UserId(json.as_int(number)?))
+type Envelope derive(Json):
+    ids: List(UserId)
+
+fn main() -> Result((),json.Error):
+    println(json.encode(Envelope([UserId(9223372036854775807),UserId(-9223372036854775808)]))?)
+    let decoded=json.decode("\{\"ids\":[\"user-9007199254740993\"]\}",Envelope)?
+    for id in decoded.ids:
+        println(id.0)
+    match json.decode("\{\"ids\":[\"user-1\",2]\}",Envelope):
+        Ok(_) -> println(0)
+        Err(error) ->
+            println(json.error_code(error))
+            println(json.error_path(error))
+    Ok(())

@@ -1,0 +1,32 @@
+trait Measure(a):
+    fn measure(value: a) -> Int
+
+type Point derive(Show, Eq, Ord, Clone):
+    x: Int
+    y: Int
+
+impl Measure(Point):
+    fn measure(value: Point) -> Int:
+        value.x + value.y
+
+type Tree(a) derive(Show, Eq, Clone):
+    Leaf(a)
+    Branch(List(Tree(a)))
+
+fn measured(value: a) -> Int where Measure(a):
+    measure(value)
+
+fn main():
+    println(measured(Point(3, 7)))
+    println(show(clone(Point(9223372036854775807, -9223372036854775808))))
+    println(eq(left: Point(3, 7), right: Point(3, 7)))
+    println(neq(left: Point(3, 7), right: Point(7, 3)))
+    println(match compare(left: Point(-9223372036854775808, 99), right: Point(9223372036854775807, 0)):
+        Less -> -1
+        Equal -> 0
+        Greater -> 1
+    )
+    let tree = Branch([Leaf(1), Branch([Leaf(2), Leaf(3)])])
+    println(show(clone(tree)))
+    println(eq(left: tree, right: clone(tree)))
+    println(String.compare("é", "🌿"))

@@ -114,6 +114,11 @@ impl Engine<'_> {
             }
             E::Map(entries) => self.map(entries, expr.span, depth + 1),
             E::Block(statements) => self.block(statements, expr.span, depth + 1),
+            E::ForeignCall { declaration, args } => {
+                declaration.validate(expr.span)?;
+                self.arguments(args, depth + 1, expr.span)?;
+                self.fresh(&expr.ty, None, expr.span, depth + 1)
+            }
             E::Call { target, args } => self.call(*target, args, expr, depth + 1),
             E::Closure { function, captures } => {
                 self.closure(function.0, captures, expr.span, depth + 1)
@@ -194,6 +199,9 @@ impl Engine<'_> {
             ir::CallTarget::Builtin(builtin) => self.builtin(builtin, &values, &expr.ty, expr.span),
             ir::CallTarget::Runtime(_) => self.fresh(&expr.ty, None, expr.span, 0),
             ir::CallTarget::Function(id) => {
+                if self.abstract_trait(id.0) {
+                    return self.trait_call(&values, &expr.ty, expr.span);
+                }
                 if self.relevance.is_some_and(|set| !set.contains(&id.0)) {
                     if expr.ty == Type::Never {
                         self.path = Predicate::FALSE;
@@ -426,11 +434,8 @@ impl Engine<'_> {
                     depth,
                 )
             }
-            ir::ActorExpr::Call { args, .. } => {
-                for arg in args {
-                    self.expression(arg, depth + 1)?;
-                }
-                self.node(Region::Empty, expr.span)
+            ir::ActorExpr::Call { function, args, .. } => {
+                self.call(ir::CallTarget::Function(*function), args, expr, depth + 1)
             }
             ir::ActorExpr::Lowered(_) => self.unsupported(expr.span),
         }

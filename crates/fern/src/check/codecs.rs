@@ -136,6 +136,9 @@ impl<'a> Planner<'a> {
     }
     /// Wire nullability is a structural property, never inferred from a current runtime value.
     fn nullable(&mut self, id: plan::Id, span: Span) -> Checked<bool> {
+        if matches!(self.entries[id.0].kind, Kind::Custom { .. }) {
+            return Ok(true);
+        }
         // The shared representation walker charges every layer before cloning/substitution.
         let ty = self.registry.representation(&self.entries[id.0].ty, span)?;
         self.type_work(&ty, span)?;
@@ -202,6 +205,9 @@ impl<'a> Planner<'a> {
     }
     /// Resolve checked record storage while rejecting declaration cycles before child expansion.
     fn record(&mut self, ty: &Type, name: &str, span: Span, depth: usize) -> Checked<Kind> {
+        if let Some((encode, decode)) = self.registry.traits.custom_json(ty, span)? {
+            return Ok(Kind::Custom { encode, decode });
+        }
         let declaration = self
             .declarations
             .get(name)
@@ -312,7 +318,10 @@ pub(super) fn validate(program: &ast::Program, registry: &nominal::Registry) -> 
         }
         let mut seen = HashSet::new();
         for derive in &declaration.derives {
-            if derive.name != "Json" {
+            if !matches!(
+                derive.name.as_str(),
+                "Json" | "Show" | "Eq" | "Ord" | "Clone"
+            ) {
                 return Err(Diagnostic::new(
                     derive.span,
                     format!("unsupported derive trait '{}'", derive.name),
@@ -331,7 +340,9 @@ pub(super) fn validate(program: &ast::Program, registry: &nominal::Registry) -> 
                 .map(Type::Generic)
                 .collect(),
         );
-        planner.plan(&ty, declaration.span, 0)?;
+        if declaration.derives.iter().any(|d| d.name == "Json") {
+            planner.plan(&ty, declaration.span, 0)?;
+        }
     }
     planner.finite(Span::default())?;
     registry.codec_work.set(planner.work);

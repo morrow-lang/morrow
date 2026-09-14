@@ -3,10 +3,13 @@ use super::{Checked, Inference, MAX_TYPE_DEPTH, MAX_TYPE_NODES, returns, validat
 use crate::{Diagnostic, Span, Type, ast, ir};
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+mod foreign;
 mod newtypes;
+mod sets;
 pub(super) use newtypes::charge_newtype_type;
 
 pub(super) struct Registry {
+    pub(super) traits: super::traits::Registry,
     pub(super) codec_predicate_work: std::cell::Cell<usize>,
     pub(super) codec_template_work: std::cell::Cell<usize>,
     pub(super) codec_work: std::cell::Cell<usize>,
@@ -24,6 +27,7 @@ impl Registry {
     /// Validate all forward declarations before checking individual fields.
     pub(super) fn new(program: &ast::Program) -> Checked<Self> {
         let mut result = Self {
+            traits: super::traits::Registry::new(program)?,
             codec_predicate_work: std::cell::Cell::new(0),
             codec_template_work: std::cell::Cell::new(0),
             codec_work: std::cell::Cell::new(0),
@@ -75,6 +79,8 @@ impl Registry {
                 ));
             }
         }
+        result.register_set();
+        result.register_foreign();
         for decl in &declarations {
             result.declaration(decl)?;
         }
@@ -165,6 +171,13 @@ impl Registry {
                                 decl.parameters.len()
                             ),
                         ));
+                    }
+                    if name == "Set" {
+                        super::maps::validate_key(
+                            &self.representation(&args[0], span)?,
+                            span,
+                            true,
+                        )?;
                     }
                     pending.extend(args);
                 }
@@ -314,6 +327,12 @@ impl Registry {
 
     /// Require an identified nominal record before any field-level update constraints.
     pub(super) fn record_shape(&self, ty: &Type, span: Span) -> Checked<()> {
+        if matches!(ty, Type::Named(name, _) if name == "Ptr") {
+            return Err(Diagnostic::new(
+                span,
+                "Ptr storage is private; use the Ptr APIs",
+            ));
+        }
         let Type::Named(name, args) = ty else {
             return Err(Diagnostic::new(span, "field access requires a record type"));
         };
@@ -335,6 +354,12 @@ impl Registry {
         inference: &Inference,
         span: Span,
     ) -> Checked<(usize, Type)> {
+        if matches!(ty, Type::Named(owner, _) if matches!(owner.as_str(), "Set" | "Ptr")) {
+            return Err(Diagnostic::new(
+                span,
+                "collection or pointer storage is private; use its public APIs",
+            ));
+        }
         if self.is_newtype(ty) {
             if name != "0" {
                 return Err(Diagnostic::new(span, "newtype field must be .0"));

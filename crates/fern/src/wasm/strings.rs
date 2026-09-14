@@ -51,6 +51,7 @@ impl Runtime {
             type_ids: BTreeMap::from([(Type::String, 1)]),
         };
         let mut needed = false;
+        runtime.literal("", Span::default())?;
         for function in &program.functions {
             for ty in std::iter::once(&function.return_type)
                 .chain(function.params.iter().map(|param| &param.ty))
@@ -205,6 +206,14 @@ impl Runtime {
             },
             &ConstExpr::i32_const(HEAP_START),
         );
+        section.global(
+            GlobalType {
+                val_type: V::I32,
+                mutable: true,
+                shared: false,
+            },
+            &ConstExpr::i32_const(0),
+        );
         section
     }
 
@@ -320,7 +329,7 @@ fn integer_text(first: u32) -> Function {
         I::LocalGet(3),
         I::End,
     ] {
-        function.instruction(&instruction);
+        runtime_instruction(&mut function, instruction);
     }
     function
 }
@@ -340,10 +349,32 @@ fn byte() -> MemArg {
     }
 }
 
+fn runtime_instruction(function: &mut Function, instruction: I<'static>) {
+    if matches!(instruction, I::Unreachable) {
+        for i in [I::I32Const(1), I::GlobalSet(2), I::I32Const(0), I::Return] {
+            function.instruction(&i);
+        }
+    } else {
+        let call = matches!(instruction, I::Call(_));
+        function.instruction(&instruction);
+        if call {
+            for i in [
+                I::GlobalGet(2),
+                I::If(B::Empty),
+                I::I32Const(0),
+                I::Return,
+                I::End,
+            ] {
+                function.instruction(&i);
+            }
+        }
+    }
+}
+
 fn body(locals: u32, instructions: impl IntoIterator<Item = I<'static>>) -> Function {
     let mut function = Function::new([(locals, V::I32)]);
     for instruction in instructions {
-        function.instruction(&instruction);
+        runtime_instruction(&mut function, instruction);
     }
     function.instruction(&I::End);
     function

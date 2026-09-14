@@ -1,6 +1,7 @@
-//! Charged shallow wire profiles: no value conversion, candidate allocation or priority.
+//! Charged structural wire profiles: no value conversion, candidate allocation or priority.
 use crate::{Diagnostic, Span};
 mod compare;
+mod nested;
 use std::collections::VecDeque;
 #[derive(Clone, Copy)]
 pub(crate) struct Key<'a> {
@@ -25,6 +26,10 @@ pub(crate) struct Node<'a> {
     pub links: Vec<usize>,
     pub option: bool,
     pub union: bool,
+    /// Tuple elements or record fields, aligned with the corresponding shape.
+    pub children: Vec<usize>,
+    /// Sum payload tuples, aligned with the source wire tags.
+    pub variants: Vec<Vec<usize>>,
 }
 impl<'a> Node<'a> {
     pub(crate) fn leaf(shape: Shape<'a>) -> Self {
@@ -33,6 +38,8 @@ impl<'a> Node<'a> {
             links: Vec::new(),
             option: false,
             union: false,
+            children: Vec::new(),
+            variants: Vec::new(),
         }
     }
     pub(crate) fn follow(links: Vec<usize>, option: bool, union: bool) -> Self {
@@ -41,6 +48,8 @@ impl<'a> Node<'a> {
             links,
             option,
             union,
+            children: Vec::new(),
+            variants: Vec::new(),
         }
     }
 }
@@ -142,24 +151,11 @@ impl Proof<'_, '_> {
         for (at, left) in children.iter().enumerate() {
             for right in &children[at + 1..] {
                 charge(self.work, 1, self.span)?;
-                for a in &self.profiles[*left] {
-                    for b in &self.profiles[*right] {
-                        charge(self.work, 1, self.span)?;
-                        let a = match a {
-                            Atom::Null => &Shape::Null,
-                            Atom::Leaf(id) => &self.nodes[*id].shape,
-                        };
-                        let b = match b {
-                            Atom::Null => &Shape::Null,
-                            Atom::Leaf(id) => &self.nodes[*id].shape,
-                        };
-                        if !compare::disjoint(a, b, self.work, self.span)? {
-                            return Err(Diagnostic::new(
-                                self.span,
-                                "JSON union alternatives are not provably disjoint; use a derived sum with distinct constructors",
-                            ));
-                        }
-                    }
+                if !self.nested_disjoint(*left, *right, &mut Vec::new())? {
+                    return Err(Diagnostic::new(
+                        self.span,
+                        "JSON union alternatives are not provably disjoint; use a derived sum with distinct constructors",
+                    ));
                 }
             }
         }

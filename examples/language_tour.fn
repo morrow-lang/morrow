@@ -1,0 +1,32 @@
+# Values, traits, compile-time work, immutable collections and explicit errors.
+trait Label(a):
+    fn label(value: a) -> String
+
+type Task derive(Show, Eq, Ord, Clone, Json):
+    id: Int
+    title: String
+
+impl Label(Task):
+    fn label(value: Task) -> String:
+        "#{value.id}: {value.title}"
+
+fn describe(value: a) -> String where Label(a):
+    label(value)
+
+const batch_size: Int = comptime:
+    List.fold([1, 2, 3, 4], 0, (total, item) -> (total + item))
+
+const tags = comptime:
+    Set.from_list(["native", "WASM", "native"])
+
+fn main() -> Result((), json.Error):
+    defer println("cleanup complete")
+    println("compile-time batch size: {batch_size}")
+    println("unique targets: {Set.len(tags)}")
+    let task = Task(9007199254740993, "One language, both sides")
+    println(describe(task))
+    let restored = json.decode(json.encode(task)?, Task)?
+    println("roundtrip equal: {eq(left: task, right: restored)}")
+    for target in Set.to_list(tags):
+        println("target: {target}")
+    Ok(())

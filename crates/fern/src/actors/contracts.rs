@@ -117,6 +117,12 @@ fn capture_type(
             continue;
         }
         match ty {
+            Type::Named(name, _) if name == "Ptr" => {
+                return Err(Diagnostic::new(
+                    span,
+                    "foreign pointers cannot cross actor boundaries",
+                ));
+            }
             Type::Native(crate::runtime::NativeType::JsonValue) => {}
             Type::Native(_) | Type::Result(_, _) => {
                 return Err(Diagnostic::new(

@@ -23,7 +23,7 @@ pub(super) struct Plan {
     pub(super) entries: BTreeMap<usize, usize>,
     // Ordinary callable identities remain executable; only their actor callback
     // selects these separate resumable copies.
-    helpers: BTreeMap<usize, usize>,
+    pub(super) helpers: BTreeMap<usize, usize>,
     generic_steps: BTreeSet<usize>,
 }
 
@@ -235,6 +235,145 @@ impl Emitter<'_> {
         depth: usize,
     ) -> Lowering<(Type, String)> {
         let value = match op {
+            Operation::ListBuilder { capacity, item } => {
+                let capacity = self.expr(capacity, locals, depth)?;
+                let ty = Type::List(Box::new(item.clone()));
+                let value = self.assign(
+                    locals,
+                    ty.clone(),
+                    NativeOperation::Call {
+                        callee: native_operand("$fern_list_with_capacity"),
+                        args: vec![(Scalar::I64, native_operand(&capacity))],
+                        variadic: None,
+                    },
+                );
+                return Ok((ty, value));
+            }
+            Operation::ListAppend { list, value } => {
+                let output = self.expr(list, locals, depth)?;
+                let raw = self.expr(value, locals, depth)?;
+                let raw = self.payload(locals, &value.ty, raw);
+                self.output
+                    .statement(Statement::Effect(NativeOperation::Call {
+                        callee: native_operand("$fern_list_push_mut"),
+                        args: vec![
+                            (Scalar::I64, native_operand(&output)),
+                            (Scalar::I64, native_operand(&raw)),
+                        ],
+                        variadic: None,
+                    }));
+                return Ok((list.ty.clone(), output));
+            }
+            Operation::ClosureIdentity { value, function } => {
+                let closure = self.expr(value, locals, depth)?;
+                let code = self.raw_field(&closure, 0, locals);
+                let identity = if self.actors.entries.contains_key(&function.0) {
+                    format!("$actor_identity{}", function.0)
+                } else {
+                    format!("$f{}", function.0)
+                };
+                let result = self.assign(
+                    locals,
+                    Type::Bool,
+                    NativeOperation::Binary(
+                        MachineBinary::Compare(Comparison::Eq, Scalar::I64),
+                        native_operand(&code),
+                        native_operand(&identity),
+                    ),
+                );
+                return Ok((Type::Bool, result));
+            }
+            Operation::ClosureCapture { value, index, ty } => {
+                let closure = self.expr(value, locals, depth)?;
+                let raw = self.raw_field(&closure, 8 * (index + 1), locals);
+                let result = self.unpack(locals, ty, raw);
+                return Ok((ty.clone(), result));
+            }
+            Operation::ScopeEnter | Operation::ScopeLeave => self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Call {
+                    callee: native_operand(if matches!(op, Operation::ScopeEnter) {
+                        "$fern_managed_scope_enter"
+                    } else {
+                        "$fern_managed_scope_leave"
+                    }),
+                    args: vec![(Scalar::I64, native_operand("%exec"))],
+                    variadic: None,
+                },
+            ),
+            Operation::ScopeDefer(closure) => {
+                let closure = self.expr(closure, locals, depth)?;
+                self.assign(
+                    locals,
+                    Type::Int,
+                    NativeOperation::Call {
+                        callee: native_operand("$fern_managed_scope_defer"),
+                        args: vec![
+                            (Scalar::I64, native_operand("%exec")),
+                            (Scalar::I64, native_operand(&closure)),
+                        ],
+                        variadic: None,
+                    },
+                )
+            }
+            Operation::CleanupInvoke { function, closure } => {
+                let target = self
+                    .functions
+                    .get(&function.0)
+                    .ok_or_else(|| invalid(closure.span, "unknown actor cleanup function"))?;
+                if !target.params.is_empty()
+                    || target.return_type != Type::Unit
+                    || target.mailbox.is_some()
+                {
+                    return Err(invalid(
+                        closure.span,
+                        "actor cleanup requires ordinary zero-argument Unit function",
+                    ));
+                }
+                let closure = self.expr(closure, locals, depth)?;
+                let mut args = vec![
+                    (Scalar::I64, native_operand(&closure)),
+                    (Scalar::I64, native_operand("%fault")),
+                ];
+                if self.actors.managed.contains(&function.0) {
+                    args.push((Scalar::I64, native_operand("%exec")));
+                }
+                self.output
+                    .statement(Statement::Effect(NativeOperation::Call {
+                        callee: native_operand(&format!("$f{}", function.0)),
+                        args,
+                        variadic: None,
+                    }));
+                self.guard_fault(locals);
+                "2".into()
+            }
+            Operation::IterateField { value, field } => {
+                let range = value.ty == Type::Range;
+                let value = self.expr(value, locals, depth)?;
+                if range {
+                    self.raw_field(&value, field * 8, locals)
+                } else if *field == 1 {
+                    self.assign(
+                        locals,
+                        Type::Int,
+                        NativeOperation::Call {
+                            callee: native_operand("$fern_list_len"),
+                            args: vec![(Scalar::I64, native_operand(&value))],
+                            variadic: None,
+                        },
+                    )
+                } else {
+                    "0".into()
+                }
+            }
+            Operation::IterateItem { value, index, item } => {
+                let ty = value.ty.clone();
+                let value = self.expr(value, locals, depth)?;
+                let index = self.expr(index, locals, depth)?;
+                let value = self.indexed_iteration_item(&index, &value, &ty, item, locals);
+                return Ok((item.clone(), value));
+            }
             Operation::Pointer(entry) => self.expr(entry, locals, depth)?,
             Operation::Continue(entry) => {
                 let entry = self.expr(entry, locals, depth)?;

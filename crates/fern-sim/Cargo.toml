@@ -8,6 +8,7 @@ repository.workspace = true
 publish = false
 
 [dependencies]
+fern = { path = "../fern" }
 fern-web-app = { path = "../fern-web-app", features = ["simulation"] }
 fern-web-protocol = { path = "../fern-web-protocol" }
 fern-runtime = { path = "../fern-runtime", default-features = false, features = ["simulation"] }

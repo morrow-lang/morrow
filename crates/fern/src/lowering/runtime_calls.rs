@@ -98,6 +98,28 @@ impl Emitter<'_> {
             values.push(self.runtime_argument(value, &arg.ty, *abi, span, locals)?);
         }
         self.runtime_operation(signature.operation, &mut values, span, locals)?;
+        if matches!(
+            symbol,
+            "fern_json_value_null" | "fern_json_value_from_bool" | "fern_json_value_from_int"
+        ) {
+            let value = self.assign(
+                locals,
+                ty.clone(),
+                NativeOperation::Call {
+                    callee: native_operand(&format!("${symbol}")),
+                    args: values,
+                    variadic: None,
+                },
+            );
+            self.output
+                .statement(Statement::Effect(NativeOperation::Call {
+                    callee: native_operand("$fern_json_codec_scope_check"),
+                    args: vec![(Scalar::I64, native_operand("%fault"))],
+                    variadic: None,
+                }));
+            self.guard_fault(locals);
+            return Ok((ty, value));
+        }
         if matches!(symbol, "fern_regex_replace" | "fern_regex_replace_all") {
             values.insert(0, (Scalar::I64, native_operand("%fault")));
             let value = self.assign(

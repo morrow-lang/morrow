@@ -9,6 +9,20 @@ pub(super) fn expression(expr: &mut ast::Expr, expander: &mut Expander<'_>) -> C
 /// Dispatch each already-charged source node, preserving static annotations and value children.
 fn expression_kind(expr: &mut ast::Expr, expander: &mut Expander<'_>) -> Checked<()> {
     match &mut expr.kind {
+        ast::ExprKind::ForeignCall { declaration, args } => {
+            for abi in declaration
+                .params
+                .iter_mut()
+                .chain([&mut declaration.result])
+            {
+                if let crate::ffi::AbiType::Pointer(ty) = abi {
+                    *ty = expander.expand(ty, expr.span)?;
+                }
+            }
+            for arg in args {
+                expression(arg, expander)?;
+            }
+        }
         ast::ExprKind::Receive { arms, timeout } => substitute_receive(arms, timeout, expander)?,
         ast::ExprKind::TypeTarget(ty) => *ty = expander.expand(ty, expr.span)?,
         ast::ExprKind::Range { .. } | ast::ExprKind::For { .. } | ast::ExprKind::With { .. } => {

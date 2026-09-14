@@ -1,4 +1,4 @@
-//! Symbolic derivations use the same shallow proof without publishing parameter witnesses.
+//! Symbolic derivations use the same structural proof without publishing parameter witnesses.
 use super::*;
 use crate::json_codec::profiles::{self, Key, Node, Shape};
 /// Borrow all source names after precharging every temporary profile vector.
@@ -11,7 +11,7 @@ pub(super) fn validate(entries: &[Plan], work: &mut usize, span: Span) -> Checke
             Kind::Bool => Shape::Bool,
             Kind::String => Shape::String,
             Kind::Unit => Shape::Null,
-            Kind::Dynamic => Shape::Any,
+            Kind::Dynamic | Kind::Custom { .. } => Shape::Any,
             Kind::List(_) => Shape::Array(None),
             Kind::Tuple(fields) => Shape::Array(Some(fields.len())),
             Kind::Map(_) => Shape::Map,
@@ -52,7 +52,27 @@ pub(super) fn validate(entries: &[Plan], work: &mut usize, span: Span) -> Checke
             Kind::Parameter => Shape::Unknown,
             Kind::Pending => return Err(Diagnostic::new(span, "incomplete JSON codec profile")),
         };
-        nodes.push(Node::leaf(shape));
+        let mut node = Node::leaf(shape);
+        node.children = match &entry.kind {
+            Kind::Tuple(fields) => {
+                profiles::charge(work, fields.len(), span)?;
+                fields.iter().map(|id| id.0).collect()
+            }
+            Kind::Record(fields) => {
+                profiles::charge(work, fields.len(), span)?;
+                fields.iter().map(|f| f.codec.0).collect()
+            }
+            _ => Vec::new(),
+        };
+        if let Kind::Sum(variants) = &entry.kind {
+            profiles::charge(work, variants.len(), span)?;
+            for variant in variants {
+                profiles::charge(work, variant.fields.len(), span)?;
+                node.variants
+                    .push(variant.fields.iter().map(|id| id.0).collect());
+            }
+        }
+        nodes.push(node);
     }
     profiles::validate(&nodes, work, span)
 }

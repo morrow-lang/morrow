@@ -169,6 +169,40 @@ pub struct Lowered {
 }
 #[derive(Clone, Debug)]
 pub(crate) enum Operation {
+    ListBuilder {
+        capacity: Box<ir::Expr>,
+        item: Type,
+    },
+    ListAppend {
+        list: Box<ir::Expr>,
+        value: Box<ir::Expr>,
+    },
+    ClosureIdentity {
+        value: Box<ir::Expr>,
+        function: ir::FunctionId,
+    },
+    ClosureCapture {
+        value: Box<ir::Expr>,
+        index: usize,
+        ty: Type,
+    },
+    ScopeEnter,
+    ScopeDefer(Box<ir::Expr>),
+    ScopeLeave,
+    CleanupInvoke {
+        function: ir::FunctionId,
+        closure: Box<ir::Expr>,
+    },
+    /// Audited iteration fields; inaccessible to authored/public IR.
+    IterateField {
+        value: Box<ir::Expr>,
+        field: usize,
+    },
+    IterateItem {
+        value: Box<ir::Expr>,
+        index: Box<ir::Expr>,
+        item: Type,
+    },
     Continue(Box<ir::Expr>),
     Pointer(Box<ir::Expr>),
     Register {
@@ -185,7 +219,17 @@ impl Lowered {
     /// Expose every owned child to bounded compiler publication walkers.
     fn children(&self) -> Vec<&ir::Expr> {
         match &self.operation {
-            Operation::Continue(value) | Operation::Pointer(value) => vec![value],
+            Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::ListBuilder { capacity, .. } => vec![capacity],
+            Operation::ListAppend { list, value } => vec![list, value],
+            Operation::ScopeDefer(value)
+            | Operation::CleanupInvoke { closure: value, .. }
+            | Operation::Continue(value)
+            | Operation::Pointer(value)
+            | Operation::IterateField { value, .. }
+            | Operation::ClosureIdentity { value, .. }
+            | Operation::ClosureCapture { value, .. } => vec![value],
+            Operation::IterateItem { value, index, .. } => vec![value, index],
             Operation::Register {
                 selector,
                 timeout,
@@ -202,7 +246,17 @@ impl Lowered {
     /// Preserve shared substitution visibility without exposing constructors to callers.
     fn children_mut(&mut self) -> Vec<&mut ir::Expr> {
         match &mut self.operation {
-            Operation::Continue(value) | Operation::Pointer(value) => vec![value],
+            Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::ListBuilder { capacity, .. } => vec![capacity],
+            Operation::ListAppend { list, value } => vec![list, value],
+            Operation::ScopeDefer(value)
+            | Operation::CleanupInvoke { closure: value, .. }
+            | Operation::Continue(value)
+            | Operation::Pointer(value)
+            | Operation::IterateField { value, .. }
+            | Operation::ClosureIdentity { value, .. }
+            | Operation::ClosureCapture { value, .. } => vec![value],
+            Operation::IterateItem { value, index, .. } => vec![value, index],
             Operation::Register {
                 selector,
                 timeout,
@@ -219,25 +273,6 @@ impl Lowered {
                 .collect(),
         }
     }
-}
-
-/// Reject unsupported actor entries before committing definitions or performing any interactive effect.
-pub(crate) fn reject_interactive(program: &ast::Program) -> Result<(), String> {
-    let mut pending: Vec<_> = program.functions.iter().map(|f| &f.body).collect();
-    let mut work = 0;
-    while let Some(expr) = pending.pop() {
-        work += 1;
-        if work > 200_000 {
-            return Err("interactive actor preflight limit exceeded".into());
-        }
-        if matches!(&expr.kind, ast::ExprKind::Receive { .. })
-            || matches!(&expr.kind, ast::ExprKind::Call { name, .. } if matches!(name.as_str(), "spawn" | "send" | "supervise" | "supervised_current"))
-        {
-            return Err("managed actors are unsupported in the REPL; use native build/run".into());
-        }
-        pending.extend(source_children(expr));
-    }
-    Ok(())
 }
 
 /// Preserve arm and binding evaluation order for syntax owning multiple independent scopes.

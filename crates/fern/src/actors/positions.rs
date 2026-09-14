@@ -24,14 +24,14 @@ fn expression(expr: &Expr, suspension: bool, tail: bool, depth: usize) -> Result
     }
     match &expr.kind {
         ExprKind::Actor(ActorExpr::Call { args, .. }) => {
-            if !suspension || !tail {
+            if !suspension {
                 return Err(Diagnostic::new(
                     expr.span,
-                    "receiving calls require actor tail position in 105A",
+                    "receiving calls require an actor suspension position",
                 ));
             }
             for arg in args {
-                expression(arg, false, false, depth + 1)?;
+                expression(arg, suspension, false, depth + 1)?;
             }
         }
         ExprKind::Actor(ActorExpr::Receive { arms, timeout, .. }) => {
@@ -47,8 +47,8 @@ fn expression(expr: &Expr, suspension: bool, tail: bool, depth: usize) -> Result
                     Stmt::LetElse {
                         value, else_branch, ..
                     } => {
-                        expression(value, false, false, depth + 1)?;
-                        expression(else_branch, false, false, depth + 1)?;
+                        expression(value, true, false, depth + 1)?;
+                        expression(else_branch, true, tail, depth + 1)?;
                     }
                 }
             }
@@ -58,14 +58,14 @@ fn expression(expr: &Expr, suspension: bool, tail: bool, depth: usize) -> Result
             then_branch,
             else_branch,
         } if suspension => {
-            expression(condition, false, false, depth + 1)?;
+            expression(condition, true, false, depth + 1)?;
             expression(then_branch, true, tail, depth + 1)?;
             if let Some(branch) = else_branch {
                 expression(branch, true, tail, depth + 1)?;
             }
         }
         ExprKind::Match { value, arms } if suspension => {
-            expression(value, false, false, depth + 1)?;
+            expression(value, true, false, depth + 1)?;
             for arm in arms {
                 if let Some(guard) = &arm.guard {
                     expression(guard, false, false, depth + 1)?;
@@ -73,10 +73,15 @@ fn expression(expr: &Expr, suspension: bool, tail: bool, depth: usize) -> Result
                 expression(&arm.body, true, tail, depth + 1)?;
             }
         }
+        ExprKind::For { iterable, body, .. } if suspension => {
+            expression(iterable, true, false, depth + 1)?;
+            expression(body, true, false, depth + 1)?;
+        }
         ExprKind::Return(value) if suspension => expression(value, true, true, depth + 1)?,
+        ExprKind::Defer(value) => expression(value, false, false, depth + 1)?,
         _ => {
             for child in ir::children(expr) {
-                expression(child, false, false, depth + 1)?;
+                expression(child, suspension, false, depth + 1)?;
             }
         }
     }

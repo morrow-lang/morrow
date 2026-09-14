@@ -6,6 +6,7 @@ pub mod ast;
 pub mod check;
 pub mod cranelift;
 pub mod documentation;
+pub mod ffi;
 pub mod format;
 pub mod ir;
 pub mod json_codec;

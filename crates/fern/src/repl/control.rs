@@ -47,7 +47,7 @@ impl Machine {
                 Err(error) => Some(error),
             };
             if let Some(error) = failure
-                && !matches!(result, Err(Failure::Message(_)))
+                && !matches!(result, Err(Failure::Message(_) | Failure::JsonLimit))
             {
                 result = Err(error);
             }

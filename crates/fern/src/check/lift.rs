@@ -9,8 +9,18 @@ struct Lifter {
 
 /// Append lifted functions only after generic source functions have finished allocating IDs.
 pub(super) fn run(functions: &mut Vec<ir::Function>) -> Checked<()> {
+    run_reserved(functions, 0)
+}
+
+/// Supplemental trait proofs omit abstract bodies but must retain their reserved identities.
+pub(super) fn run_reserved(functions: &mut Vec<ir::Function>, reserved: usize) -> Checked<()> {
     let mut lifter = Lifter {
-        base: functions.len(),
+        base: functions
+            .iter()
+            .map(|f| f.id.0.saturating_add(1))
+            .max()
+            .unwrap_or(0)
+            .max(reserved),
         generated: Vec::new(),
         wrappers: Vec::new(),
     };
@@ -179,7 +189,8 @@ pub(super) fn children_mut(expr: &mut ir::Expr) -> Vec<&mut ir::Expr> {
             vec![value]
         }
         Binary { left, right, .. } => vec![left, right],
-        Call { args, .. }
+        ForeignCall { args, .. }
+        | Call { args, .. }
         | Tuple(args)
         | List(args)
         | Interpolate(args)

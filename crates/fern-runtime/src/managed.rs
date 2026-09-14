@@ -69,6 +69,9 @@ struct Actor {
     last: *mut Message,
     next: *mut Actor,
     supervisor: *mut supervision::Supervisor,
+    scopes: *mut cleanup::Scope,
+    cleanup_entries: usize,
+    cleaning: bool,
 }
 #[repr(C)]
 struct Pid {
@@ -279,3 +282,7 @@ pub use host::*;
 #[cfg(any(test, feature = "simulation"))]
 #[path = "managed/simulation.rs"]
 pub mod simulation;
+
+#[path = "managed/cleanup.rs"]
+mod cleanup;
+pub use cleanup::{fern_managed_scope_defer, fern_managed_scope_enter, fern_managed_scope_leave};

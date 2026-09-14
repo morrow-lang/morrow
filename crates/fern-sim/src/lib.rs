@@ -71,3 +71,6 @@ pub fn replay_failure(expected: &Failure) -> Result<Failure, Failure> {
         )),
     }
 }
+
+/// Source-level actor replay using the safe interpreter and shared typed continuations.
+pub mod language;

@@ -71,7 +71,26 @@ fn description(
     facts: &Facts,
 ) -> Option<(String, Option<Span>)> {
     if let Some(info) = &facts.function {
-        let function = program.functions.iter().find(|f| f.name == info.name)?;
+        let original = program.functions.iter().find(|f| f.name == info.name)?;
+        let mut function = original.clone();
+        if let Some((name, _)) = program
+            .implementations
+            .iter()
+            .flat_map(|i| &i.methods)
+            .find(|(_, target)| target == &function.name)
+        {
+            function.name = name.clone();
+        }
+        if let Some(method) = program
+            .traits
+            .iter()
+            .flat_map(|t| &t.methods)
+            .find(|m| m.default.as_ref() == Some(&function.name))
+        {
+            function.name = method.name.clone();
+            function.constraints.remove(0);
+        }
+        let function = &function;
         let mut text = presentation::resolved_signature(
             function,
             &info.parameters,
@@ -143,6 +162,22 @@ fn declaration(
     symbol: Option<&str>,
     name: &str,
 ) -> Option<(String, Option<Span>)> {
+    if let Some(declaration) = program
+        .traits
+        .iter()
+        .find(|d| symbol == Some(d.name.as_str()))
+    {
+        let mut text = format!("trait {}({})", declaration.name, declaration.parameter);
+        for (index, parent) in declaration.parents.iter().enumerate() {
+            text.push_str(if index == 0 { " with " } else { ", " });
+            text.push_str(&format!(
+                "{}({})",
+                parent.name,
+                presentation::render_type(&parent.ty, limits()).ok()?
+            ));
+        }
+        return Some((text, Some(declaration.span)));
+    }
     if let Some(alias) = program
         .aliases
         .iter()
@@ -190,7 +225,7 @@ fn declaration(
     None
 }
 
-/// Keep requirements readable without inventing public trait/where syntax.
+/// Keep inferred intrinsic requirements readable alongside explicit source bounds.
 fn requirements(text: &mut String, info: &FunctionInfo) -> Option<()> {
     let mut seen = std::collections::BTreeSet::new();
     for requirement in &info.requirements {
@@ -289,6 +324,7 @@ fn owned_documentation(program: &ast::Program, owner: Span) -> Option<&ast::DocC
         .chain(program.types.iter().map(|d| d.span.start))
         .chain(program.aliases.iter().map(|d| d.span.start))
         .chain(program.newtypes.iter().map(|d| d.span.start))
+        .chain(program.traits.iter().map(|d| d.span.start))
         .filter(|start| *start < owner.start)
         .max();
     program.docs.iter().find(|doc| {

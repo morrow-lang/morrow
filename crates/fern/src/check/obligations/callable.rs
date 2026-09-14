@@ -1,6 +1,28 @@
 //! Known callable identities preserve their environments; structural Fn alone proves no handling.
 use super::*;
 impl Engine<'_> {
+    /// Abstract contracts exist only in the supplemental generic proof. Every concrete
+    /// implementation and caller still passes the ordinary provenance proof after dispatch.
+    pub(super) fn abstract_trait(&self, function: usize) -> bool {
+        self.mode == Mode::Template
+            && self
+                .summaries
+                .is_some_and(|s| s.abstract_traits.contains(&function))
+    }
+
+    /// An implementation must handle or transfer its arguments. Returned duties are fresh,
+    /// so a generic caller cannot discharge them merely by having supplied an input alias.
+    pub(super) fn trait_call(
+        &mut self,
+        args: &[Value],
+        result: &Type,
+        span: Span,
+    ) -> Checked<Value> {
+        for value in args {
+            self.dispose(value, false, false, span)?;
+        }
+        self.fresh(result, None, span, 0)
+    }
     /// Capture values in source order without treating creation of a callable as executing its body.
     pub(super) fn closure(
         &mut self,
@@ -30,6 +52,9 @@ impl Engine<'_> {
                 self.charge(args.len().saturating_add(captures.len()), span)?;
                 let mut values = args.to_vec();
                 values.extend(captures.iter().cloned());
+                if self.abstract_trait(*function) {
+                    return self.trait_call(&values, result, span);
+                }
                 if self.relevance.is_some_and(|set| !set.contains(function)) {
                     self.fresh(result, None, span, 0)
                 } else {

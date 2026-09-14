@@ -234,8 +234,11 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
                 let _actor_scope = memory::enter_heap((*a).heap);
                 ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
             };
-            if status == 2 {
-                finish(a);
+            if status == 2 && (*a).fault == 0 {
+                cleanup::unwind(a);
+                if (*a).fault == 0 {
+                    finish(a);
+                }
             } else if !matches!(status, 0 | 1 | 3)
                 || (status == 0 && !(*a).queued)
                 || (status == 1 && !(*a).waiting)
@@ -244,13 +247,16 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
                 fail(&raw mut (*a).exec, 11);
             }
         }
-        if (*a).fault != 0 && !supervision::recover(a) {
-            fail(&raw mut (*s).root, (*a).fault);
+        if (*a).fault != 0 {
+            cleanup::unwind(a);
+            if !supervision::recover(a) {
+                fail(&raw mut (*s).root, (*a).fault);
+            }
         }
     }
 }
 
-/// Retire invocation roots without executing suspended source cleanup.
+/// Cancel suspended work, drain admitted logical cleanup scopes, then retire roots.
 /// # Safety
 /// Exec must be a live native context on its owner thread.
 #[unsafe(no_mangle)]
@@ -274,6 +280,10 @@ pub unsafe extern "C" fn fern_managed_stop(exec: *mut Exec) {
             }
             (*a).queued = false;
             (*a).next = null_mut();
+            cleanup::unwind(a);
+            if (*a).fault != 0 {
+                fail(&raw mut (*s).root, (*a).fault);
+            }
             finish(a);
         }
     }

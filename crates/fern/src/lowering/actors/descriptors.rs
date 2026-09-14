@@ -212,6 +212,8 @@ impl Emitter<'_> {
             Type::Option(item) => (4, vec![vec![*item.clone()], vec![]]),
             Type::Result(ok, err) => (4, vec![vec![*ok.clone()], vec![*err.clone()]]),
             Type::Union(members) => (4, members.iter().map(|ty| vec![ty.clone()]).collect()),
+            // A foreign address cannot be relocated with its owning string graph.
+            Type::Named(name, _) if name == "Ptr" => (11, vec![]),
             Type::Named(_, _) => {
                 let layout = self
                     .layouts

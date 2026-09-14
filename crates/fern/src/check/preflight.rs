@@ -8,6 +8,20 @@ struct Budget {
     nodes: usize,
     bytes: usize,
 }
+
+fn trait_bounds(bounds: &[ast::TraitBound], budget: &mut Budget) -> Checked<()> {
+    if bounds.len() > 32 {
+        return Err(Diagnostic::new(
+            Span::default(),
+            "trait constraint limit exceeded",
+        ));
+    }
+    for bound in bounds {
+        budget.charge(bound.name.len(), bound.span)?;
+        budget.ty(&bound.ty, bound.span)?;
+    }
+    Ok(())
+}
 impl Budget {
     /// Charge a source node and its owned text before copying it.
     fn charge(&mut self, bytes: usize, span: Span) -> Checked<()> {
@@ -408,6 +422,21 @@ impl Budget {
                 continue;
             }
             match &expr.kind {
+                ast::ExprKind::ForeignCall { declaration, args } => {
+                    declaration.validate(expr.span)?;
+                    self.charge(
+                        declaration.symbol.len()
+                            + declaration.library.as_ref().map_or(0, |s| s.len()),
+                        expr.span,
+                    )?;
+                    if args.len() != declaration.params.len() {
+                        return Err(Diagnostic::new(expr.span, "foreign AST arity mismatch"));
+                    }
+                    for abi in declaration.params.iter().chain([&declaration.result]) {
+                        self.ty(&abi.source_type(), expr.span)?;
+                    }
+                    pending.extend(args.iter().map(|arg| (arg, depth + 1)));
+                }
                 ast::ExprKind::Receive { arms, timeout } => {
                     self.receive(arms, timeout, expr.span, &mut pending, depth)?
                 }
@@ -479,10 +508,75 @@ pub(super) fn check(program: &ast::Program) -> Checked<()> {
         ));
     }
     let mut budget = Budget { nodes: 0, bytes: 0 };
+    if program
+        .traits
+        .len()
+        .saturating_add(program.implementations.len())
+        > MAX_FUNCTIONS
+    {
+        return Err(Diagnostic::new(
+            Span::default(),
+            "trait declaration count limit exceeded",
+        ));
+    }
+    for declaration in &program.traits {
+        budget.charge(
+            declaration
+                .name
+                .len()
+                .saturating_add(declaration.parameter.len()),
+            declaration.span,
+        )?;
+        trait_bounds(&declaration.parents, &mut budget)?;
+        if declaration.methods.len() > MAX_PARAMETERS {
+            return Err(Diagnostic::new(
+                declaration.span,
+                "trait method limit exceeded",
+            ));
+        }
+        for method in &declaration.methods {
+            budget.charge(
+                method
+                    .name
+                    .len()
+                    .saturating_add(method.function.len())
+                    .saturating_add(method.default.as_ref().map_or(0, String::len)),
+                declaration.span,
+            )?;
+        }
+    }
+    for implementation in &program.implementations {
+        trait_bounds(std::slice::from_ref(&implementation.bound), &mut budget)?;
+        trait_bounds(&implementation.constraints, &mut budget)?;
+        if implementation.methods.len() > MAX_PARAMETERS {
+            return Err(Diagnostic::new(
+                implementation.span,
+                "implementation method limit exceeded",
+            ));
+        }
+        for (name, function) in &implementation.methods {
+            budget.charge(
+                name.len().saturating_add(function.len()),
+                implementation.span,
+            )?;
+        }
+    }
     for doc in &program.docs {
         budget.charge(doc.target.len().saturating_add(doc.text.len()), doc.span)?;
     }
     for function in &program.functions {
+        if function.syntax == ast::FunctionSyntax::Constant
+            && (!function.params.is_empty()
+                || function.guard.is_some()
+                || !function.constraints.is_empty()
+                || function.name == "main")
+        {
+            return Err(Diagnostic::new(
+                function.span,
+                "constant declaration cannot have parameters, guards, trait constraints or entry-point syntax",
+            ));
+        }
+        trait_bounds(&function.constraints, &mut budget)?;
         budget.charge(function.name.len(), function.span)?;
         for param in &function.params {
             budget.label(&param.label)?;

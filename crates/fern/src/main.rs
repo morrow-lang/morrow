@@ -47,12 +47,15 @@ impl Backend {
 }
 
 /// Backend-owned artifacts reach the same staging, linker and publication boundary.
-struct NativeCode(Vec<u8>);
+struct NativeCode {
+    bytes: Vec<u8>,
+    libraries: Vec<String>,
+}
 
 impl NativeCode {
     /// Link the compiler-produced object without invoking another code generator.
     fn compile(&self, workspace: &native::Workspace) -> Result<PathBuf, String> {
-        native::compile_object(&self.0, workspace)
+        native::compile_object_with_libraries(&self.bytes, workspace, &self.libraries)
     }
 }
 
@@ -253,7 +256,10 @@ fn run(options: Options) -> Result<u8, String> {
         return Ok(0);
     }
     let program = lowering::lower(&typed).map_err(|error| loaded.render(error))?;
-    let code = NativeCode(fern_compiler::cranelift::emit_object(&program)?);
+    let code = NativeCode {
+        bytes: fern_compiler::cranelift::emit_object(&program)?,
+        libraries: fern_compiler::ffi::libraries(&program)?,
+    };
     if options.command == "build" {
         return build(&options.source, options.output, &code, options.controls);
     }

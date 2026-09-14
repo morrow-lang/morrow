@@ -131,6 +131,7 @@ mod tests {
             at: 0,
         };
         let mut execution = Execution {
+            callback: None,
             plan: &plan,
             budget,
             path: Rc::new(String::new()),

@@ -61,6 +61,7 @@ fn shallow_selection_never_allocates_candidate_payloads_or_calls_numeric_adapter
         at: 0,
     };
     let mut execution = Execution {
+        callback: None,
         plan: &plan,
         budget,
         path: Rc::new(String::new()),

@@ -2,6 +2,7 @@
 use super::*;
 #[derive(Default)]
 pub(super) struct Summaries {
+    pub(super) abstract_traits: HashSet<usize>,
     ready: HashMap<usize, Rc<Summary>>,
     index: HashMap<usize, usize>,
     recursive_defaults: HashMap<usize, recursive::Contract>,
@@ -192,6 +193,9 @@ fn dependency_order<'a>(
         }
         pending.push((function, true));
         for id in ordered_dependencies(program, &function.body, work)? {
+            if mode == Mode::Template && summaries.abstract_traits.contains(&id) {
+                continue;
+            }
             let child = summaries
                 .index
                 .get(&id)
@@ -239,6 +243,7 @@ pub(super) fn ordered_dependencies(
                 target: ir::CallTarget::Function(id),
                 ..
             }
+            | ir::ExprKind::Actor(ir::ActorExpr::Call { function: id, .. })
             | ir::ExprKind::Closure { function: id, .. } => {
                 found.insert(id.0, ());
             }
@@ -260,7 +265,8 @@ pub(super) fn dependencies(expr: &ir::Expr, work: &mut usize) -> Checked<Vec<usi
         if let ir::ExprKind::Call {
             target: ir::CallTarget::Function(id),
             ..
-        } = &expr.kind
+        }
+        | ir::ExprKind::Actor(ir::ActorExpr::Call { function: id, .. }) = &expr.kind
         {
             found.insert(id.0, ());
         }

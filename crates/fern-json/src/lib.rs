@@ -4,6 +4,7 @@ use std::rc::Rc;
 pub mod convert;
 pub mod parse;
 mod retained;
+pub mod scope;
 mod value;
 pub use retained::retained_bytes;
 pub use value::{encode, encode_string, get, seal, stringify, text_node};
@@ -79,6 +80,7 @@ impl Limits {
     pub fn charge(left: &mut usize, amount: usize) -> Result<()> {
         if amount > *left {
             *left = 0;
+            scope::mark_exhausted();
             return Err(error(0, -1));
         }
         *left -= amount;
@@ -126,6 +128,7 @@ impl<'a> Budget<'a> {
     }
     /// Reserve one native-profile node plus larger Rust storage before publishing its Rc allocation.
     pub fn node(&mut self) -> Result<()> {
+        scope::charge_nodes(1)?;
         if self.nodes == NODES {
             return Err(error(4, self.at as i64));
         }

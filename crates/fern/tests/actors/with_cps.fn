@@ -1,0 +1,22 @@
+fn await_value(ok: Bool) -> Result(Int, String):
+    defer println("await cleanup")
+    receive:
+        1 -> ()
+    if ok: Ok(7) else: Err("bad")
+fn worker(ok: Bool):
+    defer println("worker cleanup")
+    with
+        value <- await_value(ok: ok)
+    do
+        println(value)
+    else
+        Err(error) -> println(error)
+fn main():
+    let first: Pid(Int) = spawn(() -> worker(ok: true))
+    let second: Pid(Int) = spawn(() -> worker(ok: false))
+    match send(first, 1):
+        Ok(()) -> ()
+        Err(_) -> ()
+    match send(second, 1):
+        Ok(()) -> ()
+        Err(_) -> ()

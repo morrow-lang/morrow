@@ -203,7 +203,13 @@ fn extracted_headers_accept_new_bodies_across_the_native_corpus() {
             for f in program.functions {
                 let header =
                     show::source_signature(&source, f.span.start, Limits::default()).unwrap();
-                let replacement = format!("{header}\n    ()\n");
+                let replacement = if f.syntax == ast::FunctionSyntax::Trait {
+                    // Abstract methods are declarations inside a trait; a new
+                    // default body adds the delimiter absent from that source.
+                    format!("trait HeaderProbe(a):\n    {header}:\n        ()\n")
+                } else {
+                    format!("{header}\n    ()\n")
+                };
                 parse::parse(&replacement).unwrap_or_else(|error| {
                     panic!("{}: {header:?}: {error:?}", entry.path().display())
                 });

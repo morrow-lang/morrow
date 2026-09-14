@@ -96,6 +96,12 @@
     "stderr": ""
   },
   {
+    "file": "actors/sums_cps.fn",
+    "exit": 0,
+    "stdout": "sibling\nmap factory\nnone\nmap factory\nmap callback 2\n🌿 80\nmap factory\nouter 🌿\nmap factory\nmap callback 2\n🌿 80\nbind factory\nouter 🌿\nbind factory\nbind callback 2\n🌿 80\nbind factory\nbind callback -1\ninner\nfallback factory\nfallback callback outer 🌿\n78\nfallback factory\n2\n",
+    "stderr": ""
+  },
+  {
     "file": "actors/tail.fn",
     "exit": 0,
     "stdout": "1\n",
@@ -111,6 +117,12 @@
     "file": "actors/timeout.fn",
     "exit": 0,
     "stdout": "main\ntimeout\n",
+    "stderr": ""
+  },
+  {
+    "file": "actors/with_cps.fn",
+    "exit": 0,
+    "stdout": "await cleanup\nawait cleanup\n7\nworker cleanup\nbad\nworker cleanup\n",
     "stderr": ""
   },
   {
@@ -354,6 +366,12 @@
     "stderr": ""
   },
   {
+    "file": "comptime_native/values.fn",
+    "exit": 0,
+    "stdout": "720\n9007199254740993\n🌿 Fern\n9223372036854775807\n-9223372036854775808\n2\n42\n3\n3\n7\n",
+    "stderr": ""
+  },
+  {
     "file": "control/arguments.fn",
     "exit": 0,
     "stdout": "1\ncleanup\n7\n4\n8\n9\n",
@@ -534,6 +552,12 @@
     "stderr": ""
   },
   {
+    "file": "custom_json_native/values.fn",
+    "exit": 0,
+    "stdout": "{\"ids\":[\"user-9223372036854775807\",\"user--9223372036854775808\"]}\n9007199254740993\n5\n/ids/1\n",
+    "stderr": ""
+  },
+  {
     "file": "generic_schemes/nominal_keys.fn",
     "exit": 0,
     "stdout": "42\n1\n",
@@ -687,6 +711,12 @@
     "file": "json_constraints_native/instances.fn",
     "exit": 0,
     "stdout": "9007199254740993\n\"Fern\"\n-0\n",
+    "stderr": ""
+  },
+  {
+    "file": "json_deep_unions/values.fn",
+    "exit": 0,
+    "stdout": "{\"payload\":{\"value\":9007199254740993}}\n{\"payload\":{\"value\":\"🌿\"}}\n[\"🌿\",-9223372036854775808]\n14\n{\"tag\":\"Payload\",\"fields\":[\"🌿\"]}\n",
     "stderr": ""
   },
   {
@@ -1503,6 +1533,12 @@
     "file": "tail_calls/values.fn",
     "exit": 0,
     "stdout": "true\nretained\n9223372036854775802\n2.5\n",
+    "stderr": ""
+  },
+  {
+    "file": "traits/values.fn",
+    "exit": 0,
+    "stdout": "10\nPoint(x: 9223372036854775807, y: -9223372036854775808)\ntrue\ntrue\n-1\nBranch([Leaf(1), Branch([Leaf(2), Leaf(3)])])\ntrue\n-1\n",
     "stderr": ""
   },
   {

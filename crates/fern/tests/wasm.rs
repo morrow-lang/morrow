@@ -150,10 +150,18 @@ fn rejects_native_calls_even_inside_uncalled_functions() {
 }
 
 #[test]
-fn rejects_unimplemented_collection_values() {
-    let error = wasm::compile(&checked("fn values() -> Map(Int, Int): Map.new()\n")).unwrap_err();
-    assert!(error.message.contains("wasm32"), "{error:?}");
-    assert!(error.message.contains("Map"), "{error:?}");
+fn maps_preserve_order_duplicates_utf8_and_full_width_values() {
+    let (mut store, module) = instance(
+        "fn run() -> Bool:\n    let original = %{\"é\": 9223372036854775807, \"🌿\": 2, \"é\": -9223372036854775808}\n    let updated = Map.put(original, \"🌿\", 42)\n    let removed = Map.delete(updated, \"é\")\n    Map.len(original) == 2 and Option.unwrap_or(Map.get(original, \"é\"), 0) == -9223372036854775808 and Option.unwrap_or(Map.get(original, \"🌿\"), 0) == 2 and List.get(Map.keys(updated), 0) == \"é\" and List.get(Map.values(removed), 0) == 42 and not Map.contains(removed, \"é\")\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
 }
 
 #[test]
@@ -650,5 +658,338 @@ fn executes_both_branch_returns_boolean_patterns_and_shadowed_source_names() {
             .call(&mut store, 4)
             .unwrap(),
         10
+    );
+}
+
+#[test]
+fn callable_values_capture_managed_data_and_full_width_scalars() {
+    let (mut store, module) = instance(
+        "fn make(n: Int) -> (Int) -> Int: (x) -> n + x\nfn run() -> Int: make(9223372036854775807)(1)\nfn text(prefix: String) -> (String) -> String: (suffix) -> prefix + suffix\nfn valid() -> Bool: text(\"é\" + \"🌿\")(\"!\") == \"é🌿!\"\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        i64::MIN
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "valid")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn loops_preserve_full_width_endpoints_and_nested_control() {
+    let (mut store, module) = instance(
+        "fn find(start: Int, end: Int) -> Int:\n    for x in start..=end:\n        continue if x < 0\n        for y in [1, 2]:\n            break if y == 1\n            return 999\n        return x\n    return -42\nfn endpoint() -> Int:\n    for x in 9223372036854775807..=9223372036854775807: ()\n    42\n",
+    );
+    let find = module
+        .get_typed_func::<(i64, i64), i64>(&store, "find")
+        .unwrap();
+    for (start, end, expected) in [(-3, 5, 0), (5, 3, -42), (i64::MAX, i64::MAX, i64::MAX)] {
+        assert_eq!(find.call(&mut store, (start, end)).unwrap(), expected);
+    }
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "endpoint")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+}
+
+#[test]
+fn higher_order_collections_preserve_types_and_short_circuit() {
+    let (mut store, module) = instance(
+        "fn run() -> Bool:\n    let xs = List.map([1, 2, 3], (x) -> x * 2)\n    let filtered = List.filter(xs, (x) -> x > 2)\n    let folded = List.fold(filtered, 0, (sum, x) -> sum + x)\n    folded == 10 and List.any(xs, (x) -> x == 4) and List.all(xs, (x) -> x > 0) and Option.unwrap_or(List.find(xs, (x) -> x == 6), 0) == 6 and Option.unwrap_or(Option.map(Some(40), (x) -> x + 2), 0) == 42\nfn lazy() -> Bool: List.any([0, 1], (x) -> x == 0 or 1 / 0 == 0)\nfn result() -> Int: Result.unwrap_or_else(Result.map(Ok(40), (x) -> x + 2), (e: String) -> String.len(e))\n",
+    );
+    for name in ["run", "lazy"] {
+        assert_eq!(
+            module
+                .get_typed_func::<(), i32>(&store, name)
+                .unwrap()
+                .call(&mut store, ())
+                .unwrap(),
+            1
+        );
+    }
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "result")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+}
+
+#[test]
+fn deferred_callbacks_run_on_function_exit_and_traps_recover() {
+    let (mut store, module) = instance(
+        "fn clean(n: Int):\n    let value = 1 / n\n    ()\nfn normal(flag: Bool) -> Int:\n    if flag: defer clean(0)\n    42\nfn explicit() -> Int:\n    defer clean(0)\n    return 7\nfn looped() -> Int:\n    for x in 0..3:\n        defer clean(x)\n        continue\n    42\nfn okay() -> Int: 42\n",
+    );
+    let normal = module.get_typed_func::<i32, i64>(&store, "normal").unwrap();
+    assert_eq!(normal.call(&mut store, 0).unwrap(), 42);
+    assert!(normal.call(&mut store, 1).is_err());
+    for name in ["explicit", "looped"] {
+        assert!(
+            module
+                .get_typed_func::<(), i64>(&store, name)
+                .unwrap()
+                .call(&mut store, ())
+                .is_err()
+        );
+    }
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "okay")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+}
+
+#[test]
+fn result_propagation_and_with_handlers_preserve_cleanup_and_payloads() {
+    let (mut store, module) = instance(
+        "fn value(flag: Bool) -> Result(Int, String): if flag: Ok(40) else: Err(\"é🌿\")\nfn propagated(flag: Bool) -> Result(Int, String):\n    let n = value(flag: flag)?\n    Ok(n + 2)\nfn handled() -> Int:\n    with n <- value(flag: false) do n else Err(error) -> String.len(error)\nfn run() -> Bool:\n    handled() == 6 and Result.unwrap_or(propagated(flag: true), 0) == 42 and Result.is_err(propagated(flag: false))\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn seeded_collection_simulation_matches_independent_ordered_map_model() {
+    let source = "fn empty() -> Map(Int, Int): Map.new()\nfn put(map: Map(Int, Int), key: Int, value: Int) -> Map(Int, Int): Map.put(map, key, value)\nfn delete(map: Map(Int, Int), key: Int) -> Map(Int, Int): Map.delete(map, key)\nfn size(map: Map(Int, Int)) -> Int: Map.len(map)\nfn key(map: Map(Int, Int), index: Int) -> Int: List.get(Map.keys(map), index)\nfn value(map: Map(Int, Int), index: Int) -> Int: List.get(Map.values(map), index)\nfn sum(map: Map(Int, Int)) -> Int: List.fold(Map.values(map), 0, (sum, x) -> sum + x)\n";
+    let (mut store, module) = instance(source);
+    store.set_fuel(400_000_000).unwrap();
+    let empty = module
+        .get_typed_func::<(), i64>(&store, "fern::empty")
+        .unwrap();
+    let put = module
+        .get_typed_func::<(i64, i64, i64), i64>(&store, "fern::put")
+        .unwrap();
+    let delete = module
+        .get_typed_func::<(i64, i64), i64>(&store, "fern::delete")
+        .unwrap();
+    let size = module
+        .get_typed_func::<i64, i64>(&store, "fern::size")
+        .unwrap();
+    let key_at = module
+        .get_typed_func::<(i64, i64), i64>(&store, "fern::key")
+        .unwrap();
+    let value_at = module
+        .get_typed_func::<(i64, i64), i64>(&store, "fern::value")
+        .unwrap();
+    let sum = module
+        .get_typed_func::<i64, i64>(&store, "fern::sum")
+        .unwrap();
+    let release = module
+        .get_typed_func::<i64, i32>(&store, "fern_release")
+        .unwrap();
+    let mut seed = 0x46_45_52_4eu64;
+    for run in 0..8 {
+        let mut model: Vec<(i64, i64)> = Vec::new();
+        let mut handle = empty.call(&mut store, ()).unwrap();
+        for step in 0..128 {
+            seed = seed
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
+            let key = ((seed >> 32) % 24) as i64 - 12;
+            let payload = match step % 7 {
+                0 => i64::MIN,
+                1 => i64::MAX,
+                _ => seed as i64,
+            };
+            let next = if seed & 3 == 0 {
+                model.retain(|(k, _)| *k != key);
+                delete.call(&mut store, (handle, key)).unwrap()
+            } else {
+                if let Some((_, old)) = model.iter_mut().find(|(k, _)| *k == key) {
+                    *old = payload;
+                } else {
+                    model.push((key, payload));
+                }
+                put.call(&mut store, (handle, key, payload)).unwrap()
+            };
+            release.call(&mut store, handle).unwrap();
+            handle = next;
+            assert_eq!(
+                size.call(&mut store, handle).unwrap(),
+                model.len() as i64,
+                "run {run}, step {step}"
+            );
+            assert_eq!(
+                sum.call(&mut store, handle).unwrap(),
+                model
+                    .iter()
+                    .fold(0i64, |sum, (_, value)| sum.wrapping_add(*value)),
+                "run {run}, step {step}"
+            );
+            for (index, (key, value)) in model.iter().enumerate() {
+                assert_eq!(
+                    key_at.call(&mut store, (handle, index as i64)).unwrap(),
+                    *key
+                );
+                assert_eq!(
+                    value_at.call(&mut store, (handle, index as i64)).unwrap(),
+                    *value
+                );
+            }
+        }
+        release.call(&mut store, handle).unwrap();
+    }
+}
+
+#[test]
+fn closure_host_handles_and_loop_roots_survive_collection_pressure() {
+    let (mut store, module) = instance(
+        "fn make() -> () -> Bool:\n    let text = \"é\" + \"🌿\"\n    let number = -9223372036854775808\n    () -> text == \"é🌿\" and number == -9223372036854775808\nfn call(callback: () -> Bool) -> Bool: callback()\nfn churn() -> Int:\n    for i in 0..9000:\n        let f = () -> String.len(\"discarded\" + \" allocation\")\n        f()\n    42\n",
+    );
+    store.set_fuel(100_000_000).unwrap();
+    let handle = module
+        .get_typed_func::<(), i64>(&store, "fern::make")
+        .unwrap()
+        .call(&mut store, ())
+        .unwrap();
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "churn")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<i64, i32>(&store, "fern::call")
+            .unwrap()
+            .call(&mut store, handle)
+            .unwrap(),
+        1
+    );
+    module
+        .get_typed_func::<i64, i32>(&store, "fern_release")
+        .unwrap()
+        .call(&mut store, handle)
+        .unwrap();
+    assert!(
+        module
+            .get_typed_func::<i64, i32>(&store, "fern::call")
+            .unwrap()
+            .call(&mut store, handle)
+            .is_err()
+    );
+}
+
+#[test]
+fn collection_capacity_faults_are_bounded_and_recover() {
+    let literal = vec!["1"; 511].join(",");
+    let source = format!(
+        "fn overflow() -> Int: List.len(List.push([{literal}], 2))\nfn okay() -> Int: 42\n"
+    );
+    let (mut store, module) = instance(&source);
+    assert!(
+        module
+            .get_typed_func::<(), i64>(&store, "overflow")
+            .unwrap()
+            .call(&mut store, ())
+            .is_err()
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i64>(&store, "okay")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        42
+    );
+}
+
+#[test]
+fn language_faults_unwind_all_defers_even_when_a_cleanup_fails() {
+    let (mut store, module) = instance(
+        "fn work(n: Int):\n    for i in 0..n: ()\nfn bad():\n    let value = 1 / 0\n    ()\nfn body_fault(n: Int) -> Int:\n    defer work(n)\n    1 / 0\nfn cleanup_fault(n: Int) -> Int:\n    defer work(n)\n    defer bad()\n    42\nfn okay() -> Int: 42\n",
+    );
+    for name in ["body_fault", "cleanup_fault"] {
+        let call = module.get_typed_func::<i64, i64>(&store, name).unwrap();
+        store.set_fuel(1_000_000).unwrap();
+        assert!(call.call(&mut store, 0).is_err());
+        let short = 1_000_000 - store.get_fuel().unwrap();
+        store.set_fuel(1_000_000).unwrap();
+        assert!(call.call(&mut store, 1000).is_err());
+        let long = 1_000_000 - store.get_fuel().unwrap();
+        // Wasmi's deterministic instruction meter is an independent observable:
+        // the thousand-turn deferred loop must run after either kind of fault.
+        assert!(long > short + 10_000, "{name}: short={short}, long={long}");
+        assert_eq!(
+            module
+                .get_typed_func::<(), i64>(&store, "okay")
+                .unwrap()
+                .call(&mut store, ())
+                .unwrap(),
+            42
+        );
+    }
+}
+
+#[test]
+fn sets_share_portable_map_and_callable_semantics() {
+    let (mut store, module) = instance(
+        "fn run() -> Bool:\n    let a = Set.from_list([\"é\", \"🌿\", \"é\"])\n    let b = Set.from_list([\"🌿\", \"Fern\"])\n    let merged = Set.union(a, b)\n    let common = Set.intersection(a, b)\n    Set.len(a) == 2 and Set.len(merged) == 3 and Set.contains(common, \"🌿\") and Set.len(Set.difference(a, b)) == 1 and Set.is_subset(a, merged) and Set.equal(a, Set.from_list([\"🌿\", \"é\"])) and List.get(Set.to_list(merged), 2) == \"Fern\"\nfn wide() -> Bool:\n    let values = Set.from_list([-9223372036854775808, 9223372036854775807, -9223372036854775808])\n    Set.len(values) == 2 and Set.contains(values, 9223372036854775807)\n",
+    );
+    for name in ["run", "wide"] {
+        assert_eq!(
+            module
+                .get_typed_func::<(), i32>(&store, name)
+                .unwrap()
+                .call(&mut store, ())
+                .unwrap(),
+            1
+        );
+    }
+}
+
+#[test]
+fn generic_specializations_keep_distinct_callable_identities() {
+    let (mut store, module) = instance(
+        "fn identity(x: a) -> a: x\nfn run() -> Bool: identity(42) == 42 and identity(\"é🌿\") == \"é🌿\"\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn structural_unions_preserve_precise_payloads_and_subset_tags() {
+    let (mut store, module) = instance(
+        "fn widen(value: Int | String) -> Bool | Int | String: value\nfn inspect(value: Bool | Int | String) -> Int:\n    match value:\n        both: Int | String -> match both:\n            n: Int -> n\n            text: String -> String.len(text)\n        b: Bool -> if b: 1 else: 0\nfn run() -> Bool: inspect(widen(\"é\" + \"🌿\")) == 6 and inspect(widen(-9223372036854775808)) == -9223372036854775808\n",
+    );
+    assert_eq!(
+        module
+            .get_typed_func::<(), i32>(&store, "run")
+            .unwrap()
+            .call(&mut store, ())
+            .unwrap(),
+        1
     );
 }

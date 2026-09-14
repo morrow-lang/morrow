@@ -5,6 +5,7 @@
 pub mod abi;
 pub mod actors;
 pub mod collections;
+pub mod foreign;
 pub mod io;
 pub mod json;
 pub mod json_codec;

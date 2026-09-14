@@ -104,7 +104,12 @@ impl<'a> Index<'a> {
             .iter()
             .filter(|f| f.span != Span::default())
         {
-            values.insert(function.name.clone(), function.name.clone());
+            if !function.name.starts_with('$') {
+                values.insert(function.name.clone(), function.name.clone());
+            }
+        }
+        for declaration in &program.traits {
+            types.insert(declaration.name.clone(), declaration.name.clone());
         }
         for alias in &program.aliases {
             types.insert(alias.name.clone(), alias.name.clone());
@@ -246,6 +251,8 @@ impl<'a> Index<'a> {
             .chain(program.imports.iter().map(|d| d.span.start))
             .chain(program.aliases.iter().map(|d| d.span.start))
             .chain(program.newtypes.iter().map(|d| d.span.start))
+            .chain(program.traits.iter().map(|d| d.span.start))
+            .chain(program.implementations.iter().map(|d| d.span.start))
             .any(|start| start > function.span.start && start <= self.cursor);
         (!separated).then_some(function.span.start)
     }
@@ -253,15 +260,29 @@ impl<'a> Index<'a> {
     /// Source declarations retain their first clause and exact selected identifier range.
     fn declarations(&mut self, program: &ast::Program) {
         self.newtype_declarations(program);
+        for declaration in &program.traits {
+            if let Some(span) = self.identifier(declaration.span, 1) {
+                self.types
+                    .insert(declaration.name.clone(), Symbol { span, kind: 8 });
+                if self.contains(span) {
+                    self.target = Some(span);
+                }
+            }
+        }
         for function in program
             .functions
             .iter()
             .filter(|f| f.span != Span::default())
         {
             if let Some(span) = self.identifier(function.span, 1) {
-                self.globals
-                    .entry(function.name.clone())
-                    .or_insert(Symbol { span, kind: 3 });
+                self.globals.entry(function.name.clone()).or_insert(Symbol {
+                    span,
+                    kind: if function.syntax == ast::FunctionSyntax::Constant {
+                        21
+                    } else {
+                        3
+                    },
+                });
                 if self.contains(span) {
                     self.target = self.globals.get(&function.name).map(|s| s.span);
                 }
@@ -475,7 +496,7 @@ impl<'a> Index<'a> {
         let function = self.target.and_then(|target| {
             self.globals
                 .iter()
-                .find(|(_, symbol)| symbol.span == target && symbol.kind == 3)
+                .find(|(_, symbol)| symbol.span == target && matches!(symbol.kind, 3 | 21))
                 .map(|(name, _)| name.clone())
         });
         let binding = self.target.filter(|target| {
@@ -1019,6 +1040,40 @@ pub(super) fn prefix(source: &str, cursor: usize) -> Option<(String, String, Spa
 }
 
 const CORE: &[&str] = &[
+    "Ptr.null",
+    "Ptr.is_null",
+    "Ptr.equal",
+    "Ptr.to_string",
+    "String.as_ptr",
+    "CInt8.from_int",
+    "CInt8.to_int",
+    "CInt16.from_int",
+    "CInt16.to_int",
+    "CInt32.from_int",
+    "CInt32.to_int",
+    "CUInt8.from_int",
+    "CUInt8.to_int",
+    "CUInt16.from_int",
+    "CUInt16.to_int",
+    "CUInt32.from_int",
+    "CUInt32.to_int",
+    "CUInt64.from_int",
+    "CUInt64.to_int",
+    "CFloat32.from_float",
+    "CFloat32.to_float",
+    "Set.new",
+    "Set.insert",
+    "Set.delete",
+    "Set.contains",
+    "Set.len",
+    "Set.is_empty",
+    "Set.to_list",
+    "Set.from_list",
+    "Set.union",
+    "Set.intersection",
+    "Set.difference",
+    "Set.is_subset",
+    "Set.equal",
     "Map.new",
     "Map.get",
     "Map.put",

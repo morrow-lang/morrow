@@ -34,6 +34,35 @@ impl Checker<'_> {
     }
     /// Resolve a proven global without consulting lexical bindings of its canonical prefix.
     pub(super) fn global_name(&mut self, name: &str, span: Span) -> Checked<TypedKind> {
+        if self
+            .signatures
+            .get(name)
+            .is_some_and(|signature| signature.constant)
+        {
+            return self.constant_reference(name, span);
+        }
+        for (offset, _) in name.match_indices('.').rev() {
+            let root = &name[..offset];
+            if self
+                .signatures
+                .get(root)
+                .is_some_and(|signature| signature.constant)
+            {
+                let (kind, ty) = self.constant_reference(root, span)?;
+                let mut value = ir::Expr { kind, ty, span };
+                for field in name[offset + 1..].split('.') {
+                    let (kind, ty) = self.field(value, field, span)?;
+                    value = ir::Expr { kind, ty, span };
+                }
+                return Ok((value.kind, value.ty));
+            }
+        }
+        if crate::ffi::is_api(name) {
+            return self.foreign_api_value(name, span);
+        }
+        if sets::is_api(name) {
+            return self.set_function(name, span);
+        }
         if let Some(value) = self.actor_name(name, span)? {
             return Ok(value);
         }
@@ -72,5 +101,30 @@ impl Checker<'_> {
             ));
         }
         Err(Diagnostic::new(span, format!("unknown name '{name}'")))
+    }
+
+    fn constant_reference(&mut self, name: &str, span: Span) -> Checked<TypedKind> {
+        let (target, params, result) = self.resolve_callable(name, span)?;
+        if !params.is_empty() {
+            return Err(Diagnostic::new(span, "constant cannot have parameters"));
+        }
+        Ok((
+            ir::ExprKind::Call {
+                target,
+                args: Vec::new(),
+            },
+            result,
+        ))
+    }
+
+    pub(super) fn constant_path(&self, name: &str) -> bool {
+        self.signatures
+            .get(name)
+            .is_some_and(|signature| signature.constant)
+            || name.match_indices('.').any(|(offset, _)| {
+                self.signatures
+                    .get(&name[..offset])
+                    .is_some_and(|signature| signature.constant)
+            })
     }
 }

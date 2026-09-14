@@ -24,6 +24,11 @@ pub struct Variant {
 mod budget_tests;
 #[path = "json_codec/containers.rs"]
 mod containers;
+#[path = "json_codec/custom.rs"]
+mod custom;
+#[cfg(test)]
+#[path = "json_codec/custom_tests.rs"]
+mod custom_tests;
 #[cfg(test)]
 #[path = "json_codec/root_tests.rs"]
 mod root_tests;
@@ -59,6 +64,15 @@ impl ConstructionRoot {
         unsafe {
             for _ in 0..DEPTH {
                 match (*plan).kind {
+                    14 => {
+                        return Self::new(
+                            if (*(*plan).children.cast::<custom::Callbacks>()).managed == 0 {
+                                0
+                            } else {
+                                value as usize
+                            },
+                        );
+                    }
                     11 => plan = *(*plan).children,
                     0 | 1 | 2 | 4 => return Self::new(0),
                     _ => return Self::new(value as usize),
@@ -70,6 +84,7 @@ impl ConstructionRoot {
 }
 
 struct Execution<'a> {
+    fault: *mut i64,
     budget: Budget<'a>,
     path: Rc<String>,
     #[cfg(test)]
@@ -80,6 +95,7 @@ struct Execution<'a> {
 impl<'a> Execution<'a> {
     fn new(limits: &'a mut Limits) -> Self {
         Self {
+            fault: std::ptr::null_mut(),
             budget: Budget {
                 limits,
                 work: 64 * 1024 * 1024,
@@ -190,6 +206,7 @@ impl<'a> Execution<'a> {
         if self.budget.nodes == NODES {
             return Err(error(4, -1));
         }
+        fern_json::scope::charge_nodes(1)?;
         self.budget.nodes += 1;
         let (kind, encoded) = match kind {
             0 => {
@@ -248,6 +265,7 @@ impl<'a> Execution<'a> {
     unsafe fn encode_kind(&mut self, p: *const Codec, bits: i64, depth: usize) -> Result<Json> {
         unsafe {
             match (*p).kind {
+                14 => self.custom_encode(p, bits, depth),
                 0 | 1 | 2 | 4 => self.scalar((*p).kind, bits),
                 3 => self.text(bits as *const c_char),
                 5 => {
@@ -296,6 +314,7 @@ impl<'a> Execution<'a> {
                 self.budget.allocate(64)?;
             }
             match ((*p).kind, &v.kind) {
+                (14, _) => self.custom_decode(p, v),
                 (0, Kind::Number(t)) => convert::integer(t),
                 (1, Kind::Number(t)) => convert::float(t).map(|v| v.to_bits() as i64),
                 (2, Kind::Bool(v)) => Ok(i64::from(*v)),
@@ -346,8 +365,26 @@ impl<'a> Execution<'a> {
 /// Plan is a live compiler-validated finite descriptor graph; payload follows its exact native layout.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fern_json_codec_encode(plan: *const Codec, payload: i64) -> i64 {
+    let mut fault = 0;
+    let result = unsafe { fern_json_codec_encode_context(plan, payload, &mut fault) };
+    if fault == 0 { result } else { json::domain(4) }
+}
+
+/// Encode with an invocation-owned fault word, preserving language faults in custom methods.
+/// # Safety
+/// Plan/payload satisfy the codec ABI; fault addresses a live exclusive i64 for this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_json_codec_encode_context(
+    plan: *const Codec,
+    payload: i64,
+    fault: *mut i64,
+) -> i64 {
+    if unsafe { *fault } != 0 {
+        return 0;
+    }
     let mut limits = json::limits();
     let mut c = Execution::new(&mut limits);
+    c.fault = fault;
     let result = (|| {
         let value = unsafe { c.encode(plan, payload, 0) }?;
         if value.encoded > OUTPUT {
@@ -359,6 +396,9 @@ pub unsafe extern "C" fn fern_json_codec_encode(plan: *const Codec, payload: i64
         fern_json::encode(&value, &mut text);
         Ok(abi::string(&text) as i64)
     })();
+    if unsafe { *fault } != 0 {
+        return 0;
+    }
     match c.locate(result) {
         Ok(value) => abi::result_ok(value),
         Err(e) => json::failure(e),
@@ -369,8 +409,26 @@ pub unsafe extern "C" fn fern_json_codec_encode(plan: *const Codec, payload: i64
 /// Plan is a live validated descriptor graph; text is readable NUL-terminated native input.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fern_json_codec_decode(plan: *const Codec, text: *const c_char) -> i64 {
+    let mut fault = 0;
+    let result = unsafe { fern_json_codec_decode_context(plan, text, &mut fault) };
+    if fault == 0 { result } else { json::domain(4) }
+}
+
+/// Decode with the same live fault word used by generated source functions.
+/// # Safety
+/// Plan/text satisfy the codec ABI; fault addresses a live exclusive i64 for this call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn fern_json_codec_decode_context(
+    plan: *const Codec,
+    text: *const c_char,
+    fault: *mut i64,
+) -> i64 {
+    if unsafe { *fault } != 0 {
+        return 0;
+    }
     let mut limits = json::limits();
     let mut c = Execution::new(&mut limits);
+    c.fault = fault;
     let parsed = (|| {
         let text = unsafe { c.source(text) }.map_err(|e| Error {
             offset: INPUT as i64,
@@ -384,7 +442,11 @@ pub unsafe extern "C" fn fern_json_codec_decode(plan: *const Codec, text: *const
         Err(e) => return json::failure(e),
     };
     c.budget.at = 0;
-    match unsafe { c.decode(plan, &value, 0) } {
+    let result = unsafe { c.decode(plan, &value, 0) };
+    if unsafe { *fault } != 0 {
+        return 0;
+    }
+    match result {
         Ok(v) => abi::result_ok(v),
         Err(e) => json::failure(e),
     }

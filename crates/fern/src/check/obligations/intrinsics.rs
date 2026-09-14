@@ -60,7 +60,10 @@ impl Engine<'_> {
                 self.node(Region::Boolean(empty), span)
             }
             (StringEq | ListContains | MapContains, _) => self.fresh(&Type::Bool, None, span, 0),
-            (Print | Println | StringConcat | StringLen | ListLen | MapLen | MapKeys, _) => {
+            // Keys cannot contain Result values, but their list shape must survive
+            // later head/get/iteration operations. This never acknowledges map values.
+            (MapKeys, [_]) => self.fresh(result, None, span, 0),
+            (Print | Println | StringConcat | StringLen | ListLen | MapLen, _) => {
                 self.node(Region::Empty, span)
             }
             _ if !super::gate::contains(self.program, result, &mut self.work, span)? => {

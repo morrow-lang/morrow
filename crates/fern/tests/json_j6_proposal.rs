@@ -73,7 +73,7 @@ fn ambiguous_union_domains_reject_without_definition_order_priority() {
         ("", "json.Value | Int"),
         ("newtype Id derive(Json)=Id(Int)\n", "Id | Int"),
         (
-            "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:String\n",
+            "type A derive(Json):\n    value:Int\ntype B derive(Json):\n    value:Float\n",
             "A | B",
         ),
         (

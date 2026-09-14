@@ -31,6 +31,7 @@ fn function(n: &str, params: Vec<(&str, Type)>, ty: Type, body: Expr) -> Functio
         group_start: 0,
         syntax: FunctionSyntax::Colon,
         name: n.into(),
+        constraints: vec![],
         params: params
             .into_iter()
             .map(|(n, ty)| Param {

@@ -17,11 +17,40 @@ impl Machine {
         } else {
             &mut self.json_cleanup
         };
-        Some(match dispatch(operation, args, limits) {
-            Ok(value) => Ok(value),
-            Err(Error { code: 0, .. }) => Err(fault("interactive evaluation limit exceeded")),
-            Err(failure) => Ok(Value::Sum(1, Rc::new(vec![Value::JsonError(failure)]))),
-        })
+        Some(
+            match scoped_operation(limits, |limits| dispatch(operation, args, limits)) {
+                Ok(value) => Ok(value),
+                Err(Error { code: 0, .. }) => Err(fault("interactive evaluation limit exceeded")),
+                Err(failure) if matches!(operation, "null" | "from_bool" | "from_int") => {
+                    Err(if failure.code == 4 {
+                        Failure::JsonLimit
+                    } else {
+                        fault(message(failure.code))
+                    })
+                }
+                Err(failure) => Ok(Value::Sum(1, Rc::new(vec![Value::JsonError(failure)]))),
+            },
+        )
+    }
+}
+/// Combine the evaluator's aggregate allowance with an active custom codec operation.
+fn scoped_operation<T>(
+    global: &mut Limits,
+    call: impl FnOnce(&mut Limits) -> Result<T>,
+) -> Result<T> {
+    let mut limits = fern_json::scope::limits();
+    let scope_work = limits.work;
+    let scope_alloc = limits.allocated;
+    limits.constrain(global);
+    let initial = (limits.work, limits.allocated);
+    let result = call(&mut limits);
+    global.work -= initial.0 - limits.work;
+    global.allocated -= initial.1 - limits.allocated;
+    match result {
+        Err(Error { code: 0, .. }) if scope_work != usize::MAX || scope_alloc != usize::MAX => {
+            Err(error(4, -1))
+        }
+        other => other,
     }
 }
 /// Wrap the success payload only for APIs whose checked contract returns Result.

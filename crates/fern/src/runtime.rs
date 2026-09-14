@@ -178,6 +178,7 @@ pub fn names() -> Vec<&'static str> {
     ENTRIES
         .iter()
         .flat_map(|entry| entry.names.iter().copied())
+        .filter(|name| !name.starts_with('$'))
         .collect()
 }
 
@@ -242,6 +243,9 @@ impl JsonShape {
 
 #[derive(Clone, Copy)]
 enum Shape {
+    PtrByte,
+    ResultCFloat32,
+    ResultSS,
     Float,
     Json(JsonShape),
     Int,
@@ -270,6 +274,12 @@ impl Shape {
     /// Instantiate a signature shape using explicit generic parameter names.
     fn ty(self) -> Type {
         match self {
+            Self::ResultCFloat32 => Type::Result(
+                Box::new(Type::Named("CFloat32".into(), vec![])),
+                Box::new(Type::String),
+            ),
+            Self::PtrByte => Type::Named("Ptr".into(), vec![Type::Named("CUInt8".into(), vec![])]),
+            Self::ResultSS => Type::Result(Box::new(Type::String), Box::new(Type::String)),
             Self::Float => Type::Float,
             Self::Json(shape) => shape.ty(),
             Self::DirectoryResult => Type::Result(
@@ -318,9 +328,12 @@ impl Shape {
             Self::Json(shape) => shape.abi(),
             Self::Unit => ValueAbi::Void,
             Self::OptionA | Self::OptionInt => ValueAbi::HeapOption,
-            Self::ResultAE | Self::ResultSI | Self::ResultII | Self::ResultUnitInt => {
-                ValueAbi::HeapResult
-            }
+            Self::ResultCFloat32
+            | Self::ResultSS
+            | Self::ResultAE
+            | Self::ResultSI
+            | Self::ResultII
+            | Self::ResultUnitInt => ValueAbi::HeapResult,
             _ => ValueAbi::Word64,
         }
     }
@@ -375,6 +388,12 @@ const fn operation(mut entry: Entry, op: Operation) -> Entry {
 use Shape::*;
 
 const ENTRIES: &[Entry] = &[
+    entry(
+        &["String.compare"],
+        &[String, String],
+        Int,
+        "fern_str_compare",
+    ),
     entry(&["String.len", "str_len"], &[String], Int, "fern_str_len"),
     entry(
         &["String.concat", "str_concat"],
@@ -1437,9 +1456,35 @@ const ENTRIES: &[Entry] = &[
         String,
         "fern_json_value_error_path",
     ),
+    entry(
+        &["$ffi.float32"],
+        &[Float],
+        ResultCFloat32,
+        "fern_ffi_float32",
+    ),
+    entry(
+        &["$ffi.borrow_string"],
+        &[String],
+        PtrByte,
+        "fern_ffi_borrow_string",
+    ),
+    entry(
+        &["$ffi.read_string"],
+        &[Int, Int],
+        ResultSS,
+        "fern_ffi_read_string",
+    ),
 ];
 
 const OMISSIONS: &[Omission] = &[
+    Omission {
+        names: &[
+            "fern_ffi_float32",
+            "fern_ffi_borrow_string",
+            "fern_ffi_read_string",
+        ],
+        reason: "Compiler-owned checked foreign adapters use private runtime identities, not directly callable source signatures.",
+    },
     Omission {
         names: &["fern_json_codec_encode", "fern_json_codec_decode"],
         reason: "Typed compiler-owned JSON codec operations require a validated concrete descriptor, not a source runtime signature.",

@@ -240,6 +240,7 @@ fn operands(statement: &Statement) -> Vec<&Operand> {
         Statement::Assign { operation, .. } | Statement::Effect(operation) => match operation {
             Operation::Unary(_, value) | Operation::Load(_, value) => vec![value],
             Operation::Binary(_, left, right) => vec![left, right],
+            Operation::ForeignCall { args, .. } => args.iter().map(|(_, value)| value).collect(),
             Operation::Call { callee, args, .. } => std::iter::once(callee)
                 .chain(args.iter().map(|(_, value)| value))
                 .collect(),

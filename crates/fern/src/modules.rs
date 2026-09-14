@@ -590,6 +590,10 @@ impl Loader<'_> {
             program.types.extend(module.syntax.types);
             program.aliases.extend(module.syntax.aliases);
             program.newtypes.extend(module.syntax.newtypes);
+            program.traits.extend(module.syntax.traits);
+            program
+                .implementations
+                .extend(module.syntax.implementations);
             exports.push(public);
             sources.push(module.source);
         }
@@ -612,6 +616,7 @@ fn qualify_docs(program: &mut ast::Program, names: &Names, offset: usize) -> Res
         .chain(program.types.iter().map(|decl| (decl.span.start, false)))
         .chain(program.aliases.iter().map(|decl| (decl.span.start, false)))
         .chain(program.newtypes.iter().map(|decl| (decl.span.start, false)))
+        .chain(program.traits.iter().map(|decl| (decl.span.start, false)))
         .collect();
     roles.sort_unstable_by_key(|role| role.0);
     for doc in &mut program.docs {
@@ -661,6 +666,12 @@ fn record_symbols(
 /// Expand exported types to include only their own constructors.
 fn exported_names(module: &Module, own: &Names) -> Result<Names, Error> {
     let mut public = Names::default();
+    for declaration in module.syntax.traits.iter().filter(|t| t.public) {
+        public.types.insert(
+            declaration.name.clone(),
+            own.types[&declaration.name].clone(),
+        );
+    }
     for function in module.syntax.functions.iter().filter(|f| f.public) {
         public
             .values
@@ -702,6 +713,29 @@ fn qualify_source_types(
     offset: usize,
 ) -> Result<(), Error> {
     qualify_aliases(&mut program.aliases, own, visible, offset)?;
+    for declaration in &mut program.traits {
+        declaration.name = own.types[&declaration.name].clone();
+        for parent in &mut declaration.parents {
+            qualify_trait_bound(parent, visible, offset)?;
+        }
+        for method in &mut declaration.methods {
+            method.function = own.values[&method.function].clone();
+            if let Some(default) = &mut method.default {
+                *default = own.values[default].clone();
+            }
+        }
+        shift(&mut declaration.span, offset);
+    }
+    for implementation in &mut program.implementations {
+        qualify_trait_bound(&mut implementation.bound, visible, offset)?;
+        for bound in &mut implementation.constraints {
+            qualify_trait_bound(bound, visible, offset)?;
+        }
+        for (_, function) in &mut implementation.methods {
+            *function = own.values[function].clone();
+        }
+        shift(&mut implementation.span, offset);
+    }
     qualify_declarations(&mut program.types, own, visible, offset)?;
     for decl in &mut program.newtypes {
         decl.name = own.types[&decl.name].clone();
@@ -758,12 +792,42 @@ fn qualify_declarations(
 }
 
 /// Resolve each clause's parameter bindings before its guard and body, retaining group identity.
+fn qualify_trait_bound(
+    bound: &mut ast::TraitBound,
+    visible: &Names,
+    offset: usize,
+) -> Result<(), Error> {
+    bound.name = visible
+        .types
+        .get(&bound.name)
+        .cloned()
+        .or_else(|| {
+            matches!(
+                bound.name.as_str(),
+                "Show" | "Eq" | "Ord" | "Clone" | "Json"
+            )
+            .then(|| bound.name.clone())
+        })
+        .ok_or_else(|| {
+            at_span(
+                failure(format!("unknown or private trait '{}'", bound.name)),
+                bound.span,
+            )
+        })?;
+    qualify_type(&mut bound.ty, visible).map_err(|e| at_span(e, bound.span))?;
+    shift(&mut bound.span, offset);
+    Ok(())
+}
+
 fn qualify_function(
     function: &mut ast::Function,
     visible: &Names,
     prefixes: &BTreeSet<String>,
     offset: usize,
 ) -> Result<(), Error> {
+    for bound in &mut function.constraints {
+        qualify_trait_bound(bound, visible, offset)?;
+    }
     let mut bound = BTreeSet::new();
     for param in &mut function.params {
         if let Some(ty) = &mut param.annotation {
@@ -791,6 +855,14 @@ fn qualify_function(
 fn own_names(module: &Module, entry: bool) -> Result<Names, Error> {
     let mut names = Names::default();
     let mut groups = BTreeMap::new();
+    for declaration in &module.syntax.traits {
+        register_type(
+            module,
+            &mut names.types,
+            &declaration.name,
+            declaration.span,
+        )?;
+    }
     for function in &module.syntax.functions {
         if groups.get(&function.name) == Some(&function.group_start) {
             continue;
@@ -882,7 +954,11 @@ fn register_constructor(
 }
 
 fn reserved_declaration(name: &str) -> bool {
-    crate::codec_syntax::is_codec(name)
+    name == "Set"
+        || crate::ffi::reserved_type(name)
+        || crate::ffi::is_api(name)
+        || crate::check::sets::is_api(name)
+        || crate::codec_syntax::is_codec(name)
         || crate::runtime::native_type(name).is_some()
         || crate::runtime::lookup(name).is_some()
         || crate::runtime::reserved_namespace(name)
@@ -1068,6 +1144,8 @@ fn resolve_global(name: &mut String, names: &NameMap, allow_builtin: bool) -> Re
 /// Builtin-qualified calls need no source import; arbitrary module prefixes do.
 fn builtin_path(name: &str) -> bool {
     crate::check::builtin(name).is_some()
+        || crate::check::sets::is_api(name)
+        || crate::ffi::is_api(name)
         || crate::codec_syntax::is_codec(name)
         || crate::runtime::lookup(name).is_some()
         || crate::runtime::omissions()
@@ -1111,6 +1189,18 @@ fn rewrite(
     shift(&mut expr.span, offset);
     mark_global(&mut expr.kind, names, prefixes, scopes).map_err(|e| at_span(e, original))?;
     match &mut expr.kind {
+        ast::ExprKind::ForeignCall { declaration, args } => {
+            for abi in declaration
+                .params
+                .iter_mut()
+                .chain([&mut declaration.result])
+            {
+                if let crate::ffi::AbiType::Pointer(ty) = abi {
+                    qualify_type(ty, names)?;
+                }
+            }
+            rewrite_values(args, names, prefixes, scopes, offset)?;
+        }
         ast::ExprKind::Name(_) | ast::ExprKind::GlobalName { .. } => {}
         ast::ExprKind::Pipe {
             value, args, label, ..
@@ -1572,6 +1662,23 @@ fn mark_global(
     prefixes: &BTreeSet<String>,
     scopes: &[BTreeSet<String>],
 ) -> Result<(), Error> {
+    // A visible constant can own record fields; only its visible declaration
+    // prefix is qualified, so a field cannot bypass module export filtering.
+    if let ast::ExprKind::Name(name) = kind
+        && !local(scopes, name)
+        && !names.values.contains_key(name)
+    {
+        for (offset, _) in name.match_indices('.').rev() {
+            if let Some(root) = names.values.get(&name[..offset]) {
+                let resolved = format!("{root}{}", &name[offset..]);
+                *kind = ast::ExprKind::GlobalName {
+                    name: name.clone(),
+                    resolved,
+                };
+                return Ok(());
+            }
+        }
+    }
     let name = match kind {
         ast::ExprKind::Name(name)
         | ast::ExprKind::Call { name, .. }

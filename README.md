@@ -28,7 +28,8 @@ fn main():
 language server and repository tools are Rust. Native execution and release
 installation are verified on **macOS ARM64 and Linux ARM64**. Syntax and APIs
 are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
-[what remains](docs/RELEASE_READINESS.md).
+[what remains](docs/RELEASE_READINESS.md), or compare the
+[implemented language across targets](docs/LANGUAGE_STATUS.md).
 
 ## Why Fern?
 
@@ -66,10 +67,13 @@ cargo xtask build --release
 ./bin/fern run examples/tiny_cli.fn
 ./bin/fern build examples/tiny_cli.fn -o hello
 ./hello
+./bin/fern run examples/language_tour.fn
 ```
 
 The example prints `hello, fern`. `run` compiles and executes in one step;
 `build` leaves an executable you can run directly.
+The [language tour](examples/language_tour.fn) combines traits, compile-time
+constants, immutable sets, typed JSON and deferred cleanup in one small program.
 
 The repository selects its pinned Rust nightly automatically through
 `rust-toolchain.toml`; Cargo uses the checked-in dependency lock. Mise is optional.
@@ -136,9 +140,16 @@ Simulated time measures the scenario's clock; it is not a production-uptime clai
 - Integers, floating-point values, strings, collections, records,
   tagged sums, newtypes and finite unions.
 - Exhaustive pattern matching, `Option`, `Result`, `?` and checked error handling.
-- Modules, closures, generic functions and derived JSON codecs.
+- Modules, closures, generic functions and [static traits](docs/TRAITS.md) with
+  defaults, explicit bounds and structural derivation.
+- Derived and [custom JSON codecs](docs/CUSTOM_JSON.md), including nested union
+  discrimination, precise error paths and shared resource limits.
+- Immutable [Sets](docs/SETS.md), [compile-time constants](docs/COMPTIME.md), and
+  explicit [native foreign functions](docs/FFI.md) with checked ABI types.
 - Native services for files, processes, HTTP clients, SQLite, terminal widgets
-  and bounded actor execution.
+  and bounded actor execution with [suspended cleanup](docs/ACTOR_CLEANUP.md).
+- [Interactive actors and deterministic replay](docs/REPL_ACTORS.md) for testing
+  mailboxes, timeouts, restarts and cancellation without real-time sleeps.
 
 Follow the [language guide](docs/LANGUAGE_GUIDE.md), explore
 [examples](examples), or read the [standard-library reference](docs/STDLIB_API_REFERENCE.md).
@@ -201,10 +212,14 @@ an early preview: general actor preemption, generalized supervision, work
 stealing, clustering and a general application packaging API remain open.
 The current checklist executes its complete typed model/update/view and native
 actor path, with optional durable room checkpoints. WASM supports bounded
-records, tagged sums, lists, tuples, Option/Result and UTF-8 strings with precise
-tracing and rooted host handles; closures, maps and native services remain unsupported. Custom traits,
-broader SQL APIs, x86-64 native-language acceptance and source debugging also
-remain open. The REPL supports a smaller execution surface than native programs.
+records, tagged sums, lists, tuples, Option/Result, UTF-8 strings, closures,
+maps, sets, ranges, iteration, deferred cleanup and structural unions with precise
+tracing and rooted host handles; see [portable language support](docs/WASM_LANGUAGE.md).
+Native services remain separate capabilities. [Static traits](docs/TRAITS.md),
+[custom JSON codecs](docs/CUSTOM_JSON.md), compile-time constants and Sets work
+through the checked language pipeline. Broader SQL APIs, x86-64 native-language
+acceptance and source debugging remain open. The REPL supports a smaller host
+service surface than native programs.
 The Rust rewrite is complete;
 the [language roadmap](ROADMAP.md) continues.
 

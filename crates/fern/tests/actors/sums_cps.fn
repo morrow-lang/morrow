@@ -1,0 +1,47 @@
+fn sum(n: Int) -> Int:
+    if n == 0: 0 else: n + sum(n - 1)
+fn map_factory() -> (Int) -> String:
+    println("map factory")
+    (value: Int) ->
+        println("map callback {value}")
+        "🌿 {sum(12) + value}"
+fn bind_factory() -> (Int) -> Result(String, String):
+    println("bind factory")
+    (value: Int) ->
+        println("bind callback {value}")
+        if value < 0: Err("inner") else: Ok("🌿 {sum(12) + value}")
+fn fallback_factory() -> (String) -> Int:
+    println("fallback factory")
+    (error: String) ->
+        println("fallback callback {error}")
+        sum(12)
+fn show(value: Result(String,String)):
+    match value:
+        Ok(text) -> println(text)
+        Err(error) -> println(error)
+fn worker():
+    let none: Option(Int) = None
+    match Option.map(none, map_factory()):
+        Some(text) -> println(text)
+        None -> println("none")
+    match Option.map(Some(2), map_factory()):
+        Some(text) -> println(text)
+        None -> println("unexpected")
+    let error: Result(Int,String) = Err("outer 🌿")
+    show(Result.map(error, map_factory()))
+    let success: Result(Int,String) = Ok(2)
+    show(Result.map(success, map_factory()))
+    let error_again: Result(Int,String) = Err("outer 🌿")
+    show(Result.and_then(error_again, bind_factory()))
+    let success_again: Result(Int,String) = Ok(2)
+    show(Result.and_then(success_again, bind_factory()))
+    let callback_error: Result(Int,String) = Ok(-1)
+    show(Result.and_then(callback_error, bind_factory()))
+    let fallback_error: Result(Int,String) = Err("outer 🌿")
+    println(Result.unwrap_or_else(fallback_error, fallback_factory()))
+    let fallback_success: Result(Int,String) = Ok(2)
+    println(Result.unwrap_or_else(fallback_success, fallback_factory()))
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()

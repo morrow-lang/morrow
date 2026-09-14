@@ -113,6 +113,9 @@ fn rename_group(group: &mut [ast::Function], index: usize) -> Checked<()> {
         })
         .collect();
     for function in group {
+        for bound in &mut function.constraints {
+            bound.ty = nominal::substitute(&bound.ty, &values)?;
+        }
         for param in &mut function.params {
             param.annotation = param
                 .annotation
@@ -165,6 +168,7 @@ fn signatures(
         signatures.insert(
             function.name.clone(),
             Signature {
+                constant: function.syntax == ast::FunctionSyntax::Constant,
                 mailbox: None,
                 labels: labels::parameters(function),
                 required_labels: Vec::new(),
@@ -173,12 +177,12 @@ fn signatures(
                 result,
                 generics,
                 dispatch: dispatch.contains(&function.name),
-                requirements: Vec::new(),
+                requirements: registry.traits.requirements(function)?,
                 monotype: false,
             },
         );
     }
-    actors::attach(program, registry, &mut signatures)?;
+    actors::attach(program, registry, &mut signatures, inference)?;
     Ok(signatures)
 }
 
@@ -268,6 +272,15 @@ fn publish(
         .map(|ty| generalized.ty(ty))
         .collect::<Checked<Vec<_>>>()?;
     let result = generalized.ty(&result)?;
+    let mailbox = signature
+        .mailbox
+        .as_ref()
+        .map(|ty| {
+            inference
+                .resolve(ty, function.span)
+                .and_then(|ty| generalized.ty(&ty))
+        })
+        .transpose()?;
     let values = generalized
         .values
         .into_iter()
@@ -280,10 +293,17 @@ fn publish(
         })
         .collect();
     specialize::substitute_expr(&mut function.body, &values)?;
+    for bound in &mut function.constraints {
+        bound.ty = nominal::substitute(&bound.ty, &values)?;
+    }
+    for requirement in &mut signature.requirements {
+        requirement.ty = nominal::substitute(&requirement.ty, &values)?;
+    }
     for (param, ty) in function.params.iter_mut().zip(&params) {
         param.annotation = Some(ty.clone());
     }
     function.return_type = Some(result.clone());
+    signature.mailbox = mailbox;
     signature.params = params;
     signature.result = result;
     signature.generics = nominal::generics(

@@ -47,6 +47,19 @@ fn walk(
             }
             continue;
         }
+        if proof.registry.traits.custom_json(&ty, span)?.is_some() {
+            if capability != Capability::Json {
+                return Err(Diagnostic::new(
+                    span,
+                    "custom Json has an opaque wire shape; wrap it in a derived record or tagged sum before using Option or object keys",
+                ));
+            }
+            proof
+                .registry
+                .traits
+                .require_custom_json(&ty, inference, proof.registry, span)?;
+            continue;
+        }
         if variable(proof, inference, capability, &ty, span)? {
             continue;
         }

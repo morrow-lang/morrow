@@ -8,10 +8,12 @@ struct Instance {
     arguments: Vec<Type>,
 }
 struct Driver<'a> {
+    registry: &'a nominal::Registry,
     source: &'a ast::Program,
     signatures: &'a HashMap<String, Signature>,
     instances: Vec<Instance>,
     seen: HashMap<(usize, Vec<Type>), ir::FunctionId>,
+    codec_plans: HashMap<usize, std::rc::Rc<crate::json_codec::Plan>>,
 }
 
 /// Check nongeneric definitions and every demanded generic specialization.
@@ -21,12 +23,20 @@ pub(super) fn run(
     signatures: &HashMap<String, Signature>,
 ) -> Checked<ir::Program> {
     let mut driver = Driver {
+        registry,
         source: program,
         signatures,
         instances: Vec::new(),
         seen: HashMap::new(),
+        codec_plans: HashMap::new(),
     };
     for (index, function) in program.functions.iter().enumerate() {
+        if function.syntax == ast::FunctionSyntax::Trait {
+            continue;
+        }
+        if function.name.starts_with("$traits_") {
+            continue;
+        }
         if signatures[&function.name].generics.is_empty() {
             driver.enqueue(index, Vec::new())?;
         }
@@ -117,6 +127,21 @@ impl Driver<'_> {
     ) -> Checked<ir::FunctionId> {
         let function = &self.source.functions[template];
         let signature = &self.signatures[&function.name];
+        if let Some(target) =
+            self.registry
+                .traits
+                .target(&function.name, signature, args, result, function.span)?
+        {
+            let target = self
+                .signatures
+                .get(&target)
+                .ok_or_else(|| {
+                    Diagnostic::new(function.span, "missing trait implementation signature")
+                })?
+                .id
+                .0;
+            return self.target_types(target, args, result, mailbox);
+        }
         let mut values = HashMap::new();
         let pairs = signature
             .params
@@ -142,6 +167,49 @@ impl Driver<'_> {
     fn rewrite(&mut self, expr: &mut ir::Expr) -> Checked<()> {
         for child in super::lift::children_mut(expr) {
             self.rewrite(child)?;
+        }
+        if let ir::ExprKind::JsonCodec { plan, .. } = &mut expr.kind {
+            let identity = std::rc::Rc::as_ptr(plan) as usize;
+            if let Some(existing) = self.codec_plans.get(&identity) {
+                *plan = existing.clone();
+            } else if plan
+                .entries
+                .iter()
+                .any(|e| matches!(e.kind, crate::json_codec::Kind::Custom { .. }))
+            {
+                let mut concrete = (**plan).clone();
+                for entry in &mut concrete.entries {
+                    if let crate::json_codec::Kind::Custom { encode, decode } = &mut entry.kind {
+                        for (callback, input, output) in [
+                            (
+                                encode,
+                                entry.ty.clone(),
+                                Type::Native(crate::runtime::NativeType::JsonValue),
+                            ),
+                            (
+                                decode,
+                                Type::Native(crate::runtime::NativeType::JsonValue),
+                                entry.ty.clone(),
+                            ),
+                        ] {
+                            if let crate::json_codec::Callback::Source(name) = callback {
+                                let signature = self.signatures.get(name).ok_or_else(|| {
+                                    Diagnostic::new(expr.span, "missing custom Json callback")
+                                })?;
+                                let result = Type::Result(
+                                    Box::new(output),
+                                    Box::new(Type::Native(crate::runtime::NativeType::JsonError)),
+                                );
+                                *callback = crate::json_codec::Callback::Function(
+                                    self.target_types(signature.id.0, &[input], &result, None)?,
+                                );
+                            }
+                        }
+                    }
+                }
+                *plan = std::rc::Rc::new(concrete);
+                self.codec_plans.insert(identity, plan.clone());
+            }
         }
         match &mut expr.kind {
             ir::ExprKind::Actor(ir::ActorExpr::Call {

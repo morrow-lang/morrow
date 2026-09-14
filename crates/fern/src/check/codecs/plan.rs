@@ -24,6 +24,10 @@ pub(super) enum Kind {
     String,
     Unit,
     Dynamic,
+    Custom {
+        encode: String,
+        decode: String,
+    },
     List(Id),
     Newtype(Id),
     Option(Id),

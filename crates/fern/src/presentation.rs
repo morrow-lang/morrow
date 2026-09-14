@@ -115,6 +115,13 @@ pub fn resolved_signature(
     if function.public {
         writer.push("pub ")?;
     }
+    if function.syntax == ast::FunctionSyntax::Constant {
+        writer.push("const ")?;
+        writer.name(&function.name, true)?;
+        writer.push(": ")?;
+        writer.ty(result, 0)?;
+        return Ok(writer.output);
+    }
     writer.push("fn ")?;
     writer.name(&function.name, true)?;
     writer.push("(")?;
@@ -126,12 +133,28 @@ pub fn resolved_signature(
             writer.name(&label.name, false)?;
             writer.push(" ")?;
         }
-        writer.pattern(&param.pattern, 0)?;
-        writer.push(": ")?;
+        if !matches!(&param.pattern.kind,ast::PatternKind::Bind(name) if name.starts_with("$traitarg"))
+        {
+            writer.pattern(&param.pattern, 0)?;
+            writer.push(": ")?;
+        }
         writer.ty(ty, 0)?;
     }
     writer.push(") -> ")?;
     writer.ty(result, 0)?;
+    for (index, bound) in function
+        .constraints
+        .iter()
+        .skip(usize::from(function.syntax == ast::FunctionSyntax::Trait))
+        .enumerate()
+    {
+        writer.push(if index == 0 { " where " } else { ", " })?;
+        writer.name(&bound.name, true)?;
+        writer.push("(")?;
+        writer.collect(&bound.ty, 0)?;
+        writer.ty(&bound.ty, 0)?;
+        writer.push(")")?;
+    }
     Ok(writer.output)
 }
 

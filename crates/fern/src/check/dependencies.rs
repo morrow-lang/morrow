@@ -36,12 +36,21 @@ pub(super) fn analyze(program: &ast::Program) -> Checked<Graph> {
 
 /// Alias expansion and dependency analysis spend one aggregate inference budget.
 pub(super) fn analyze_with_work(program: &ast::Program, work: usize) -> Checked<Graph> {
+    analyze_mode(program, work, false)
+}
+/// Direct lexical calls owned by each function exclude separately executed closure bodies.
+pub(super) fn owned_calls(program: &ast::Program) -> Checked<Graph> {
+    analyze_mode(program, 0, true)
+}
+fn analyze_mode(program: &ast::Program, work: usize, owned_calls: bool) -> Checked<Graph> {
     preflight::check(program)?;
     let mut budget = Budget(MAX_EXPR_COUNT * 4);
     budget.charge(work, Span::default())?;
     let (mut groups, names) = groups(program, &mut budget)?;
     for group in &mut groups {
         let mut walker = Walker {
+            owned_calls,
+            tuples: HashSet::new(),
             names: &names,
             locals: HashMap::new(),
             scopes: Vec::new(),
@@ -122,6 +131,8 @@ enum Task<'a> {
     Leave,
 }
 struct Walker<'a, 'b> {
+    owned_calls: bool,
+    tuples: HashSet<usize>,
     names: &'b HashMap<&'a str, usize>,
     locals: HashMap<&'a str, usize>,
     scopes: Vec<Vec<&'a str>>,
@@ -129,6 +140,118 @@ struct Walker<'a, 'b> {
     edges: HashSet<usize>,
     budget: &'b mut Budget,
     span: Span,
+}
+
+/// Reuse lexical dependency resolution to activate an implicit prelude only for free names.
+pub(super) fn uses_trait_prelude(program: &ast::Program) -> Checked<bool> {
+    let names: HashMap<_, _> = [
+        "show",
+        "eq",
+        "neq",
+        "compare",
+        "clone",
+        "to_json",
+        "from_json",
+        "Less",
+        "Equal",
+        "Greater",
+    ]
+    .into_iter()
+    .filter(|name| {
+        !program.functions.iter().any(|f| f.name == *name)
+            && !program
+                .types
+                .iter()
+                .flat_map(|d| &d.variants)
+                .any(|v| v.name == *name)
+    })
+    .enumerate()
+    .map(|(index, name)| (name, index))
+    .collect();
+    let mut budget = Budget(MAX_EXPR_COUNT * 4);
+    let mut walker = Walker {
+        owned_calls: false,
+        tuples: HashSet::new(),
+        names: &names,
+        locals: HashMap::new(),
+        scopes: Vec::new(),
+        pending: Vec::new(),
+        edges: HashSet::new(),
+        budget: &mut budget,
+        span: Span::default(),
+    };
+    for function in &program.functions {
+        walker.span = function.span;
+        walker.clause(function)?;
+        if !walker.edges.is_empty() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Generate tuple instances only for arities present in source, retaining the language's bound.
+pub(super) fn trait_tuple_arities(
+    program: &ast::Program,
+) -> Checked<std::collections::BTreeSet<usize>> {
+    let names = HashMap::new();
+    let mut budget = Budget(MAX_EXPR_COUNT * 4);
+    let mut walker = Walker {
+        owned_calls: false,
+        tuples: HashSet::new(),
+        names: &names,
+        locals: HashMap::new(),
+        scopes: Vec::new(),
+        pending: Vec::new(),
+        edges: HashSet::new(),
+        budget: &mut budget,
+        span: Span::default(),
+    };
+    for function in &program.functions {
+        walker.span = function.span;
+        walker.clause(function)?;
+    }
+    let mut tuples = walker.tuples;
+    let mut pending: Vec<_> = program
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.params
+                .iter()
+                .filter_map(|p| p.annotation.as_ref())
+                .chain(f.return_type.as_ref())
+        })
+        .chain(
+            program
+                .types
+                .iter()
+                .flat_map(|d| &d.variants)
+                .flat_map(|v| &v.fields)
+                .map(|f| &f.ty),
+        )
+        .chain(program.newtypes.iter().map(|d| &d.inner))
+        .chain(program.aliases.iter().map(|a| &a.target))
+        .collect();
+    while let Some(ty) = pending.pop() {
+        budget.charge(1, Span::default())?;
+        match ty {
+            Type::Tuple(items) => {
+                tuples.insert(items.len());
+                pending.extend(items);
+            }
+            Type::List(a) | Type::Option(a) | Type::Pid(a) => pending.push(a),
+            Type::Map(a, b) | Type::Result(a, b) | Type::ActorFunction(a, b) => {
+                pending.extend([a.as_ref(), b.as_ref()])
+            }
+            Type::Named(_, args) | Type::Union(args) => pending.extend(args),
+            Type::Function(args, result) => {
+                pending.extend(args);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(tuples.into_iter().filter(|n| *n > 0).collect())
 }
 impl<'a> Walker<'a, '_> {
     /// Clause binders are independent even though dependencies share one function identity.
@@ -161,10 +284,8 @@ impl<'a> Walker<'a, '_> {
     fn reference(&mut self, name: &str, span: Span) -> Checked<()> {
         self.budget.charge(name.len() + 1, span)?;
         let root = name.split('.').next().unwrap_or(name);
-        if !self.locals.contains_key(root)
-            && let Some(index) = self.names.get(name)
-        {
-            self.edges.insert(*index);
+        if !self.locals.contains_key(root) {
+            self.reference_path(name);
         }
         Ok(())
     }
@@ -172,10 +293,22 @@ impl<'a> Walker<'a, '_> {
     /// A resolved declaration edge is unaffected by canonical-prefix local bindings.
     fn global_reference(&mut self, name: &str, span: Span) -> Checked<()> {
         self.budget.charge(name.len() + 1, span)?;
-        if let Some(index) = self.names.get(name) {
-            self.edges.insert(*index);
-        }
+        self.reference_path(name);
         Ok(())
+    }
+
+    /// A global constant may be followed by record fields in one dotted token.
+    fn reference_path(&mut self, mut name: &str) {
+        loop {
+            if let Some(index) = self.names.get(name) {
+                self.edges.insert(*index);
+                return;
+            }
+            let Some((prefix, _)) = name.rsplit_once('.') else {
+                return;
+            };
+            name = prefix;
+        }
     }
 
     /// Store borrowed names with shadow counts; wildcard bindings never become accessible.
@@ -281,12 +414,16 @@ impl<'a> Walker<'a, '_> {
 
     /// Handle lexical boundaries explicitly; the remaining expressions only carry references.
     fn expression(&mut self, expr: &'a ast::Expr) -> Checked<()> {
+        if let ast::ExprKind::Tuple(items) = &expr.kind {
+            self.tuples.insert(items.len());
+        }
         match &expr.kind {
             ast::ExprKind::Block(stmts) => {
                 self.pending.push(Task::Leave);
                 self.pending.extend(stmts.iter().rev().map(Task::Statement));
                 self.pending.push(Task::Enter);
             }
+            ast::ExprKind::Lambda { .. } if self.owned_calls => {}
             ast::ExprKind::Lambda { params, body } => {
                 self.pending.push(Task::Leave);
                 self.pending.push(Task::Expression(body));
@@ -383,7 +520,11 @@ impl<'a> Walker<'a, '_> {
     fn global(&mut self, expr: &'a ast::Expr) -> Checked<bool> {
         use ast::ExprKind::*;
         match &expr.kind {
-            GlobalName { resolved, .. } => self.global_reference(resolved, expr.span)?,
+            GlobalName { resolved, .. } => {
+                if !self.owned_calls {
+                    self.global_reference(resolved, expr.span)?;
+                }
+            }
             GlobalCall { resolved, args, .. } => {
                 self.global_reference(resolved, expr.span)?;
                 self.arguments(args);
@@ -420,7 +561,11 @@ impl<'a> Walker<'a, '_> {
         }
         match &expr.kind {
             TypeTarget(_) => {}
-            Name(name) => self.reference(name, expr.span)?,
+            Name(name) => {
+                if !self.owned_calls {
+                    self.reference(name, expr.span)?;
+                }
+            }
             Call { name, args } => {
                 self.reference(name, expr.span)?;
                 self.arguments(args);
@@ -434,9 +579,19 @@ impl<'a> Walker<'a, '_> {
             }
             Apply { callee, args } => {
                 self.arguments(args);
-                self.pending.push(Task::Expression(callee));
+                if self.owned_calls {
+                    match &callee.kind {
+                        Name(name) => self.reference(name, callee.span)?,
+                        GlobalName { resolved, .. } => {
+                            self.global_reference(resolved, callee.span)?
+                        }
+                        _ => self.pending.push(Task::Expression(callee)),
+                    }
+                } else {
+                    self.pending.push(Task::Expression(callee));
+                }
             }
-            Tuple(values) | List(values) => self
+            ForeignCall { args: values, .. } | Tuple(values) | List(values) => self
                 .pending
                 .extend(values.iter().rev().map(Task::Expression)),
             Map(entries) => self.map_entries(entries),

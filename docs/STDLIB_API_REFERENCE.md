@@ -1,6 +1,6 @@
 # Fern Standard Library API Reference (Gate C)
 
-Last updated: 2026-09-12
+Last updated: 2026-09-14
 
 This file is the canonical signature reference for the Gate C core standard-library modules.
 It complements `docs/COMPATIBILITY_POLICY.md` with concrete function-level contracts.
@@ -54,6 +54,23 @@ Nonempty Unicode 16.0.0 decimal-digit text is true. Empty text, signs and other
 numeric categories are false. The intentional `str_is_decimal` alias has the same
 signature. See [the classifier contract](STRING_DECIMAL.md) for the 16 MiB native
 limit, generated data provenance and interactive work budgets.
+
+### Portable string helpers and Sets
+
+```fern
+String.compare(left: String, right: String) -> Int
+String.join(parts: List(String), separator: String) -> String
+```
+
+These runtime APIs take positional arguments. `String.compare` returns -1, 0 or 1
+for lexical UTF-8 ordering, without locale collation or Unicode normalization.
+`String.join` inserts the separator between elements; an empty list produces an
+empty string. Both execute in native, REPL and WASM programs under their target's
+string and resource limits. The built-in value traits use these portable helpers.
+
+[`Set(a)`](SETS.md) adds thirteen immutable collection operations with a distinct
+nominal identity, insertion-ordered iteration and membership equality. Its key
+types and complexity guarantees follow the documented Set contract.
 
 ### `fs`
 

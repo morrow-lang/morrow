@@ -79,8 +79,27 @@ fn effectful_receive_guards_are_diagnosed_before_execution() {
 
 #[test]
 fn actor_function_defer_is_not_silently_run_at_suspension() {
-    rejected(
+    checked(
         "fn worker():\n    defer println(\"cleanup\")\n    receive:\n        1 -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
+    );
+    let mut session = fern_compiler::repl::Session::default();
+    session
+        .evaluate("fn worker():\n    defer println(\"cleanup\")\n    receive:\n        1 -> ()")
+        .unwrap();
+    assert_eq!(
+        session
+            .evaluate("let pid: Pid(Int) = spawn(worker)")
+            .unwrap(),
+        ""
+    );
+    assert_eq!(
+        session
+            .evaluate("match send(pid, 1):\n    Ok(()) -> ()\n    Err(_) -> ()")
+            .unwrap(),
+        "cleanup\n"
+    );
+    rejected(
+        "fn worker():\n    defer receive:\n        1 -> ()\nfn main(): ()\n",
         "defer",
     );
 }
@@ -151,15 +170,14 @@ fn deferred_transitive_send_is_rejected_before_execution() {
 }
 
 #[test]
-fn unsupported_suspension_positions_are_source_diagnostics() {
-    rejected(
+fn loop_and_non_tail_suspensions_have_executable_continuations() {
+    for source in [
         "fn worker():\n    for index in 0..2:\n        receive:\n            1 -> ()\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
-        "suspension position",
-    );
-    rejected(
         "fn worker():\n    receive:\n        1 -> worker()\n    println(\"after recursive actor\")\nfn main():\n    let pid: Pid(Int) = spawn(worker)\n    ()\n",
-        "tail position",
-    );
+    ] {
+        let program = check::check(&parse::parse(source).unwrap()).unwrap();
+        fern_compiler::lowering::lower(&program).expect("accepted suspension must lower");
+    }
 }
 
 #[test]

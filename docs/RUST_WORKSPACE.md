@@ -123,10 +123,12 @@ settings; these are observed artifact sizes, not minimum-size claims.
 ## Scope that remains open
 
 This completes an implementation migration, not every proposal in the language
-vision or a 1.0 release. [Release readiness](RELEASE_READINESS.md) retains the open
-language and product gates: generalized actor suspension and typed supervision,
-actor REPL parity, deeper JSON union discrimination, custom traits, HTTP serving,
-typed SQL queries, Sets, advanced ownership/reuse analysis and a WASM backend.
+vision or a 1.0 release. At this migration checkpoint, open work included actor
+suspension and REPL parity, deeper JSON unions, custom traits, Sets and WASM.
+Subsequent language work implements several of these features; consult the current
+[release readiness](RELEASE_READINESS.md) and [roadmap](../ROADMAP.md) rather than
+treating this historical acceptance as the current feature list. HTTP framework
+packaging, broader SQL APIs and distributed recovery remain separate product gates.
 Unsupported forms must continue to produce explicit diagnostics.
 
 The collector has platform implementations for ARM64 and x86-64 on macOS/Linux.

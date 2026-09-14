@@ -192,6 +192,14 @@ fn operation_refs(
                 operand(value, values)?;
             }
         }
+        Operation::ForeignCall { declaration, args } => {
+            declaration
+                .validate(crate::Span::default())
+                .map_err(|error| error.message)?;
+            for (_, value) in args {
+                operand(value, values)?;
+            }
+        }
         Operation::Phi(incoming) => {
             if incoming.is_empty() {
                 return Err("empty machine phi".into());
@@ -306,7 +314,9 @@ fn limits(program: &Program) -> Result<(), String> {
             let added = match statement {
                 Statement::Assign { operation, .. } | Statement::Effect(operation) => {
                     match operation {
-                        Operation::Call { args, .. } => args.len().saturating_add(1),
+                        Operation::Call { args, .. } | Operation::ForeignCall { args, .. } => {
+                            args.len().saturating_add(1)
+                        }
                         Operation::Phi(incoming) => incoming.len().saturating_mul(2),
                         Operation::StackAlloc { bytes, align } => {
                             stack_bytes = stack_bytes

@@ -3,9 +3,9 @@
 Status: bounded native implementation with actor-owned payload heaps and copied
 messages, bounded single-child supervision and persistent native application
 hosts. Typed native execution began with Decision105A; Decisions124–126 add the
-ownership and application boundaries. Generalized fair suspension, typed
-supervisor trees, multicore execution and complete deterministic FernSim parity
-remain later stages.
+ownership and application boundaries. Decisions138–142 add typed return frames,
+logical cleanup, interactive execution and composable actor helpers. Typed
+supervisor trees, instruction preemption and distributed execution remain open.
 
 ## Try the native example
 
@@ -34,20 +34,28 @@ restart admission ends the lineage without stopping unrelated actors. See the
 
 `spawn(entry)` takes a zero-argument function returning Unit and returns invariant opaque `Pid(M)`. Its captures are evaluated once; its body is queued, never run inline. `send(pid, message)` returns `Result((), Int)`: Ok means enqueue only; Err 3 means dead/foreign identity, Err 4 means mailbox/session quota or an unaccounted message graph. Send borrows its message and gives no Result-handling or transfer credit. Result-bearing messages, callable messages, and unaccounted native handles are rejected by checking. Result-bearing ordinary closure captures retain the existing prohibition. Compiler-created continuation frames may retain already-owned local Result duties; suspension is neither a completed exit nor handling credit, and every completed actor path must still satisfy the ordinary Result proof.
 
-Mailbox schemes are inferred from the owned receive patterns, with no arbitrary scalar default; source body constraints do not supply additional mailbox inference in this checkpoint. An indented `receive` selectively considers messages in enqueue order and arms in source order. Unmatched messages remain in order. Guards are bounded pure, nonallocating, nonfailing scalar expressions without calls. Duplicate or unreachable arms are rejected, but receive need not be exhaustive. An optional final `_ after duration -> body` evaluates duration once; it must be an Int in 0..600000 milliseconds. Registration first tries existing queued messages, even with zero duration. Subsequent polls consider only messages committed strictly before the absolute monotonic deadline. Timely messages do not lose because another actor delayed polling. At exact millisecond equality the deadline wins. Timeout fires only after no eligible message matches. Timer wake ordering is deadline, then stable actor identity. Timeout expressions and capture graphs are not reevaluated on wake.
+Mailbox schemes are inferred from owned receive patterns and body constraints,
+then propagated across lexical direct calls. Recursive components are refined
+before generalization, independent of declaration order; there is no arbitrary
+scalar default. An indented `receive` selectively considers messages in enqueue order and arms in source order. Unmatched messages remain in order. Guards are bounded pure, nonallocating, nonfailing scalar expressions without calls. Duplicate or unreachable arms are rejected, but receive need not be exhaustive. An optional final `_ after duration -> body` evaluates duration once; it must be an Int in 0..600000 milliseconds. Registration first tries existing queued messages, even with zero duration. Subsequent polls consider only messages committed strictly before the absolute monotonic deadline. Timely messages do not lose because another actor delayed polling. At exact millisecond equality the deadline wins. Timeout fires only after no eligible message matches. Timer wake ordering is deadline, then stable actor identity. Timeout expressions and capture graphs are not reevaluated on wake.
 
-Receiving functions return Unit and may suspend in tail position, block statements/initializers, If/Match branches, and explicit returns. Direct receiving calls in tail position update a continuation frame. Receiving-call Result arguments currently retain their caller duties; an otherwise valid callee-based discharge may be conservatively rejected until receiving-call summaries are proved. Non-tail receiving calls, receive inside For/With or strict operands, arbitrary indirect receiving calls, and receiving functions owning defer are diagnosed as unsupported. Ordinary pure spawned functions retain ordinary function-exit defer behavior. Calls into ordinary helpers retain their normal cleanup behavior. An actor suspension never runs defer.
+Receiving helpers may return typed values, including Results. Direct calls retain
+caller obligations through the ordinary source-function proof. Typed return
+frames support non-tail calls, strict operands, recursive helpers, `for`, `with`
+and `?`. Logical `defer` scopes survive suspension and drain on function return,
+fault or cancellation. Only a spawned initializer must return Unit.
 
-Statically known actor entries can also suspend direct Unit tail-call paths that
-lead to recursive helper cycles. The compiler retains ordinary callable entries
-and emits separate actor continuations; each recursive handoff returns from the
-native stack and queues its typed argument frame. This subset requires owned
-capture/parameter types and excludes bodies with `defer`, `for` or `with`.
-Ordinary calls, finite helper paths, non-tail calls, numeric-result recursion and
-indirect calls preserve synchronous behavior. This is cooperative recursion
-support, not an instruction budget for arbitrary source computation.
+Ordinary captured and returned callbacks use separate resumable copies inside
+actors; native non-actor calls keep their synchronous ABI. List and Option/Result
+combinators preserve callback selection and evaluate arguments once. See the
+[current continuation contract](ACTOR_CONTINUATIONS.md) for scheduling boundaries
+and [actor cleanup](ACTOR_CLEANUP.md) for lifetimes and fault precedence. Blocking
+native services, arbitrary instruction preemption and first-class actor-effect
+helpers remain separate boundaries.
 
-The REPL rejects 105A actor programs before effects or retained definitions change. Mailbox actor APIs and their supervision policies remain separate; complete FernSim parity is not claimed.
+The [REPL scheduler](REPL_ACTORS.md) retains actors between entries, runs virtual
+timeouts and exposes bounded source replay through FernSim. The old string-mailbox
+API and its supervision policies remain a separate compatibility interface.
 
 ## Execution ABI and provenance
 

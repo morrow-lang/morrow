@@ -1,5 +1,6 @@
 //! Native object generation from the same typed machine program as QBE.
 //! No source semantics or QBE parsing belong in this backend.
+mod foreign;
 mod function;
 use crate::{
     machine::{self, *},
@@ -22,6 +23,7 @@ struct Backend {
     module: ObjectModule,
     functions: BTreeMap<String, (FuncId, Signature)>,
     data: BTreeMap<String, DataId>,
+    foreign: BTreeMap<String, (FuncId, crate::ffi::Declaration)>,
 }
 
 /// Map a validated machine scalar to its native register representation.
@@ -90,6 +92,7 @@ fn emit_object_target(program: &Program, target: Option<&str>) -> Result<Vec<u8>
         module: ObjectModule::new(builder),
         functions: BTreeMap::new(),
         data: BTreeMap::new(),
+        foreign: BTreeMap::new(),
     };
     backend.declare(program)?;
     backend.define_data(program)?;
@@ -199,6 +202,9 @@ impl Backend {
                     }
                     _ => None,
                 };
+                if let Some(Operation::ForeignCall { declaration, .. }) = operation {
+                    self.declare_foreign(declaration)?;
+                }
                 if let Some(Operation::Call {
                     callee: Operand::Symbol(name),
                     variadic,

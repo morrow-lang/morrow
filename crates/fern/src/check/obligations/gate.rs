@@ -11,7 +11,7 @@ pub(in crate::check) fn check_recovery(program: &ir::Program, work: usize) -> Ch
 }
 /// Both publication boundaries share the same body relevance and obligation proof.
 fn check_mode(program: &ir::Program, mode: Mode, work: usize) -> Checked<usize> {
-    check_roots(program, mode, work, None)
+    check_roots(program, mode, work, None, &HashSet::new())
 }
 /// Generic source roots supplement the complete concrete-body pass; dependencies remain available.
 fn check_roots(
@@ -19,6 +19,7 @@ fn check_roots(
     mode: Mode,
     mut work: usize,
     roots: Option<&HashSet<usize>>,
+    abstract_traits: &HashSet<usize>,
 ) -> Checked<usize> {
     charge(&mut work, program.functions.len(), Span::default())?;
     let mut relevant = HashSet::new();
@@ -29,6 +30,7 @@ fn check_roots(
     }
     close_relevance(program, &mut relevant, &mut work)?;
     let mut summaries = calls::Summaries::default();
+    summaries.abstract_traits = abstract_traits.clone();
     for function in &program.functions {
         if !relevant.contains(&function.id.0)
             || roots.is_some_and(|roots| !roots.contains(&function.id.0))
@@ -223,13 +225,19 @@ pub(in crate::check) fn templates(
     mut functions: Vec<ir::Function>,
     registry: &super::super::nominal::Registry,
     roots: &HashSet<usize>,
+    abstract_traits: &HashSet<usize>,
 ) -> Checked<usize> {
-    super::super::lift::run(&mut functions)?;
+    let reserved = abstract_traits
+        .iter()
+        .copied()
+        .max()
+        .map_or(0, |id| id.saturating_add(1));
+    super::super::lift::run_reserved(&mut functions, reserved)?;
     let types = registry.layouts(&functions)?;
     let program = ir::Program { functions, types };
     let mut work = registry.codec_template_work.get();
     ir::validate_codec_templates(&program, &mut work)?;
-    check_roots(&program, Mode::Template, work, Some(roots))
+    check_roots(&program, Mode::Template, work, Some(roots), abstract_traits)
 }
 #[cfg(test)]
 mod tests {

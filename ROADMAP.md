@@ -366,7 +366,11 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Expose canonical full-document formatting through Rust LSP over current unsaved buffers, with UTF-16 edits, no server-side publication and explicit syntax/parameter errors (Decision100).
 - [x] Retire Tree-sitter integration under the explicit Rust-only scope; retain Rust LSP. Historical grammar parity/publication work is no longer planned.
 - [x] Execute bounded Rust native actor functions with typed mailboxes, selective receive/timeouts, explicit continuation frames, invocation-owned quotas and fault cleanup (Decision105A; native20-program and independent lifecycle/sanitizer gates).
-- [ ] Extend actor execution to generalized suspension, typed ancestor escalation/descendant subtree reconstruction, REPL and FernSim parity.
+- [x] Suspend direct recursive helpers and List/Map/Range loops through typed return frames, preserving operand order, lexical exits and ordinary native entry points (Decision138).
+- [x] Preserve logical actor defer scopes across suspension, faults and cancellation; validate LIFO cleanup, original-fault precedence, precise roots and bounded retained state with native/REPL tests and a 64-by-256-operation stack model (Decision141).
+- [x] Execute checked source actors in persistent REPL sessions and replay bounded virtual-time transcripts through FernSim, including selective receives, deadlines, supervision, stale identities and explicit cleanup (Decision140).
+- [x] Compose typed receiving returns, transitive mailbox inference, with/? and ordinary captured callbacks; suspend six List and four Option/Result combinators while preserving Result provenance, selection order and cleanup. Native/REPL/GC and independent seeded models pass (Decision142).
+- [ ] Implement external-event/instruction fairness, first-class actor-effect callbacks and typed ancestor escalation/descendant subtree reconstruction beyond the documented continuation boundaries.
 - [x] Immutable native JSON parser/accessors/stringifier with exact numbers, Unicode validation and bounded resources (14,309 API checks, 24 budget checks and 6,000 numeric oracle cases in debug/release/sanitizer builds).
 - [x] Migrate Rust native JSON to opaque values/errors, immutable builders and bounded lossless collection adapters (ten native programs, twelve semantic rejections, eight Rust integration tests and 248 native builder checks per build).
 - [x] Evaluate dynamic JSON in the Rust REPL with exact native semantics, independent cleanup budgets and bounded shared storage (21 new Rust regressions and 12,000 numeric/formatting oracles).
@@ -382,7 +386,8 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Implement conservative disjoint JSON unions, allocation-free member selection and whole-union conditional requirements (Decision103 J6b).
 - [x] Accept inline union-bearing JSON decoder targets with bounded linear recognition, exact type identities and native/interactive parity; preserve ordinary parsing/formatting.
 - [x] Verify the library-path/inline-codec checkpoint on macOS and Linux: full Rust/native/C/docs gates, 1470/1472 nextest tests without skips, separate doctests and all ten Criterion smoke phases.
-- [ ] Complete deeper union discrimination and general/custom Json traits (J6c–J7).
+- [x] Distinguish JSON unions through nested required record fields, tuple positions and shared-tag sum payloads under shared proof/runtime limits. Six compiler/REPL groups, independent seeded native selection/precise-GC tests and an expected-output native fixture pass (Decision137).
+- [x] Execute custom Json implementations and generic bridges in native and REPL structural codecs, with opaque wire profiles, composed error paths, shared callback quotas and original-fault cleanup. Independent callback ABI, forced-GC and seeded full-width round trips pass (Decision139; [custom JSON](docs/CUSTOM_JSON.md)).
 - [x] Reassess QBE/Cranelift using current primary sources and an independent native AOT experiment; correct the original QBE rationale (Decision109).
 - [x] Trial Cranelift through shared lowering and promote it as the sole native backend under the Rust workspace migration (Decision122). ARM64 native/ABI and recorded performance acceptance pass; source debugging, controlled optimization comparisons and x86-64 execution remain separate work.
 - [x] Extract shared typed machine lowering and replace handwritten QBE helper text with structured Rust builders; preserve existing QBE boundary tests (Decision112).
@@ -395,8 +400,13 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Retain direct-child ownership through native unit/doc test cleanup and validate the framed safe-Rust adapter (Decision102).
 - [x] Verify default-command migration to Rust on macOS/Linux, retaining `fern-c` as the explicit bootstrap/reference and documenting its legacy JSON contract (Decision96; docs/RUST_DEFAULT_MIGRATION.md).
 - [ ] Expose HTTP serving to compiled Fern applications beyond the Rust preview server, and implement the broader SQL query/resource APIs described in the design.
-- [ ] Complete remaining planned traits/constraints and private-signature inference beyond the verified function, label, alias/newtype and union checkpoints.
-- [ ] Complete Sets and the specified standard modules, including data formats, testing/utilities, IO/system, cryptography and compression.
+- [x] Implement coherent static traits, defaults and parent bounds, explicit where requirements, generic implementations and structural Show/Eq/Ord/Clone derivation. Native, REPL, WASM and deterministic semantic oracles pass (Decision132; [traits](docs/TRAITS.md)).
+- [ ] Complete the remaining syntax audit and ergonomic inference refinements beyond the documented traits, function, alias/newtype and union contracts.
+- [x] Implement nominal immutable Sets with 13 APIs, membership syntax, generic/alias/first-class support, native/REPL model-based simulations and forced precise-GC collection at map helper boundaries; see [Sets](docs/SETS.md).
+- [x] Evaluate closed compile-time constants using bounded pure Fern execution, embed typed data, preserve public/module/editor conventions and reject effects even in unused initializers. Seeded arithmetic, aggregate/closure, visibility and actual native-output tests pass (Decision133; [Comptime](docs/COMPTIME.md)).
+- [x] Implement source-level native C FFI with exact scalar ABI, checked narrowing, sealed pointer handles, retained string owners and literal library linking. Independent ABI, seeded conversion, module/CLI and forced-GC tests pass (Decision136; [FFI](docs/FFI.md)).
+- [x] Extend WASM with captured/indirect functions, maps/sets, collection callbacks, ranges/loops, unions, Result handlers and fault-aware deferred cleanup. Pass 34 Wasmi and four CLI tests, including seeded map, closure/GC and cleanup oracles (Decision135; [portable language](docs/WASM_LANGUAGE.md)).
+- [ ] Complete the specified standard modules, including data formats, testing/utilities, IO/system, cryptography and compression.
 - [ ] Audit all specified syntax and stdlib calls for complete typecheck-to-native behavior; reject unsupported execution paths.
 - [ ] Complete precise actor memory, fair scheduling and full typed browser application support above. Inferred ownership/reuse remains an optimization, not a mandatory application borrow checker (Decision124).
 

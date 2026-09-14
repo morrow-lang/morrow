@@ -46,6 +46,17 @@ struct Line {
     anchor: usize,
 }
 
+fn bounds_text(prefix: &str, bounds: &[ast::TraitBound]) -> Result<String> {
+    if bounds.is_empty() {
+        return Ok(String::new());
+    }
+    let bounds = bounds
+        .iter()
+        .map(|b| Ok(format!("{}({})", b.name, type_text(&b.ty)?)))
+        .collect::<Result<Vec<_>>>()?;
+    Ok(format!("{prefix}{}", bounds.join(", ")))
+}
+
 /// Construct a rendered line with its original source anchor.
 fn line(indent: usize, text: impl Into<String>, anchor: usize) -> Line {
     Line {
@@ -99,10 +110,82 @@ impl Renderer<'_> {
             ));
         }
         for function in &program.functions {
+            if function.syntax == ast::FunctionSyntax::Trait
+                || function.name.starts_with("$impl")
+                || function.name.starts_with("$default")
+            {
+                continue;
+            }
             declarations.push((
                 function.span.start,
                 self.function(function, function.public)?,
             ));
+        }
+        for declaration in &program.traits {
+            let mut lines = vec![line(
+                0,
+                format!(
+                    "{}trait {}({}){}:",
+                    if declaration.public { "pub " } else { "" },
+                    declaration.name,
+                    declaration.parameter,
+                    bounds_text(" with ", &declaration.parents)?
+                ),
+                declaration.span.start,
+            )];
+            for method in &declaration.methods {
+                let name = method.default.as_ref().unwrap_or(&method.function);
+                let mut function = program
+                    .functions
+                    .iter()
+                    .find(|f| &f.name == name)
+                    .ok_or_else(|| Diagnostic::new(declaration.span, "missing trait method"))?
+                    .clone();
+                function.name = method.name.clone();
+                function.constraints.remove(0);
+                for mut item in self.function(&function, false)? {
+                    item.indent += 1;
+                    lines.push(item);
+                }
+            }
+            declarations.push((declaration.span.start, lines));
+        }
+        for implementation in &program.implementations {
+            let mut lines = vec![line(
+                0,
+                format!(
+                    "impl {}({}){}:",
+                    implementation.bound.name,
+                    type_text(&implementation.bound.ty)?,
+                    bounds_text(" where ", &implementation.constraints)?
+                ),
+                implementation.span.start,
+            )];
+            for (name, target) in &implementation.methods {
+                let clauses: Vec<_> = program
+                    .functions
+                    .iter()
+                    .filter(|f| &f.name == target)
+                    .collect();
+                if clauses.is_empty() {
+                    return Err(Diagnostic::new(
+                        implementation.span,
+                        "missing implementation method",
+                    ));
+                }
+                for original in clauses {
+                    let mut function = original.clone();
+                    function.name = name.clone();
+                    function
+                        .constraints
+                        .truncate(function.constraints.len() - implementation.constraints.len());
+                    for mut item in self.function(&function, false)? {
+                        item.indent += 1;
+                        lines.push(item);
+                    }
+                }
+            }
+            declarations.push((implementation.span.start, lines));
         }
         self.documentation(program, &mut declarations);
         declarations.sort_by_key(|(anchor, _)| *anchor);
@@ -125,6 +208,7 @@ impl Renderer<'_> {
             .chain(program.types.iter().map(|d| (d.span.start, &d.name)))
             .chain(program.aliases.iter().map(|d| (d.span.start, &d.name)))
             .chain(program.newtypes.iter().map(|d| (d.span.start, &d.name)))
+            .chain(program.traits.iter().map(|d| (d.span.start, &d.name)))
             .collect();
         let indices: std::collections::BTreeMap<_, _> = declarations
             .iter()
@@ -236,10 +320,25 @@ impl Renderer<'_> {
 
     /// Render a signature while preserving omitted return annotations and body shape.
     fn function(&self, function: &ast::Function, public: bool) -> Result<Vec<Line>> {
+        if function.syntax == ast::FunctionSyntax::Constant {
+            let annotation = function
+                .return_type
+                .as_ref()
+                .map(type_text)
+                .transpose()?
+                .map_or_else(String::new, |ty| format!(": {ty}"));
+            let header = format!(
+                "{}const {}{annotation} = comptime:",
+                if public { "pub " } else { "" },
+                function.name
+            );
+            return self.suite(header, function.span.start, &function.body, 0);
+        }
         let params = function
             .params
             .iter()
             .map(|param| match &param.annotation {
+                Some(ty) if matches!(&param.pattern.kind, ast::PatternKind::Bind(n) if n.starts_with("$traitarg")) => type_text(ty),
                 Some(ty) => Ok(format!("{}: {}", parameter_text(param), type_text(ty)?)),
                 None => Ok(parameter_text(param)),
             })
@@ -256,9 +355,30 @@ impl Renderer<'_> {
         if let Some(ty) = &function.return_type {
             header.push_str(&format!(" -> {}", type_text(ty)?));
         }
+        if function.syntax == ast::FunctionSyntax::Foreign {
+            let ExprKind::ForeignCall { declaration, .. } = &function.body.kind else {
+                return Err(Diagnostic::new(
+                    function.span,
+                    "foreign declaration lost ABI metadata",
+                ));
+            };
+            header = header.replacen("fn ", "foreign \"C\" fn ", 1);
+            if declaration.symbol != function.name {
+                header.push_str(&format!(" as {:?}", declaration.symbol));
+            }
+            if let Some(library) = &declaration.library {
+                header.push_str(&format!(" from {library:?}"));
+            }
+            return Ok(vec![line(0, header, function.span.start)]);
+        }
+        header.push_str(&bounds_text(" where ", &function.constraints)?);
         header.push_str(match function.syntax {
+            ast::FunctionSyntax::Trait => return Ok(vec![line(0, header, function.span.start)]),
             ast::FunctionSyntax::Colon => ":",
             ast::FunctionSyntax::Arrow => " ->",
+            ast::FunctionSyntax::Foreign | ast::FunctionSyntax::Constant => {
+                unreachable!("constant rendered above")
+            }
         });
         self.suite(header, function.span.start, &function.body, 0)
     }
@@ -407,6 +527,12 @@ impl Renderer<'_> {
             ExprKind::Interpolate(parts) => self.interpolation(parts, indent, false)?,
             ExprKind::MultilineString(parts) => self.interpolation(parts, indent, true)?,
             ExprKind::Name(name) | ExprKind::GlobalName { name, .. } => name.clone(),
+            ExprKind::ForeignCall { .. } => {
+                return Err(Diagnostic::new(
+                    expression.span,
+                    "foreign call only appears in a declaration",
+                ));
+            }
             ExprKind::Unit => "()".into(),
             ExprKind::Tuple(items) => {
                 return self.delimited_values("(", ")", items, indent, expression.span, true);
@@ -1127,7 +1253,7 @@ fn module_anchor(source: &str) -> usize {
 }
 
 /// Render concrete/generic source type syntax; inference variables never originate in parsing.
-fn type_text(ty: &Type) -> Result<String> {
+pub(crate) fn type_text(ty: &Type) -> Result<String> {
     Ok(match ty {
         Type::Pid(value) => format!("Pid({})", type_text(value)?),
         Type::ActorFunction(_, _) => {
@@ -1452,11 +1578,27 @@ fn attach_comments(source: &str, lines: Vec<Line>, comments: &[Comment]) -> Stri
 
 /// Compare source syntax independently of locations after parsing the rendered artifact.
 fn structural(mut program: ast::Program) -> String {
+    for declaration in &mut program.traits {
+        declaration.span = Span::default();
+        for bound in &mut declaration.parents {
+            bound.span = Span::default();
+        }
+    }
+    for implementation in &mut program.implementations {
+        implementation.span = Span::default();
+        implementation.bound.span = Span::default();
+        for bound in &mut implementation.constraints {
+            bound.span = Span::default();
+        }
+    }
     for doc in &mut program.docs {
         doc.span = Span::default();
     }
     let mut groups = std::collections::BTreeMap::new();
     for function in &mut program.functions {
+        for bound in &mut function.constraints {
+            bound.span = Span::default();
+        }
         let next = groups.len();
         function.group_start = *groups
             .entry((function.name.clone(), function.group_start))
@@ -1548,6 +1690,11 @@ fn clear_expression(expression: &mut Expr) {
         }
         ExprKind::Interpolate(parts) | ExprKind::MultilineString(parts) => {
             clear_string_parts(parts)
+        }
+        ExprKind::ForeignCall { args, .. } => {
+            for arg in args {
+                clear_expression(arg);
+            }
         }
         ExprKind::Call { args, .. } | ExprKind::GlobalCall { args, .. } => {
             args.iter_mut().for_each(clear_argument);

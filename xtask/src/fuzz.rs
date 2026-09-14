@@ -1,5 +1,6 @@
 //! Deterministic grammar and mutation acceptance with bounded subprocesses.
 mod generator;
+mod language;
 use std::{fs, path::Path, process::Command};
 const SEEDS: [&str; 7] = [
     "basic",
@@ -63,8 +64,9 @@ pub fn run(root: &Path, bin: &Path, iterations: u32, seed: u64) -> Result<(), St
             format!("mutation seed={mutation_seed:#x} index={index}: {error}\nsource={source:?}")
         })?;
     }
+    let feature_cases = language::run(&path, seed, &mut invoke)?;
     println!(
-        "Fuzz passed: {iterations} grammar cases seed={seed:#x}, 192 mutations seed={mutation_seed:#x}"
+        "Fuzz passed: {iterations} grammar cases seed={seed:#x}, 192 mutations seed={mutation_seed:#x}, {feature_cases} language-feature mutations"
     );
     Ok(())
 }

@@ -56,10 +56,14 @@ pub(super) fn program(
                     "main cannot own an actor context",
                 ));
             }
-            expect_type(function.return_type.clone(), Type::Unit, function.body.span)?;
+            frame_owned(&function.return_type, layouts, function.body.span)?;
             sendable(mailbox, layouts, function.body.span)?;
             if function.body.ty != Type::Never {
-                expect_type(function.body.ty.clone(), Type::Unit, function.body.span)?;
+                expect_type(
+                    function.body.ty.clone(),
+                    function.return_type.clone(),
+                    function.body.span,
+                )?;
             }
         }
     }
@@ -88,12 +92,6 @@ pub(super) fn program(
                 return Err(invalid(
                     expr.span,
                     "receiving call requires an explicit actor context transition",
-                ));
-            }
-            if function.mailbox.is_some() && matches!(expr.kind, ExprKind::Defer(_)) {
-                return Err(invalid(
-                    expr.span,
-                    "receiving actor function cannot own defer",
                 ));
             }
             pending.extend(ir::children(expr));
@@ -190,6 +188,25 @@ pub(super) fn sendable(
     layouts: &HashMap<Type, &ir::TypeLayout>,
     span: Span,
 ) -> Lowering<()> {
+    ownership(ty, layouts, span, false)
+}
+
+/// Internal continuation frames may retain Result values and callable graphs;
+/// runtime descriptors validate each actual callable capture before publication.
+pub(super) fn frame_owned(
+    ty: &Type,
+    layouts: &HashMap<Type, &ir::TypeLayout>,
+    span: Span,
+) -> Lowering<()> {
+    ownership(ty, layouts, span, true)
+}
+
+fn ownership(
+    ty: &Type,
+    layouts: &HashMap<Type, &ir::TypeLayout>,
+    span: Span,
+    frame: bool,
+) -> Lowering<()> {
     let mut pending = vec![ty];
     let mut seen = BTreeSet::new();
     let mut work = 0;
@@ -213,12 +230,20 @@ pub(super) fn sendable(
             Type::List(item) | Type::Option(item) => pending.push(item),
             Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),
             Type::Map(key, value) => pending.extend([key.as_ref(), value.as_ref()]),
+            Type::Named(name, _) if name == "Ptr" => {
+                return Err(invalid(
+                    span,
+                    "foreign pointers cannot cross actor boundaries",
+                ));
+            }
             Type::Named(_, _) => {
                 let layout = layouts
                     .get(ty)
                     .ok_or_else(|| invalid(span, "unknown actor message layout"))?;
                 pending.extend(layout.variants.iter().flatten());
             }
+            Type::Result(ok, err) if frame => pending.extend([ok.as_ref(), err.as_ref()]),
+            Type::Function(_, _) | Type::ActorFunction(_, _) if frame => {}
             Type::Result(_, _) => {
                 return Err(invalid(
                     span,

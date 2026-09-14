@@ -226,7 +226,7 @@ impl Emitter<'_> {
     }
 
     /// Read a custom field after its owner/tag has been checked by the caller.
-    fn custom_field(
+    pub(super) fn custom_field(
         &mut self,
         value: &str,
         index: usize,

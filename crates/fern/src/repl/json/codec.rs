@@ -4,7 +4,9 @@ use crate::json_codec::{Direction, Kind as Wire, Plan};
 mod containers;
 mod sums;
 mod unions;
+type Callback<'a> = dyn FnMut(ir::FunctionId, Value, &mut Budget<'_>) -> Result<Value> + 'a;
 struct Execution<'p, 'b> {
+    callback: Option<&'p mut Callback<'p>>,
     plan: &'p Plan,
     budget: Budget<'b>,
     path: Rc<String>,
@@ -18,12 +20,77 @@ impl Machine {
         plan: &Plan,
     ) -> Eval<Value> {
         let input = self.expression(input)?;
-        let limits = if self.cleanup_depth == 0 {
-            &mut self.json_limits
-        } else {
+        let cleanup = self.cleanup_depth != 0;
+        let limits = if cleanup {
             &mut self.json_cleanup
+        } else {
+            &mut self.json_limits
         };
-        match execute(direction, &input, plan, limits) {
+        let mut limits = std::mem::replace(limits, Limits::new(0));
+        let mut callback_fault = None;
+        let mut callback = |id, args, budget: &mut Budget<'_>| {
+            let scope = fern_json::scope::Scope::enter(
+                budget.work,
+                ALLOC.saturating_sub(budget.allocated),
+                NODES.saturating_sub(budget.nodes),
+            )?;
+            let limits = if cleanup {
+                &mut self.json_cleanup
+            } else {
+                &mut self.json_limits
+            };
+            std::mem::swap(limits, budget.limits);
+            let result = self.function(self.program.clone(), id, &[], vec![args]);
+            let limits = if cleanup {
+                &mut self.json_cleanup
+            } else {
+                &mut self.json_limits
+            };
+            std::mem::swap(limits, budget.limits);
+            let used = scope.spent();
+            drop(scope);
+            budget.work = budget.work.saturating_sub(used.work);
+            budget.allocated = budget.allocated.saturating_add(used.allocated);
+            budget.nodes = budget.nodes.saturating_add(used.nodes);
+            let nodes = fern_json::scope::charge_nodes(used.nodes);
+            if matches!(result, Err(Failure::JsonLimit)) {
+                fern_json::scope::mark_exhausted();
+                return Err(error(4, -1));
+            }
+            if let Err(failure) = result {
+                callback_fault = Some(failure);
+                return Err(error(0, -1));
+            }
+            if used.exhausted {
+                fern_json::scope::mark_exhausted();
+                return Err(error(4, -1));
+            }
+            nodes?;
+            match result {
+                Ok(Value::Sum(0, values)) if values.len() == 1 => Ok(values[0].clone()),
+                Ok(Value::Sum(1, values)) if values.len() == 1 => match &values[0] {
+                    Value::JsonError(e) => Err(e.clone()),
+                    _ => Err(error(5, -1)),
+                },
+                Ok(_) => Err(error(5, -1)),
+                Err(failure) => {
+                    callback_fault = Some(failure);
+                    Err(error(0, -1))
+                }
+            }
+        };
+        let result = scoped_operation(&mut limits, |limits| {
+            execute(direction, &input, plan, limits, Some(&mut callback))
+        });
+        if cleanup {
+            self.json_cleanup = limits;
+        } else {
+            self.json_limits = limits;
+        }
+        if let Some(failure) = callback_fault {
+            return Err(failure);
+        }
+        match result {
             Ok(value) => Ok(Value::Sum(0, Rc::new(vec![value]))),
             Err(Error { code: 0, .. }) => Err(fault("interactive evaluation limit exceeded")),
             Err(error) => Ok(Value::Sum(1, Rc::new(vec![Value::JsonError(error)]))),
@@ -31,7 +98,13 @@ impl Machine {
     }
 }
 /// Reserve failure publication before descent; no failure path allocates additional path text.
-fn execute(direction: Direction, input: &Value, plan: &Plan, limits: &mut Limits) -> Result<Value> {
+fn execute<'p>(
+    direction: Direction,
+    input: &Value,
+    plan: &'p Plan,
+    limits: &mut Limits,
+    callback: Option<&'p mut Callback<'p>>,
+) -> Result<Value> {
     let mut budget = Budget {
         limits,
         work: 64 * 1024 * 1024,
@@ -46,6 +119,7 @@ fn execute(direction: Direction, input: &Value, plan: &Plan, limits: &mut Limits
         actual_publication.saturating_sub(128),
     )?;
     let mut execution = Execution {
+        callback,
         plan,
         budget,
         path: Rc::new(String::new()),
@@ -128,6 +202,20 @@ impl Execution<'_, '_> {
             (Wire::Union(children), Value::Union(value)) => {
                 self.encode_union(children, value, depth)
             }
+            (Wire::Custom { encode, .. }, _) => {
+                let value = self.custom(encode, input.clone())?;
+                let Value::Json(node) = value else {
+                    return Err(error(5, -1));
+                };
+                self.budget.work(node.nodes)?;
+                if node.height.saturating_add(depth) > DEPTH
+                    || node.nodes > NODES
+                    || node.encoded > OUTPUT
+                {
+                    return Err(error(4, -1));
+                }
+                Ok(node)
+            }
             (Wire::Newtype(child), _) => self.encode(*child, input, depth + 1),
             (Wire::Dynamic, Value::Json(node)) => {
                 self.budget.work(node.nodes)?;
@@ -156,6 +244,7 @@ impl Execution<'_, '_> {
         }
         match (&self.plan.entries[id].kind, &input.kind) {
             (Wire::Union(children), _) => self.decode_union(children, input, depth),
+            (Wire::Custom { decode, .. }, _) => self.custom(decode, Value::Json(input.clone())),
             (Wire::Newtype(child), _) => self.decode(*child, input, depth + 1),
             (Wire::Dynamic, _) => {
                 self.budget.work(input.nodes)?;
@@ -169,6 +258,26 @@ impl Execution<'_, '_> {
             _ => self.decode_container(id, input, depth),
         }
     }
+    fn custom(&mut self, callback: &crate::json_codec::Callback, input: Value) -> Result<Value> {
+        let crate::json_codec::Callback::Function(id) = callback else {
+            return Err(error(5, -1));
+        };
+        let call = self.callback.as_deref_mut().ok_or_else(|| error(5, -1))?;
+        match call(*id, input, &mut self.budget) {
+            Err(mut failure) if failure.code != 0 => {
+                let child = failure.path.as_deref().map(String::as_str).unwrap_or("");
+                if child.len() > OUTPUT.saturating_sub(self.path.len()) {
+                    return Err(error(4, -1));
+                }
+                self.budget
+                    .work(child.len().saturating_mul(2) + self.path.len())?;
+                self.budget.allocate(self.path.len() + child.len() + 40)?;
+                failure.path = Some(Rc::new(format!("{}{child}", self.path)));
+                Err(failure)
+            }
+            result => result,
+        }
+    }
     /// Reserve the same fixed native adapter envelope before formatting or allocation.
     fn scalar(&mut self, input: &Value) -> Result<Json> {
         self.budget.work(256)?;
@@ -176,6 +285,7 @@ impl Execution<'_, '_> {
         if self.budget.nodes == NODES {
             return Err(error(4, -1));
         }
+        fern_json::scope::charge_nodes(1)?;
         self.budget.nodes += 1;
         let (kind, encoded) = match input {
             Value::Unit => (Kind::Null, 4),
@@ -286,6 +396,7 @@ mod tests {
                 at: 0,
             };
             let mut execution = Execution {
+                callback: None,
                 plan: &plan,
                 budget,
                 path: Rc::new(String::new()),
@@ -319,6 +430,7 @@ mod tests {
             at: 0,
         };
         let mut execution = Execution {
+            callback: None,
             plan: &plan,
             budget,
             path: Rc::new(String::new()),
@@ -365,6 +477,7 @@ mod tests {
             at: 0,
         };
         let mut execution = Execution {
+            callback: None,
             plan: &plan,
             budget,
             path: Rc::new("/parent".into()),

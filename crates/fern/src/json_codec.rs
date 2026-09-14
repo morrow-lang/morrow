@@ -33,6 +33,7 @@ pub enum Kind {
     String,
     Unit,
     Dynamic,
+    Custom { encode: Callback, decode: Callback },
     List(usize),
     Newtype(usize),
     Option(usize),
@@ -41,6 +42,12 @@ pub enum Kind {
     Record(Vec<Field>),
     Sum(Vec<Variant>),
     Union(Vec<usize>),
+}
+/// Source callbacks exist only during checking; executable plans carry validated function IDs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Callback {
+    Source(String),
+    Function(ir::FunctionId),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Entry {
@@ -295,6 +302,7 @@ impl Plan {
             (Kind::Newtype(child), Type::Named(..)) => {
                 self.newtype(index, *child, entry, layouts, audit)?
             }
+            (Kind::Custom { .. }, Type::Named(..)) => layouts.contains_key(&entry.ty),
             (Kind::Record(fields), Type::Named(..)) => {
                 self.record(index, fields, entry, layouts, audit)?
             }
@@ -411,6 +419,51 @@ pub(crate) fn validate_program(program: &ir::Program) -> Result<(), Diagnostic> 
         {
             if seen.insert(std::rc::Rc::as_ptr(plan) as usize) {
                 plan.validate_budget(&program.types, expr.span, &mut work)?;
+                for entry in &plan.entries {
+                    if let Kind::Custom { encode, decode } = &entry.kind {
+                        for (callback, input, output) in [
+                            (encode, &entry.ty, Type::Native(NativeType::JsonValue)),
+                            (
+                                decode,
+                                &Type::Native(NativeType::JsonValue),
+                                entry.ty.clone(),
+                            ),
+                        ] {
+                            work = work.saturating_add(program.functions.len());
+                            if work > MAX_WORK {
+                                return Err(Diagnostic::new(
+                                    expr.span,
+                                    "JSON callback validation work limit exceeded",
+                                ));
+                            }
+                            let Callback::Function(id) = callback else {
+                                return Err(Diagnostic::new(
+                                    expr.span,
+                                    "unresolved JSON callback in executable plan",
+                                ));
+                            };
+                            let function =
+                                program.functions.iter().find(|f| f.id == *id).ok_or_else(
+                                    || Diagnostic::new(expr.span, "missing JSON callback function"),
+                                )?;
+                            let expected = Type::Result(
+                                Box::new(output),
+                                Box::new(Type::Native(NativeType::JsonError)),
+                            );
+                            if function.mailbox.is_some()
+                                || !function.captures.is_empty()
+                                || function.params.len() != 1
+                                || function.params[0].ty != *input
+                                || function.return_type != expected
+                            {
+                                return Err(Diagnostic::new(
+                                    expr.span,
+                                    "JSON callback has invalid concrete signature",
+                                ));
+                            }
+                        }
+                    }
+                }
             }
             crate::unions::bound(&input.ty, expr.span)?;
             crate::unions::bound(&expr.ty, expr.span)?;

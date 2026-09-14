@@ -1,7 +1,23 @@
 //! Typed continuations retain only lexical values and never the execution or fault context.
 use super::*;
+#[path = "dynamic.rs"]
+mod dynamic;
+#[path = "helpers.rs"]
+mod helpers;
+#[path = "higher_order.rs"]
+mod higher_order;
+#[path = "loops.rs"]
+mod loops;
+#[path = "normalize.rs"]
+mod normalize;
+#[path = "sums.rs"]
+mod sums;
+#[path = "with.rs"]
+mod with;
 
-struct Builder {
+struct Builder<'a> {
+    layouts: &'a HashMap<Type, &'a ir::TypeLayout>,
+    source_return_type: Type,
     plan: Plan,
     next_function: usize,
     source_count: usize,
@@ -10,6 +26,10 @@ struct Builder {
     generic: bool,
     work: usize,
     targets: BTreeMap<usize, Function>,
+    loops: Vec<(Expr, Expr)>,
+    returning: BTreeMap<usize, usize>,
+    return_to: Option<ir::Param>,
+    scoped: bool,
 }
 #[derive(Clone)]
 struct Continuation {
@@ -31,6 +51,8 @@ pub(super) fn program(
         .checked_add(1)
         .ok_or_else(|| invalid(Span::default(), "actor function identity limit exceeded"))?;
     let mut builder = Builder {
+        layouts,
+        source_return_type: Type::Unit,
         plan: Plan::default(),
         next_function: next,
         source_count: program.functions.len(),
@@ -39,12 +61,20 @@ pub(super) fn program(
         generic: false,
         work: 0,
         targets: BTreeMap::new(),
+        loops: Vec::new(),
+        returning: BTreeMap::new(),
+        return_to: None,
+        scoped: false,
     };
     let helpers = tail_helpers::discover(program, layouts)?;
     for function in &program.functions {
         if helpers.contains(&function.id.0) {
             if function.body.ty != Type::Never {
-                expect_type(function.body.ty.clone(), Type::Unit, function.body.span)?;
+                expect_type(
+                    function.body.ty.clone(),
+                    function.return_type.clone(),
+                    function.body.span,
+                )?;
             }
             let mut pending = vec![&function.body];
             while let Some(expr) = pending.pop() {
@@ -55,10 +85,14 @@ pub(super) fn program(
         if function.mailbox.is_some() {
             let identity = builder.identity(function.body.span)?;
             builder.plan.entries.insert(function.id.0, identity);
+            let returning = builder.identity(function.body.span)?;
+            builder.returning.insert(function.id.0, returning);
             builder.targets.insert(function.id.0, function.clone());
         } else if helpers.contains(&function.id.0) {
             let identity = builder.identity(function.body.span)?;
             builder.plan.helpers.insert(function.id.0, identity);
+            let returning = builder.identity(function.body.span)?;
+            builder.returning.insert(function.id.0, returning);
             builder.targets.insert(function.id.0, function.clone());
         }
     }
@@ -69,7 +103,11 @@ pub(super) fn program(
         builder.generic = function.mailbox.is_none();
         builder.mailbox = function.mailbox.clone().unwrap_or(Type::Unit);
         builder.next_local = function.local_count;
-        let body = builder.expression(&function.body, None, 0)?;
+        builder.source_return_type = function.return_type.clone();
+        builder.scoped = owns_cleanup(&function.body);
+        let normalized = builder.normalize(&function.body, 0)?;
+        let body = builder.expression(&normalized, None, 0)?;
+        let body = builder.enter_scope(body);
         let mut step = builder.function(body, vec![], false)?;
         builder.plan.steps.remove(&step.id.0);
         builder.plan.generic_steps.remove(&step.id.0);
@@ -92,11 +130,12 @@ pub(super) fn program(
             .cloned()
             .collect();
         builder.plan.functions.push(step);
+        builder.returning_function(function, &normalized)?;
     }
     Ok(builder.plan)
 }
 
-impl Builder {
+impl Builder<'_> {
     /// Preserve each branch's completion separately; joining continuation bodies are shared.
     fn expression(
         &mut self,
@@ -110,12 +149,49 @@ impl Builder {
         }
         match &expr.kind {
             ExprKind::Block(stmts) => self.block(stmts, next, expr.span, depth + 1),
+            ExprKind::For {
+                pattern,
+                iterable,
+                body,
+            } => self.iteration(pattern, iterable, body, next, expr.span, depth + 1),
+            ExprKind::Break | ExprKind::Continue => {
+                let (advance, done) = self
+                    .loops
+                    .last()
+                    .ok_or_else(|| invalid(expr.span, "loop control outside loop"))?;
+                Ok(if matches!(expr.kind, ExprKind::Continue) {
+                    advance
+                } else {
+                    done
+                }
+                .clone())
+            }
             ExprKind::Return(value) => self.expression(value, None, depth + 1),
+            ExprKind::Invoke { callee, args } => self.dynamic_call(expr, callee, args, next),
+            ExprKind::Call {
+                target: CallTarget::Builtin(builtin),
+                args,
+            } if matches!(
+                builtin,
+                Builtin::ListMap
+                    | Builtin::ListFold
+                    | Builtin::ListFilter
+                    | Builtin::ListFind
+                    | Builtin::ListAny
+                    | Builtin::ListAll
+            ) =>
+            {
+                self.higher_list(*builtin, args, expr, next)
+            }
+            ExprKind::Defer(value) => {
+                let registration = self.register_defer(value, expr.span)?;
+                self.finish(registration, next)
+            }
             ExprKind::Call {
                 target: CallTarget::Function(function),
                 args,
-            } if next.is_none() && self.plan.helpers.contains_key(&function.0) => {
-                self.helper_call(*function, args, expr.span)
+            } if self.plan.helpers.contains_key(&function.0) => {
+                self.returning_call(*function, args, next, expr.span)
             }
             ExprKind::Actor(ir::ActorExpr::Call {
                 function,
@@ -169,9 +245,35 @@ impl Builder {
             }
             _ => {
                 atomic(expr)?;
-                Ok(finish(expr.clone(), next))
+                self.finish(expr.clone(), next)
             }
         }
+    }
+
+    /// Registration is atomic; only running the captured cleanup invokes source code.
+    fn register_defer(&mut self, value: &Expr, span: Span) -> Lowering<Expr> {
+        let ExprKind::Closure { function, .. } = value.kind else {
+            return Err(invalid(
+                span,
+                "actor defer requires a lifted cleanup closure",
+            ));
+        };
+        let adapter = operation(
+            Operation::CleanupInvoke {
+                function,
+                closure: Box::new(value.clone()),
+            },
+            span,
+        );
+        let closure = self.closure(adapter, vec![], false)?;
+        Ok(node(
+            ExprKind::Block(vec![
+                Stmt::Expr(operation(Operation::ScopeDefer(Box::new(closure)), span)),
+                Stmt::Expr(unit(span)),
+            ]),
+            Type::Unit,
+            span,
+        ))
     }
 
     /// A Unit tail call needs no value-return continuation. Its typed argument
@@ -205,13 +307,10 @@ impl Builder {
         next: Option<&Continuation>,
         span: Span,
     ) -> Lowering<Expr> {
-        if next.is_some() {
-            return Err(invalid(
-                span,
-                "receiving calls must be in actor tail position",
-            ));
-        }
         expect_type(mailbox.clone(), self.mailbox.clone(), span)?;
+        if next.is_some() || self.scoped || self.return_to.is_some() {
+            return self.returning_call(function, args, next, span);
+        }
         let target = self
             .targets
             .get(&function.0)
@@ -264,7 +363,7 @@ impl Builder {
                     continue;
                 }
             };
-            if !needs(value) {
+            if !self.needs(value) {
                 prefix.push(stmt.clone());
                 continue;
             }
@@ -288,7 +387,7 @@ impl Builder {
             )?));
             return Ok(node(ExprKind::Block(prefix), Type::Int, span));
         }
-        prefix.push(Stmt::Expr(finish(unit(span), next)));
+        prefix.push(Stmt::Expr(self.finish(unit(span), next)?));
         Ok(node(ExprKind::Block(prefix), Type::Int, span))
     }
 
@@ -485,6 +584,10 @@ pub(super) fn needs(expr: &Expr) -> bool {
     matches!(
         expr.kind,
         ExprKind::Return(_)
+            | ExprKind::Defer(_)
+            | ExprKind::For { .. }
+            | ExprKind::Break
+            | ExprKind::Continue
             | ExprKind::Actor(ir::ActorExpr::Receive { .. } | ir::ActorExpr::Call { .. })
     ) || ir::children(expr).into_iter().any(needs)
 }
@@ -535,7 +638,7 @@ fn free(body: &Expr, params: &[ir::Param], work: &mut usize) -> Lowering<Vec<ir:
             }
         }
         match &expr.kind {
-            ExprKind::Match { arms, .. } => {
+            ExprKind::Match { arms, .. } | ExprKind::Actor(ir::ActorExpr::Receive { arms, .. }) => {
                 for arm in arms {
                     bind(&arm.pattern, &mut bound);
                 }
@@ -608,4 +711,9 @@ fn bind(pattern: &Pattern, bound: &mut BTreeSet<usize>) {
         }
         _ => {}
     }
+}
+
+/// Cleanup ownership stops at lifted callable identities, whose bodies are separate functions.
+fn owns_cleanup(expr: &Expr) -> bool {
+    matches!(expr.kind, ExprKind::Defer(_)) || ir::children(expr).into_iter().any(owns_cleanup)
 }

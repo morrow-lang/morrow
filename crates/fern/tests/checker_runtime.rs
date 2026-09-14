@@ -139,6 +139,7 @@ fn every_direct_registry_contract_instantiates_into_checked_ir() {
             group_start: 0,
             syntax: ast::FunctionSyntax::Colon,
             name: "probe".into(),
+            constraints: vec![],
             params,
             return_type: Some(concrete(&signature.return_type)),
             body: ast::Expr {

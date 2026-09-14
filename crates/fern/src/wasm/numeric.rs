@@ -14,7 +14,10 @@ impl Emitter<'_, '_> {
                 self.divide(span)?;
                 return Ok(Type::Int);
             }
-            (Type::Int, Remainder) => I::I64RemS,
+            (Type::Int, Remainder) => {
+                self.nonzero_divisor(span)?;
+                I::I64RemS
+            }
             (Type::Int, Power) => {
                 self.power(span)?;
                 return Ok(Type::Int);
@@ -58,11 +61,27 @@ impl Emitter<'_, '_> {
         })
     }
 
+    fn nonzero_divisor(&mut self, span: Span) -> Result<()> {
+        let rhs = self.temp(ValType::I64, span)?;
+        self.emit(I::LocalTee(rhs));
+        self.emit(I::I64Eqz);
+        self.emit(I::If(BlockType::Empty));
+        self.emit(I::Unreachable);
+        self.emit(I::End);
+        self.emit(I::LocalGet(rhs));
+        Ok(())
+    }
+
     fn divide(&mut self, span: Span) -> Result<()> {
         let rhs = self.temp(ValType::I64, span)?;
         let lhs = self.temp(ValType::I64, span)?;
         self.emit(I::LocalSet(rhs));
         self.emit(I::LocalSet(lhs));
+        self.emit(I::LocalGet(rhs));
+        self.emit(I::I64Eqz);
+        self.emit(I::If(BlockType::Empty));
+        self.emit(I::Unreachable);
+        self.emit(I::End);
         // Fern wraps MIN / -1; core Wasm's signed divide traps for this pair.
         self.emit(I::LocalGet(lhs));
         self.emit(I::I64Const(i64::MIN));

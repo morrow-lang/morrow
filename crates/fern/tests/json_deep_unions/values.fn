@@ -1,0 +1,34 @@
+type NumberPayload derive(Json):
+    value: Int
+
+type TextPayload derive(Json):
+    value: String
+
+type Number derive(Json):
+    payload: NumberPayload
+
+type Text derive(Json):
+    payload: TextPayload
+
+type Choice = Number | Text
+
+type Pair = (Int, String) | (String, Int)
+
+type Event(a) derive(Json):
+    Payload(a)
+
+type Events = Event(Int) | Event(String)
+
+fn main() -> Result((), json.Error):
+    let number = json.decode("\{\"payload\":\{\"value\":9007199254740993\}\}", Choice)?
+    let text = json.decode("\{\"payload\":\{\"value\":\"🌿\"\}\}", Choice)?
+    println(json.encode(number)?)
+    println(json.encode(text)?)
+    let pair = json.decode("[\"🌿\",-9223372036854775808]", Pair)?
+    println(json.encode(pair)?)
+    match json.decode("\{\"payload\":\{\"value\":true\}\}", Choice):
+        Ok(_) -> println("wrong")
+        Err(error) -> println(json.error_code(error))
+    let event = json.decode("\{\"tag\":\"Payload\",\"fields\":[\"🌿\"]\}", Events)?
+    println(json.encode(event)?)
+    Ok(())

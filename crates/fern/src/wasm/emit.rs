@@ -1,8 +1,24 @@
 //! Structured scalar control flow with lexical locals and typed branch results.
 #[path = "aggregates.rs"]
 mod aggregates;
+#[path = "callables.rs"]
+mod callables;
+#[path = "cleanup.rs"]
+mod cleanup;
 #[path = "collections.rs"]
 mod collections;
+#[path = "higher_order.rs"]
+mod higher_order;
+#[path = "iteration.rs"]
+mod iteration;
+#[path = "maps.rs"]
+mod maps;
+#[path = "results.rs"]
+mod results;
+#[path = "text_helpers.rs"]
+mod text_helpers;
+#[path = "unions.rs"]
+mod unions;
 use super::{Result, expect, invalid, managed, strings, value_type};
 use crate::{
     Span, Type,
@@ -24,12 +40,18 @@ pub(super) fn function(
     let mut emitter = Emitter {
         instructions: Vec::new(),
         locals: Vec::new(),
-        param_count: function.params.len() as u32,
+        param_count: (function.params.len() + function.captures.len()) as u32,
         functions,
         return_type: &function.return_type,
         work,
         strings,
         root_base: None,
+        control_depth: 0,
+        loops: Vec::new(),
+        exit_target: None,
+        return_slot: None,
+        defer_head: None,
+        defer_root: None,
     };
     if strings.is_some() {
         let base = emitter.temp(ValType::I32, function.body.span)?;
@@ -37,8 +59,32 @@ pub(super) fn function(
         emitter.emit(I::GlobalGet(0));
         emitter.emit(I::LocalSet(base));
     }
+    let return_slot = emitter.temp(
+        value_type(&function.return_type, function.body.span)?,
+        function.body.span,
+    )?;
+    emitter.return_slot = Some(return_slot);
+    emitter.emit(I::Block(BlockType::Empty));
+    emitter.exit_target = Some(emitter.control_depth);
+    let mut pending = vec![&function.body];
+    let mut has_defers = false;
+    while let Some(expr) = pending.pop() {
+        has_defers |= matches!(expr.kind, ExprKind::Defer(_));
+        pending.extend(ir::children(expr));
+    }
+    if has_defers && strings.is_some() {
+        let head = emitter.temp(ValType::I32, function.body.span)?;
+        let root = emitter.temp(ValType::I32, function.body.span)?;
+        emitter.defer_head = Some(head);
+        emitter.defer_root = Some(root);
+        emitter.emit(I::GlobalGet(0));
+        emitter.emit(I::LocalSet(root));
+        emitter.emit(I::I32Const(0));
+        emitter.root_string(function.body.span)?;
+        emitter.emit(I::Drop);
+    }
     let mut locals = Locals::new();
-    for (index, param) in function.params.iter().enumerate() {
+    for (index, param) in function.captures.iter().chain(&function.params).enumerate() {
         if locals
             .insert(param.id.0, (index as u32, param.ty.clone()))
             .is_some()
@@ -53,7 +99,21 @@ pub(super) fn function(
     }
     let actual = emitter.expr(&function.body, &mut locals, 0)?;
     expect(&actual, &function.return_type, function.body.span)?;
+    if actual != Type::Never {
+        emitter.emit(I::LocalSet(return_slot));
+    }
+    emitter.emit(I::End);
+    emitter.exit_target = None;
+    if has_defers && managed(&function.return_type) {
+        // Reserve return rooting before running allocating callbacks. In normal code
+        // expr already rooted the result; failure paths leave its initialized zero.
+        emitter.emit(I::LocalGet(return_slot));
+        emitter.root_string(function.body.span)?;
+        emitter.emit(I::Drop);
+    }
+    emitter.cleanups(function.body.span)?;
     emitter.restore_roots();
+    emitter.emit(I::LocalGet(return_slot));
     emitter.emit(I::End);
     let mut encoded = Function::new(emitter.locals.into_iter().map(|ty| (1, ty)));
     for instruction in emitter.instructions {
@@ -71,6 +131,12 @@ pub(super) struct Emitter<'a, 'b> {
     work: &'b mut usize,
     strings: Option<&'a strings::Runtime>,
     root_base: Option<u32>,
+    control_depth: u32,
+    loops: Vec<(u32, u32)>,
+    exit_target: Option<u32>,
+    return_slot: Option<u32>,
+    defer_head: Option<u32>,
+    defer_root: Option<u32>,
 }
 
 impl Emitter<'_, '_> {
@@ -89,7 +155,34 @@ impl Emitter<'_, '_> {
         Ok(())
     }
     pub(super) fn emit(&mut self, instruction: I<'static>) {
+        if matches!(instruction, I::Unreachable)
+            && self.strings.is_some()
+            && let Some(target) = self.exit_target
+        {
+            self.instructions.extend([
+                I::I32Const(1),
+                I::GlobalSet(2),
+                I::Br(self.control_depth - target),
+            ]);
+            return;
+        }
+        let check_fault = matches!(instruction, I::Call(_))
+            && self.strings.is_some()
+            && self.exit_target.is_some();
+        match instruction {
+            I::Block(_) | I::Loop(_) | I::If(_) => self.control_depth += 1,
+            I::End => self.control_depth = self.control_depth.saturating_sub(1),
+            _ => {}
+        }
         self.instructions.push(instruction);
+        if check_fault {
+            self.instructions.extend([
+                I::GlobalGet(2),
+                I::If(BlockType::Empty),
+                I::Br(self.control_depth + 1 - self.exit_target.unwrap()),
+                I::End,
+            ]);
+        }
     }
 
     pub(super) fn temp(&mut self, ty: ValType, span: Span) -> Result<u32> {
@@ -186,11 +279,53 @@ impl Emitter<'_, '_> {
                 self.emit(I::LocalGet(*index));
                 ty.clone()
             }
+            ExprKind::Closure { function, captures } => {
+                self.closure(*function, captures, &expr.ty, locals, depth, expr.span)?
+            }
+            ExprKind::Invoke { callee, args } => {
+                let actual = self.expr(callee, locals, depth)?;
+                let slot = self.temp(ValType::I32, expr.span)?;
+                self.emit(I::LocalSet(slot));
+                let mut values = Vec::new();
+                for arg in args {
+                    let ty = self.expr(arg, locals, depth)?;
+                    let value = self.temp(value_type(&ty, arg.span)?, arg.span)?;
+                    self.emit(I::LocalSet(value));
+                    values.push((value, ty));
+                }
+                self.invoke_values(slot, &actual, &values, expr.span)?
+            }
+            ExprKind::Range {
+                start,
+                end,
+                inclusive,
+            } => self.range(start, end, *inclusive, locals, depth, expr.span)?,
+            ExprKind::For {
+                pattern,
+                iterable,
+                body,
+            } => self.iteration(pattern, iterable, body, locals, depth, expr.span)?,
+            ExprKind::Break | ExprKind::Continue => {
+                let (done, next) = *self
+                    .loops
+                    .last()
+                    .ok_or_else(|| invalid(expr.span, "loop control outside loop"))?;
+                let target = if matches!(expr.kind, ExprKind::Break) {
+                    done
+                } else {
+                    next
+                };
+                self.emit(I::Br(self.control_depth - target));
+                Type::Never
+            }
+            ExprKind::Try(value) => self.try_result(value, locals, depth, expr.span)?,
+            ExprKind::With { .. } => self.with_result(expr, locals, depth)?,
+            ExprKind::Defer(value) => self.defer(value, locals, depth, expr.span)?,
             ExprKind::Return(value) => {
                 let actual = self.expr(value, locals, depth)?;
                 expect(&actual, self.return_type, value.span)?;
-                self.restore_roots();
-                self.emit(I::Return);
+                self.emit(I::LocalSet(self.return_slot.unwrap()));
+                self.emit(I::Br(self.control_depth - self.exit_target.unwrap()));
                 Type::Never
             }
             ExprKind::Unary { op, value } => {
@@ -214,6 +349,54 @@ impl Emitter<'_, '_> {
             ExprKind::Binary { op, left, right } => {
                 self.binary(*op, left, right, locals, depth, expr.span)?
             }
+            ExprKind::UnionInject { value } | ExprKind::UnionWiden { value } => {
+                self.union_conversion(expr, value, locals, depth)?
+            }
+            ExprKind::Map(entries) => {
+                self.map_literal(entries, &expr.ty, locals, depth, expr.span)?
+            }
+            ExprKind::ForeignCall { .. } => {
+                return Err(invalid(expr.span, "foreign calls require a native runtime"));
+            }
+            ExprKind::Call {
+                target: CallTarget::Builtin(builtin),
+                args,
+            } if matches!(
+                builtin,
+                ir::Builtin::MapNew
+                    | ir::Builtin::MapGet
+                    | ir::Builtin::MapPut
+                    | ir::Builtin::MapDelete
+                    | ir::Builtin::MapLen
+                    | ir::Builtin::MapIsEmpty
+                    | ir::Builtin::MapContains
+                    | ir::Builtin::MapKeys
+                    | ir::Builtin::MapValues
+            ) =>
+            {
+                self.map_call(*builtin, args, &expr.ty, locals, depth, expr.span)?
+            }
+            ExprKind::Call {
+                target: CallTarget::Builtin(builtin),
+                args,
+            } if matches!(
+                builtin,
+                ir::Builtin::ListMap
+                    | ir::Builtin::ListFilter
+                    | ir::Builtin::ListFold
+                    | ir::Builtin::ListFind
+                    | ir::Builtin::ListAny
+                    | ir::Builtin::ListAll
+                    | ir::Builtin::ListContains
+                    | ir::Builtin::ListEnumerate
+                    | ir::Builtin::OptionMap
+                    | ir::Builtin::ResultMap
+                    | ir::Builtin::ResultAndThen
+                    | ir::Builtin::ResultUnwrapOrElse
+            ) =>
+            {
+                self.higher_order(*builtin, args, &expr.ty, locals, depth, expr.span)?
+            }
             ExprKind::Call { target, args } => {
                 let CallTarget::Function(id) = target else {
                     let actual = self.string_call(*target, args, locals, depth, expr.span)?;
@@ -229,6 +412,12 @@ impl Emitter<'_, '_> {
                     .functions
                     .get(&id.0)
                     .ok_or_else(|| invalid(expr.span, "unknown function identity"))?;
+                if !function.captures.is_empty() {
+                    return Err(invalid(
+                        expr.span,
+                        "captured function requires closure invocation",
+                    ));
+                }
                 if args.len() != function.params.len() {
                     return Err(invalid(expr.span, "function argument count mismatch"));
                 }
@@ -345,6 +534,13 @@ impl Emitter<'_, '_> {
         depth: usize,
         span: Span,
     ) -> Result<Type> {
+        if let CallTarget::Runtime(id) = target {
+            match crate::runtime::signature(id).map(|signature| signature.symbol) {
+                Some("fern_str_compare") => return self.compare_text(args, locals, depth, span),
+                Some("fern_str_join") => return self.join_text(args, locals, depth, span),
+                _ => {}
+            }
+        }
         use ir::Builtin;
         if let CallTarget::Builtin(builtin) = target
             && matches!(
@@ -604,19 +800,10 @@ fn block_type(ty: &Type, span: Span) -> Result<BlockType> {
 
 fn unsupported(kind: &ExprKind) -> &'static str {
     match kind {
-        ExprKind::Actor(_) => {
-            "actors are a server capability; the browser actor runtime is not implemented"
+        ExprKind::Actor(_) => "actors are a native server capability",
+        ExprKind::FunctionValue { .. } | ExprKind::Lambda { .. } => {
+            "unlifted callable cannot enter executable IR"
         }
-        ExprKind::Invoke { .. }
-        | ExprKind::Closure { .. }
-        | ExprKind::FunctionValue { .. }
-        | ExprKind::Lambda { .. } => {
-            "indirect calls and closures require a managed browser callable ABI"
-        }
-        ExprKind::Defer(_) => "deferred cleanup requires browser fault unwinding support",
-        ExprKind::For { .. } | ExprKind::Range { .. } | ExprKind::Break | ExprKind::Continue => {
-            "iteration is not yet supported by the scalar browser backend"
-        }
-        _ => "operation requires an unsupported managed browser representation or host capability",
+        _ => "operation requires an unsupported browser representation or host capability",
     }
 }

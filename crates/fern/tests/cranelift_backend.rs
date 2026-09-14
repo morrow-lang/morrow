@@ -1242,3 +1242,1350 @@ fn compiled_decoded_map_capture_and_literal_mailbox_preserve_untagged_pairs() {
     let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
     assert_eq!(NativeFixture::new().execute_linked(&program, harness, &[core_runtime_archive().into_os_string()]), b"2\n-9223372036854775808\n9223372036854775807\n0\n2\n-9223372036854775808\n9223372036854775807\n");
 }
+
+#[test]
+fn immutable_sets_keep_string_keys_and_aliases_across_precise_collection() {
+    let source = r#"
+newtype Key = Key(String)
+fn make(n: Int) -> Set(Key):
+    let base = List.map(["a", "🌿", "café", "a"], (s) -> Key(s + "!"))
+    let original = Set.from_list(base)
+    if n == 0:
+        original
+    else:
+        Set.union(original, make(n - 1))
+fn main():
+    let original = make(20)
+    let changed = Set.insert(Set.delete(original, Key("a!")), Key("new!"))
+    println(Set.len(original))
+    println(Set.len(changed))
+    println(Set.contains(original, Key("a" + "!")))
+    println(Set.contains(changed, Key("a!")))
+    println(Set.contains(original, Key("🌿!")))
+    println(Set.len(Set.intersection(original, changed)))
+    println(Set.equal(original, Set.from_list([Key("café!"), Key("a!"), Key("🌿!")])))
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let mut inserted = 0;
+    for function in &mut program.functions {
+        let mut body = Vec::new();
+        for statement in function.body.drain(..) {
+            if matches!(&statement,
+                Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. }
+                if machine::bare(name).starts_with("fern_rs_map_")
+            ) {
+                body.push(Statement::Effect(Operation::Call {
+                    callee: symbol("fern_gc_collect_precise"),
+                    args: vec![],
+                    variadic: None,
+                }));
+                inserted += 1;
+            }
+            body.push(statement);
+        }
+        function.body = body;
+    }
+    assert!(
+        inserted >= 10,
+        "oracle must collect at actual map operation boundaries"
+    );
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() }, 0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"3\n3\ntrue\nfalse\ntrue\n2\ntrue\n"
+    );
+}
+
+#[test]
+fn seeded_native_sets_match_independent_full_width_model() {
+    use std::collections::BTreeSet;
+    let keys = [i64::MIN, i64::MAX, 0, 1, -1, 4294967296, -4294967296];
+    let mut state = BTreeSet::new();
+    let mut rng = 0x5e7_f00du64;
+    let mut source =
+        String::from("fn main():\n    let state: Set(Int) = Set.new()\n    let original = state\n");
+    let mut expected = String::new();
+    for _ in 0..120 {
+        rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1);
+        let key = keys[((rng >> 32) as usize) % keys.len()];
+        let method = if rng & 3 == 0 { "delete" } else { "insert" };
+        if method == "delete" {
+            state.remove(&key);
+        } else {
+            state.insert(key);
+        }
+        source.push_str(&format!("    let state = Set.{method}(state, {key})\n    println(Set.len(state))\n    println(Set.contains(state, {key}))\n    println(Set.is_empty(original))\n"));
+        expected.push_str(&format!(
+            "{}\n{}\ntrue\n",
+            state.len(),
+            state.contains(&key)
+        ));
+    }
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(&source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() }, 0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        expected.as_bytes()
+    );
+}
+
+#[test]
+fn map_put_roots_fresh_output_before_nested_pair_allocation() {
+    let source = "fn main():\n    let original = %{\"a\": 4294967296}\n    let changed = Map.put(original, \"b\", -9223372036854775808)\n    println(Map.len(original))\n    println(Map.len(changed))\n    println(Option.unwrap_or(Map.get(changed, \"b\"), 0))\n";
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let put = program
+        .functions
+        .iter_mut()
+        .find(|f| machine::bare(&f.name) == "fern_rs_map_put")
+        .unwrap();
+    let index = put.body.iter().position(|s| matches!(s, Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. } if machine::bare(name) == "fern_rs_map_pair")).unwrap();
+    put.body.insert(
+        index,
+        Statement::Effect(Operation::Call {
+            callee: symbol("fern_gc_collect_precise"),
+            args: vec![],
+            variadic: None,
+        }),
+    );
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() }, 0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"1\n2\n-9223372036854775808\n"
+    );
+}
+
+#[test]
+fn foreign_native_abi_preserves_signed_unsigned_narrow_and_float_results() {
+    use fern_compiler::ffi::{AbiType as C, Declaration};
+    let mut program = Program::default();
+    let mut declarations = String::new();
+    let mut callbacks = String::new();
+    let mut assertions = String::new();
+    for (index, (abi, rust, input, expected)) in [
+        (C::I8, "i8", "-127", "-127"),
+        (C::U8, "u8", "254", "254"),
+        (C::I16, "i16", "-32767", "-32767"),
+        (C::U16, "u16", "65534", "65534"),
+        (C::I32, "i32", "-2147483647", "-2147483647"),
+        (C::U32, "u32", "4294967294", "4294967294"),
+        (
+            C::I64,
+            "i64",
+            "-9223372036854775808",
+            "-9223372036854775808",
+        ),
+        (C::U64, "u64", "-1", "-1"),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let foreign = format!("foreign_width_{index}");
+        let wrapper = format!("width_{index}");
+        callbacks.push_str(&format!("#[unsafe(no_mangle)] pub extern \"C\" fn {foreign}(value: {rust}) -> {rust} {{ value }}\n"));
+        declarations.push_str(&format!("fn {wrapper}(value: i64) -> i64;\n"));
+        assertions.push_str(&format!(
+            "assert_eq!(unsafe {{ {wrapper}({input}) }}, {expected});\n"
+        ));
+        assertions.push_str(&format!("for _ in 0..128 {{ seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1); let bits = seed as i64; assert_eq!(unsafe {{ {wrapper}(bits) }}, (bits as {rust}) as i64); }}\n"));
+        program.functions.push(Function {
+            name: wrapper,
+            export: true,
+            params: vec![(Scalar::I64, "value".into())],
+            result: Some(Scalar::I64),
+            body: vec![
+                Statement::Label("start".into()),
+                assign(
+                    "returned",
+                    Scalar::I64,
+                    Operation::ForeignCall {
+                        declaration: Declaration {
+                            symbol: foreign,
+                            library: None,
+                            params: vec![abi.clone()],
+                            result: abi,
+                        },
+                        args: vec![(Scalar::I64, temp("value"))],
+                    },
+                ),
+                Statement::Return(Some(temp("returned"))),
+            ],
+        });
+    }
+    for (name, abi, rust, logical) in [
+        ("float32", C::F32, "f32", Scalar::F64),
+        ("float64", C::F64, "f64", Scalar::F64),
+        ("boolean", C::Bool, "bool", Scalar::I32),
+    ] {
+        let foreign = format!("foreign_{name}");
+        callbacks.push_str(&format!("#[unsafe(no_mangle)] pub extern \"C\" fn {foreign}(value: {rust}) -> {rust} {{ value }}\n"));
+        let (wide, input) = if logical == Scalar::F64 {
+            ("f64", "1.25")
+        } else {
+            ("u32", "1")
+        };
+        declarations.push_str(&format!("fn {name}(value: {wide}) -> {wide};\n"));
+        assertions.push_str(&format!(
+            "assert_eq!(unsafe {{ {name}({input}) }}, {input});\n"
+        ));
+        if name == "float32" {
+            assertions.push_str("for value in [1.1f64, -0.0, f64::MIN_POSITIVE, f64::MAX, f64::INFINITY, f64::NEG_INFINITY] { assert_eq!(unsafe { float32(value) }.to_bits(), (value as f32 as f64).to_bits()); }\n");
+        }
+        if name == "boolean" {
+            assertions.push_str(
+                "assert_eq!(unsafe { boolean(0) }, 0); assert_eq!(unsafe { boolean(2) }, 1);\n",
+            );
+        }
+
+        program.functions.push(Function {
+            name: name.into(),
+            export: true,
+            params: vec![(logical, "value".into())],
+            result: Some(logical),
+            body: vec![
+                Statement::Label("start".into()),
+                assign(
+                    "returned",
+                    logical,
+                    Operation::ForeignCall {
+                        declaration: Declaration {
+                            symbol: foreign,
+                            library: None,
+                            params: vec![abi.clone()],
+                            result: abi,
+                        },
+                        args: vec![(logical, temp("value"))],
+                    },
+                ),
+                Statement::Return(Some(temp("returned"))),
+            ],
+        });
+    }
+    let harness = format!(
+        "{callbacks}\nunsafe extern \"C\" {{ {declarations} }}\nfn main() {{ let mut seed = 0x464649u64; {assertions} println!(\"foreign widths preserved\"); }}\n"
+    );
+    assert_eq!(
+        NativeFixture::new().execute(&program, &harness),
+        b"foreign widths preserved\n"
+    );
+}
+
+#[test]
+fn foreign_declarations_reject_conflicting_symbols_and_mismatched_logical_values() {
+    use fern_compiler::ffi::{AbiType as C, Declaration};
+    let declaration = Declaration {
+        symbol: "external_width".into(),
+        library: None,
+        params: vec![C::I8],
+        result: C::I8,
+    };
+    let mut program = scalar_program();
+    let call = |declaration: Declaration, ty: Scalar| {
+        Statement::Effect(Operation::ForeignCall {
+            declaration,
+            args: vec![(ty, Operand::Int(1))],
+        })
+    };
+    program.functions[0]
+        .body
+        .insert(1, call(declaration.clone(), Scalar::I64));
+    assert!(program.validate().is_ok());
+    let mut conflicting = program.clone();
+    let mut wrong = declaration.clone();
+    wrong.result = C::U8;
+    conflicting.functions[0]
+        .body
+        .insert(1, call(wrong, Scalar::I64));
+    assert!(
+        conflicting
+            .validate()
+            .unwrap_err()
+            .contains("conflicting foreign")
+    );
+    for symbol in ["main", "printf", "fern_alloc"] {
+        let mut forged = program.clone();
+        let mut wrong = declaration.clone();
+        wrong.symbol = symbol.into();
+        forged.functions[0].body[1] = call(wrong, Scalar::I64);
+        assert!(forged.validate().is_err(), "{symbol}");
+    }
+    let mut forged = program.clone();
+    forged.functions[0].body[1] = call(declaration.clone(), Scalar::I32);
+    assert!(forged.validate().unwrap_err().contains("logical argument"));
+    let mut forged = program;
+    forged.functions[0].body[1] = assign(
+        "invalid",
+        Scalar::F64,
+        Operation::ForeignCall {
+            declaration,
+            args: vec![(Scalar::I64, Operand::Int(1))],
+        },
+    );
+    assert!(forged.validate().unwrap_err().contains("result type"));
+}
+
+#[test]
+fn foreign_mixed_narrow_register_stack_pointer_and_void_abis() {
+    use fern_compiler::ffi::{AbiType as C, Declaration};
+    let mut program = Program::default();
+    let mut abi = Vec::new();
+    let mut args = Vec::new();
+    let mut parameters = Vec::new();
+    let mut checks = Vec::new();
+    for index in 0..12 {
+        abi.extend([C::I8, C::U16, C::F32]);
+        args.extend([
+            (Scalar::I64, Operand::Int(-100 + index)),
+            (Scalar::I64, Operand::Int(65500 + index)),
+            (Scalar::F64, Operand::Float((index as f64 + 0.25).to_bits())),
+        ]);
+        parameters.push(format!("a{index}: i8, b{index}: u16, c{index}: f32"));
+        checks.push(format!(
+            "a{index} == {} && b{index} == {} && c{index} == {}f32",
+            -100 + index,
+            65500 + index,
+            index as f64 + 0.25
+        ));
+    }
+    program.functions.push(Function {
+        name: "mixed".into(),
+        export: true,
+        params: vec![],
+        result: Some(Scalar::I64),
+        body: vec![
+            Statement::Label("start".into()),
+            assign(
+                "result",
+                Scalar::I64,
+                Operation::ForeignCall {
+                    declaration: Declaration {
+                        symbol: "external_mixed".into(),
+                        library: None,
+                        params: abi,
+                        result: C::I64,
+                    },
+                    args,
+                },
+            ),
+            Statement::Return(Some(temp("result"))),
+        ],
+    });
+    let pointer = C::Pointer(fern_compiler::Type::Int);
+    program.functions.push(Function {
+        name: "pointer".into(),
+        export: true,
+        params: vec![(Scalar::I64, "address".into())],
+        result: Some(Scalar::I64),
+        body: vec![
+            Statement::Label("start".into()),
+            assign(
+                "result",
+                Scalar::I64,
+                Operation::ForeignCall {
+                    declaration: Declaration {
+                        symbol: "external_pointer".into(),
+                        library: None,
+                        params: vec![pointer.clone()],
+                        result: pointer,
+                    },
+                    args: vec![(Scalar::I64, temp("address"))],
+                },
+            ),
+            Statement::Return(Some(temp("result"))),
+        ],
+    });
+    program.functions.push(Function {
+        name: "effect".into(),
+        export: true,
+        params: vec![],
+        result: None,
+        body: vec![
+            Statement::Label("start".into()),
+            Statement::Effect(Operation::ForeignCall {
+                declaration: Declaration {
+                    symbol: "external_effect".into(),
+                    library: None,
+                    params: vec![C::I32],
+                    result: C::Void,
+                },
+                args: vec![(Scalar::I64, Operand::Int(-42))],
+            }),
+            Statement::Return(None),
+        ],
+    });
+    for target in [
+        "x86_64-unknown-linux-musl",
+        "aarch64-unknown-linux-musl",
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+    ] {
+        assert!(
+            cranelift::emit_object_for_target(&program, target)
+                .unwrap()
+                .len()
+                > 100
+        );
+    }
+    let harness = format!(
+        r#"
+use std::sync::atomic::{{AtomicI32, Ordering}};
+static OBSERVED: AtomicI32 = AtomicI32::new(0);
+#[unsafe(no_mangle)] pub extern "C" fn external_mixed({}) -> i64 {{ if {} {{ 42 }} else {{ -1 }} }}
+#[unsafe(no_mangle)] pub extern "C" fn external_pointer(value: *mut i64) -> *mut i64 {{ value }}
+#[unsafe(no_mangle)] pub extern "C" fn external_effect(value: i32) {{ OBSERVED.store(value, Ordering::Relaxed); }}
+unsafe extern "C" {{ fn mixed() -> i64; fn pointer(value: *mut i64) -> *mut i64; fn effect(); }}
+fn main() {{
+    assert_eq!(unsafe {{ mixed() }}, 42);
+    let mut number = i64::MIN; let address = &mut number as *mut i64;
+    assert_eq!(unsafe {{ pointer(address) }}, address);
+    unsafe {{ effect() }};
+    assert_eq!(OBSERVED.load(Ordering::Relaxed), -42);
+    println!("foreign mixed stack pointer void preserved");
+}}
+"#,
+        parameters.join(", "),
+        checks.join(" && ")
+    );
+    assert_eq!(
+        NativeFixture::new().execute(&program, &harness),
+        b"foreign mixed stack pointer void preserved\n"
+    );
+}
+
+#[test]
+fn actor_collection_loop_yields_to_sibling_before_finishing() {
+    unit_tail_poll(
+        "    let first: Pid(()) = spawn(() ->\n        for i in 0..2048:\n            let held = [i, 9223372036854775807]\n            ()\n        match send(reply, \"finished\"):\n            Ok(()) -> ()\n            Err(_) -> ()\n    )\n    ()",
+        1,
+    );
+}
+
+#[test]
+fn actor_non_tail_value_helper_yields_and_returns_to_its_caller() {
+    use fern_compiler::{check, lowering, parse};
+    let source = r#"
+fn sum(n: Int) -> Int:
+    if n == 0: 0
+    else: n + sum(n - 1)
+fn worker():
+    println(sum(32) + sum(8))
+fn sibling(): println("sibling")
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(sibling)
+    ()
+"#;
+    let program = lowering::lower(&check::check(&parse::parse(source).unwrap()).unwrap()).unwrap();
+    let harness = r#"unsafe extern "C" { fn fern_main() -> i32; }
+fn main() { assert_eq!(unsafe { fern_main() }, 0); }"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling\n564\n"
+    );
+}
+
+#[test]
+fn foreign_source_retains_borrowed_and_interior_strings_across_precise_collection() {
+    let source = r#"
+foreign "C" fn suffix(value: Ptr(CUInt8)) -> Ptr(CUInt8) as "test_suffix"
+foreign "C" fn high() -> CUInt64 as "test_high"
+foreign "C" fn check_high(value: CUInt64) -> Bool as "test_check_high"
+fn borrow() -> Ptr(CUInt8):
+    suffix(("hello " + "🌿 café").as_ptr())
+fn main():
+    let pointer = borrow()
+    match Ptr.to_string(pointer, 64):
+        Ok(text) -> println(text)
+        Err(error) -> println(error)
+    println(Result.is_err(Ptr.to_string(pointer, 2)))
+    println(Result.is_err(Ptr.to_string(Ptr.null(), 64)))
+    println(check_high(high()))
+    println(Result.is_err(CUInt64.to_int(high())))
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    let mut inserted = 0;
+    for function in &mut program.functions {
+        let mut body = Vec::new();
+        for statement in function.body.drain(..) {
+            let collect = match &statement {
+                Statement::Assign {
+                    operation: Operation::ForeignCall { .. },
+                    ..
+                } => true,
+                Statement::Assign {
+                    operation:
+                        Operation::Call {
+                            callee: Operand::Symbol(name),
+                            ..
+                        },
+                    ..
+                } => machine::bare(name) == "fern_ffi_read_string",
+                _ => false,
+            };
+            if collect {
+                body.push(Statement::Effect(Operation::Call {
+                    callee: symbol("fern_gc_collect_precise"),
+                    args: vec![],
+                    variadic: None,
+                }));
+                inserted += 1;
+            }
+            body.push(statement);
+        }
+        function.body = body;
+    }
+    assert!(inserted >= 4);
+    let harness = r#"
+#[unsafe(no_mangle)] unsafe extern "C" fn test_suffix(value: *const u8) -> *const u8 { unsafe { value.add(6) } }
+#[unsafe(no_mangle)] extern "C" fn test_high() -> u64 { u64::MAX - 7 }
+#[unsafe(no_mangle)] extern "C" fn test_check_high(value: u64) -> bool { value == u64::MAX - 7 }
+unsafe extern "C" { fn fern_main() -> i32; }
+fn main() { assert_eq!(unsafe { fern_main() }, 0); }
+"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        "🌿 café\ntrue\ntrue\ntrue\ntrue\n".as_bytes()
+    );
+}
+
+#[test]
+fn actor_cps_collections_nested_exits_and_receive_keep_lexical_values() {
+    let source = r#"
+fn loops():
+    for (key, value) in %{"λ": [4294967297, -4294967295], "雪": [9223372036854775807]}:
+        println(key)
+        for item in value:
+            if item < 0: continue
+            println(item)
+            break
+    for n in 0..3:
+        if n == 1: continue
+        for m in [10, 20]:
+            if m == 20: break
+            println(n * 100 + m)
+    for n in 9223372036854775806..=9223372036854775807: println(n)
+    for n in 3..1: println("unreachable")
+    println("done")
+fn receiver():
+    for n in [1, 2, 3]:
+        let value = receive:
+            text -> text
+        println(value)
+        if n == 2: return ()
+    println("unreachable")
+fn main():
+    let loops: Pid(()) = spawn(loops)
+    let receiver: Pid(String) = spawn(receiver)
+    match send(receiver, "first"):
+        Ok(()) -> ()
+        Err(_) -> ()
+    match send(receiver, "second"):
+        Ok(()) -> ()
+        Err(_) -> ()
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    let output = NativeFixture::new().execute_linked(
+        &program,
+        harness,
+        &[core_runtime_archive().into_os_string()],
+    );
+    // Ignore only cross-actor ordering here; each independent actor's exact lexical sequence matters.
+    let output = String::from_utf8(output).unwrap();
+    let lines: Vec<_> = output.lines().collect();
+    assert_eq!(
+        lines
+            .iter()
+            .copied()
+            .filter(|line| !["first", "second"].contains(line))
+            .collect::<Vec<_>>(),
+        [
+            "λ",
+            "4294967297",
+            "雪",
+            "9223372036854775807",
+            "10",
+            "210",
+            "9223372036854775806",
+            "9223372036854775807",
+            "done"
+        ]
+    );
+    assert_eq!(
+        lines
+            .iter()
+            .copied()
+            .filter(|line| ["first", "second"].contains(line))
+            .collect::<Vec<_>>(),
+        ["first", "second"]
+    );
+}
+
+fn actor_force_collection_before_suspension(program: &mut Program) {
+    let mut points = 0;
+    for function in &mut program.functions {
+        let mut body = Vec::new();
+        for statement in std::mem::take(&mut function.body) {
+            if matches!(&statement, Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. } if ["fern_managed_continue", "fern_managed_receive", "fern_managed_scope_enter", "fern_managed_scope_defer", "fern_managed_scope_leave"].contains(&machine::bare(name)))
+            {
+                body.push(Statement::Effect(Operation::Call {
+                    callee: symbol("fern_gc_collect_precise"),
+                    args: vec![],
+                    variadic: None,
+                }));
+                points += 1;
+            }
+            body.push(statement);
+        }
+        function.body = body;
+    }
+    assert!(points > 0);
+}
+
+#[test]
+fn actor_cps_seeded_value_returns_preserve_full_width_and_unicode_under_precise_gc() {
+    let mut source = String::from(
+        r#"
+fn sum(n: Int, held: (Int, String, List(Int))) -> (Int, String, List(Int)):
+    if n == 0: held
+    else:
+        let returned = sum(n - 1, held)
+        (returned.0 + n, returned.1, returned.2)
+fn worker():
+"#,
+    );
+    let mut expected = String::from("sibling\n");
+    let mut seed = 0x4645524e_u64;
+    for _ in 0..64 {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        let n = (seed % 17) as i64;
+        source.push_str(&format!("    let result = sum({n}, (4294967297, String.repeat(\"λ雪\", 2), [-9223372036854775808]))\n    println(result.0)\n    println(result.1)\n    println(List.head(result.2))\n"));
+        expected.push_str(&format!(
+            "{}\nλ雪λ雪\n-9223372036854775808\n",
+            4294967297_i64 + n * (n + 1) / 2
+        ));
+    }
+    source.push_str("fn main():\n    let first: Pid(()) = spawn(worker)\n    let second: Pid(()) = spawn(() -> println(\"sibling\"))\n    ()\n");
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(&source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        expected.as_bytes()
+    );
+}
+
+#[test]
+fn actor_cps_strict_order_short_circuit_and_early_helper_return() {
+    let source = r#"
+fn sum(n: Int) -> Int:
+    if n == 0: 0
+    else: n + sum(n - 1)
+fn mark() -> Int:
+    println("left")
+    100
+fn early() -> Int:
+    for n in 0..100:
+        if n == 3: return n
+    99
+fn worker():
+    println(mark() + sum(4))
+    if false and (sum(-1) > 0): println("unreachable")
+    if true or (sum(-1) > 0): println("short")
+    println(early())
+    println("done")
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"left\nsibling\n110\nshort\n3\ndone\n"
+    );
+}
+
+#[test]
+fn actor_cps_faults_and_return_frame_limits_are_supervised_without_starving_siblings() {
+    use fern_compiler::native_library::{self, Export};
+    for body in [
+        "if n == 0: 1 / n\n    else: 1 + work(n - 1)",
+        "1 + work(n + 1)",
+    ] {
+        for supervised in [false, true] {
+            let spawn = if supervised {
+                "supervise(worker, 1)"
+            } else {
+                "spawn(worker)"
+            };
+            let source = format!(
+                r#"
+fn work(n: Int) -> Int:
+    {body}
+fn worker():
+    println("attempt")
+    println(work(8))
+pub fn start() -> ():
+    let first: Pid(()) = {spawn}
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#
+            );
+            let checked =
+                fern_compiler::check::check_library(&fern_compiler::parse::parse(&source).unwrap())
+                    .unwrap();
+            let mut program =
+                native_library::lower(&checked, &[Export::new("start", "start")]).unwrap();
+            actor_force_collection_before_suspension(&mut program);
+            let harness = r#"
+unsafe extern "C" {
+    fn fern_library_open(fault: *mut i64) -> usize;
+    fn fern_export_start(fault: *mut i64, exec: usize) -> i32;
+    fn fern_managed_poll(exec: usize, steps: i64) -> i64;
+    fn fern_managed_close(exec: usize);
+}
+fn main() {
+    let mut fault = Box::new(0);
+    unsafe {
+        let exec = fern_library_open(&mut *fault);
+        assert_ne!(exec, 0);
+        fern_export_start(&mut *fault, exec);
+        let mut finished = false;
+        let mut seed = 0x4645524e_u64;
+        for _ in 0..4096 {
+            seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+            let status = fern_managed_poll(exec, (seed % 7 + 1) as i64);
+            if status == TERMINAL { finished = true; break; }
+            assert_eq!(status, 2);
+        }
+        assert!(finished, "bounded return-frame accounting or checked arithmetic must fail deterministically");
+        assert_eq!(*fault == 0, HANDLED);
+        fern_managed_close(exec);
+    }
+}
+"#.replace("TERMINAL", if supervised { "0" } else { "3" }).replace("HANDLED", if supervised { "true" } else { "false" });
+            assert_eq!(
+                NativeFixture::new().execute_linked(
+                    &program,
+                    &harness,
+                    &[core_runtime_archive().into_os_string()]
+                ),
+                if supervised {
+                    b"attempt\nsibling\nattempt\n".as_slice()
+                } else {
+                    b"attempt\nsibling\n".as_slice()
+                }
+            );
+        }
+    }
+}
+
+#[test]
+fn actor_cps_let_else_suspends_before_destructuring_and_preserves_failure_return() {
+    let source = r#"
+fn value(n: Int) -> Option(Int):
+    if n == 0: Some(42)
+    else: value(n - 1)
+fn worker():
+    let Some(found) = value(32) else: return ()
+    println(found)
+    let missing: Option(Int) = None
+    let Some(unused) = missing else: return ()
+    println(unused)
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling\n42\n"
+    );
+}
+
+#[test]
+fn actor_defer_survives_receive_and_tail_call_until_logical_return() {
+    let source = r#"
+fn child():
+    defer println("child cleanup")
+    receive:
+        () -> println("body")
+fn parent():
+    defer println("parent cleanup")
+    receive:
+        () -> child()
+fn main():
+    let child: Pid(()) = spawn(parent)
+    match send(child, ()):
+        Ok(()) -> ()
+        Err(_) -> ()
+    match send(child, ()):
+        Ok(()) -> ()
+        Err(_) -> ()
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"body\nchild cleanup\nparent cleanup\n"
+    );
+}
+
+#[path = "support/custom_json_backend.rs"]
+mod custom_json_backend;
+
+#[test]
+fn actor_defer_loop_snapshots_and_tail_returns_preserve_value_roots() {
+    let source = r#"
+fn tail(n: Int) -> String:
+    defer println(n)
+    if n == 0: String.repeat("λ", 2)
+    else: tail(n - 1)
+fn worker():
+    for i in 0..3:
+        let held = String.repeat("雪", i + 1)
+        defer println(held)
+        defer println(i + 10)
+    println(tail(3))
+    println("body end")
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        "sibling\n0\n1\n2\n3\nλλ\nbody end\n12\n雪雪雪\n11\n雪雪\n10\n雪\n".as_bytes()
+    );
+}
+
+fn actor_cleanup_host(source: &str, body: &str, precise: bool) -> Vec<u8> {
+    use fern_compiler::native_library::{self, Export};
+    let checked =
+        fern_compiler::check::check_library(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = native_library::lower(&checked, &[Export::new("start", "start")]).unwrap();
+    if precise {
+        actor_force_collection_before_suspension(&mut program);
+    }
+    let harness = format!(
+        r#"
+unsafe extern "C" {{
+    fn fern_library_open(fault: *mut i64) -> usize;
+    fn fern_export_start(fault: *mut i64, exec: usize) -> i32;
+    fn fern_managed_poll(exec: usize, steps: i64) -> i64;
+    fn fern_managed_close(exec: usize);
+    fn fern_gc_collect_precise();
+}}
+fn main() {{
+    let mut fault = Box::new(0);
+    unsafe {{
+        let exec = fern_library_open(&mut *fault);
+        assert_ne!(exec, 0);
+        fern_export_start(&mut *fault, exec);
+        assert_eq!(*fault, 0);
+        {body}
+        fern_managed_close(exec);
+    }}
+}}
+"#
+    );
+    NativeFixture::new().execute_linked(
+        &program,
+        &harness,
+        &[core_runtime_archive().into_os_string()],
+    )
+}
+
+#[test]
+fn actor_defer_fault_unwinds_every_activation_and_preserves_the_body_fault() {
+    let source = r#"
+fn bad_cleanup():
+    defer println("nested cleanup")
+    println("cleanup fault")
+    let empty: List(Int) = []
+    println(List.head(empty))
+fn nested(n: Int) -> Int:
+    defer println(n)
+    if n == 0:
+        defer bad_cleanup()
+        1 / n
+    else: 1 + nested(n - 1)
+pub fn start() -> ():
+    let first: Pid(()) = spawn(() ->
+        defer println("outer")
+        println(nested(3))
+    )
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let body = r#"
+let mut ended = false;
+let mut seed = 0x4645524e_u64;
+for _ in 0..256 {
+    seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+    let status = fern_managed_poll(exec, (seed % 7 + 1) as i64);
+    if status == 3 { ended = true; break; }
+    assert_eq!(status, 2);
+}
+assert!(ended);
+assert_eq!(*fault, 1, "division is primary; cleanup's empty-list fault is secondary");
+"#;
+    assert_eq!(
+        actor_cleanup_host(source, body, true),
+        b"sibling\ncleanup fault\nnested cleanup\n0\n1\n2\n3\nouter\n"
+    );
+}
+
+#[test]
+fn actor_defer_cancellation_drains_suspended_scopes_and_preserves_prior_faults() {
+    let source = r#"
+fn bad_cleanup():
+    defer println("nested cleanup")
+    println("cleanup fault")
+    let empty: List(Int) = []
+    println(List.head(empty))
+fn worker():
+    defer println("oldest")
+    for i in 0..3: defer println(i)
+    defer bad_cleanup()
+    receive:
+        () -> println("unreachable")
+pub fn start() -> ():
+    let first: Pid(()) = spawn(worker)
+    ()
+"#;
+    for prior in [0, 1] {
+        let body = format!(
+            r#"
+let mut idle = false;
+for _ in 0..64 {{
+    let status = fern_managed_poll(exec, 1);
+    if status == 1 {{ idle = true; break; }}
+    assert_eq!(status, 2);
+}}
+assert!(idle);
+fern_gc_collect_precise();
+*fault = {prior};
+fern_managed_close(exec);
+assert_eq!(*fault, {}, "cancellation keeps the first failure and drains every cleanup");
+"#,
+            if prior == 0 { 4 } else { prior }
+        );
+        assert_eq!(
+            actor_cleanup_host(source, &body, true),
+            b"cleanup fault\nnested cleanup\n2\n1\n0\noldest\n"
+        );
+    }
+}
+
+#[test]
+fn actor_defer_registration_limit_drains_all_admitted_callbacks_once() {
+    let source = r#"
+fn worker():
+    for i in 0..5000: defer println(i)
+pub fn start() -> ():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let body = r#"
+let mut failed = false;
+let mut seed = 0x4645524e_u64;
+for _ in 0..4096 {
+    seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+    let status = fern_managed_poll(exec, (seed % 7 + 1) as i64);
+    if status == 3 { failed = true; break; }
+    assert_eq!(status, 2);
+}
+assert!(failed);
+assert_eq!(*fault, 9);
+"#;
+    let mut expected = String::from("sibling\n");
+    // One logical scope plus 4095 registered nodes exhausts the explicit 4096-entry budget.
+    for i in (0..4095).rev() {
+        expected.push_str(&format!("{i}\n"));
+    }
+    assert_eq!(actor_cleanup_host(source, body, false), expected.as_bytes());
+}
+
+#[test]
+fn actor_with_result_steps_suspend_and_preserve_logical_cleanup() {
+    let source = include_str!("actors/with_cps.fn");
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"await cleanup\nawait cleanup\n7\nworker cleanup\nbad\nworker cleanup\n"
+    );
+}
+
+#[test]
+fn actor_dynamic_captured_call_yields_through_recursive_helper_and_returns_value() {
+    let source = r#"
+fn sum(n: Int) -> Int:
+    if n == 0: 0
+    else: n + sum(n - 1)
+fn apply(action: (Int) -> Int, value: Int) -> Int: action(value)
+fn worker():
+    let offset = 4294967297
+    let action = (n: Int) -> sum(n) + offset
+    println(apply(action, 32))
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling\n4294967825\n"
+    );
+}
+
+#[path = "support/language_tour_backend.rs"]
+mod language_tour_backend;
+
+#[test]
+fn actor_higher_order_fold_yields_between_elements_and_recursive_callbacks() {
+    let source = r#"
+fn sum(n: Int) -> Int:
+    if n == 0: 0
+    else: n + sum(n - 1)
+fn worker():
+    println(List.fold([1, 2, 3, 4], 4294967297, (acc: Int, n: Int) -> acc + sum(n)))
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let program = fern_compiler::lowering::lower(&checked).unwrap();
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling\n4294967317\n"
+    );
+}
+
+#[test]
+fn actor_result_sequencing_preserves_full_payloads_and_fairness_under_collection() {
+    let mut source = include_str!("actors/result_cps.fn").to_owned();
+    source.push_str("\nfn main():\n");
+    let mut expected = vec!["sibling".to_owned()];
+    for mode in 0..3 {
+        for n in [-1, 0, 2] {
+            let id = mode * 4 + n + 1;
+            source.push_str(&format!(
+                "    let pid{id}: Pid(Int) = spawn(() -> worker(mode: {mode}, n: {n}))\n"
+            ));
+            for _ in 0..2 {
+                source.push_str(&format!(
+                    "    match send(pid{id}, 1):\n        Ok(()) -> ()\n        Err(_) -> ()\n"
+                ));
+            }
+            let kind = ["try", "with", "handled"][mode as usize];
+            let result = if n < 0 {
+                format!("bad {n}")
+            } else if mode == 2 && n == 0 {
+                "bad -9".to_owned()
+            } else {
+                format!("🌿 {}", n + i64::from(mode != 0))
+            };
+            expected.push(format!("{kind} {n}: {result}"));
+            expected.push(format!("{kind} cleanup {n}"));
+        }
+    }
+    source.push_str("    let sibling: Pid(()) = spawn(() -> println(\"sibling\"))\n    ()\n");
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(&source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    let bytes = NativeFixture::new().execute_linked(
+        &program,
+        harness,
+        &[core_runtime_archive().into_os_string()],
+    );
+    let output = String::from_utf8(bytes).unwrap();
+    assert!(output.starts_with("sibling\n"), "{output}");
+    let mut actual = output.lines().map(str::to_owned).collect::<Vec<_>>();
+    actual.sort();
+    expected.sort();
+    assert_eq!(actual, expected);
+    for kind in ["try", "with"] {
+        for n in [-1, 0, 2] {
+            assert!(
+                output.find(&format!("{kind} cleanup {n}\n")).unwrap()
+                    < output.find(&format!("{kind} {n}:")).unwrap()
+            );
+        }
+    }
+}
+
+#[test]
+fn actor_sum_callbacks_preserve_eager_factories_and_lazy_calls_under_collection() {
+    let source = include_str!("actors/sums_cps.fn");
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        include_bytes!("actors/sums_cps.stdout")
+    );
+}
+
+#[test]
+fn actor_higher_order_seeded_native_models_preserve_order_and_scalar_widths() {
+    for mut seed in [0x4645524e_u64, 17, 991] {
+        let mut values = Vec::new();
+        for _ in 0..24 {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            values.push((seed % 31) as i64 - 15);
+        }
+        let literal = values
+            .iter()
+            .map(i64::to_string)
+            .collect::<Vec<_>>()
+            .join(", ");
+        let source = format!(
+            r#"
+fn depth(n: Int, value: Int) -> Int:
+    if n == 0: value
+    else: depth(n: n - 1, value: value)
+fn worker():
+    let values = [{literal}]
+    let offset = 4294967297
+    let mapped = List.map(values, (value: Int) -> depth(n: 3, value: value + offset))
+    for value in mapped: println(value)
+    let kept = List.filter(mapped, (value: Int) -> value % 2 == 0)
+    for value in kept: println(value)
+    println(List.fold(kept, 0, (acc: Int, value: Int) -> depth(n: 2, value: acc + value)))
+    println(Option.unwrap_or(List.find(mapped, (value: Int) -> value > offset), -1))
+    println(List.any(mapped, (value: Int) -> value > offset))
+    println(List.all(mapped, (value: Int) -> value > offset))
+    let empty: List(Int) = []
+    println(List.len(List.map(empty, (value: Int) -> 1 / value)))
+    println(List.any(empty, (value: Int) -> 1 / value == 0))
+    println(List.all(empty, (value: Int) -> 1 / value == 0))
+    println(Option.unwrap_or(List.find(empty, (value: Int) -> 1 / value == 0), -99))
+    let floats = List.map([0.5, -2.25, 17.125], (value: Float) -> value * 2.0)
+    for value in floats: println(value)
+    let suffix = "🦀"
+    let names = List.map(["é", "雪", "fern"], (value: String) -> value + suffix)
+    for value in names: println(value)
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#
+        );
+        let mut expected = String::from("sibling\n");
+        let mapped: Vec<_> = values.iter().map(|value| value + 4294967297_i64).collect();
+        for value in &mapped {
+            expected.push_str(&format!("{value}\n"));
+        }
+        let kept: Vec<_> = mapped
+            .iter()
+            .copied()
+            .filter(|value| value % 2 == 0)
+            .collect();
+        for value in &kept {
+            expected.push_str(&format!("{value}\n"));
+        }
+        expected.push_str(&format!(
+            "{}\n{}\n{}\n{}\n0\nfalse\ntrue\n-99\n1\n-4.5\n34.25\né🦀\n雪🦀\nfern🦀\n",
+            kept.iter().sum::<i64>(),
+            mapped
+                .iter()
+                .copied()
+                .find(|value| *value > 4294967297)
+                .unwrap_or(-1),
+            mapped.iter().any(|value| *value > 4294967297),
+            mapped.iter().all(|value| *value > 4294967297)
+        ));
+        let checked =
+            fern_compiler::check::check(&fern_compiler::parse::parse(&source).unwrap()).unwrap();
+        let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+        actor_force_collection_before_suspension(&mut program);
+        let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+        assert_eq!(
+            NativeFixture::new().execute_linked(
+                &program,
+                harness,
+                &[core_runtime_archive().into_os_string()]
+            ),
+            expected.as_bytes()
+        );
+    }
+}
+
+#[test]
+fn actor_dynamic_returned_aliases_and_higher_order_short_circuit_keep_original_abi() {
+    let source = r#"
+fn sum(n: Int) -> Int:
+    if n == 0: 0
+    else: n + sum(n - 1)
+fn make(offset: Int) -> (Int) -> Int: (n: Int) -> sum(n) + offset
+fn worker(action: (Int) -> Int):
+    println(action(12))
+    println(List.any([1, 0], (value: Int) -> 1 / value == 1))
+    println(List.all([1, 0], (value: Int) -> 1 / value == 0))
+    println(Option.unwrap_or(List.find([1, 0], (value: Int) -> 1 / value == 1), -1))
+    println(List.len(List.map([1, 2, 3], (value: Int) -> ())))
+fn main():
+    let original = make(4294967297)
+    println(original(2))
+    let aliased = original
+    let first: Pid(()) = spawn(() -> worker(aliased))
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let checked =
+        fern_compiler::check::check(&fern_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = fern_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = "unsafe extern \"C\" { fn fern_main() -> i32; } fn main() { assert_eq!(unsafe { fern_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"4294967300\nsibling\n4294967375\ntrue\nfalse\n1\n3\n"
+    );
+}
+
+#[test]
+fn actor_dynamic_callback_fault_drains_activations_without_invoking_later_elements() {
+    let source = r#"
+fn broken(n: Int) -> Int:
+    defer println(n)
+    if n == 0: 1 / n
+    else: broken(n - 1)
+fn worker():
+    defer println("worker cleanup")
+    let callback = broken
+    let values = List.map([2, 3], callback)
+    println(List.len(values))
+pub fn start() -> ():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(() -> println("sibling"))
+    ()
+"#;
+    let body = r#"
+let mut seed = 19_u64;
+let mut failed = false;
+for _ in 0..100 {
+    seed ^= seed << 13; seed ^= seed >> 7; seed ^= seed << 17;
+    let status = fern_managed_poll(exec, (seed % 5 + 1) as i64);
+    if status == 3 { failed = true; break; }
+    assert_eq!(status, 2);
+}
+assert!(failed);
+assert_eq!(*fault, 1);
+"#;
+    assert_eq!(
+        actor_cleanup_host(source, body, true),
+        b"sibling\n0\n1\n2\nworker cleanup\n"
+    );
+}

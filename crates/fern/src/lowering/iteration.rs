@@ -194,7 +194,7 @@ impl Emitter<'_> {
             Type::Bool,
             NativeOperation::Binary(
                 MachineBinary::Compare(Comparison::SLt, Scalar::I64),
-                native_operand(&(index)),
+                native_operand(&index),
                 native_operand(&(flow.end).to_string()),
             ),
         );
@@ -203,7 +203,7 @@ impl Emitter<'_> {
             Type::Bool,
             NativeOperation::Binary(
                 MachineBinary::Compare(Comparison::SLe, Scalar::I64),
-                native_operand(&(index)),
+                native_operand(&index),
                 native_operand(&(flow.end).to_string()),
             ),
         );
@@ -248,8 +248,20 @@ impl Emitter<'_> {
             Type::Int,
             NativeOperation::Load(LoadKind::I64, native_operand(&(flow.slot).to_string())),
         );
+        self.indexed_iteration_item(&index, collection, ty, item, locals)
+    }
+
+    /// Share the exact full-width collection layout with compiler-generated actor steps.
+    pub(super) fn indexed_iteration_item(
+        &mut self,
+        index: &str,
+        collection: &str,
+        ty: &Type,
+        item: &Type,
+        locals: &mut Locals,
+    ) -> String {
         if *ty == Type::Range {
-            return index;
+            return index.into();
         }
         let raw = self.assign(
             locals,
@@ -258,7 +270,7 @@ impl Emitter<'_> {
                 callee: native_operand("$fern_list_get"),
                 args: vec![
                     (Scalar::I64, native_operand(collection)),
-                    (Scalar::I64, native_operand(&(index))),
+                    (Scalar::I64, native_operand(index)),
                 ],
                 variadic: None,
             },
@@ -297,7 +309,7 @@ impl Emitter<'_> {
             Type::Bool,
             NativeOperation::Binary(
                 MachineBinary::Compare(Comparison::Eq, Scalar::I64),
-                native_operand(&(index)),
+                native_operand(&index),
                 native_operand(&(flow.end).to_string()),
             ),
         );
@@ -312,7 +324,7 @@ impl Emitter<'_> {
             Type::Int,
             NativeOperation::Binary(
                 MachineBinary::Add,
-                native_operand(&(index)),
+                native_operand(&index),
                 native_operand("1"),
             ),
         );

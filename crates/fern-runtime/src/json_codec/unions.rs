@@ -1,5 +1,7 @@
 //! Decoder-free union selection. Shallow profiles never allocate candidate payloads.
 use super::*;
+#[path = "unions/nested.rs"]
+mod nested;
 fn bit(v: &Json) -> u32 {
     match v.kind {
         Kind::Null => 1,
@@ -27,7 +29,7 @@ impl Execution<'_> {
                 kind => Ok(if sums {
                     match kind {
                         12 => 1,
-                        9 | 10 | 5 => 2,
+                        9 | 10 | 5 | 14 => 2,
                         _ => 0,
                     }
                 } else {
@@ -36,7 +38,7 @@ impl Execution<'_> {
                         2 => 2,
                         3 => 8,
                         4 => 1,
-                        5 => 63,
+                        5 | 14 => 63,
                         6 | 8 => 16,
                         9 | 10 | 12 => 32,
                         _ => 0,
@@ -171,6 +173,20 @@ impl Execution<'_> {
             for i in 0..(*p).count as usize {
                 let child = *(*p).children.add(i);
                 if self.profile(child, 0, false)? & bit != 0 && self.shape(child, v, sums, 0)? {
+                    count += 1;
+                    selected = i;
+                }
+            }
+            if count == 1 {
+                return Ok(selected);
+            }
+            if count == 0 {
+                return Err(error(14, -1));
+            }
+            count = 0;
+            for i in 0..(*p).count as usize {
+                let child = *(*p).children.add(i);
+                if self.shape(child, v, sums, 0)? && self.nested_shape(child, v, 0)? {
                     count += 1;
                     selected = i;
                 }

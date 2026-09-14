@@ -6,6 +6,7 @@ use crate::{
 use fern_json::{Budget, Error, INPUT, Json, Kind, Limits, NODES, Node, OUTPUT, convert, parse};
 use std::{
     ffi::{CStr, c_char},
+    mem::size_of,
     rc::Rc,
 };
 
@@ -27,8 +28,20 @@ struct Member {
     value: *mut NativeJson,
 }
 
-pub(crate) fn limits() -> Limits {
-    Limits::new(usize::MAX)
+pub(crate) fn limits() -> fern_json::scope::ScopedLimits {
+    fern_json::scope::limits()
+}
+/// Reserve callback work and fresh storage before native projection or publication.
+fn reserve(work: usize, allocated: usize) -> fern_json::Result<()> {
+    let mut allowance = limits();
+    Limits::charge(&mut allowance.work, work)?;
+    Limits::charge(&mut allowance.allocated, allocated)
+}
+fn scalar_result(value: i64) -> i64 {
+    match reserve(1, size_of::<abi::ResultValue>()) {
+        Ok(()) => abi::result_ok(value),
+        Err(error) => failure(error),
+    }
 }
 pub(crate) fn wrap(value: Json) -> *mut NativeJson {
     let retained = fern_json::retained_bytes(&value);
@@ -42,10 +55,18 @@ pub(crate) unsafe fn node(value: *const NativeJson) -> Json {
     unsafe { (*value).0.clone() }
 }
 pub(crate) fn failure(error: Error) -> i64 {
-    let path = abi::string(error.path.as_deref().map(String::as_str).unwrap_or(""));
+    let path = error.path.as_deref().map(String::as_str).unwrap_or("");
+    // Reporting is still possible after exhaustion. Charge its bounded storage
+    // without recursively reporting a failed reservation; the enclosing callback
+    // observes sticky exhaustion even when source code handles this error.
+    let _ = reserve(
+        path.len() + 1,
+        path.len() + 1 + size_of::<NativeError>() + size_of::<abi::ResultValue>(),
+    );
+    let path = abi::string(path);
     abi::result_err(abi::owned(
         NativeError {
-            code: i64::from(error.code.max(1)),
+            code: i64::from(if error.code == 0 { 4 } else { error.code }),
             offset: error.offset,
             path,
         },
@@ -56,7 +77,14 @@ pub(crate) fn domain(code: u8) -> i64 {
     failure(fern_json::error(code, -1))
 }
 pub(crate) fn published(result: fern_json::Result<Json>) -> i64 {
-    match result {
+    match result.and_then(|value| {
+        // wrap traverses the retained subtree, even when its Rc was shared.
+        reserve(
+            value.nodes,
+            size_of::<NativeJson>() + size_of::<abi::ResultValue>(),
+        )?;
+        Ok(value)
+    }) {
         Ok(value) => abi::result_ok(wrap(value) as i64),
         Err(error) => failure(error),
     }
@@ -66,6 +94,7 @@ pub(crate) fn published(result: fern_json::Result<Json>) -> i64 {
 /// Pointer must address a live NUL-terminated byte string.
 pub(crate) unsafe fn input<'a>(pointer: *const c_char) -> fern_json::Result<&'a [u8]> {
     let length = unsafe { libc::strnlen(pointer, INPUT + 1) };
+    reserve((length + 1).min(INPUT + 1), 0)?;
     if length > INPUT {
         return Err(fern_json::error(4, INPUT as i64));
     }
@@ -78,6 +107,16 @@ fn built(result: fern_json::Result<Json>) -> i64 {
     }))
 }
 fn scalar(kind: Kind, encoded: usize) -> Json {
+    // Infallible source constructors retain their json.Value ABI. The generated
+    // callback checkpoint turns exhausted scoped work into the enclosing codec's
+    // resource error before source code can consume a fabricated value.
+    let mut allowance = limits();
+    let _ = Limits::charge(&mut allowance.work, 256);
+    let _ = Limits::charge(
+        &mut allowance.allocated,
+        encoded + size_of::<Node>() + 2 * size_of::<usize>() + size_of::<NativeJson>(),
+    );
+    let _ = fern_json::scope::charge_nodes(1);
     Rc::new(Node {
         kind,
         offset: 0,
@@ -109,7 +148,10 @@ pub unsafe extern "C" fn fern_json_value_parse(text: *const c_char) -> i64 {
 pub unsafe extern "C" fn fern_json_value_stringify(value: *const NativeJson) -> i64 {
     let value = unsafe { node(value) };
     match fern_json::stringify(&value, &mut limits()) {
-        Ok(text) => abi::result_ok(abi::string(&text) as i64),
+        Ok(text) => match reserve(0, size_of::<abi::ResultValue>()) {
+            Ok(()) => abi::result_ok(abi::string(&text) as i64),
+            Err(error) => failure(error),
+        },
         Err(e) => failure(e),
     }
 }
@@ -162,8 +204,8 @@ pub unsafe extern "C" fn fern_json_value_at(value: *const NativeJson, index: i64
 pub unsafe extern "C" fn fern_json_value_length(value: *const NativeJson) -> i64 {
     let value = unsafe { node(value) };
     match &value.kind {
-        Kind::Array(v) => abi::result_ok(v.len() as i64),
-        Kind::Object(v, _) => abi::result_ok(v.len() as i64),
+        Kind::Array(v) => scalar_result(v.len() as i64),
+        Kind::Object(v, _) => scalar_result(v.len() as i64),
         _ => domain(5),
     }
 }
@@ -173,7 +215,7 @@ pub unsafe extern "C" fn fern_json_value_length(value: *const NativeJson) -> i64
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn fern_json_value_as_bool(value: *const NativeJson) -> i64 {
     match unsafe { node(value) }.kind {
-        Kind::Bool(v) => abi::result_ok(i64::from(v)),
+        Kind::Bool(v) => scalar_result(i64::from(v)),
         _ => domain(5),
     }
 }
@@ -184,8 +226,13 @@ pub unsafe extern "C" fn fern_json_value_as_bool(value: *const NativeJson) -> i6
 pub unsafe extern "C" fn fern_json_value_as_string(value: *const NativeJson) -> i64 {
     let value = unsafe { node(value) };
     match &value.kind {
-        Kind::String(v) if v.contains('\0') => domain(10),
-        Kind::String(v) => abi::result_ok(abi::string(v) as i64),
+        Kind::String(v) => {
+            match reserve(v.len() * 2, v.len() + 1 + size_of::<abi::ResultValue>()) {
+                Err(error) => failure(error),
+                Ok(()) if v.contains('\0') => domain(10),
+                Ok(()) => abi::result_ok(abi::string(v) as i64),
+            }
+        }
         _ => domain(5),
     }
 }
@@ -196,7 +243,10 @@ pub unsafe extern "C" fn fern_json_value_as_string(value: *const NativeJson) -> 
 pub unsafe extern "C" fn fern_json_value_number_text(value: *const NativeJson) -> i64 {
     let value = unsafe { node(value) };
     match &value.kind {
-        Kind::Number(v) => abi::result_ok(abi::string(v) as i64),
+        Kind::Number(v) => match reserve(v.len(), v.len() + 1 + size_of::<abi::ResultValue>()) {
+            Ok(()) => abi::result_ok(abi::string(v) as i64),
+            Err(error) => failure(error),
+        },
         _ => domain(5),
     }
 }
@@ -209,7 +259,9 @@ pub unsafe extern "C" fn fern_json_value_as_int(value: *const NativeJson) -> i64
     let Kind::Number(text) = &value.kind else {
         return domain(5);
     };
-    match convert::integer(text) {
+    match reserve(text.len() * 2, size_of::<abi::ResultValue>())
+        .and_then(|()| convert::integer(text))
+    {
         Ok(value) => abi::result_ok(value),
         Err(e) => failure(e),
     }
@@ -223,7 +275,7 @@ pub unsafe extern "C" fn fern_json_value_as_float(value: *const NativeJson) -> i
     let Kind::Number(text) = &value.kind else {
         return domain(5);
     };
-    match convert::float(text) {
+    match reserve(text.len(), size_of::<abi::ResultValue>()).and_then(|()| convert::float(text)) {
         Ok(value) => abi::result_ok(value.to_bits() as i64),
         Err(e) => failure(e),
     }
@@ -251,10 +303,14 @@ pub extern "C" fn fern_json_value_from_int(value: i64) -> *mut NativeJson {
 /// Construct a finite JSON number from binary64.
 #[unsafe(no_mangle)]
 pub extern "C" fn fern_json_value_from_float(value: f64) -> i64 {
-    published(convert::format(value).map(|text| {
-        let size = text.len();
-        scalar(Kind::Number(text), size)
-    }))
+    published(
+        reserve(64, 64)
+            .and_then(|()| convert::format(value))
+            .map(|text| {
+                let size = text.len();
+                scalar(Kind::Number(text), size)
+            }),
+    )
 }
 /// Validate and retain exactly one number token without whitespace.
 /// # Safety
@@ -294,6 +350,7 @@ pub unsafe extern "C" fn fern_json_value_from_array(list: *const List) -> i64 {
         let mut budget = Budget::new(&mut limits, 0)?;
         budget.node()?;
         budget.allocate(header.len as usize * 8)?;
+        budget.work(header.len as usize)?;
         let children = unsafe { collections::elements(list) }
             .iter()
             .map(|&v| unsafe { node(v as *const NativeJson) })
@@ -322,6 +379,7 @@ pub unsafe extern "C" fn fern_json_value_from_object(
     let result = (|| {
         let (keys, values) =
             unsafe { (collections::elements(keys), collections::elements(values)) };
+        reserve(keys.len(), keys.len() * size_of::<&str>())?;
         let mut bytes = 0_usize;
         let mut names = Vec::with_capacity(keys.len());
         for &key in keys {
@@ -355,6 +413,13 @@ pub unsafe extern "C" fn fern_json_value_elements(value: *const NativeJson) -> i
     let Kind::Array(values) = &value.kind else {
         return domain(5);
     };
+    let bytes = values.len() * (size_of::<i64>() + size_of::<NativeJson>())
+        + values.len().max(1) * size_of::<i64>()
+        + size_of::<List>()
+        + size_of::<abi::ResultValue>();
+    if let Err(error) = reserve(value.nodes, bytes) {
+        return failure(error);
+    }
     let mut words = vec![0_i64; values.len()];
     let _root = unsafe { memory::root_range(words.as_ptr().cast(), words.len()) };
     for (slot, value) in words.iter_mut().zip(values) {
@@ -371,12 +436,28 @@ pub unsafe extern "C" fn fern_json_value_members(value: *const NativeJson) -> i6
     let Kind::Object(values, _) = &value.kind else {
         return domain(5);
     };
+    let bytes = values.len()
+        * (size_of::<i64>() + 2 * size_of::<NativeJson>() + size_of::<Member>())
+        + values.len().max(1) * size_of::<i64>()
+        + size_of::<List>()
+        + size_of::<abi::ResultValue>();
+    if let Err(error) = reserve(value.nodes, bytes) {
+        return failure(error);
+    }
     let mut words = vec![0_i64; values.len()];
     let _root = unsafe { memory::root_range(words.as_ptr().cast(), words.len()) };
     for (slot, (key, value)) in words.iter_mut().zip(values) {
-        let key = wrap(key.clone());
-        let value = wrap(value.clone());
-        *slot = abi::owned(Member { key, value }, 0) as i64;
+        let mut pair = [wrap(key.clone()) as usize, 0];
+        // The first fresh handle must survive allocation of the second and member.
+        let _pair_root = unsafe { memory::root_range(pair.as_ptr(), pair.len()) };
+        pair[1] = wrap(value.clone()) as usize;
+        *slot = abi::owned(
+            Member {
+                key: pair[0] as *mut NativeJson,
+                value: pair[1] as *mut NativeJson,
+            },
+            0,
+        ) as i64;
     }
     abi::result_ok(abi::list(&words) as i64)
 }

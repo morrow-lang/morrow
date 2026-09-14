@@ -21,6 +21,8 @@ mod closures;
 mod control;
 #[path = "lowering/fault.rs"]
 mod fault;
+#[path = "lowering/foreign.rs"]
+mod foreign;
 #[path = "lowering/higher_order.rs"]
 mod higher_order;
 #[path = "lowering/iteration.rs"]
@@ -534,6 +536,9 @@ impl Emitter<'_> {
         self.validate_expr(expr, depth)?;
         self.strict_termination(expr, locals, depth + 1)?;
         let (actual, value) = match &expr.kind {
+            ExprKind::ForeignCall { declaration, args } => {
+                self.foreign_call(declaration, args, &expr.ty, expr.span, locals, depth + 1)?
+            }
             ExprKind::Actor(actor) => self.actor_expression(actor, expr.span, locals, depth + 1)?,
             ExprKind::JsonCodec { .. } => self.json_codec(expr, locals, depth + 1)?,
             ExprKind::With { .. }
@@ -1672,6 +1677,23 @@ fn private_expression(expr: &Expr) -> Exit {
         _ => "invalid private expression",
     };
     invalid(expr.span, message)
+}
+
+/// Reuse validated native continuation shapes for deterministic interactive scheduling.
+pub(crate) fn prepare_interactive_actors(
+    program: &ir::Program,
+) -> Result<(ir::Program, BTreeMap<usize, usize>), Diagnostic> {
+    ir::reject_probes(program)?;
+    crate::json_codec::validate_program(program)?;
+    let prepared = actor_backend::prepare(program).map_err(|exit| match exit {
+        Exit::Diagnostic(error) => error,
+        Exit::Terminated => {
+            Diagnostic::new(Span::default(), "actor preparation terminated unexpectedly")
+        }
+    })?;
+    let mut entries = prepared.plan.entries;
+    entries.extend(prepared.plan.helpers);
+    Ok((prepared.program.into_owned(), entries))
 }
 
 #[cfg(test)]

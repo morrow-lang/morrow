@@ -11,6 +11,8 @@ mod coverage;
 mod dependencies;
 mod diagnostics;
 pub mod editor;
+mod foreign;
+mod foreign_api;
 mod globals;
 mod iteration;
 mod labels;
@@ -25,8 +27,10 @@ pub(crate) mod recovery;
 mod returns;
 mod schemes;
 mod sequences;
+pub(crate) mod sets;
 mod shapes;
 mod specialize;
+mod traits;
 mod unions;
 mod whole;
 mod with_flow;
@@ -41,6 +45,7 @@ type Checked<T> = Result<T, Diagnostic>;
 type TypedKind = (ir::ExprKind, Type);
 
 struct Signature {
+    constant: bool,
     mailbox: Option<Type>,
     labels: Vec<Option<ast::ArgumentLabel>>,
     required_labels: Vec<bool>,
@@ -166,26 +171,60 @@ fn pipeline_mode<T>(
     prove_results: bool,
 ) -> Checked<(ir::Program, T)> {
     preflight::check(source)?;
+    let trait_source = traits::expand(source)?;
+    let source = trait_source.as_ref();
+    preflight::check(source)?;
     let expanded = aliases::expand(source)?;
     let source = expanded.program.as_ref();
     let registry = nominal::Registry::new(source)?;
+    registry.traits.validate(source, &registry)?;
     aliases::validate(source, &registry)?;
     codecs::validate(source, &registry)?;
     let graph = dependencies::analyze_with_work(source, expanded.work)?;
     let (program, mut signatures, work) = whole::resolve(source, &registry, &graph)?;
     labels::finalize(&program, &mut signatures)?;
+    for function in &program.functions {
+        if function.syntax == ast::FunctionSyntax::Constant
+            && !signatures[&function.name].generics.is_empty()
+        {
+            return Err(Diagnostic::new(
+                function.span,
+                "constant needs a concrete type; add a type annotation so its comptime initializer can be evaluated",
+            ));
+        }
+    }
     let templates = schemes::validate(&program, &registry, &mut signatures, work)?;
-    let ir = specialize::run(&program, &registry, &signatures)?;
+    registry.traits.complete_requirements(&signatures)?;
+    let mut ir = specialize::run(&program, &registry, &signatures)?;
     ir::reject_probes(&ir)?;
     crate::json_codec::validate_program(&ir)?;
     crate::actors::contracts::validate(&ir)?;
     if prove_results {
-        let roots = templates.iter().map(|f| f.id.0).collect();
+        let roots = templates
+            .iter()
+            .map(|f| f.id.0)
+            .chain(
+                program
+                    .functions
+                    .iter()
+                    .filter(|f| {
+                        f.name.starts_with("$traits_") && f.syntax != ast::FunctionSyntax::Trait
+                    })
+                    .map(|f| signatures[&f.name].id.0),
+            )
+            .collect();
         let templates = schemes::proof_bodies(&program, &registry, &signatures, templates, work)?;
-        let work = obligations::templates(templates, &registry, &roots)?;
+        let abstract_traits = program
+            .functions
+            .iter()
+            .filter(|f| f.syntax == ast::FunctionSyntax::Trait)
+            .map(|f| signatures[&f.name].id.0)
+            .collect();
+        let work = obligations::templates(templates, &registry, &roots, &abstract_traits)?;
         obligations::check(&ir, work)?;
     }
     let facts = finish(&program, &registry, &signatures)?;
+    crate::repl::comptime::fold(&program, &mut ir)?;
     Ok((ir, facts))
 }
 
@@ -238,6 +277,7 @@ fn signatures(
         signatures.insert(
             function.name.clone(),
             Signature {
+                constant: function.syntax == ast::FunctionSyntax::Constant,
                 mailbox: None,
                 labels: labels::parameters(function),
                 required_labels: Vec::new(),
@@ -252,12 +292,12 @@ fn signatures(
                 result,
                 generics,
                 dispatch: dispatch.contains(&function.name),
-                requirements: Vec::new(),
+                requirements: registry.traits.requirements(function)?,
                 monotype: false,
             },
         );
     }
-    actors::attach(program, registry, &mut signatures)?;
+    actors::attach(program, registry, &mut signatures, inference)?;
     Ok(signatures)
 }
 
@@ -267,6 +307,10 @@ fn reserved(name: &str) -> bool {
         return true;
     }
     builtin(name).is_some()
+        || sets::is_api(name)
+        || crate::ffi::is_api(name)
+        || name == "Set"
+        || crate::ffi::reserved_type(name)
         || crate::codec_syntax::is_codec(name)
         || runtime::lookup(name).is_some()
         || runtime::reserved_namespace(name)
@@ -683,6 +727,18 @@ impl Checker<'_> {
         let signature = &self.signatures[&function.name];
         self.inference.specializing =
             !signature.generics.is_empty() && !self.inference.template && !self.inference.probing;
+        for requirement in &signature.requirements {
+            if let schemes::Capability::Trait(id) = requirement.capability {
+                let ty = nominal::substitute(&requirement.ty, &self.inference.codec_substitutions)?;
+                self.registry.traits.require(
+                    id,
+                    &ty,
+                    &self.inference,
+                    requirement.span,
+                    self.registry,
+                )?;
+            }
+        }
         let id = signature.id;
         let return_type = function_result(function)?;
         self.function_return = return_type.clone();
@@ -819,16 +875,19 @@ impl Checker<'_> {
         expected: Option<&Type>,
         depth: usize,
     ) -> Checked<TypedKind> {
-        Ok(match &expr.kind {
+        // Return each checked result directly. Unwrapping every branch into one
+        // large enum temporary makes debug recursion retain all branch slots.
+        match &expr.kind {
+            ast::ExprKind::ForeignCall { declaration, args } => {
+                self.foreign_call(declaration, args, expr.span, depth + 1)
+            }
             ast::ExprKind::Receive { arms, timeout } => {
-                self.receive(arms, timeout.as_ref(), expected, expr.span, depth + 1)?
+                self.receive(arms, timeout.as_ref(), expected, expr.span, depth + 1)
             }
-            ast::ExprKind::TypeTarget(_) => {
-                return Err(Diagnostic::new(
-                    expr.span,
-                    "compile-time type target cannot be used as a value",
-                ));
-            }
+            ast::ExprKind::TypeTarget(_) => Err(Diagnostic::new(
+                expr.span,
+                "compile-time type target cannot be used as a value",
+            )),
             ast::ExprKind::Break
             | ast::ExprKind::Continue
             | ast::ExprKind::Range { .. }
@@ -837,49 +896,47 @@ impl Checker<'_> {
             | ast::ExprKind::Return(_)
             | ast::ExprKind::Defer(_)
             | ast::ExprKind::PostfixIf { .. }
-            | ast::ExprKind::ConditionMatch(_) => self.iteration_kind(expr, expected, depth + 1)?,
+            | ast::ExprKind::ConditionMatch(_) => self.iteration_kind(expr, expected, depth + 1),
             ast::ExprKind::Lambda { params, body } => {
-                self.lambda(params, body, expected, expr.span, depth + 1)?
+                self.lambda(params, body, expected, expr.span, depth + 1)
             }
             ast::ExprKind::Apply { callee, args } => {
-                self.apply(callee, args, expected, expr.span, depth + 1)?
+                self.apply(callee, args, expected, expr.span, depth + 1)
             }
-            ast::ExprKind::Int(n) => (ir::ExprKind::Int(*n), Type::Int),
-            ast::ExprKind::Float(n) => (ir::ExprKind::Float(*n), Type::Float),
-            ast::ExprKind::Bool(b) => (ir::ExprKind::Bool(*b), Type::Bool),
-            ast::ExprKind::String(s) => (ir::ExprKind::String(s.clone()), Type::String),
+            ast::ExprKind::Int(n) => Ok((ir::ExprKind::Int(*n), Type::Int)),
+            ast::ExprKind::Float(n) => Ok((ir::ExprKind::Float(*n), Type::Float)),
+            ast::ExprKind::Bool(b) => Ok((ir::ExprKind::Bool(*b), Type::Bool)),
+            ast::ExprKind::String(s) => Ok((ir::ExprKind::String(s.clone()), Type::String)),
             ast::ExprKind::Interpolate(parts) | ast::ExprKind::MultilineString(parts) => {
-                self.interpolate(parts, expr.span, depth + 1)?
+                self.interpolate(parts, expr.span, depth + 1)
             }
-            ast::ExprKind::Unit => (ir::ExprKind::Unit, Type::Unit),
-            ast::ExprKind::Try(value) => self.propagate(value, expr.span, depth + 1)?,
+            ast::ExprKind::Unit => Ok((ir::ExprKind::Unit, Type::Unit)),
+            ast::ExprKind::Try(value) => self.propagate(value, expr.span, depth + 1),
             kind @ (ast::ExprKind::GlobalName { .. }
             | ast::ExprKind::GlobalCall { .. }
             | ast::ExprKind::GlobalPipe { .. }) => {
-                self.resolved_global(kind, expected, expr.span, depth + 1)?
+                self.resolved_global(kind, expected, expr.span, depth + 1)
             }
-            ast::ExprKind::Pipe { .. } => self.source_pipe(expr, depth + 1)?,
-            ast::ExprKind::Field { .. } => self.source_field(expr, depth + 1)?,
-            ast::ExprKind::Name(name) => self.name(name, expr.span)?,
-            ast::ExprKind::Tuple(values) => self.tuple(values, expected, expr.span, depth + 1)?,
-            ast::ExprKind::Map(entries) => self.map(entries, expected, expr.span, depth + 1)?,
+            ast::ExprKind::Pipe { .. } => self.source_pipe(expr, depth + 1),
+            ast::ExprKind::Field { .. } => self.source_field(expr, depth + 1),
+            ast::ExprKind::Name(name) => self.name(name, expr.span),
+            ast::ExprKind::Tuple(values) => self.tuple(values, expected, expr.span, depth + 1),
+            ast::ExprKind::Map(entries) => self.map(entries, expected, expr.span, depth + 1),
             ast::ExprKind::RecordUpdate { value, fields } => {
-                self.record_update(value, fields, expected, expr.span, depth + 1)?
+                self.record_update(value, fields, expected, expr.span, depth + 1)
             }
-            ast::ExprKind::List(values) => self.list(values, expected, expr.span, depth + 1)?,
+            ast::ExprKind::List(values) => self.list(values, expected, expr.span, depth + 1),
             ast::ExprKind::Match { value, arms } => {
-                self.matching(value, arms, expected, expr.span, depth + 1)?
+                self.matching(value, arms, expected, expr.span, depth + 1)
             }
-            ast::ExprKind::Unary { op, value } => self.unary(*op, value, depth + 1)?,
-            ast::ExprKind::Binary { op, left, right } => {
-                self.binary(*op, left, right, depth + 1)?
-            }
+            ast::ExprKind::Unary { op, value } => self.unary(*op, value, depth + 1),
+            ast::ExprKind::Binary { op, left, right } => self.binary(*op, left, right, depth + 1),
             ast::ExprKind::Call { name, args } => {
-                self.call_expected(name, args, expected, expr.span, depth + 1)?
+                self.call_expected(name, args, expected, expr.span, depth + 1)
             }
-            ast::ExprKind::If { .. } => self.source_conditional(expr, expected, depth + 1)?,
-            ast::ExprKind::Block(stmts) => self.block(stmts, expected, depth + 1)?,
-        })
+            ast::ExprKind::If { .. } => self.source_conditional(expr, expected, depth + 1),
+            ast::ExprKind::Block(stmts) => self.block(stmts, expected, depth + 1),
+        }
     }
 
     /// Forward original conditional branches and their source range to contextual checking.
@@ -1194,6 +1251,11 @@ impl Checker<'_> {
         use ast::BinaryOp::*;
         let left = self.expression(left, depth)?;
         let right = self.expression(right, depth)?;
+        if op == In
+            && matches!(self.inference.resolve(&right.ty, right.span)?, Type::Named(name, _) if name == "Set")
+        {
+            return self.set_membership(left, right);
+        }
         if op == In {
             self.inference.unify(
                 &right.ty,
@@ -1746,6 +1808,12 @@ impl Checker<'_> {
             return Ok((value.kind, Type::Never));
         }
         let ty = self.inference.resolve(&value.ty, span)?;
+        if matches!(&ty, Type::Named(owner, _) if matches!(owner.as_str(), "Set" | "Ptr")) {
+            return Err(Diagnostic::new(
+                span,
+                "collection or pointer storage is private; use its public APIs",
+            ));
+        }
         if self.registry.is_newtype(&ty) {
             if name != "0" {
                 return Err(Diagnostic::new(span, "newtype field must be .0"));
@@ -1875,6 +1943,10 @@ impl Checker<'_> {
             }
             ir::ExprKind::Call { target, args } => {
                 self.finalize_call(*target, args, &expr.ty, expr.span)?;
+            }
+            ir::ExprKind::ForeignCall { declaration, args } => {
+                declaration.validate(expr.span)?;
+                self.finalize_values(args)?;
             }
             ir::ExprKind::Map(entries) => self.finalize_map(entries)?,
             ir::ExprKind::Interpolate(values) => self.finalize_interpolation(values)?,

@@ -130,6 +130,16 @@ fn operation_text(operation: &Operation) -> String {
             }
             format!("call {}({})", operand(callee), values.join(", "))
         }
+        Operation::ForeignCall { declaration, args } => format!(
+            "foreign {:?} ${}({}) -> {:?}",
+            declaration.params,
+            declaration.symbol,
+            args.iter()
+                .map(|(ty, value)| format!("{} {}", ty.qbe(), operand(value)))
+                .collect::<Vec<_>>()
+                .join(", "),
+            declaration.result
+        ),
         Operation::Phi(incoming) => format!(
             "phi {}",
             incoming

@@ -12,7 +12,7 @@ impl Plan {
                 Kind::Bool => Shape::Bool,
                 Kind::String => Shape::String,
                 Kind::Unit => Shape::Null,
-                Kind::Dynamic => Shape::Any,
+                Kind::Dynamic | Kind::Custom { .. } => Shape::Any,
                 Kind::List(_) => Shape::Array(None),
                 Kind::Tuple(fields) => Shape::Array(Some(fields.len())),
                 Kind::Map(_) => Shape::Map,
@@ -47,7 +47,26 @@ impl Plan {
                     continue;
                 }
             };
-            nodes.push(Node::leaf(shape));
+            let mut node = Node::leaf(shape);
+            node.children = match &entry.kind {
+                Kind::Tuple(fields) => {
+                    audit.charge(fields.len())?;
+                    fields.clone()
+                }
+                Kind::Record(fields) => {
+                    audit.charge(fields.len())?;
+                    fields.iter().map(|f| f.codec).collect()
+                }
+                _ => Vec::new(),
+            };
+            if let Kind::Sum(variants) = &entry.kind {
+                audit.charge(variants.len())?;
+                for variant in variants {
+                    audit.charge(variant.fields.len())?;
+                    node.variants.push(variant.fields.clone());
+                }
+            }
+            nodes.push(node);
         }
         profiles::validate(&nodes, &mut audit.work, audit.span)
     }

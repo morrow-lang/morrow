@@ -7,6 +7,9 @@ impl Machine {
     /// Apply checked builtins to immutable shared values, bounding allocations first.
     pub(super) fn builtin(&mut self, builtin: ir::Builtin, args: Vec<Value>) -> Eval<Value> {
         use ir::Builtin::*;
+        if self.comptime && matches!(builtin, Print | Println) {
+            return Err(fault("output is not available during comptime evaluation"));
+        }
         match (builtin, args.as_slice()) {
             (Print | Println, [value]) => {
                 let text = match value {
@@ -72,6 +75,29 @@ impl Machine {
     /// Dispatch stable registry identities and name unsupported operations by their source API.
     pub(super) fn runtime(&mut self, id: usize, args: Vec<Value>) -> Eval<Value> {
         let signature = runtime::signature(id).ok_or_else(|| fault("unknown runtime function"))?;
+        if matches!(
+            signature.symbol,
+            "fern_ffi_borrow_string" | "fern_ffi_read_string"
+        ) {
+            return Err(fault("foreign pointer operations require native execution"));
+        }
+        if signature.symbol == "fern_ffi_float32" {
+            let [Value::Float(value)] = args.as_slice() else {
+                return Err(fault("invalid CFloat32 conversion"));
+            };
+            let narrow = *value as f32;
+            return if value.is_finite() && !narrow.is_finite() {
+                Ok(Value::Sum(
+                    1,
+                    vec![Value::String(Rc::new(
+                        "foreign scalar conversion is outside its representable range".into(),
+                    ))]
+                    .into(),
+                ))
+            } else {
+                Ok(Value::Sum(0, vec![Value::Float(f64::from(narrow))].into()))
+            };
+        }
         if let Some(builtin) = core_builtin(signature.symbol, signature.operation) {
             return self.builtin(builtin, args);
         }
@@ -90,6 +116,14 @@ impl Machine {
         }
         if let Some(value) = strings(signature.symbol, &args) {
             return value;
+        }
+        if self.comptime {
+            return Err(fault(
+                "this host API is not available during comptime evaluation",
+            ));
+        }
+        if self.simulation {
+            return Err(fault("host APIs are not available during actor simulation"));
         }
         if matches!(
             signature.symbol,
@@ -177,6 +211,13 @@ fn option(value: Option<usize>) -> Value {
 fn strings(symbol: &str, args: &[Value]) -> Option<Eval<Value>> {
     let whitespace = |c| matches!(c, ' ' | '\t' | '\n' | '\r');
     Some(match (symbol, args) {
+        ("fern_str_compare", [Value::String(a), Value::String(b)]) => {
+            Ok(Value::Int(match a.cmp(b) {
+                std::cmp::Ordering::Less => -1,
+                std::cmp::Ordering::Equal => 0,
+                std::cmp::Ordering::Greater => 1,
+            }))
+        }
         ("fern_str_to_upper", [Value::String(s)]) => ascii_case(s, true),
         ("fern_str_to_lower", [Value::String(s)]) => ascii_case(s, false),
         ("fern_str_trim", [Value::String(s)]) => string(s.trim_matches(whitespace)),

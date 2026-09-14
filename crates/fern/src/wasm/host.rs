@@ -32,8 +32,16 @@ fn byte() -> MemArg {
 }
 fn body(locals: u32, code: impl IntoIterator<Item = I<'static>>) -> Function {
     let mut f = Function::new([(locals, V::I32)]);
+    f.instruction(&I::I32Const(0));
+    f.instruction(&I::GlobalSet(2));
     for i in code {
+        let call = matches!(i, I::Call(_));
         f.instruction(&i);
+        if call {
+            for instruction in [I::GlobalGet(2), I::If(B::Empty), I::Unreachable, I::End] {
+                f.instruction(&instruction);
+            }
+        }
     }
     f.instruction(&I::End);
     f

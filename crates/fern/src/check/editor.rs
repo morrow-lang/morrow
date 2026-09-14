@@ -68,7 +68,7 @@ pub fn analyze(source: &ast::Program, query: Query) -> Checked<Facts> {
 /// Publish reusable schemes for every source group after one complete library check.
 /// Metadata shares a 16k-node/1MiB budget; clause groups retain their original anchors.
 pub fn function_schemes(source: &ast::Program) -> Checked<Vec<FunctionInfo>> {
-    super::pipeline(source, |_, _, signatures| {
+    super::pipeline(source, |_, registry, signatures| {
         let mut budget = Budget::default();
         let mut result = Vec::new();
         let mut index = 0;
@@ -81,7 +81,13 @@ pub fn function_schemes(source: &ast::Program) -> Checked<Vec<FunctionInfo>> {
             let signature = signatures
                 .get(&first.name)
                 .ok_or_else(|| Diagnostic::new(first.span, "missing finalized source signature"))?;
-            result.push(signature_info(first, signature, end - index, &mut budget)?);
+            result.push(signature_info(
+                first,
+                signature,
+                end - index,
+                registry,
+                &mut budget,
+            )?);
             index = end;
         }
         Ok(result)
@@ -129,10 +135,12 @@ fn analyze_prepared(
     let mut budget = Budget::default();
     let mut facts = Facts::default();
     if let Some(name) = &query.function {
-        facts.function = function_info(source, signatures, name, &mut budget)?;
+        facts.function = function_info(source, signatures, name, registry, &mut budget)?;
     }
     let selected = source.functions.iter().find(|f| {
-        !f.name.starts_with('$') && contains(f.span, query.occurrence) && f.span != Span::default()
+        f.syntax != ast::FunctionSyntax::Trait
+            && contains(f.span, query.occurrence)
+            && f.span != Span::default()
     });
     let Some(selected) = selected else {
         return Ok(facts);
@@ -142,7 +150,7 @@ fn analyze_prepared(
         .iter()
         .find(|f| f.name == selected.name)
         .ok_or_else(|| Diagnostic::new(selected.span, "missing finalized source function"))?;
-    facts.context = function_info(source, signatures, &selected.name, &mut budget)?;
+    facts.context = function_info(source, signatures, &selected.name, registry, &mut budget)?;
     let signature = &signatures[&selected.name];
     let mut checker = final_checker(registry, signatures, signature, query);
     checker.function(function)?;
@@ -194,6 +202,7 @@ fn function_info(
     source: &ast::Program,
     signatures: &HashMap<String, Signature>,
     name: &str,
+    registry: &nominal::Registry,
     budget: &mut Budget,
 ) -> Checked<Option<FunctionInfo>> {
     let Some(signature) = signatures.get(name) else {
@@ -210,6 +219,7 @@ fn function_info(
         first,
         signature,
         source.functions.iter().filter(|f| f.name == name).count(),
+        registry,
         budget,
     )
     .map(Some)
@@ -220,6 +230,7 @@ fn signature_info(
     first: &ast::Function,
     signature: &Signature,
     clauses: usize,
+    registry: &nominal::Registry,
     budget: &mut Budget,
 ) -> Checked<FunctionInfo> {
     let name = first.name.as_str();
@@ -239,6 +250,13 @@ fn signature_info(
     let mut requirements = Vec::new();
     for requirement in &signature.requirements {
         let (ty, message) = requirement.editor_view();
+        let message = if let schemes::Capability::Trait(id) = requirement.capability {
+            registry.traits.name(id).ok_or_else(|| {
+                Diagnostic::new(requirement.span, "unknown editor trait requirement")
+            })?
+        } else {
+            message
+        };
         budget.ty(ty)?;
         budget.text(message)?;
         requirements.push(Requirement {
@@ -265,6 +283,9 @@ fn members(
     span: Span,
     budget: &mut Budget,
 ) -> Checked<Vec<Member>> {
+    if matches!(ty, Type::Named(name, _) if matches!(name.as_str(), "Set" | "Ptr")) {
+        return Ok(Vec::new());
+    }
     if registry.is_newtype(ty) {
         let inner = registry.newtype_inner(ty, span)?;
         budget.ty(&inner)?;

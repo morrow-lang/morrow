@@ -1,6 +1,8 @@
 //! Emit validated concrete wire descriptors and one source-ordered runtime operation.
 use super::*;
 use crate::json_codec::{Direction, Kind, Plan};
+#[path = "json_custom.rs"]
+mod custom;
 impl Emitter<'_> {
     /// Preserve the operand's full payload width; runtime errors remain ordinary heap Results.
     pub(super) fn json_codec(
@@ -24,18 +26,34 @@ impl Emitter<'_> {
             Direction::Encode => "encode",
             Direction::Decode => "decode",
         };
+        let custom = plan
+            .entries
+            .iter()
+            .any(|entry| matches!(entry.kind, Kind::Custom { .. }));
+        let symbol = if custom {
+            format!("$fern_json_codec_{name}_context")
+        } else {
+            format!("$fern_json_codec_{name}")
+        };
+        let mut args = vec![
+            (Scalar::I64, native_operand(&root)),
+            (Scalar::I64, native_operand(&value)),
+        ];
+        if custom {
+            args.push((Scalar::I64, native_operand("%fault")));
+        }
         let value = self.assign(
             locals,
             expr.ty.clone(),
             NativeOperation::Call {
-                callee: native_operand(&format!("$fern_json_codec_{}", name)),
-                args: vec![
-                    (Scalar::I64, native_operand(&(root))),
-                    (Scalar::I64, native_operand(&(value))),
-                ],
+                callee: native_operand(&symbol),
+                args,
                 variadic: None,
             },
         );
+        if custom {
+            self.guard_fault(locals);
+        }
         Ok((expr.ty.clone(), value))
     }
     /// Bound aggregate descriptor/name output before allocating formatting intermediates.
@@ -95,6 +113,9 @@ impl Emitter<'_> {
         span: Span,
     ) -> Lowering<()> {
         let prefix = format!("$json_codec_{unique}_{index}");
+        if let Kind::Custom { encode, decode } = kind {
+            return self.custom_codec(&prefix, encode, decode, span);
+        }
         if let Kind::Sum(variants) = kind {
             let mut rows = Vec::with_capacity(variants.len());
             for (tag, variant) in variants.iter().enumerate() {
@@ -162,6 +183,7 @@ impl Emitter<'_> {
 /// Match the documented runtime ABI without relying on Rust enum discriminant layout.
 fn descriptor(kind: &Kind) -> (usize, Vec<usize>) {
     match kind {
+        Kind::Custom { .. } => unreachable!("custom codecs use typed callback tables"),
         Kind::Sum(_) => unreachable!("sum descriptors use their typed variant table"),
         Kind::Union(ids) => (13, ids.clone()),
         Kind::Int => (0, vec![]),

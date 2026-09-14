@@ -114,7 +114,13 @@ impl Emitter<'_, '_> {
         Ok(())
     }
 
-    fn dynamic_cell(&mut self, pointer: u32, index: u32, ty: &Type, span: Span) -> Result<()> {
+    pub(super) fn dynamic_cell(
+        &mut self,
+        pointer: u32,
+        index: u32,
+        ty: &Type,
+        span: Span,
+    ) -> Result<()> {
         self.emit(I::LocalGet(pointer));
         self.emit(I::LocalGet(index));
         self.emit(I::I32Const(8));

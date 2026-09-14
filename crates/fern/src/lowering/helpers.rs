@@ -1869,6 +1869,30 @@ pub(super) fn maps(output: &mut Buffer) {
             variadic: None,
         },
     });
+    // The output is newly allocated and not yet reachable from the caller's
+    // map root. Keep it registered across the nested pair allocation boundary.
+    output.statement(Statement::Assign {
+        destination: "%output_root".into(),
+        ty: Scalar::I64,
+        operation: NativeOperation::StackAlloc { bytes: 8, align: 8 },
+    });
+    output.statement(Statement::Store {
+        kind: LoadKind::I64,
+        value: native_operand("%output"),
+        address: native_operand("%output_root"),
+    });
+    output.statement(Statement::Assign {
+        destination: "%output_frame".into(),
+        ty: Scalar::I64,
+        operation: NativeOperation::Call {
+            callee: native_operand("$fern_gc_frame_enter"),
+            args: vec![
+                (Scalar::I64, native_operand("%output_root")),
+                (Scalar::I64, Operand::Int(1)),
+            ],
+            variadic: None,
+        },
+    });
     output.statement(Statement::Assign {
         destination: "%new".to_owned(),
         ty: Scalar::I64,
@@ -1991,6 +2015,11 @@ pub(super) fn maps(output: &mut Buffer) {
     }));
     output.statement(Statement::Jump("@done".to_owned()));
     output.statement(Statement::Label("@done".to_owned()));
+    output.statement(Statement::Effect(NativeOperation::Call {
+        callee: native_operand("$fern_gc_frame_leave"),
+        args: vec![(Scalar::I64, native_operand("%output_frame"))],
+        variadic: None,
+    }));
     output.statement(Statement::Return(Some(native_operand("%output"))));
     output.end();
 

@@ -46,6 +46,9 @@ pub(super) fn expand(program: &ast::Program) -> Checked<Expanded<'_>> {
         }
     }
     for function in &mut output.functions {
+        for bound in &mut function.constraints {
+            bound.ty = expander.expand(&bound.ty, bound.span)?;
+        }
         for parameter in &mut function.params {
             expander.annotation(&mut parameter.annotation, parameter.span)?;
         }
@@ -53,6 +56,18 @@ pub(super) fn expand(program: &ast::Program) -> Checked<Expanded<'_>> {
         rewrite::expression(&mut function.body, &mut expander)?;
         if let Some(guard) = &mut function.guard {
             rewrite::expression(guard, &mut expander)?;
+        }
+    }
+    for implementation in &mut output.implementations {
+        implementation.bound.ty =
+            expander.expand(&implementation.bound.ty, implementation.bound.span)?;
+        for bound in &mut implementation.constraints {
+            bound.ty = expander.expand(&bound.ty, bound.span)?;
+        }
+    }
+    for declaration in &mut output.traits {
+        for bound in &mut declaration.parents {
+            bound.ty = expander.expand(&bound.ty, bound.span)?;
         }
     }
     Ok(Expanded {

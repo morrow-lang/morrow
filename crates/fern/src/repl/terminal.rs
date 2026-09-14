@@ -41,7 +41,7 @@ impl Completer for Completion {
             "print", "println", "fn", "let", "if", "else", "match", "for", "while", "loop",
             "return", "break", "continue", "true", "false", "and", "or", "not", "type", "newtype",
             "pub", "import", "module", "defer", "with", "in", "as", "Ok", "Err", "Some", "None",
-            ":help", ":type", ":clear", ":reset", ":quit", ":paste", ":end",
+            ":help", ":type", ":clear", ":reset", ":quit", ":paste", ":end", ":actors", ":stop",
         ]);
         words.sort_unstable();
         words.dedup();

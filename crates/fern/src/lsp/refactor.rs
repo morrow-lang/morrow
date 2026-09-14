@@ -14,7 +14,7 @@ fn failed(message: impl Into<String>) -> (i64, String) {
 
 enum Graph {
     Loaded(Box<modules::Loaded>),
-    Single(ast::Program),
+    Single(Box<ast::Program>),
 }
 struct Snapshot {
     graph: Graph,
@@ -42,7 +42,9 @@ impl Snapshot {
         } else {
             (
                 PathBuf::from(uri),
-                Graph::Single(parse::parse(source).map_err(|e| failed(e.message))?),
+                Graph::Single(Box::new(
+                    parse::parse(source).map_err(|e| failed(e.message))?,
+                )),
             )
         };
         let snapshot = Self {

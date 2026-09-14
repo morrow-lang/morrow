@@ -3,6 +3,8 @@ use crate::{Constructor, Span, Type};
 
 #[derive(Clone, Debug, Default)]
 pub struct Program {
+    pub traits: Vec<TraitDecl>,
+    pub implementations: Vec<Implementation>,
     pub docs: Vec<DocComment>,
     pub functions: Vec<Function>,
     pub types: Vec<TypeDecl>,
@@ -90,6 +92,7 @@ pub struct Field {
 }
 #[derive(Clone, Debug)]
 pub struct Function {
+    pub constraints: Vec<TraitBound>,
     pub guard: Option<Expr>,
     pub group_start: usize,
     pub syntax: FunctionSyntax,
@@ -104,8 +107,47 @@ pub struct Function {
 /// Preserve whether an arrow introduces a result type or the function body.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FunctionSyntax {
+    /// Trusted C declaration wrapper; its synthesized body retains the exact foreign ABI.
+    Foreign,
+    /// An abstract trait method; resolved statically before executable IR is emitted.
+    Trait,
+    /// A zero-argument compile-time value, referenced without call parentheses.
+    Constant,
     Colon,
     Arrow,
+}
+
+/// A single-parameter static trait contract and its method declaration identities.
+#[derive(Clone, Debug)]
+pub struct TraitDecl {
+    pub public: bool,
+    pub name: String,
+    pub parameter: String,
+    pub parents: Vec<TraitBound>,
+    pub methods: Vec<TraitMethod>,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitMethod {
+    pub name: String,
+    pub function: String,
+    pub default: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitBound {
+    pub name: String,
+    pub ty: Type,
+    pub span: Span,
+}
+
+#[derive(Clone, Debug)]
+pub struct Implementation {
+    pub bound: TraitBound,
+    pub constraints: Vec<TraitBound>,
+    pub methods: Vec<(String, String)>,
+    pub span: Span,
 }
 #[derive(Clone, Debug)]
 pub struct Param {
@@ -129,6 +171,11 @@ pub struct Expr {
 }
 #[derive(Clone, Debug)]
 pub enum ExprKind {
+    /// Only foreign declarations synthesize this native-only operation.
+    ForeignCall {
+        declaration: crate::ffi::Declaration,
+        args: Vec<Expr>,
+    },
     Receive {
         arms: Vec<MatchArm>,
         timeout: Option<(Box<Expr>, Box<Expr>)>,

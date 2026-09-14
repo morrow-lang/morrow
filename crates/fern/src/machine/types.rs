@@ -11,6 +11,24 @@ pub(super) fn program(program: &Program) -> Result<(), String> {
         .map(|f| (bare(&f.name), f))
         .collect();
     let data: BTreeSet<_> = program.data.iter().map(|d| bare(&d.name)).collect();
+    let mut foreign = BTreeMap::new();
+    for function in &program.functions {
+        for statement in &function.body {
+            if let Statement::Assign {
+                operation: Operation::ForeignCall { declaration, .. },
+                ..
+            }
+            | Statement::Effect(Operation::ForeignCall { declaration, .. }) = statement
+                && let Some(previous) = foreign.insert(&declaration.symbol, declaration)
+                && previous != declaration
+            {
+                return Err(format!(
+                    "conflicting foreign declarations for {}",
+                    declaration.symbol
+                ));
+            }
+        }
+    }
     let context = Context { functions, data };
     for data in &program.data {
         for value in &data.values {
@@ -125,6 +143,38 @@ impl Context<'_> {
         {
             return self.call(callee, args, *variadic, result, values);
         }
+        if let Operation::ForeignCall { declaration, args } = op {
+            declaration
+                .validate(crate::Span::default())
+                .map_err(|error| error.message)?;
+            if self.functions.contains_key(declaration.symbol.as_str())
+                || self.data.contains(declaration.symbol.as_str())
+                || runtime_abi::signature(&declaration.symbol).is_some()
+            {
+                return Err(format!(
+                    "foreign symbol conflicts with compiler/runtime symbol: {}",
+                    declaration.symbol
+                ));
+            }
+            if args.len() != declaration.params.len() {
+                return Err("foreign argument count mismatch".into());
+            }
+            for ((provided, arg), expected) in args.iter().zip(&declaration.params) {
+                if Some(*provided) != expected.machine_scalar() {
+                    return Err("foreign logical argument type mismatch".into());
+                }
+                self.operand(arg, *provided, values)?;
+                if matches!(arg, Operand::Temp(_)) && scalar(arg, values)? != *provided {
+                    return Err(
+                        "foreign operand must have its declared logical register width".into(),
+                    );
+                }
+            }
+            if result.is_some() && result != declaration.result.machine_scalar() {
+                return Err("foreign result type mismatch".into());
+            }
+            return Ok(());
+        }
         let result = result.ok_or("non-call machine operation used as effect")?;
         match op {
             Operation::Unary(op, value) => self.unary(*op, value, result, values)?,
@@ -145,7 +195,9 @@ impl Context<'_> {
                     self.operand(value, result, values)?;
                 }
             }
-            Operation::Call { .. } => unreachable!("call validated before destination handling"),
+            Operation::Call { .. } | Operation::ForeignCall { .. } => {
+                unreachable!("call validated before destination handling")
+            }
         }
         Ok(())
     }

@@ -203,6 +203,7 @@ fn failed_oversized_attempts_consume_normal_budget_and_cleanup_has_own_reserve()
     }
     assert!(failed);
     machine.defers.push(Value::Closure(Rc::new(ClosureValue {
+        actor_entries: Default::default(),
         program,
         function: cleanup,
         captures: Vec::new(),

@@ -271,3 +271,7 @@ fern_prompt_int
 fern_json_value_error_path
 fern_json_codec_encode
 fern_json_codec_decode
+fern_str_compare
+fern_ffi_float32
+fern_ffi_borrow_string
+fern_ffi_read_string
