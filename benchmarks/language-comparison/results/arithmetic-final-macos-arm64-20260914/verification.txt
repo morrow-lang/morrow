@@ -1,0 +1,1 @@
+162 independent output comparisons passed, including each measured scalar result and scalar/model checks for all 12 fresh builds. Model checks retain the original zero-valued alias.

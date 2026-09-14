@@ -41,6 +41,27 @@ impl Emitter<'_> {
         rhs: &str,
         locals: &mut Locals,
     ) -> String {
+        // Keep proven-safe literal divisors visible to native optimization.
+        // Operands have already been evaluated in source order. Division by a
+        // nonzero value other than -1 cannot fault or overflow for any i64 lhs,
+        // so this path needs neither a helper call nor a new fault-slot check.
+        // Zero, -1 and dynamic divisors retain the wrapping/fault-aware helper.
+        if *operand == Type::Int
+            && matches!(op, BinaryOp::Divide | BinaryOp::Remainder)
+            && rhs
+                .parse::<i64>()
+                .is_ok_and(|value| !matches!(value, 0 | -1))
+        {
+            return self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Binary(
+                    binary_instruction(op, Type::Int),
+                    native_operand(lhs),
+                    native_operand(rhs),
+                ),
+            );
+        }
         if *operand == Type::Int
             && matches!(op, BinaryOp::Divide | BinaryOp::Remainder | BinaryOp::Power)
         {

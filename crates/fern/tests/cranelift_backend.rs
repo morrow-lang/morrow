@@ -2596,3 +2596,5 @@ mod immutable_gc_backend;
 mod bounded_lists_backend;
 #[path = "support/callback_inlining_backend.rs"]
 mod callback_inlining_backend;
+#[path = "support/constant_arithmetic_backend.rs"]
+mod constant_arithmetic_backend;

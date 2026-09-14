@@ -1,5 +1,8 @@
 # Fern and Elixir on BEAM
 
+This is a dated comparison. Subsequent [native arithmetic improvements](ARITHMETIC.md)
+have their own paired measurements; the Elixir timings below have not been rerun.
+
 Measured 2026-09-14 on Apple M4, 24 GiB RAM, macOS 26.5.1 ARM64. Fern compiler
 and runtime are from `48ca830a687fd8e95077b4385317ae6ddabdc7b5`, after the
 [native optimization work](NATIVE_OPTIMIZATION.md). Elixir **1.20.4** runs on

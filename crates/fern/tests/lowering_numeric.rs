@@ -51,6 +51,43 @@ fn integer_division_guards_domain_and_overflow_before_machine_division() {
     assert!(il.contains("integer division by zero"), "{il}");
     assert!(il.contains("storel 1, %fault"), "{il}");
 }
+
+#[test]
+fn safe_literal_integer_divisors_do_not_require_a_runtime_helper_call() {
+    for divisor in [1, 2, 7, 31, 2_147_483_647, i64::MAX, -2, i64::MIN] {
+        for op in [BinaryOp::Divide, BinaryOp::Remainder] {
+            let il = emit(binary(op, int(i64::MIN), int(divisor)), vec![]);
+            assert!(
+                !il.contains("call $fern_rs_int_div"),
+                "safe divisor {divisor} must remain visible to native optimization: {il}"
+            );
+            let instruction = if op == BinaryOp::Divide { "div" } else { "rem" };
+            assert!(
+                il.contains(&format!("{instruction} -9223372036854775808, {divisor}")),
+                "{il}"
+            );
+        }
+    }
+    // Both possible hardware trap domains retain the established guarded helper.
+    for op in [BinaryOp::Divide, BinaryOp::Remainder] {
+        for divisor in [0, -1] {
+            let il = emit(binary(op, int(i64::MIN), int(divisor)), vec![]);
+            assert!(il.contains("call $fern_rs_int_div"), "{il}");
+        }
+        let runtime_divisor = ex(
+            ExprKind::Call {
+                target: CallTarget::Function(FunctionId(1)),
+                args: vec![],
+            },
+            Type::Int,
+        );
+        let il = emit(
+            binary(op, int(i64::MIN), runtime_divisor),
+            vec![function(1, "divisor", int(7))],
+        );
+        assert!(il.contains("call $fern_rs_int_div"), "{il}");
+    }
+}
 #[test]
 fn generated_and_indirect_calls_receive_current_fault_context_and_check_it() {
     let helper = function(1, "bad", binary(BinaryOp::Divide, int(1), int(0)));

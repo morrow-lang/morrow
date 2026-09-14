@@ -1,11 +1,22 @@
-//! Direct self-tail transfers reuse typed parameter slots and their invocation context.
+//! Direct self-tail transfers reuse typed parameter state and their invocation context.
 use super::*;
 
-/// Slots are private to one physical invocation and never escape into a closure.
 pub(super) struct TailLoop {
     function: ir::FunctionId,
     params: Vec<ir::Param>,
-    slots: Vec<String>,
+    state: Parameters,
+}
+
+enum Parameters {
+    /// Managed and mixed representations retain private invocation-local storage.
+    Slots(Vec<String>),
+    /// Plain Int parameters need no collector roots and can remain SSA loop values.
+    Phis(Vec<TailPhi>),
+}
+
+struct TailPhi {
+    instruction: usize,
+    incoming: Vec<(String, Operand)>,
 }
 
 impl Locals {
@@ -25,6 +36,36 @@ impl Emitter<'_> {
     /// Initialize parameter storage once, then enter the reusable body through a fresh block.
     pub(super) fn start_tail(&mut self, function: &Function, locals: &mut Locals) -> Lowering<()> {
         if !eligible(function)? {
+            return Ok(());
+        }
+        if function.params.iter().all(|param| param.ty == Type::Int) {
+            let predecessor = locals.current.clone();
+            // Snapshot original parameter identities before rebinding them to loop values.
+            let initial = function
+                .params
+                .iter()
+                .map(|param| {
+                    Self::local(param.id, function.body.span, locals).map(|(_, value)| value)
+                })
+                .collect::<Lowering<Vec<_>>>()?;
+            self.output.statement(Statement::Jump("@recur".into()));
+            self.start_block(locals, "@recur");
+            let mut phis = Vec::new();
+            for (param, initial) in function.params.iter().zip(initial) {
+                let incoming = vec![(predecessor.clone(), native_operand(&initial))];
+                let instruction = self.output.len();
+                let value = self.assign(locals, Type::Int, NativeOperation::Phi(incoming.clone()));
+                locals.values.insert(param.id.0, (Type::Int, value));
+                phis.push(TailPhi {
+                    instruction,
+                    incoming,
+                });
+            }
+            locals.tail = Some(TailLoop {
+                function: function.id,
+                params: function.params.clone(),
+                state: Parameters::Phis(phis),
+            });
             return Ok(());
         }
         let mut slots = Vec::new();
@@ -53,8 +94,30 @@ impl Emitter<'_> {
         locals.tail = Some(TailLoop {
             function: function.id,
             params: function.params.clone(),
-            slots,
+            state: Parameters::Slots(slots),
         });
+        Ok(())
+    }
+
+    /// Complete forward phi inputs before inserting any hoisted allocations.
+    pub(super) fn finish_tail(&mut self, locals: &mut Locals, span: Span) -> Lowering<()> {
+        let Some(TailLoop {
+            state: Parameters::Phis(phis),
+            ..
+        }) = locals.tail.take()
+        else {
+            return Ok(());
+        };
+        for phi in phis {
+            let Some(machine::Item::Statement(Statement::Assign {
+                operation: NativeOperation::Phi(incoming),
+                ..
+            })) = self.output.items.get_mut(phi.instruction)
+            else {
+                return Err(invalid(span, "missing tail parameter phi"));
+            };
+            *incoming = phi.incoming;
+        }
         Ok(())
     }
 
@@ -160,17 +223,29 @@ impl Emitter<'_> {
         }
         let tail = locals
             .tail
-            .as_ref()
+            .as_mut()
             .ok_or_else(|| invalid(span, "missing self-tail target"))?;
         if tail.params.len() != values.len() {
             return Err(invalid(span, "self-tail parameter count mismatch"));
         }
-        for (slot, value) in tail.slots.iter().zip(values) {
-            self.output.statement(Statement::Store {
-                kind: LoadKind::I64,
-                value: native_operand(&(value)),
-                address: native_operand(&(slot).to_string()),
-            });
+        match &mut tail.state {
+            Parameters::Slots(slots) => {
+                for (slot, value) in slots.iter().zip(values) {
+                    self.output.statement(Statement::Store {
+                        kind: LoadKind::I64,
+                        value: native_operand(&value),
+                        address: native_operand(slot),
+                    });
+                }
+            }
+            Parameters::Phis(phis) => {
+                // Only successful argument evaluation reaches this predecessor.
+                // Phi assignment is simultaneous, including swaps of old parameters.
+                for (phi, value) in phis.iter_mut().zip(values) {
+                    phi.incoming
+                        .push((locals.current.clone(), native_operand(&value)));
+                }
+            }
         }
         self.output.statement(Statement::Jump("@recur".to_owned()));
         Err(Exit::Terminated)

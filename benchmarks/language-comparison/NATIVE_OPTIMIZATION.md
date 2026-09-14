@@ -1,5 +1,8 @@
 # Native optimization, 2026-09-14
 
+These are the list-optimization measurements. The later
+[arithmetic follow-up](ARITHMETIC.md) has separate compiler hashes and timings.
+
 The unchanged immutable model is **2.98–3.71× faster** than the previous
 GC-frame improvement (`7f53818`). Small known callbacks now inline into bounded
 list loops, and Cranelift optimizes the generated native code for speed.

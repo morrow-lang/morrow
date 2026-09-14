@@ -446,6 +446,7 @@ impl Emitter<'_> {
             Err(Exit::Terminated) => {}
             Err(error) => return Err(error),
         }
+        self.finish_tail(&mut locals, function.body.span)?;
         self.finish_function(&mut locals);
         self.root_entry(&mut locals, function.body.span)?;
         self.output.insert(entry, &locals.stack_allocations);

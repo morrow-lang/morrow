@@ -90,7 +90,67 @@ fn malformed_self_calls_are_validated_before_tail_rewriting() {
     }
 }
 #[test]
-fn direct_self_tail_call_reloads_full_width_parameters_and_jumps_without_call() {
+fn integer_tail_parameters_use_phi_edges_without_repeated_slot_traffic() {
+    let recursive = call(1, vec![local(1, Type::Int), local(0, Type::Int)], Type::Int);
+    let il = emit(
+        function(
+            1,
+            vec![param(0, Type::Int), param(1, Type::Int)],
+            branch(recursive, local(0, Type::Int)),
+            Type::Int,
+        ),
+        vec![],
+    )
+    .unwrap();
+    let f = body(&il, 1);
+    let header = f.find("@recur\n").unwrap();
+    let transfer = f[header..].find("jmp @recur").unwrap() + header;
+    let repeated = &f[header..transfer];
+    assert_eq!(repeated.matches("=l phi ").count(), 2, "{f}");
+    assert!(!repeated.contains("loadl"), "{f}");
+    assert!(!repeated.contains("storel"), "{f}");
+    assert_eq!(
+        f.matches("alloc8").count(),
+        2,
+        "only return/defer slots: {f}"
+    );
+}
+#[test]
+fn integer_tail_phi_collects_distinct_backedges_and_simultaneous_permutations() {
+    let first = call(1, vec![local(1, Type::Int), local(0, Type::Int)], Type::Int);
+    let second = call(1, vec![int(i64::MIN), int(i64::MAX)], Type::Int);
+    let il = emit(
+        function(
+            1,
+            vec![param(0, Type::Int), param(1, Type::Int)],
+            branch(first, branch(second, local(0, Type::Int))),
+            Type::Int,
+        ),
+        vec![],
+    )
+    .unwrap();
+    let f = body(&il, 1);
+    let phis: Vec<_> = f
+        .lines()
+        .filter(|line| line.contains("=l phi @start"))
+        .collect();
+    assert_eq!(phis.len(), 2, "{f}");
+    let names: Vec<_> = phis
+        .iter()
+        .map(|line| line.split_once('=').unwrap().0.trim())
+        .collect();
+    for (index, phi) in phis.iter().enumerate() {
+        assert_eq!(phi.matches('@').count(), 3, "entry and two backedges: {f}");
+        assert!(phi.contains(names[1 - index]), "simultaneous swap: {f}");
+        assert!(
+            phi.contains(&[i64::MIN, i64::MAX][index].to_string()),
+            "{f}"
+        );
+    }
+    assert_eq!(f.matches("jmp @recur").count(), 3, "{f}");
+}
+#[test]
+fn direct_self_tail_call_transfers_full_width_parameters_and_jumps_without_call() {
     let recursive = call(1, vec![local(1, Type::Int), local(0, Type::Int)], Type::Int);
     let f = function(
         1,
@@ -104,7 +164,8 @@ fn direct_self_tail_call_reloads_full_width_parameters_and_jumps_without_call() 
     assert_eq!(f.matches("jmp @recur").count(), 2, "{f}");
     assert!(!f.contains("call $f1"), "{f}");
     assert!(!f.contains("jmp @start"));
-    assert!(f.contains("=l loadl %"));
+    assert!(f.contains("=l phi @start %v0"), "{f}");
+    assert!(f.contains("=l phi @start %v1"), "{f}");
 }
 #[test]
 fn explicit_return_inside_non_tail_expression_still_uses_tail_transfer() {
@@ -254,13 +315,29 @@ fn every_argument_finishes_before_parameter_updates_and_fault_context_is_retaine
     let repeated = &f[header..];
     let first = repeated.find("call $f2(l 0, l %fault)").unwrap();
     let second = repeated.find("call $f3(l 0, l %fault)").unwrap();
-    let store_first = repeated.find(", %t0\n").unwrap();
-    let store_second = repeated.find(", %t1\n").unwrap();
-    assert!(
-        first < second && second < store_first && store_first < store_second,
-        "{f}"
-    );
+    let transfer = repeated.find("jmp @recur").unwrap();
+    assert!(first < second && second < transfer, "{f}");
+    let phis: Vec<_> = repeated
+        .lines()
+        .filter(|line| line.contains("=l phi "))
+        .collect();
+    assert_eq!(phis.len(), 2, "{f}");
+    for (phi, callee) in phis.iter().zip(["call $f2(", "call $f3("]) {
+        let result = repeated
+            .lines()
+            .find(|line| line.contains(callee))
+            .unwrap()
+            .split_once('=')
+            .unwrap()
+            .0
+            .trim();
+        assert!(
+            phi.contains(result),
+            "parameter receives its evaluated argument: {f}"
+        );
+    }
     assert!(repeated[first..second].contains("loadl %fault"));
+    assert!(repeated[second..transfer].contains("loadl %fault"));
     assert!(!repeated.contains("storel 0, %fault"));
 }
 

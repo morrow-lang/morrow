@@ -1,0 +1,11 @@
+before compiler: 10264496 bytes; f4e1e9f722d0872eae63909f66024821a413eaad666c104761abcbc7c37980a9  /private/tmp/fern-compiler-optimized
+after compiler: 10264496 bytes; e0538b6bd5c3dd4683444eac352d33e78cd41df2a6d204fd484ea51151250eef  /private/tmp/fern-compiler-arithmetic
+fixed runtime archive: 13447912 bytes; 33001bb816f4aad5ea25847833b43fcbd596cca9f4766888b5ce609709b4ae8f  /private/tmp/fern-codegen-runtime.a
+before workload: 567704 bytes; 46e09a2933f3a5fdc846bb4fc5887e6e1e79e3efdfa0add0d6f606ed42838d78  /private/tmp/fern-model-optimized
+after workload: 567656 bytes; 625ac47383dbf3e49a8c53df1c67d5347c3ba97bf675e0eec7c73bc7dcad746f  /private/tmp/fern-arithmetic-after
+Rust workload: 359760 bytes; 7c81252a4775d877f3a1629c64a35d9d321c9924ea07e503dc2f4c5e832644e5  /private/tmp/fern-language-results-20260914/workloads-rust
+Fern source: 1753 bytes; 3ffc343dfadab570bf524cf2ec55515c17859b33bca8cd5ea4fa4257ff2c7e1d  /Users/nheer/Projects/github.com/niklas-heer/fern/benchmarks/language-comparison/programs/workloads.fn
+codegen.rs: 9823 bytes; 192e50ca7222f2356e53dec8a926efe519113025dec2a810d88a876a79693917  benchmarks/language-comparison/src/codegen.rs
+oracle.rs: 1337 bytes; 1a2a7d18555fb89b4bfbb06ff2024e61041f5dce5cf2766829d02bcf91dc1639  benchmarks/language-comparison/src/oracle.rs
+working directory: /Users/nheer/Projects/github.com/niklas-heer/fern
+Timing includes /usr/bin/time launch and reap; raw streams retained. Scalar: 20,000,000 steps, seed 7; 1 warmup + 9 measured rotated rounds. Build: 1 warmup + 5 measured rotated rounds, unique output paths, FERN_RUNTIME_LIB fixed, LIBRARY_PATH removed. Correctness checks run outside timed intervals; medians exclude tagged warmups. No CPU isolation is implied.

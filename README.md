@@ -168,18 +168,22 @@ Follow the [language guide](docs/LANGUAGE_GUIDE.md), explore
 
 ## What the experiments show
 
-The [latest paired native measurements](benchmarks/language-comparison/NATIVE_OPTIMIZATION.md)
-run unchanged programs against independent output oracles. On one Apple M4,
-10,000 immutable updates of a 256-entry model take **8.61 ms**, and 100,000 take
-**62.15 ms**. Optimized Rust takes **3.41 / 12.03 ms**. Fern improved another
-**2.98–3.71×** through bounded callback inlining, direct list loops and optimized
-native emission, following the earlier [GC bookkeeping improvement](benchmarks/language-comparison/IMMUTABLE.md).
+The [paired list-optimization measurements](benchmarks/language-comparison/NATIVE_OPTIMIZATION.md)
+show a **2.98–3.71×** improvement through bounded callback inlining, direct list
+loops and optimized native emission, following the earlier
+[GC bookkeeping improvement](benchmarks/language-comparison/IMMUTABLE.md).
+The [latest native run](benchmarks/language-comparison/ARITHMETIC.md) on one Apple
+M4 measures 10,000 immutable updates of a 256-entry model at **8.37 ms**, and
+100,000 at **60.31 ms**. Optimized Rust takes **3.37 / 11.54 ms**.
 Immutable aliases and checked fault behavior are preserved.
 
-The model uses approximately **3.5 MiB RSS**; its macOS executable is **567,704
-bytes**. Twenty million scalar steps take **80.41 ms** against Rust's **57.25 ms**;
-that workload is essentially unchanged by these optimizations. Building the small
-Fern source takes **44.67 ms**. Native programs now use Cranelift `opt_level=speed`,
+The model uses approximately **3.5 MiB RSS**; its macOS executable is **567,656
+bytes**. A subsequent [arithmetic optimization](benchmarks/language-comparison/ARITHMETIC.md)
+reduces twenty million scalar steps from **76.60 to 66.57 ms**, against Rust's
+**57.35 ms** in the same run. Exposing safe constant divisors and keeping integer
+tail-loop parameters in registers work together; the measured arithmetic gap to
+Rust falls from about **34% to 16%**. Building the small source takes **42.48 ms**.
+Native programs use Cranelift `opt_level=speed`,
 independently of the compiler's own Rust build profile. Rust remains faster on
 these workloads; broader inlining, collection layout and allocation remain work.
 
