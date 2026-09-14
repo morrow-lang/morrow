@@ -94,10 +94,29 @@ fn unique_rooms<'de, D: Deserializer<'de>>(
     deserializer.deserialize_map(Rooms)
 }
 
+struct WriterLock {
+    file: File,
+}
+impl WriterLock {
+    fn acquire(file: File) -> io::Result<Self> {
+        file.try_lock().map_err(io::Error::other)?;
+        Ok(Self { file })
+    }
+}
+impl Drop for WriterLock {
+    fn drop(&mut self) {
+        // A concurrent fork retains this open file description until exec, even
+        // with CLOEXEC. Closing our descriptor alone would leave its flock held
+        // by that child. Release ownership explicitly, including load failures.
+        // Only a successfully acquired lock constructs this guard.
+        let _ = self.file.unlock();
+    }
+}
+
 pub(super) struct Store {
     path: PathBuf,
     directory: File,
-    lock: File,
+    lock: WriterLock,
     // Retain the inode itself, so unlink/recreate cannot exploit inode reuse.
     checkpoint: Option<File>,
     rooms: BTreeMap<String, State>,
@@ -211,8 +230,19 @@ impl Store {
             ));
         }
         let path = path.canonicalize()?;
-        let lock = open_at(&directory, c"owner.lock", libc::O_RDWR | libc::O_CREAT)?;
-        lock.try_lock().map_err(io::Error::other)?;
+        let lock = WriterLock::acquire(open_at(
+            &directory,
+            c"owner.lock",
+            libc::O_RDWR | libc::O_CREAT,
+        )?)?;
+        Self::load(path, directory, lock, placement)
+    }
+    fn load(
+        path: PathBuf,
+        directory: File,
+        lock: WriterLock,
+        placement: Option<&str>,
+    ) -> io::Result<Self> {
         let (rooms, checkpoint) = match open_at(&directory, c"rooms.json", libc::O_RDONLY) {
             Err(error) if error.kind() == io::ErrorKind::NotFound => (BTreeMap::new(), None),
             Err(error) => return Err(error),
@@ -251,7 +281,7 @@ impl Store {
     }
     fn bind_placement(&mut self, placement: Option<&str>) -> io::Result<()> {
         let mut stored = String::new();
-        Read::by_ref(&mut self.lock)
+        Read::by_ref(&mut self.lock.file)
             .take(513)
             .read_to_string(&mut stored)?;
         if stored.len() > 512 {
@@ -268,8 +298,8 @@ impl Store {
                 // The existing retained file carries the exclusive writer lock.
                 // Pin placement before any room can be created or acknowledged.
                 self.check_ownership()?;
-                self.lock.write_all(requested.as_bytes())?;
-                self.lock.sync_all()?;
+                self.lock.file.write_all(requested.as_bytes())?;
+                self.lock.file.sync_all()?;
                 self.directory.sync_all()?;
                 self.check_ownership()
             }
@@ -282,7 +312,7 @@ impl Store {
         let metadata = fs::symlink_metadata(&self.path)?;
         if !metadata.is_dir()
             || (metadata.dev(), metadata.ino()) != identity(&self.directory)?
-            || entry_identity(&self.directory, c"owner.lock")? != Some(identity(&self.lock)?)
+            || entry_identity(&self.directory, c"owner.lock")? != Some(identity(&self.lock.file)?)
             || entry_identity(&self.directory, c"rooms.json")?
                 != self.checkpoint.as_ref().map(identity).transpose()?
         {
@@ -384,13 +414,84 @@ mod tests {
     }
 
     #[test]
+    fn releasing_the_writer_unlocks_descriptors_inherited_by_a_child() {
+        let directory = Directory::new();
+        let placement = Some("cluster-a/node-a/manifest-one");
+        let store = Store::open_scoped(&directory.0, placement).unwrap();
+        // dup and fork retain the same open file description. Keeping this clone
+        // open models a concurrently spawned child before its CLOEXEC cleanup.
+        let inherited = store.lock.file.try_clone().unwrap();
+        assert!(Store::open_scoped(&directory.0, placement).is_err());
+        drop(store);
+        let replacement = Store::open_scoped(&directory.0, placement)
+            .expect("a child descriptor must not extend the previous writer's ownership");
+        assert!(Store::open_scoped(&directory.0, placement).is_err());
+        drop(inherited);
+        assert!(Store::open_scoped(&directory.0, placement).is_err());
+        drop(replacement);
+        Store::open_scoped(&directory.0, placement).unwrap();
+    }
+
+    #[test]
+    fn failed_initialization_unlocks_inherited_descriptors_before_and_after_store_creation() {
+        for invalid_checkpoint in [true, false] {
+            let directory = Directory::new();
+            let placement = Some("cluster-a/node-a/manifest-one");
+            drop(Store::open_scoped(&directory.0, placement).unwrap());
+            if invalid_checkpoint {
+                fs::write(
+                    directory.0.join("rooms.json"),
+                    br#"{"version":2,"rooms":{}}"#,
+                )
+                .unwrap();
+            }
+            let pinned_directory = File::open(&directory.0).unwrap();
+            let lock = WriterLock::acquire(
+                open_at(&pinned_directory, c"owner.lock", libc::O_RDWR).unwrap(),
+            )
+            .unwrap();
+            let inherited = lock.file.try_clone().unwrap();
+            let error = Store::load(
+                directory.0.canonicalize().unwrap(),
+                pinned_directory,
+                lock,
+                if invalid_checkpoint {
+                    placement
+                } else {
+                    Some("cluster-a/node-b/manifest-one")
+                },
+            )
+            .err()
+            .expect("initialization must reject the independent invalid input");
+            assert_eq!(
+                error.to_string(),
+                if invalid_checkpoint {
+                    "unsupported checkpoint version"
+                } else {
+                    "checkpoint placement differs; explicit offline migration is required"
+                }
+            );
+            if invalid_checkpoint {
+                fs::remove_file(directory.0.join("rooms.json")).unwrap();
+            }
+            let replacement = Store::open_scoped(&directory.0, placement).expect(
+                "failed initialization must release its lock even while a child retains it",
+            );
+            assert!(Store::open_scoped(&directory.0, placement).is_err());
+            drop(inherited);
+            assert!(Store::open_scoped(&directory.0, placement).is_err());
+            drop(replacement);
+        }
+    }
+
+    #[test]
     fn cluster_placement_is_persistent_and_cannot_be_silently_changed() {
         let directory = Directory::new();
         drop(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).unwrap());
         assert!(Store::open(&directory.0).is_err());
         assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-b/manifest-one")).is_err());
         assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-two")).is_err());
-        assert!(Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).is_ok());
+        Store::open_scoped(&directory.0, Some("cluster-a/node-a/manifest-one")).unwrap();
     }
 
     #[test]

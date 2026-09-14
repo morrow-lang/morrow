@@ -229,8 +229,8 @@ The 2026-09-14 protobuf build passes real Edge acceptance: two clients, compiled
 Fern model/update/view, draft preservation, keyed DOM and focus, offline worker
 restart/reload, mobile layout, reconnect, session revocation and atomic rejection
 of HTTP-successful tampered assets. The macOS server with embedded assets is
-4,582,144 bytes (4.37 MiB); it is system-linked, not a static Linux measurement.
-The combined macOS gate passes 2,176 Rust tests, 311 native-output fixtures,
+4,582,128 bytes (4.37 MiB); it is system-linked, not a static Linux measurement.
+The combined macOS gate passes 2,178 Rust tests, 311 native-output fixtures,
 20 examples, compatibility and fuzz checks. See the [roadmap](../ROADMAP.md).
 
 

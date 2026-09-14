@@ -175,3 +175,10 @@ both gateway arrangements to a real remote owner. The 40 cluster checks include
 10,000 TLS message exchanges, independent wire bytes and old-ALPN rejection.
 The complete macOS repository and real-browser gates pass; these correctness
 runs are not new throughput measurements.
+
+Checkpoint writer locks are explicitly released when the writer is dropped or
+initialization fails. Closing a descriptor alone can leave its lock held by a
+concurrently forked child before exec, even with close-on-exec enabled. Regression
+tests retain that duplicate descriptor through normal teardown and early/late
+initialization errors, proving immediate reopening while preserving active-writer
+exclusion and placement checks. The same production-source tests pass on Linux.
