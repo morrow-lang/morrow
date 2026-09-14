@@ -1,0 +1,13 @@
+Arguments: ["/private/tmp/fern-beam-batch-fern", "/private/tmp/fern-beam-batch-rust", "/private/tmp/fern-beam-tools-20260914/elixir/1.20.4/lib/elixir/bin/elixir", "/private/tmp/fern-beam-programs-agent"]
+Host: Output { status: ExitStatus(unix_wait_status(0)), stdout: "Darwin MacBook-Air-von-Niklas-980.local 25.5.0 Darwin Kernel Version 25.5.0: Mon Apr 27 20:41:26 PDT 2026; root:xnu-12377.121.6~2/RELEASE_ARM64_T8132 arm64\n", stderr: "" }
+BEAM flags: ERL_FLAGS=Err(NotPresent), ERL_AFLAGS=Err(NotPresent), ELIXIR_ERL_OPTIONS=Err(NotPresent)
+567720 bytes; b4262aa6889563f6549cb82984212ebd8808b6b31c8047d8d5ab986fb896af01  /private/tmp/fern-beam-batch-fern
+359776 bytes; 1368b4fe5776e2f811691a656020d055e78a06391aae74ce35283955d3c8d0c0  /private/tmp/fern-beam-batch-rust
+6658 bytes; 5cb23d89a78f75589b06fade3097e217b77e63416d61c1800f674579748c4307  /private/tmp/fern-beam-tools-20260914/elixir/1.20.4/lib/elixir/bin/elixir
+2688 bytes; 9fc50b569614ce230199d181b6efd221b9a58108a3a3c127d6a0450ff6c6ec38  /private/tmp/fern-beam-programs-agent/Elixir.FernComparison.Cell.beam
+15136 bytes; 27ed23cc0189512a708687c13ff459cd7717b1d40a7f35d8a99921013ff23892  /private/tmp/fern-beam-programs-agent/Elixir.FernComparison.beam
+2143 bytes; 500b052c226032fcd5b43e9dfc19aeb61f02c151b19709241b8856f8850aaa7a  benchmarks/language-comparison/programs/batch.fn
+2109 bytes; 7c6830e98698d0f11f8cc7586523548ad3f0deebd22cc562dea5d84166a305d3  benchmarks/language-comparison/programs/batch.rs
+6253 bytes; 85374f43f05782b93fc878408b5cfb190cc2262be36ca0d470b9b4158ba53a7e  benchmarks/language-comparison/programs/workloads.ex
+13027 bytes; d079fdc768baf5ad2514ce1730ba0bf65b83d407e3628764998ab425d3f9dff0  benchmarks/language-comparison/src/beam.rs
+1337 bytes; 1a2a7d18555fb89b4bfbb06ff2024e61041f5dce5cf2766829d02bcf91dc1639  benchmarks/language-comparison/src/oracle.rs

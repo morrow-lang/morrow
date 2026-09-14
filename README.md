@@ -188,6 +188,13 @@ also measures Bun 1.4.2 and TypeScript 6.0.2, retaining the earlier unoptimized
 Fern baseline. Bun was not rerun for the latest optimization. These are specific
 whole-process experiments, not a universal language ranking.
 
+A fresh [Elixir/BEAM comparison](benchmarks/language-comparison/BEAM.md) uses
+Elixir 1.20.4 and OTP 29.0.6 with JIT enabled. For 100,000 immutable updates,
+Fern takes **63.29 ms** per workload in a ten-repeat process; Elixir takes
+**184.27 ms** with tuples or **207.23 ms** with structs even when VM startup is
+excluded. This supports Fern's native performance direction. Actor throughput,
+scheduler fairness and fault recovery against BEAM remain unmeasured.
+
 The compiler experiments show useful defaults: required Result handling,
 exhaustive matches and labels for ambiguous arguments. Rust and configured
 TypeScript provide strong alternatives. They do not establish a developer

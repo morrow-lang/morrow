@@ -72,6 +72,9 @@ jobs:
           rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/main.rs -o "$RUNNER_TEMP/fern-language-runner"
           rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/immutable.rs -o "$RUNNER_TEMP/fern-immutable-runner"
           rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/fern-codegen-runner"
+          rustc --edition=2024 -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/fern-beam-runner"
+          rustc --edition=2024 --test -Dwarnings benchmarks/language-comparison/src/beam.rs -o "$RUNNER_TEMP/fern-beam-oracles"
+          "$RUNNER_TEMP/fern-beam-oracles"
           rustc --edition=2024 --test benchmarks/language-comparison/src/codegen.rs -o "$RUNNER_TEMP/fern-codegen-oracles"
           "$RUNNER_TEMP/fern-codegen-oracles"
           rustc --edition=2024 --test benchmarks/language-comparison/src/oracle.rs -o "$RUNNER_TEMP/fern-language-oracles"
@@ -82,6 +85,27 @@ jobs:
           export TSC="$RUNNER_TEMP/fern-typescript/node_modules/typescript/bin/tsc"
           "$RUNNER_TEMP/fern-language-runner" prepare "$RUNNER_TEMP/fern-language-results"
           "$RUNNER_TEMP/fern-language-runner" verify "$RUNNER_TEMP/fern-language-results"
+
+  beam-comparison:
+    name: Elixir comparison correctness
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pinned Elixir and OTP
+        uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1.24.1
+        with:
+          otp-version: '29.0.6'
+          elixir-version: '1.20.4-otp-29'
+          version-type: strict
+          install-hex: false
+          install-rebar: false
+      - name: Check the comparator against independent mathematical oracles
+        run: |
+          mkdir "$RUNNER_TEMP/fern-beam-modules"
+          elixirc --warnings-as-errors -o "$RUNNER_TEMP/fern-beam-modules" benchmarks/language-comparison/programs/workloads.ex
+          elixir -pa "$RUNNER_TEMP/fern-beam-modules" -e 'FernComparison.main()' -- verify
 
   web-preview:
     name: Static Linux server and real browser

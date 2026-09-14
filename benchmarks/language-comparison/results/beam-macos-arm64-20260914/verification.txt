@@ -1,0 +1,1 @@
+1744 independent result checks; every measured output verified, original model aliases remain zero. Seven measured rotated rounds plus one retained warmup. All measurements include process startup, output, shutdown and time wrapper; batch rows divide total elapsed by ten, do not subtract an estimated startup.
