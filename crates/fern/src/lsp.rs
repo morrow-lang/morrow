@@ -1,5 +1,5 @@
 //! Bounded JSON-RPC transport and UTF-16 editor diagnostics.
-//! Lifecycle and sync follow https://microsoft.github.io/language-server-protocol/.
+//! Lifecycle and sync follow <https://microsoft.github.io/language-server-protocol/>.
 use crate::{Span, Type, ast, check, modules, parse, runtime};
 #[path = "lsp/actions.rs"]
 mod actions;

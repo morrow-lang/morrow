@@ -90,7 +90,9 @@ impl Session {
         let declaration = declaration_source(source);
         let binding = source.trim_start().starts_with("let ");
         let definitions = if declaration {
-            format!("{}\n{source}\n", self.definitions)
+            // Pasted modules keep their declarations; the module description is not retained.
+            let retained = parse::without_module_doc(source).map_err(|error| error.message)?;
+            format!("{}\n{retained}\n", self.definitions)
         } else {
             self.definitions.clone()
         };
@@ -1113,6 +1115,7 @@ fn declaration_source(source: &str) -> bool {
         "pub type ",
         "pub newtype ",
         "@doc ",
+        "@moduledoc ",
     ]
     .iter()
     .any(|prefix| source.trim_start().starts_with(prefix))

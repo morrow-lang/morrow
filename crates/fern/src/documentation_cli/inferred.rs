@@ -10,19 +10,22 @@ use std::{
     path::{Path, PathBuf},
 };
 
-struct Input {
-    path: PathBuf,
-    name: String,
-    source: String,
-    schemes: Vec<FunctionInfo>,
+/// One documented module with its checked source-local signatures.
+pub(super) struct Input {
+    pub(super) path: PathBuf,
+    pub(super) name: String,
+    pub(super) source: String,
+    pub(super) schemes: Vec<FunctionInfo>,
 }
 struct GraphBudget {
     instances: usize,
     bytes: usize,
 }
 
-/// Render all checked modules before printing or atomically replacing any destination.
-pub(super) fn run(path: &Path, output: Option<&Path>, format: Output) -> Result<u8, String> {
+/// Read and check every documented module once; snapshots retain each loaded source identity.
+pub(super) fn checked_inputs(
+    path: &Path,
+) -> Result<(Vec<Input>, HashMap<PathBuf, String>), String> {
     let mut inputs = inputs(path)?;
     let mut snapshots: HashMap<_, _> = inputs
         .iter()
@@ -35,6 +38,12 @@ pub(super) fn run(path: &Path, output: Option<&Path>, format: Output) -> Result<
     for input in &mut inputs {
         check(input, &mut snapshots, &mut budget)?;
     }
+    Ok((inputs, snapshots))
+}
+
+/// Render all checked modules before printing or atomically replacing any destination.
+pub(super) fn run(path: &Path, output: Option<&Path>, format: Output) -> Result<u8, String> {
+    let (inputs, snapshots) = checked_inputs(path)?;
     let title = path.canonicalize().map_err(|e| e.to_string())?;
     let title = title.file_name().unwrap_or_default().to_string_lossy();
     let text = if path.is_dir() {

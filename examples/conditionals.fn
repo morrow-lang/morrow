@@ -1,18 +1,40 @@
-# Conditional expressions example
-# Demonstrates if/else and nested conditionals
+@moduledoc """
+Conditional expressions: `if`/`else` chains and labeled calls.
 
+Every function here is a pure expression; `if` produces a value, so no
+`return` statement is needed.
+"""
+
+@doc """
+Absolute value without a sign operator.
+
+```fern
+abs(5)  # => 5
+abs(0 - 5)  # => 5
+```
+"""
 fn abs(n: Int) -> Int:
     if n < 0: 0 - n
     else: n
 
+@doc """Larger of two integers; see `min` for the counterpart."""
 fn max(a: Int, b: Int) -> Int:
     if a > b: a
     else: b
 
+@doc """Smaller of two integers; see `max` for the counterpart."""
 fn min(a: Int, b: Int) -> Int:
     if a < b: a
     else: b
 
+@doc """
+Restrict `value` to the inclusive range `lo..hi`.
+
+```fern
+clamp(value: 5, lo: 0, hi: 10)  # => 5
+clamp(value: 15, lo: 0, hi: 10)  # => 10
+```
+"""
 fn clamp(value: Int, lo: Int, hi: Int) -> Int:
     if value < lo: lo
     else: if value > hi: hi

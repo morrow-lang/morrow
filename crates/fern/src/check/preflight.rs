@@ -561,7 +561,7 @@ pub(super) fn check(program: &ast::Program) -> Checked<()> {
             )?;
         }
     }
-    for doc in &program.docs {
+    for doc in program.docs.iter().chain(&program.module_doc) {
         budget.charge(doc.target.len().saturating_add(doc.text.len()), doc.span)?;
     }
     for function in &program.functions {

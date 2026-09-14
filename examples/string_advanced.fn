@@ -1,5 +1,6 @@
-# Advanced string operations example
-# Demonstrates String module built-in functions
+@moduledoc """
+Advanced string operations: the `String` module's built-in functions.
+"""
 
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0

@@ -47,6 +47,7 @@ build                 Build and stage compiler, runtime and supervisor in bin/\n
 web-build [output]    Build the browser preview and embed assets in one server executable\n\
 web-check [server]    Verify two real browser clients and offline reload (FERN_BROWSER required)\n\
 simulate [options]    Run seeded virtual-time actor/application scenarios (--help for options)\n\
+docs [output] [--no-rust] Build the documentation site (guides, examples, rustdoc) in dist/docs\n\
 check                 Format, Clippy, workspace tests and native acceptance\n\
 test                  Workspace tests and native acceptance\n\
 native [filter]       Execute native expected-output fixtures from bin/\n\
@@ -66,6 +67,20 @@ verify <tar> <sha256> Validate a release archive without extracting it"
         "build" => {
             let bin = build::build(&root, release)?;
             println!("Built {}", bin.join("fern").display());
+        }
+        "docs" if rest.len() <= 2 => {
+            let rust = !rest.iter().any(|argument| argument == "--no-rust");
+            let output = rest
+                .iter()
+                .filter(|argument| *argument != "--no-rust")
+                .map(PathBuf::from)
+                .next()
+                .unwrap_or_else(|| root.join("dist/docs"));
+            if rest.len() == 2 && rust {
+                return Err("docs accepts one output directory and --no-rust".into());
+            }
+            let bin = build::build(&root, release)?;
+            xtask::docs::run(&root, &bin, &output, rust)?;
         }
         "web-build" if rest.len() <= 1 => {
             xtask::web::build(&root, rest.first().map(Path::new))?;

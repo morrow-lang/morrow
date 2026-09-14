@@ -6,6 +6,8 @@ pub struct Program {
     pub traits: Vec<TraitDecl>,
     pub implementations: Vec<Implementation>,
     pub docs: Vec<DocComment>,
+    /// Optional `@moduledoc` describing the whole module; its target is the module name.
+    pub module_doc: Option<DocComment>,
     pub functions: Vec<Function>,
     pub types: Vec<TypeDecl>,
     pub aliases: Vec<TypeAlias>,

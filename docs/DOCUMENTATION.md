@@ -1,0 +1,162 @@
+# Writing and publishing documentation
+
+Fern documents code the way Elixir does with `@doc` and HexDocs: documentation
+lives next to declarations as literal Markdown, examples inside it are
+executable tests, and `fern doc` renders everything into a browsable site with
+navigation, search and cross-references. The same generator documents this
+repository: `cargo xtask docs` builds the guides you are reading, the examples
+and the Rust API reference into one site.
+
+## Documenting a module
+
+`@moduledoc` describes a whole source file. It appears once, after the optional
+`module` line and before the first declaration. `@doc` precedes one function
+clause group, type, newtype, constant or trait. Both take a triple-quoted
+literal string; escapes are not interpolated, so Markdown and Fern code inside
+stay exactly as written.
+
+```fern
+module geometry.shapes
+
+@moduledoc """
+Two-dimensional shapes and their measurements.
+
+Areas are integers because the runtime targets exact arithmetic first. See
+`Shape` for the variants and `area` for the calculation.
+"""
+
+@doc """
+A closed shape with integer dimensions.
+"""
+pub type Shape:
+    Circle(Int)
+    Square(Int)
+
+@doc """
+Compute the area of a `Shape`.
+
+# Examples
+
+```fern
+area(Square(3))  # => 9
+```
+
+# Errors
+
+Circles round down because π is approximated as 3.
+"""
+pub fn area(shape: Shape) -> Int:
+    match shape:
+        Circle(radius) -> 3 * radius * radius
+        Square(side) -> side * side
+```
+
+`fern fmt` preserves both attributes and places `@moduledoc` directly below the
+module line. Hover in an editor connected to `fern lsp` shows `@doc` text.
+
+### Markdown in documentation
+
+Documentation is rendered with a bounded CommonMark/GFM subset:
+
+| Feature | Notes |
+| --- | --- |
+| Headings `#`…`######` | Shifted below the page or declaration heading; IDs are generated for linking. |
+| Paragraphs, emphasis, `code` | `*em*`, `_em_`, `**strong**`, code spans with any backtick run. |
+| Fenced code | ```` ```fern ```` blocks are highlighted and, when they contain `# =>` expectations, executed by `fern test --doc`. Other languages render verbatim. |
+| Lists, block quotes, rules | Nested lists by indentation; tight items render without paragraphs. |
+| Pipe tables | Header, delimiter row with optional `:` alignment, body rows. |
+| Links | `[text](url "title")`, `<https://…>` and bare `https://` URLs. Only `http`, `https`, `mailto`, `#fragment` and relative destinations become links; other schemes render as text. |
+| Images | Rendered as links to the image; no remote assets are embedded. |
+| Raw HTML | Reduced to its text content. Documentation never injects markup. |
+
+### Cross-references
+
+Inline code that names a declaration becomes a link:
+
+- `` `area` `` links to a declaration in the same module.
+- `` `geometry.shapes.area` `` links to a declaration in another module of the
+  same site. Modules are addressed by their declared `module` name or, for
+  files without one, by their path with `/` replaced by `.` (`lib/math.fn` is
+  `lib.math`).
+- `` `geometry.shapes` `` links to a module page.
+- Types and values keep separate anchors (`#t:Shape` and `#area`), so a type
+  and a function may share a spelling.
+
+Links between guides use ordinary relative Markdown paths; `[guide](docs/GUIDE.md)`
+is rewritten to the generated page when `GUIDE.md` is part of the site.
+
+### Executable examples
+
+Every ```` ```fern ```` block in `@moduledoc` or `@doc` is a documentation test.
+Lines ending in `# => value` are checked with ordinary pattern matching; see the
+[test runner](TEST_RUNNER.md). Run them with `fern test --doc <source|directory>`.
+
+## Generating documentation
+
+| Command | Output |
+| --- | --- |
+| `fern doc lib.fn` | Markdown for one file on stdout. |
+| `fern doc lib.fn --html -o docs.html` | One standalone, script-free HTML page. |
+| `fern doc src --html -o docs.html` | One page for a directory with module navigation. |
+| `fern doc src --inferred …` | Adds signatures resolved by the checker. |
+| `fern doc src --site docs-site …` | A multi-page site: one page per module and guide, a sidebar, local search and a JSON search index. |
+
+### Sites
+
+```sh
+fern doc src --site docs-site \
+    --title "Geometry" --version 1.2.0 \
+    --extras README.md --extras docs \
+    --link "Source=https://example.com/geometry" \
+    --inferred --open
+```
+
+- `--site <directory>` writes the site there. The directory is created, or
+  replaced atomically when it already holds a generated site. Directories that
+  contain anything else, symbolic links, files, the documented sources or their
+  ancestors are refused, so a stray `--site .` cannot delete a project.
+- `--extras <path>` adds Markdown guides: a file, or the `.md` files directly
+  inside a directory. Repeat the option to add more. The first `README.md`
+  becomes `index.html`; other guides take their file stem as page name. A
+  leading `# Heading` (or a raw `<h1>`) becomes the page title.
+- `--link label=url` adds sidebar links. Destinations follow the same safety
+  rules as Markdown links.
+- `--title` and `--version` label the site; the title defaults to the source
+  directory name.
+- `--inferred` typechecks each module graph and adds checked signatures.
+- `--open` launches the platform opener on `index.html` after publication.
+- Without a source operand, `--site` documents guides alone.
+
+Every generated file sits in one flat directory, so the site works from disk
+without a server: `index.html`, one `<name>.html` per module and guide,
+`fern-docs.css`, `fern-docs.js` and `fern-search.js`. The script only filters the
+bundled search index, toggles the sidebar on small screens and remembers the
+light/dark theme; it never fetches or evaluates data. Press `/` to search.
+
+Limits keep generation bounded: 256 modules and 256 guides, 1 MiB per guide,
+8 MiB of source, 16 MiB per page and 64 MiB per site. Page names that collide
+(a module `guide.fn` next to `GUIDE.md`) are reported before anything is written.
+
+## Documenting Fern itself
+
+`cargo xtask docs [output] [--no-rust]` builds the staged compiler and then runs
+`fern doc examples --inferred --site <output>` with this repository's README,
+`docs/`, design, roadmap, decision record, build guide and style guide as extras.
+Unless `--no-rust` is given it also runs `cargo doc --workspace --no-deps` and
+copies the Rust API reference to `<output>/rust/`, linked from the sidebar. The
+default output is `dist/docs`, which is ignored by git.
+
+The Rust sources keep rustdoc comments (`//!`, `///`) for the compiler, runtime
+and tooling internals; the Fern-facing language and library documentation lives
+in `docs/` and in `@moduledoc`/`@doc` attributes.
+
+## Current limitations
+
+- Documentation comments attach to functions, types, newtypes, constants and
+  traits. Trait implementations and generated methods are not listed.
+- The Markdown subset omits footnotes, task lists, HTML passthrough, setext
+  headings and reference-style links. List items hold inline text only; nested
+  lists, code fences or paragraphs inside an item are not recognized.
+- Source links (`View source`) are not generated; pages show the module path.
+- Search runs in the browser over the bundled index; there is no server-side
+  search or versioned documentation hosting.

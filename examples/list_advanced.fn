@@ -1,5 +1,6 @@
-# Advanced list operations example
-# Demonstrates List module built-in functions
+@moduledoc """
+Advanced list operations: the `List` module's built-in functions.
+"""
 
 fn bool_to_int(b: Bool) -> Int:
     if b: 1 else: 0

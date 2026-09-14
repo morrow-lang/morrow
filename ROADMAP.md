@@ -105,6 +105,7 @@ below describe bounded foundations, not completion of the larger acceptance plan
 - Coding standards: [`FERN_STYLE.md`](FERN_STYLE.md)
 - Compatibility policy: [`docs/COMPATIBILITY_POLICY.md`](docs/COMPATIBILITY_POLICY.md)
 - Documentation index: [`docs/README.md`](docs/README.md)
+- Writing and publishing documentation: [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md); `cargo xtask docs` builds the repository site
 
 ## Completed Foundations
 
@@ -254,11 +255,12 @@ Status: Verified expanded-language checkpoint, incorporated into the Rust defaul
 - [x] Rust executable documentation tests with checked pattern expectations, original module scope, isolated processes, bounded time/output and explicit library checking (20 Rust regressions and native execution scenarios).
 - [x] Regular source-owned unit tests alongside documentation examples, with checked nongeneric entries, failure continuation and test-only process-exit rejection (15 Rust regressions and 15 native cases plus import/directory/doc-mode scenarios).
 - [x] Checked inferred documentation signatures from one finalized source-scheme pass per module graph, retaining original headers and protecting all source dependencies (ten Rust regressions and browser search/layout checks).
+- [x] HexDocs-style documentation sites (Decision154): `@moduledoc` through parser, formatter, preflight budget and doctests; a bounded in-tree Markdown renderer with Fern highlighting, safe links and declaration cross-references; `fern doc --site` with summary tables, sidebar, client-side search, themes, guides, `--title`/`--version`/`--link` and atomic source-safe publication; `cargo xtask docs` renders the repository guides, examples and embedded `cargo doc` output (22 new Rust regressions across `moduledoc`, `documentation_markdown`, `documentation_site` and `documentation_site_cli`, plus a generated-method omission case in `documentation_inferred`; the 2026-09-14 macOS ARM64 `cargo xtask check` passes formatting, notices, workspace Clippy, 2,261 Rust tests across 278 suites, 316 native fixtures, 20 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192 fuzz cases; light/dark module, guide and search pages inspected in a real browser).
 - [x] Whole private-signature inference and SCC generalization, including delayed shape constraints.
 - [x] Core private-signature generalization from patterns and bodies, with callee-first recursive components, rigid annotations and intrinsic requirements (eight native programs, 14 invalid programs and three interactive regressions).
 - [x] Delayed shape obligations using later body evidence for fields, updates, tuple-rest and iteration; non-executable probes rejected at publication boundaries (seven native programs, eight invalid programs and two interactive regressions).
 - [x] Typed hover and valid-source record/tuple/member completion from final checked source facts, with instantiated uses, inferred requirements, exact doc ownership and separate type/value namespaces (26 new metadata/editor regressions).
-- [x] Incomplete member completion from independent concrete receiver evidence in current source, with exact edits and no executable hole IR (21 new Rust regressions including library source identity).
+- [x] Incomplete member completion from independent concrete receiver evidence in current source, with exact edits and no executable hole IR (22 new Rust regressions including library source identity).
 - [x] Preserve global module reference identity when an unrelated local shadows its canonical module name (eight Rust regressions, four native programs and four invalid inputs).
 - [x] Transparent scalar/generic type aliases with bounded capture-free expansion, module privacy, original source tooling and native execution (26 new Rust regressions, seven native programs and 12 invalid inputs).
 - [x] Distinct generic newtypes with unboxed full-width native representation, explicit projection/patterns, scalar capabilities, Result obligations and source tooling (45 Rust regressions, 13 native programs and 14 invalid cases).
@@ -385,7 +387,7 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [ ] Implement external-event/instruction fairness, first-class actor-effect callbacks and typed ancestor escalation/descendant subtree reconstruction beyond the documented continuation boundaries.
 - [x] Immutable native JSON parser/accessors/stringifier with exact numbers, Unicode validation and bounded resources (14,309 API checks, 24 budget checks and 6,000 numeric oracle cases in debug/release/sanitizer builds).
 - [x] Migrate Rust native JSON to opaque values/errors, immutable builders and bounded lossless collection adapters (ten native programs, twelve semantic rejections, eight Rust integration tests and 248 native builder checks per build).
-- [x] Evaluate dynamic JSON in the Rust REPL with exact native semantics, independent cleanup budgets and bounded shared storage (21 new Rust regressions and 12,000 numeric/formatting oracles).
+- [x] Evaluate dynamic JSON in the Rust REPL with exact native semantics, independent cleanup budgets and bounded shared storage (22 new Rust regressions and 12,000 numeric/formatting oracles).
 - [x] Implement concrete typed JSON codecs: explicit derive(Json), static targets, native/REPL shared plans, strict fields and bounded error paths (Decision98 J4; 4 native programs, 14 atomic invalids and runtime debug/release/sanitizer boundaries).
 - [x] Verify record derivations and static JSON targets in native/WASM editor grammar (98 valid sources, 34 malformed cases recovered, 36 incremental edits).
 - [x] Repin the Zed package to the typed JSON grammar and verify reproducible archives, hostile-package rejection and both actual-editor startup modes with derived-record codec source.

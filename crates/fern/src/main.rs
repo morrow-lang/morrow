@@ -70,7 +70,7 @@ Native backend: Cranelift is the native backend; --backend=cranelift is optional
 Browser builds: fern build --target=wasm32 source.fn [-o app.wasm] compiles the supported portable subset without a native linker.\n\
 Global controls: --quiet, --verbose, --color=auto|always|never; -v aliases --version.\n\
 Language: generic functions, custom types, modules, Int/Bool/String, List/Option/Result, guarded match, and Result ?.\n\
-Documentation: fern doc [source.fn|directory] [--html] [--inferred] [--open] [-o output] generates source documentation.\n\
+Documentation: fern doc [source.fn|directory] [--html] [--inferred] [--open] [-o output] generates source documentation; --site <directory> publishes a multi-page site (fern doc --help).\n\
 Tests: fern test [--doc] [source.fn|directory] executes unit tests and documentation examples.\n\
 Formatting: fern fmt <source.fn|directory> updates sources after validating every file.\n\
 Format validation: fern fmt --check <source.fn|directory> checks canonical formatting without writing.\n\

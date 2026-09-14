@@ -1,7 +1,19 @@
-# Values, traits, compile-time work, immutable collections and explicit errors.
+@moduledoc """
+Values, traits, compile-time work, immutable collections and explicit errors.
+
+The tour defines a `Label` trait, implements it for `Task`, evaluates constants
+at compile time and threads `Result` values through `main`.
+"""
+
+@doc """
+Anything that can describe itself as a `String`.
+"""
 trait Label(a):
     fn label(value: a) -> String
 
+@doc """
+A unit of work with derived `Show`, `Eq`, `Ord`, `Clone` and `Json` support.
+"""
 type Task derive(Show, Eq, Ord, Clone, Json):
     id: Int
     title: String

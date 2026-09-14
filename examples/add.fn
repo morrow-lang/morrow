@@ -1,3 +1,16 @@
+@moduledoc """
+The smallest program with a documented helper and a labeled call.
+"""
+
+@doc """
+Add two integers. Same-typed parameters are passed by label, so call sites
+stay readable.
+
+```fern
+add(a: 1, b: 2)  # => 3
+add(a: 10, b: 32)  # => 42
+```
+"""
 fn add(a: Int, b: Int) -> Int:
     a + b
 

@@ -139,9 +139,21 @@ fn all_public_example_and_stdlib_documentation_snippets_typecheck() {
             }
             let source = fs::read_to_string(&path).unwrap();
             for snippet in doctest::extract(&source).unwrap() {
-                verify(&snippet.code).unwrap_or_else(|error| {
-                    panic!("{} example {}: {error}", path.display(), snippet.ordinal)
-                });
+                // Standalone snippets typecheck alone; module examples typecheck as the same
+                // overlay `fern test --doc` executes, so they may call their own declarations.
+                verify(&snippet.code)
+                    .or_else(|_| {
+                        let prepared =
+                            doctest::prepare(&source, &snippet).map_err(|error| error.message)?;
+                        let parsed = fern_compiler::parse::parse(&prepared.source)
+                            .map_err(|error| error.message)?;
+                        check::check_library(&parsed)
+                            .map(|_| ())
+                            .map_err(|error| error.message)
+                    })
+                    .unwrap_or_else(|error| {
+                        panic!("{} example {}: {error}", path.display(), snippet.ordinal)
+                    });
                 count += 1;
             }
         }

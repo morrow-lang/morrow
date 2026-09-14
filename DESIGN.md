@@ -357,11 +357,24 @@ Violets are blue
 """
 ```
 
+**Module documentation:**
+```fern
+module geometry.shapes
+
+@moduledoc """
+Two-dimensional shapes. See `Shape` and `area`.
+"""
+```
+
 **Comment syntax rules:**
 - `#` for single-line comments (like Python/Elixir)
 - `/* */` for block comments
 - `@doc """..."""` for function/type documentation (like Elixir's `@doc`)
+- `@moduledoc """..."""` once per file, after the `module` line and before the
+  first declaration (like Elixir's `@moduledoc`)
 - `"""..."""` alone for multi-line strings
+- Documentation is Markdown; inline code naming a declaration (`area`,
+  `geometry.shapes.area`) becomes a cross-reference in generated sites
 - Documentation appears in generated docs and LSP hover tooltips
 
 **Doc tests (executable examples):**
@@ -3294,8 +3307,10 @@ illustrative examples above remain design proposals.
    - Integrated into LSP
 
 5. **Doc Generator** (v0.4)
-   - `fern doc` - Generate documentation from `@doc` comments
-   - Outputs HTML/markdown
+   - `fern doc` - Generate documentation from `@moduledoc`/`@doc` comments
+   - Outputs Markdown, one standalone HTML page, or a multi-page site
+     (`--site`) with guides, sidebar navigation, local search and
+     cross-references, like HexDocs
    - Examples extracted and tested
 
 6. **REPL** (v0.5)

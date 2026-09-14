@@ -1,6 +1,11 @@
-# Actor-based app template
-# Demonstrates actor startup, enqueue, and mailbox receive flow.
+@moduledoc """
+Actor-based application template: actor startup, enqueue and mailbox receive flow.
+"""
 
+@doc """
+Post `message` to the actor `pid`; returns `0` on success and `1` when the
+mailbox rejects the job.
+"""
 fn post_job(pid: Int, message: String) -> Int:
     match actors.post(pid, message):
         Ok(_) -> 0

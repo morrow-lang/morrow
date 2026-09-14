@@ -27,6 +27,9 @@ installation and release packaging. Root `Cargo.lock` fixes compiler dependencie
 - `fern emit source.fn`: print validated textual machine IR without invoking native tools.
 - `fern repl`: evaluate expressions with persistent bindings and terminal editing.
 - `fern doc source.fn --html`: generate documentation; `--open` opens retained HTML.
+- `fern doc src --site docs-site [--extras docs] [--inferred]`: publish a multi-page
+  site with guides, navigation, search and cross-references
+  ([guide](../../docs/DOCUMENTATION.md)).
 - `fern test source.fn`: execute zero-argument `test_` functions and documentation examples.
 - `fern lsp`: serve the language-server protocol over standard input/output.
 

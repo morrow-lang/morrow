@@ -1,3 +1,16 @@
+@moduledoc """
+The Fibonacci sequence with a plain recursive definition.
+"""
+
+@doc """
+Return the `n`-th Fibonacci number, counting from `fib(0) == 0`.
+
+```fern
+fib(0)  # => 0
+fib(1)  # => 1
+fib(10)  # => 55
+```
+"""
 fn fib(n: Int) -> Int:
     if n < 2: n
     else: fib(n - 1) + fib(n - 2)

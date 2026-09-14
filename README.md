@@ -213,6 +213,7 @@ samples, first-launch outliers, configuration details and runnable sources.
 ./bin/fern fmt source.fn
 ./bin/fern test source.fn
 ./bin/fern doc source.fn --html
+./bin/fern doc src --site docs-site --extras README.md --open
 ./bin/fern repl
 ./bin/fern lsp
 ```
@@ -222,6 +223,12 @@ completion, navigation, formatting, rename and more over standard input/output.
 Configure your editor to launch `fern lsp` using the installed executable or its
 absolute path. See the [compiler guide](crates/fern/README.md) for command details
 and the inspection tools.
+
+Documentation is written next to the code with `@moduledoc` and `@doc`, and
+examples inside it run as tests. `fern doc --site` renders modules and Markdown
+guides into a searchable site with cross-references; `cargo xtask docs` builds
+this repository's own site, including the Rust API reference. See
+[writing and publishing documentation](docs/DOCUMENTATION.md).
 
 ## Our implementation stance
 

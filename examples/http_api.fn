@@ -1,7 +1,10 @@
-# HTTP client error handling, runnable without network access.
-# http.get/post return Ok(body) for successful 2xx responses and Err(Int)
-# for invalid URLs, network failures, and non-2xx responses.
-# An HTTP server is a design target; http.serve is not implemented yet.
+@moduledoc """
+HTTP client error handling, runnable without network access.
+
+`http.get` and `http.post` return `Ok(body)` for successful 2xx responses and
+`Err(Int)` for invalid URLs, network failures and non-2xx responses. An HTTP
+server is a design target; `http.serve` is not implemented yet.
+"""
 
 fn get_rejects_invalid_url() -> Bool:
     match http.get("invalid://example"):

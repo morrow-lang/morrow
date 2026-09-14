@@ -10,6 +10,7 @@ Start with the [language guide](LANGUAGE_GUIDE.md), [build guide](../BUILD.md), 
 - [JSON values](JSON_RUST_API.md) and [typed codecs](JSON_TYPED_CODECS.md)
 - [File text IO](FILE_TEXT_IO.md), [process execution](PROCESS_EXECUTION.md), [SQL lifecycle](SQL_LIFECYCLE.md)
 - [Runtime memory](MEMORY_MANAGEMENT.md) and [Unicode decimal classification](STRING_DECIMAL.md)
+- [Writing and publishing documentation](DOCUMENTATION.md) with `@moduledoc`, `@doc` and `fern doc --site`
 - [Development environment](DEVELOPMENT_ENVIRONMENT.md), [test runner](TEST_RUNNER.md), [Rust style](../FERN_STYLE.md)
 - [Rust workspace acceptance](RUST_WORKSPACE.md)
 - [Full-stack actor/WebAssembly architecture](FULL_STACK_ARCHITECTURE.md)
@@ -19,8 +20,9 @@ Start with the [language guide](LANGUAGE_GUIDE.md), [build guide](../BUILD.md), 
 
 Editor support is the Rust language server (`fern lsp`). Tree-sitter and the
 associated Zed grammar package were removed as part of the Rust-only migration.
-Source documentation uses `fern doc`; Rust implementation documentation uses
-`cargo doc --workspace --no-deps`.
+Source documentation uses `fern doc`; `cargo xtask docs` renders these guides,
+the examples and the Rust API reference (`cargo doc --workspace --no-deps`) into
+one browsable site under `dist/docs`.
 
 The [history](HISTORY.md), [archived migration documents](history/) and [reports](reports/)
 retain dated decisions and measurements. Their old C/QBE/Python commands are

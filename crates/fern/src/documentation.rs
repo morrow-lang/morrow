@@ -1,7 +1,9 @@
 //! Bounded documentation from parsed source declarations, without executing user code.
 use crate::{Diagnostic, Span, ast, parse};
 mod inferred;
+pub mod markdown;
 mod project;
+pub mod site;
 pub use inferred::{render_inferred, render_with_schemes};
 pub use project::{InferredDocument, SourceDocument, render_inferred_project, render_project};
 const MAX_OUTPUT: usize = 8 * 1024 * 1024;
@@ -16,9 +18,18 @@ pub enum Output {
 struct Declaration<'a> {
     name: &'a str,
     span: Span,
+    kind: DeclarationKind,
+    public: bool,
     headers: Vec<String>,
     doc: &'a str,
     checked: Option<String>,
+}
+
+/// Site pages group declarations by kind; values and types have separate anchors.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum DeclarationKind {
+    Function,
+    Type,
 }
 struct Writer {
     text: String,
@@ -39,6 +50,7 @@ pub fn render(source: &str, title: &str, output: Output) -> Result<String, Diagn
 fn render_declarations(
     title: &str,
     output: Output,
+    module_doc: Option<&str>,
     declarations: &[Declaration<'_>],
 ) -> Result<String, Diagnostic> {
     let mut writer = Writer {
@@ -47,6 +59,9 @@ fn render_declarations(
         declaration_level: 2,
     };
     writer.start(title, output)?;
+    if let Some(doc) = module_doc {
+        writer.module_doc(doc, output)?;
+    }
     for (index, declaration) in declarations.iter().enumerate() {
         writer.declaration(index, declaration, declaration.doc, output)?;
     }
@@ -71,6 +86,10 @@ fn declarations<'a>(
     }
     let mut declarations: Vec<Declaration<'a>> = Vec::new();
     for function in &program.functions {
+        if function.name.starts_with('$') {
+            // Generated trait-implementation methods have no source header of their own.
+            continue;
+        }
         let header = source
             .get(function.span.start..function.body.span.start)
             .ok_or_else(|| limit("invalid source header span"))?
@@ -85,6 +104,8 @@ fn declarations<'a>(
             declarations.push(Declaration {
                 name: &function.name,
                 span: function.span,
+                kind: DeclarationKind::Function,
+                public: function.public,
                 headers: vec![header],
                 doc: "",
                 checked: None,
@@ -99,6 +120,8 @@ fn declarations<'a>(
         declarations.push(Declaration {
             name,
             span,
+            kind: DeclarationKind::Type,
+            public,
             headers: vec![format!("{}{header}", if public { "pub " } else { "" })],
             doc: "",
             checked: None,
@@ -186,6 +209,19 @@ impl Writer {
         self.push("</title><style>body{margin:0;background:#f7f8f5;color:#17291f;font:17px/1.6 system-ui,sans-serif}main{max-width:960px;margin:auto;padding:3rem 1.5rem}section{margin:2.5rem 0;border-top:1px solid #ced8d0}h1,h2{line-height:1.2}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#edf1ec;padding:1rem;border-radius:.5rem}code{font:15px/1.6 ui-monospace,monospace}.doc{background:none;padding:0;font:inherit}</style></head><body><main><h1>")?;
         self.html(title)?;
         self.push("</h1>\n")
+    }
+    /// Emit literal module documentation before any declaration, escaped like every doc.
+    fn module_doc(&mut self, doc: &str, output: Output) -> Result<(), Diagnostic> {
+        if doc.trim().is_empty() {
+            return Ok(());
+        }
+        if output == Output::Html {
+            self.push("<pre class=\"doc moduledoc\">")?;
+            self.html(doc.trim_matches('\n'))?;
+            return self.push("</pre>\n");
+        }
+        self.push(doc.trim_matches('\n'))?;
+        self.push("\n\n")
     }
     /// Emit each clause group once, with separate original headers and its owned doc text.
     fn declaration(

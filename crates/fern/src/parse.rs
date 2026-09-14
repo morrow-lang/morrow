@@ -29,6 +29,7 @@ enum Kind {
     Text(String),
     Comment,
     Doc(String),
+    ModuleDoc(String),
     MultilineOpen,
     MultilineClose,
     StringOpen,
@@ -87,6 +88,7 @@ impl Kind {
             Kind::MultilineOpen => "multiline string".into(),
             Kind::Comment => "comment".into(),
             Kind::Doc(_) => "@doc comment".into(),
+            Kind::ModuleDoc(_) => "@moduledoc comment".into(),
             Kind::Newline => "end of line".into(),
             Kind::Indent => "indentation".into(),
             Kind::Dedent => "end of block".into(),
@@ -145,6 +147,23 @@ struct Token {
 /// Input has no preconditions; source is limited to 1 MiB and 65,536 tokens.
 pub fn parse(source: &str) -> ParseResult<Program> {
     source_parser(source, false)?.program()
+}
+
+/// Remove the first `@moduledoc` attribute from a source fragment, keeping everything else.
+/// Interactive sessions retain declarations only; a module description has no meaning there.
+pub(crate) fn without_module_doc(source: &str) -> ParseResult<std::borrow::Cow<'_, str>> {
+    let tokens = lex(source)?;
+    let Some(span) = tokens
+        .iter()
+        .find(|token| matches!(token.kind, Kind::ModuleDoc(_)))
+        .map(|token| token.span)
+    else {
+        return Ok(std::borrow::Cow::Borrowed(source));
+    };
+    let mut stripped = String::with_capacity(source.len());
+    stripped.push_str(&source[..span.start]);
+    stripped.push_str(&source[span.end..]);
+    Ok(std::borrow::Cow::Owned(stripped))
 }
 
 /// Return exact parsed type-syntax ranges for a valid bounded current source snapshot.
@@ -723,13 +742,14 @@ fn scan_doc(
             .bytes()
             .take_while(|b| matches!(b, b' ' | b'\t'))
             .count();
-    if &line[start..quote] != "@doc" || !line[at..].starts_with("\"\"\"") {
+    let attribute = &line[start..quote];
+    if !matches!(attribute, "@doc" | "@moduledoc") || !line[at..].starts_with("\"\"\"") {
         return Err(Diagnostic::new(
             Span {
                 start: offset + start,
                 end: offset + at,
             },
-            "unsupported attribute; expected @doc followed by a triple-quoted string",
+            "unsupported attribute; expected @doc or @moduledoc followed by a triple-quoted string",
         ));
     }
     let mut parts = Vec::new();
@@ -740,7 +760,12 @@ fn scan_doc(
             text.push_str(&part);
         }
     }
-    push(tokens, Kind::Doc(text), offset + start, offset + end)?;
+    let kind = if attribute == "@doc" {
+        Kind::Doc(text)
+    } else {
+        Kind::ModuleDoc(text)
+    };
+    push(tokens, kind, offset + start, offset + end)?;
     Ok(end)
 }
 
@@ -1079,7 +1104,7 @@ fn multiline_spans(source: &str) -> ParseResult<Vec<Span>> {
                     });
                 }
             }
-            Kind::Doc(_) if starts.is_empty() => spans.push(token.span),
+            Kind::Doc(_) | Kind::ModuleDoc(_) if starts.is_empty() => spans.push(token.span),
             _ => {}
         }
     }
@@ -1110,8 +1135,10 @@ pub(crate) fn line_continues(source: &str) -> bool {
     }
     tokens.retain(|token| token.kind != Kind::Comment);
     !delimiters.is_empty() || tokens.last().is_some_and(|token| {
-        matches!(token.kind, Kind::Colon | Kind::Arrow | Kind::Doc(_))
-            || matches!(&token.kind,Kind::Name(name) if matches!(name.as_str(),"with"|"do"|"else"))
+        matches!(
+            token.kind,
+            Kind::Colon | Kind::Arrow | Kind::Doc(_) | Kind::ModuleDoc(_)
+        ) || matches!(&token.kind,Kind::Name(name) if matches!(name.as_str(),"with"|"do"|"else"))
     })
 }
 
@@ -1152,6 +1179,7 @@ pub fn identifier_index(source: &str) -> Result<IdentifierIndex, Diagnostic> {
             }
             Kind::Text(_)
             | Kind::Doc(_)
+            | Kind::ModuleDoc(_)
             | Kind::StringOpen
             | Kind::StringClose
             | Kind::MultilineOpen
@@ -1315,6 +1343,9 @@ impl Parser {
                 if pending.is_some() {
                     return Err(self.error("@doc must precede a function or type declaration"));
                 }
+                if let Some(doc) = &mut program.module_doc {
+                    doc.target = program.module.clone().unwrap_or_default();
+                }
                 return Ok(program);
             }
             if let Kind::Doc(text) = self.current().kind.clone() {
@@ -1322,6 +1353,31 @@ impl Parser {
                     return Err(self.error("duplicate @doc before declaration"));
                 }
                 pending = Some((text, self.take().span));
+                self.line_end()?;
+                continue;
+            }
+            if let Kind::ModuleDoc(text) = self.current().kind.clone() {
+                if pending.is_some() {
+                    return Err(self.error("@doc must precede a function or type declaration"));
+                }
+                if program.module_doc.is_some() {
+                    return Err(self.error("duplicate @moduledoc in module"));
+                }
+                if !program.functions.is_empty()
+                    || !program.types.is_empty()
+                    || !program.aliases.is_empty()
+                    || !program.newtypes.is_empty()
+                    || !program.traits.is_empty()
+                    || !program.implementations.is_empty()
+                {
+                    return Err(self.error("@moduledoc must appear before the first declaration"));
+                }
+                let span = self.take().span;
+                program.module_doc = Some(crate::ast::DocComment {
+                    target: String::new(),
+                    text,
+                    span,
+                });
                 self.line_end()?;
                 continue;
             }

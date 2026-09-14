@@ -20,7 +20,7 @@ pub struct Prepared {
 pub fn extract(source: &str) -> Result<Vec<Example>, Diagnostic> {
     let program = parse::parse(source)?;
     let mut result = Vec::new();
-    for doc in &program.docs {
+    for doc in program.module_doc.iter().chain(&program.docs) {
         let mut active: Option<(usize, bool, String)> = None;
         for line in doc.text.lines() {
             let trimmed = line.trim();

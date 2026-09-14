@@ -32,7 +32,8 @@ pub fn render_with_schemes(
     if let Some(schemes) = schemes {
         attach(&program, &mut items, schemes)?;
     }
-    render_declarations(title, output, &items)
+    let module_doc = program.module_doc.as_ref().map(|doc| doc.text.as_str());
+    render_declarations(title, output, module_doc, &items)
 }
 
 /// Join exact declaration anchors, rejecting duplicate or unmatched metadata rather than guessing names.
@@ -48,6 +49,15 @@ pub(super) fn attach(
     let mut bytes = 0;
     let mut by_anchor = HashMap::new();
     for info in schemes {
+        if info
+            .name
+            .rsplit('.')
+            .next()
+            .is_some_and(|name| name.starts_with('$'))
+        {
+            // Generated trait-implementation methods are not documented declarations.
+            continue;
+        }
         if by_anchor.insert(info.origin.start, info).is_some() {
             return Err(limit("duplicate checked signature anchor"));
         }

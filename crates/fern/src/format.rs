@@ -78,6 +78,16 @@ impl Renderer<'_> {
             let anchor = module_anchor(self.source);
             declarations.push((anchor, vec![line(0, format!("module {module}"), anchor)]));
         }
+        if let Some(doc) = &program.module_doc {
+            // Module documentation always follows the module line and precedes every import.
+            let anchor = if program.module.is_some() {
+                module_anchor(self.source) + 1
+            } else {
+                0
+            };
+            let text = format!("@moduledoc {}", quote_multiline(&doc.text, true));
+            declarations.push((anchor, vec![line(0, text, doc.span.start)]));
+        }
         for import in &program.imports {
             let mut text = if import.public {
                 "pub import ".to_owned()
@@ -1592,6 +1602,9 @@ fn structural(mut program: ast::Program) -> String {
         }
     }
     for doc in &mut program.docs {
+        doc.span = Span::default();
+    }
+    if let Some(doc) = &mut program.module_doc {
         doc.span = Span::default();
     }
     let mut groups = std::collections::BTreeMap::new();

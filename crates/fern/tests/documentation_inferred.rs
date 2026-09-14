@@ -21,6 +21,17 @@ fn one_checked_pass_publishes_reusable_private_schemes_and_capabilities() {
 }
 
 #[test]
+fn generated_trait_methods_are_omitted_from_source_and_checked_documentation() {
+    let source = "trait Label(a):\n    fn label(value: a) -> String\n\ntype Task:\n    id: Int\n\nimpl Label(Task):\n    fn label(value: Task) -> String:\n        \"task\"\n\nfn describe(value: a) -> String where Label(a):\n    label(value)\n";
+    let plain = documentation::render(source, "Library", Output::Markdown).unwrap();
+    assert!(!plain.contains("$impl"), "{plain}");
+    assert!(plain.contains("## describe"));
+    let checked = documentation::render_inferred(source, "Library", Output::Markdown).unwrap();
+    assert!(!checked.contains("$impl"), "{checked}");
+    assert!(checked.contains("Checked signature"), "{checked}");
+}
+
+#[test]
 fn invalid_generic_bodies_fail_checked_docs_while_source_docs_remain_available() {
     let source = "fn broken(x:a)->a:42\n";
     assert!(documentation::render(source, "Library", Output::Html).is_ok());

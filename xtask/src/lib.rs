@@ -3,6 +3,7 @@ pub mod acceptance;
 pub mod build;
 pub mod compatibility;
 pub mod distribution;
+pub mod docs;
 pub mod fuzz;
 pub mod lint_policy;
 pub mod notices;

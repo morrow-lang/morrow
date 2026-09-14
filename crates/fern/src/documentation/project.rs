@@ -82,6 +82,9 @@ fn render(
             return Err(limit("project documentation declaration limit exceeded"));
         }
         module_start(&mut writer, index, document.path, output)?;
+        if let Some(doc) = &parsed.module_doc {
+            writer.module_doc(&doc.text, output)?;
+        }
         for declaration in &declarations {
             writer.declaration(count, declaration, declaration.doc, output)?;
             count += 1;
