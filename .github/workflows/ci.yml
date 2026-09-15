@@ -10,6 +10,26 @@ permissions:
   contents: read
 
 jobs:
+  thread-sanitizer:
+    name: ThreadSanitizer (runtime)
+    runs-on: ubuntu-latest
+    # The instrumented runtime suite takes about 40 minutes on an Apple M4 and
+    # rebuilds the standard library from source before it starts.
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.9.1
+          install: true
+      - name: Add the standard library source the instrumented build rebuilds
+        run: rustup component add rust-src
+      - name: Run the runtime suite under ThreadSanitizer
+        run: cargo xtask tsan
   rust-workspace:
     name: Rust workspace (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

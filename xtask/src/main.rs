@@ -193,6 +193,37 @@ verify <tar> <sha256> Validate a release archive without extracting it"
                 .unwrap_or(0xC0FFEE);
             xtask::fuzz::run(&root, &root.join("bin"), iterations, seed)?;
         }
+        "tsan" if rest.is_empty() => {
+            // ThreadSanitizer finds nothing while actor execution is single threaded.
+            // It joins the gate before parallel schedulers make it load bearing, so
+            // the harness and any suppressions exist before they are needed.
+            let version = Command::new(env::var_os("RUSTC").unwrap_or_else(|| "rustc".into()))
+                .arg("-vV")
+                .output()
+                .map_err(|error| error.to_string())?;
+            let report = String::from_utf8_lossy(&version.stdout);
+            // ThreadSanitizer refuses to build for the implicit host target.
+            let target = report
+                .lines()
+                .find_map(|line| line.strip_prefix("host: "))
+                .ok_or("rustc -vV did not report a host target")?;
+            execute(
+                Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
+                    .current_dir(&root)
+                    // The shipped std is not instrumented, so it must be rebuilt
+                    // from source or the sanitizer ABI check rejects the link.
+                    .args([
+                        "test",
+                        "-Zbuild-std",
+                        "-p",
+                        "morrow-runtime",
+                        "--target",
+                        target,
+                    ])
+                    .env("RUSTFLAGS", "-Zsanitizer=thread")
+                    .env("RUSTDOCFLAGS", "-Zsanitizer=thread"),
+            )?;
+        }
         "package" if rest.len() <= 1 => {
             if env::var("GITHUB_REF_TYPE").as_deref() == Ok("tag")
                 && env::var("GITHUB_REF_NAME").ok().as_deref()

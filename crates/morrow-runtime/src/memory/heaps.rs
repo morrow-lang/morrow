@@ -55,6 +55,7 @@ impl Domain {
     ///   1. payload to payload within one heap,
     ///   2. payload to control storage in the invocation heap,
     ///   3. invocation-internal.
+    #[cfg(any(test, feature = "simulation"))]
     pub(crate) fn verify_edges(&self) -> Result<(), EdgeViolation> {
         let invocation = &self.slots[&0].heap.blocks;
         for (&id, slot) in &self.slots {
@@ -323,6 +324,7 @@ impl Domain {
 /// A managed edge that leaves an actor payload heap without landing in invocation
 /// control storage. Step 4 of the parallel actor work has to sever the permitted
 /// control edges; anything else must not exist in the first place.
+#[cfg(any(test, feature = "simulation"))]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct EdgeViolation {
     pub heap: usize,
@@ -343,20 +345,29 @@ pub(super) fn with_current<R>(f: impl FnOnce(&mut Domain) -> R) -> R {
     if current.is_null() {
         return DEFAULT.with(|domain| f(&mut domain.borrow_mut()));
     }
-    struct Release;
-    impl Drop for Release {
-        fn drop(&mut self) {
-            BUSY.with(|busy| busy.set(false));
-        }
-    }
-    assert!(
-        !BUSY.with(|busy| busy.replace(true)),
-        "the active heap domain cannot be entered re-entrantly"
-    );
-    let _release = Release;
+    let _busy = Busy::acquire();
     // SAFETY: Activation installed this pointer from a &mut Domain that outlives the
-    // guard and restores the previous value on drop, and BUSY rejects aliasing here.
+    // guard and restores the previous value on drop, and Busy rejects aliasing here.
     f(unsafe { &mut *current })
+}
+
+/// Rejects re-entering the activated domain, preserving the aliasing check that
+/// RefCell performs for the default domain. A finalizer that dropped a Root during
+/// collection would otherwise alias the &mut Domain the collection is holding.
+struct Busy;
+impl Busy {
+    fn acquire() -> Self {
+        assert!(
+            !BUSY.with(|busy| busy.replace(true)),
+            "the active heap domain cannot be entered re-entrantly"
+        );
+        Busy
+    }
+}
+impl Drop for Busy {
+    fn drop(&mut self) {
+        BUSY.with(|busy| busy.set(false));
+    }
 }
 
 /// Installs a domain as this thread's current domain until dropped.
@@ -407,7 +418,9 @@ pub(super) fn remove_root(heap: usize, id: usize) {
     // Root::drop can run while thread-local storage is being destroyed.
     let current = CURRENT.try_with(|cell| cell.get()).unwrap_or(null_mut());
     if !current.is_null() {
-        // SAFETY: as in with_current; Activation keeps this pointer live.
+        let _busy = Busy::acquire();
+        // SAFETY: as in with_current; Activation keeps this pointer live and Busy
+        // rejects a Root dropped by a finalizer inside an active collection.
         unsafe { &mut *current }.remove_root(heap, id);
         return;
     }
