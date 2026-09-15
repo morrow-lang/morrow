@@ -1,10 +1,3 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/fern-logo-light.png">
-    <img src="docs/assets/fern-logo.png" alt="Fern logo" width="128" height="128">
-  </picture>
-</p>
-
 <h1 align="center">Morrow</h1>
 
 <p align="center"><strong>Readable code. Native programs.</strong><br>

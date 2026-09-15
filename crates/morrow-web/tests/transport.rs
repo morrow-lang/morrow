@@ -1,5 +1,5 @@
 use futures_util::{SinkExt, StreamExt};
-use morrow_web::{Config, router};
+use morrow_web::{Assets, Config, router};
 use morrow_web_protocol::*;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -10,6 +10,15 @@ use tokio_tungstenite::{
 
 #[path = "admin/transport.rs"]
 mod admin;
+
+const BRAND_ASSETS: Assets = &[(
+    "index.html",
+    include_bytes!("../../morrow-browser/assets/index.html"),
+)];
+
+fn response_body(response: &str) -> &str {
+    response.split_once("\r\n\r\n").unwrap().1
+}
 
 #[path = "protobuf/transport.rs"]
 mod protobuf;
@@ -28,6 +37,9 @@ impl Server {
         Self::configured(|_| {}).await
     }
     async fn configured(configure: impl FnOnce(&mut Config)) -> Self {
+        Self::configured_with_assets(configure, &[]).await
+    }
+    async fn configured_with_assets(configure: impl FnOnce(&mut Config), assets: Assets) -> Self {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let mut config = Config::new(format!("http://{address}"), "a-long-test-access-key".into());
@@ -38,7 +50,7 @@ impl Server {
             config.handshake_timeout,
         )
         .unwrap();
-        let app = router(config, &[]).unwrap();
+        let app = router(config, assets).unwrap();
         let task = tokio::spawn(async move {
             axum::serve(listener, app).await.unwrap();
         });
@@ -449,4 +461,27 @@ async fn acknowledged_room_recovers_after_server_restart_with_a_fresh_incarnatio
     assert_eq!(restored.snapshot.tasks.len(), 1);
     assert_eq!(restored.snapshot.tasks[0].label, "survives restart 🌱");
     socket.close(None).await.unwrap();
+}
+
+#[tokio::test]
+async fn served_pages_use_text_only_morrow_identity() {
+    let server = Server::configured_with_assets(|_| {}, BRAND_ASSETS).await;
+    let home = server.http("GET", "/", "", "").await;
+    assert!(home.starts_with("HTTP/1.1 200"), "{home}");
+    let home = response_body(&home);
+    assert!(home.contains("<title>Morrow"));
+    assert!(home.contains("aria-label=\"Morrow home\">Morrow</a>"));
+    assert!(home.contains("the Morrow programming language"));
+    assert!(!home.contains('↟'));
+    assert!(!home.contains("fern-logo"));
+
+    let (cookie, _) = server.session().await;
+    let dashboard = server
+        .http("GET", "/admin", &format!("Cookie: {cookie}\r\n"), "")
+        .await;
+    assert!(dashboard.starts_with("HTTP/1.1 200"), "{dashboard}");
+    let dashboard = response_body(&dashboard);
+    assert!(dashboard.contains("<title>Morrow system</title>"));
+    assert!(dashboard.contains("<a class=brand href=/>Morrow</a>"));
+    assert!(!dashboard.contains('↟'));
 }

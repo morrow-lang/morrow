@@ -160,7 +160,7 @@ pub(super) async fn stylesheet() -> Response {
 
 fn shell(body: &str) -> String {
     format!(
-        "<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><meta name=theme-color content=\"#173e2e\"><title>Morrow system</title><link rel=stylesheet href=/admin/style.css></head><body><header><a class=brand href=/>↟ morrow</a><span class=eyebrow>SYSTEM OVERVIEW</span><a href=/>Back to garden</a></header>{body}</body></html>"
+        "<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content=\"width=device-width, initial-scale=1\"><meta name=theme-color content=\"#173e2e\"><title>Morrow system</title><link rel=stylesheet href=/admin/style.css></head><body><header><a class=brand href=/>Morrow</a><span class=eyebrow>SYSTEM OVERVIEW</span><a href=/>Back to garden</a></header>{body}</body></html>"
     )
 }
 
