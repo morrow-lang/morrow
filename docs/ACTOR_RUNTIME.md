@@ -22,7 +22,11 @@ Native compiler frames register typed reference roots. Runtime allocation helper
 still use conservative stack/register discovery, and objects are scanned
 conservatively; this is not yet a fully precise collector.
 
-The scheduler executes FIFO continuation callbacks on one thread. Typed return
+The scheduler executes FIFO continuation callbacks on one thread. That remains a
+property of the scheduler rather than of heap ownership: heaps are owned by an
+explicit `Domain` value that is `Send`, and the thread-local holds only a cursor to
+the domain currently executing (Decision156). Parallel schedulers are step 2 of
+that work and are not implemented. Typed return
 frames let direct receiving helpers return values and suspend through recursion,
 strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
 combinators use bounded resumable copies; their non-actor entry points retain the
