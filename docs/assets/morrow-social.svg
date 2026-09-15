@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Morrow: readable code, native programs" viewBox="0 0 1280 640" width="1280" height="640">
+  <rect width="1280" height="640" fill="#141C28"/>
+  <g transform="translate(0,20)">
+    <g transform="translate(168,152) scale(0.336)">
+      <circle cx="512" cy="384" r="190" fill="#F2A046"/>
+      <g stroke="#E4EBF3" stroke-width="60" stroke-linecap="round">
+        <line x1="222" y1="550" x2="802" y2="550"/>
+        <line x1="318" y1="678" x2="706" y2="678"/>
+        <line x1="430" y1="806" x2="594" y2="806"/>
+      </g>
+    </g>
+    <text x="540" y="298" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="108" font-weight="600" fill="#E4EBF3" letter-spacing="-2">Morrow</text>
+    <text x="545" y="364" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="37" fill="#F2A046">Readable code. Native programs.</text>
+    <text x="545" y="422" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="29" fill="#8B98A9">Statically typed · functional · Python-like syntax</text>
+  </g>
+</svg>

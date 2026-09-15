@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/morrow-lang/morrow/main/docs/assets/morrow-logo-dark.svg">
+    <img src="https://raw.githubusercontent.com/morrow-lang/morrow/main/docs/assets/morrow-logo.svg" alt="Morrow logo" width="128" height="128">
+  </picture>
+</p>
+
 <h1 align="center">Morrow</h1>
 
 <p align="center"><strong>Readable code. Native programs.</strong><br>

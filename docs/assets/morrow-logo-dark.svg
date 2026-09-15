@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-labelledby="morrow-logo-title">
+  <title id="morrow-logo-title">Morrow</title>
+  <circle cx="512" cy="384" r="190" fill="#F2A046"/>
+  <g stroke="#E4EBF3" stroke-width="60" stroke-linecap="round">
+    <line x1="222" y1="550" x2="802" y2="550"/>
+    <line x1="318" y1="678" x2="706" y2="678"/>
+    <line x1="430" y1="806" x2="594" y2="806"/>
+  </g>
+</svg>
