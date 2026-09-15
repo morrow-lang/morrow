@@ -136,9 +136,8 @@ git commit -m "refactor(runtime): name the heap store a Domain and extract its a
 #[test]
 fn domain_roots_retain_only_their_own_heap() {
     let mut domain = Domain::new();
-    let mut slot = 0usize;
     let block = domain.with_mut(|heap| heap.allocate(16, false));
-    slot = block as usize;
+    let slot = block as usize;
     let root = domain.root(&slot as *const usize, 1);
     assert_eq!(domain.collect_active(&[]).objects, 1);
     drop(root);
