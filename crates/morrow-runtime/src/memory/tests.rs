@@ -1,3 +1,4 @@
+use super::heaps::Domain;
 use super::*;
 
 #[test]
@@ -392,4 +393,19 @@ fn domain_frames_are_scoped_to_their_domain() {
     first.frame_leave(token);
     assert_eq!(first.frame_count(), 0);
     assert_eq!(second.frame_count(), 1);
+}
+
+#[test]
+fn actor_heaps_register_and_retire_their_invocation_control_root() {
+    let mut domain = Domain::new();
+    let control = domain.with_mut(|heap| heap.allocate(8, false));
+    let before = domain.with(|heap| heap.roots.len());
+    // SAFETY: control is a live one-word invocation-heap allocation owned by this
+    // domain, and is not freed or replaced before the matching retire below.
+    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    assert_ne!(id, 0);
+    assert_eq!(domain.with(|heap| heap.roots.len()), before + 1);
+    assert!(!domain.owns(id, control.cast()));
+    domain.retire_heap(id);
+    assert_eq!(domain.with(|heap| heap.roots.len()), before);
 }

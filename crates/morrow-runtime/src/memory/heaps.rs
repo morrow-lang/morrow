@@ -47,6 +47,74 @@ impl Domain {
             retired_collections: 0,
         }
     }
+    /// Attach a PID's exact control edge without rooting another actor's payload.
+    /// # Safety
+    /// `pointer` is an allocation base in the active heap, and `control` is a live
+    /// invocation-owned Actor whose immutable identity the initialized PID retains.
+    pub(crate) unsafe fn control_edge(&mut self, pointer: *const u8, control: *const u8) {
+        let active = self.active;
+        assert!(self.slots[&0].heap.blocks.contains_key(&(control as usize)));
+        if active != 0 {
+            self.slots
+                .get_mut(&active)
+                .unwrap()
+                .heap
+                .blocks
+                .get_mut(&(pointer as usize))
+                .expect("PID allocation belongs to current heap")
+                .control = control as usize;
+        }
+    }
+    /// Create a payload heap whose external roots are the invocation-owned actor words.
+    /// # Safety
+    /// The control object must be an invocation-heap allocation, readable for `words`
+    /// words, and cannot be freed or replaced until this payload heap is retired.
+    pub(crate) unsafe fn create_actor_heap(
+        &mut self,
+        control: *const usize,
+        words: usize,
+    ) -> usize {
+        let control_word = Box::new(control as usize);
+        let control_root = register(&mut self.slots.get_mut(&0).unwrap().heap, &*control_word, 1);
+        let mut heap = Heap::new();
+        register(&mut heap, control, words);
+        self.next_heap = self
+            .next_heap
+            .checked_add(1)
+            .unwrap_or_else(|| std::process::abort());
+        let id = self.next_heap;
+        self.slots.insert(
+            id,
+            Slot {
+                heap,
+                _control: Some(control_word),
+                control_root: Some(control_root),
+                scopes: 0,
+                retired: false,
+            },
+        );
+        id
+    }
+    /// Retire payload storage once its final active callback/scope has returned.
+    pub(crate) fn retire_heap(&mut self, id: usize) {
+        if id == 0 {
+            return;
+        }
+        if let Some(slot) = self.slots.get_mut(&id) {
+            slot.retired = true;
+        }
+        self.remove_retired(id);
+    }
+    pub(crate) fn owns(&self, id: usize, pointer: *const std::ffi::c_void) -> bool {
+        let Some(slot) = self.slots.get(&id) else {
+            return false;
+        };
+        slot.heap
+            .blocks
+            .range(..=pointer as usize)
+            .next_back()
+            .is_some_and(|(&base, block)| pointer as usize - base < block.layout.size())
+    }
     pub(crate) fn frame_enter(&mut self, slots: *const usize, words: usize) -> usize {
         let heap = self.active;
         self.next_frame = self
@@ -63,11 +131,7 @@ impl Domain {
         token
     }
     pub(crate) fn frame_leave(&mut self, token: usize) {
-        if self
-            .frames
-            .last()
-            .is_some_and(|frame| frame.token == token)
-        {
+        if self.frames.last().is_some_and(|frame| frame.token == token) {
             // Avoid even a zero-length memmove on the ordinary callback exit.
             self.frames.pop();
         } else if let Some(index) = self.frames.iter().rposition(|frame| frame.token == token) {
@@ -134,27 +198,7 @@ pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
 /// `pointer` is an allocation base in the active heap, and `control` is a live
 /// invocation-owned Actor whose immutable identity the initialized PID retains.
 pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let active = store.active;
-        assert!(
-            store.slots[&0]
-                .heap
-                .blocks
-                .contains_key(&(control as usize))
-        );
-        if active != 0 {
-            store
-                .slots
-                .get_mut(&active)
-                .unwrap()
-                .heap
-                .blocks
-                .get_mut(&(pointer as usize))
-                .expect("PID allocation belongs to current heap")
-                .control = control as usize;
-        }
-    });
+    STORE.with(|store| unsafe { store.borrow_mut().control_edge(pointer, control) });
 }
 
 pub(super) fn collect(roots: &[usize]) -> Stats {
@@ -253,59 +297,14 @@ pub(crate) fn enter(id: usize) -> Scope {
 /// The control object must be an invocation-heap allocation, readable for `words`
 /// words, and cannot be freed or replaced until this payload heap is retired.
 pub(crate) unsafe fn create(control: *const usize, words: usize) -> usize {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let control_word = Box::new(control as usize);
-        let control_root = register(
-            &mut store.slots.get_mut(&0).unwrap().heap,
-            &*control_word,
-            1,
-        );
-        let mut heap = Heap::new();
-        register(&mut heap, control, words);
-        store.next_heap = store
-            .next_heap
-            .checked_add(1)
-            .unwrap_or_else(|| std::process::abort());
-        let id = store.next_heap;
-        store.slots.insert(
-            id,
-            Slot {
-                heap,
-                _control: Some(control_word),
-                control_root: Some(control_root),
-                scopes: 0,
-                retired: false,
-            },
-        );
-        id
-    })
+    STORE.with(|store| unsafe { store.borrow_mut().create_actor_heap(control, words) })
 }
 /// Retire payload storage once its final active callback/scope has returned.
 pub(crate) fn retire(id: usize) {
-    if id == 0 {
-        return;
-    }
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        if let Some(slot) = store.slots.get_mut(&id) {
-            slot.retired = true;
-        }
-        store.remove_retired(id);
-    });
+    STORE.with(|store| store.borrow_mut().retire_heap(id));
 }
 pub(crate) fn owns(id: usize, pointer: *const std::ffi::c_void) -> bool {
-    STORE.with(|store| {
-        let store = store.borrow();
-        let Some(slot) = store.slots.get(&id) else {
-            return false;
-        };
-        slot.heap
-            .blocks
-            .range(..=pointer as usize)
-            .next_back()
-            .is_some_and(|(&base, block)| pointer as usize - base < block.layout.size())
-    })
+    STORE.with(|store| store.borrow().owns(id, pointer))
 }
 pub(super) fn stats() -> Stats {
     STORE.with(|store| {
