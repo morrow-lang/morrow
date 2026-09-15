@@ -380,3 +380,16 @@ fn domain_roots_register_and_unregister_in_their_own_heap() {
     domain.remove_root(heap, id);
     assert_eq!(domain.with(|heap| heap.roots.len()), 0);
 }
+
+#[test]
+fn domain_frames_are_scoped_to_their_domain() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let words = [0usize; 4];
+    let token = first.frame_enter(words.as_ptr(), 4);
+    assert_eq!(token, 1);
+    assert_eq!(second.frame_enter(words.as_ptr(), 4), 1);
+    first.frame_leave(token);
+    assert_eq!(first.frame_count(), 0);
+    assert_eq!(second.frame_count(), 1);
+}

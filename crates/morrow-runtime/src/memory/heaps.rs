@@ -47,6 +47,38 @@ impl Domain {
             retired_collections: 0,
         }
     }
+    pub(crate) fn frame_enter(&mut self, slots: *const usize, words: usize) -> usize {
+        let heap = self.active;
+        self.next_frame = self
+            .next_frame
+            .checked_add(1)
+            .unwrap_or_else(|| std::process::abort());
+        let token = self.next_frame;
+        self.frames.push(Frame {
+            token,
+            heap,
+            pointer: slots as usize,
+            words,
+        });
+        token
+    }
+    pub(crate) fn frame_leave(&mut self, token: usize) {
+        if self
+            .frames
+            .last()
+            .is_some_and(|frame| frame.token == token)
+        {
+            // Avoid even a zero-length memmove on the ordinary callback exit.
+            self.frames.pop();
+        } else if let Some(index) = self.frames.iter().rposition(|frame| frame.token == token) {
+            // Unusual cross-heap/out-of-order exits retain the remaining order.
+            self.frames.remove(index);
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn frame_count(&self) -> usize {
+        self.frames.len()
+    }
     pub(crate) fn root(&mut self, pointer: *const usize, words: usize) -> Root {
         let active = self.active;
         let id = register(
@@ -325,38 +357,10 @@ pub(super) fn shutdown() {
 pub unsafe extern "C" fn morrow_gc_frame_enter(slots: *const usize, words: usize) -> usize {
     assert!(!slots.is_null() || words == 0);
     assert!(words <= 1_048_576);
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let heap = store.active;
-        store.next_frame = store
-            .next_frame
-            .checked_add(1)
-            .unwrap_or_else(|| std::process::abort());
-        let token = store.next_frame;
-        store.frames.push(Frame {
-            token,
-            heap,
-            pointer: slots as usize,
-            words,
-        });
-        token
-    })
+    STORE.with(|store| store.borrow_mut().frame_enter(slots, words))
 }
 /// Retire the exact frame's heap registration even after an allocation-scope switch.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_gc_frame_leave(token: usize) {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        if store
-            .frames
-            .last()
-            .is_some_and(|frame| frame.token == token)
-        {
-            // Avoid even a zero-length memmove on the ordinary callback exit.
-            store.frames.pop();
-        } else if let Some(index) = store.frames.iter().rposition(|frame| frame.token == token) {
-            // Unusual cross-heap/out-of-order exits retain the remaining order.
-            store.frames.remove(index);
-        }
-    });
+    STORE.with(|store| store.borrow_mut().frame_leave(token));
 }
