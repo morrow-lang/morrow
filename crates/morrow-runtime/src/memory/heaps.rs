@@ -20,7 +20,7 @@ impl Slot {
         }
     }
 }
-struct Store {
+pub(crate) struct Domain {
     active: usize,
     next_heap: usize,
     slots: BTreeMap<usize, Slot>,
@@ -36,8 +36,8 @@ struct Frame {
     pointer: usize,
     words: usize,
 }
-impl Store {
-    fn new() -> Self {
+impl Domain {
+    pub(crate) fn new() -> Self {
         Self {
             active: 0,
             next_heap: 0,
@@ -46,6 +46,13 @@ impl Store {
             frames: Vec::new(),
             retired_collections: 0,
         }
+    }
+    pub(crate) fn with<R>(&self, f: impl FnOnce(&Heap) -> R) -> R {
+        f(&self.slots[&self.active].heap)
+    }
+    pub(crate) fn with_mut<R>(&mut self, f: impl FnOnce(&mut Heap) -> R) -> R {
+        let active = self.active;
+        f(&mut self.slots.get_mut(&active).unwrap().heap)
     }
     fn remove_retired(&mut self, id: usize) {
         if id != 0
@@ -63,20 +70,13 @@ impl Store {
         }
     }
 }
-thread_local! { static STORE: RefCell<Store> = RefCell::new(Store::new()); }
+thread_local! { static STORE: RefCell<Domain> = RefCell::new(Domain::new()); }
 
 pub(super) fn with<R>(f: impl FnOnce(&Heap) -> R) -> R {
-    STORE.with(|store| {
-        let store = store.borrow();
-        f(&store.slots[&store.active].heap)
-    })
+    STORE.with(|store| store.borrow().with(f))
 }
 pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let active = store.active;
-        f(&mut store.slots.get_mut(&active).unwrap().heap)
-    })
+    STORE.with(|store| store.borrow_mut().with_mut(f))
 }
 
 /// Attach a PID's exact control edge without rooting another actor's payload.
@@ -128,7 +128,7 @@ pub(super) fn collect(roots: &[usize]) -> Stats {
             }
         }
         let roots = if active == 0 { &controls } else { roots };
-        let Store { slots, frames, .. } = &mut *store;
+        let Domain { slots, frames, .. } = &mut *store;
         let heap = &mut slots.get_mut(&active).unwrap().heap;
         if frames.is_empty() {
             heap.trace(roots)
@@ -311,7 +311,7 @@ pub(super) fn shutdown() {
                 .iter()
                 .all(|(&id, slot)| id == 0 || slot.heap.roots.len() == 1)
         );
-        *store = Store::new();
+        *store = Domain::new();
     });
 }
 

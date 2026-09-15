@@ -354,3 +354,14 @@ fn native_frames_read_updated_slots_and_do_not_root_foreign_heap_addresses() {
         retire_heap(actor);
     }
 }
+
+#[test]
+fn two_domains_allocate_into_independent_heaps() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let a = first.with_mut(|heap| heap.allocate(64, false));
+    let b = second.with_mut(|heap| heap.allocate(32, false));
+    assert!(!a.is_null() && !b.is_null());
+    assert_eq!(first.with(|heap| heap.bytes), 64);
+    assert_eq!(second.with(|heap| heap.bytes), 32);
+}

@@ -11,7 +11,7 @@ mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
 pub(crate) use heaps::{
-    control_edge, create as create_actor_heap, enter as enter_heap, owns as heap_owns,
+    Domain, control_edge, create as create_actor_heap, enter as enter_heap, owns as heap_owns,
     retire as retire_heap,
 };
 pub use heaps::{morrow_gc_frame_enter, morrow_gc_frame_leave};
