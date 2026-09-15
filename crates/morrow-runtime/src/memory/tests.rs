@@ -1,4 +1,4 @@
-use super::heaps::Domain;
+use super::heaps::{Domain, EdgeViolation};
 use super::*;
 
 #[test]
@@ -446,4 +446,41 @@ fn a_domain_can_be_built_on_one_thread_and_used_on_another() {
     .join()
     .expect("moved domain thread");
     assert_eq!(moved, 64);
+}
+
+#[test]
+fn domain_is_send_so_a_scheduler_can_own_one() {
+    fn assert_send<T: Send>() {}
+    assert_send::<Domain>();
+}
+
+#[test]
+fn only_control_edges_leave_an_actor_payload_heap() {
+    let mut domain = Domain::new();
+    let control = domain.with_mut(|heap| heap.allocate(8, false));
+    // SAFETY: control is a live one-word invocation-heap allocation of this domain.
+    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    let pid = {
+        let _active = domain.activate();
+        let _scope = enter_heap(id);
+        let pid = alloc(16, false);
+        // SAFETY: pid is an allocation base in the active actor heap and control is
+        // a live invocation-heap allocation, exactly as the PID contract requires.
+        unsafe { control_edge(pid, control) };
+        pid as usize
+    };
+    assert_eq!(domain.verify_edges(), Ok(()));
+
+    // The oracle must be able to fail, or it proves nothing.
+    domain.force_control_edge(id, pid, 0xdead_0000);
+    assert_eq!(
+        domain.verify_edges(),
+        Err(EdgeViolation {
+            heap: id,
+            block: pid,
+            target: 0xdead_0000,
+        })
+    );
+    domain.force_control_edge(id, pid, control as usize);
+    domain.retire_heap(id);
 }

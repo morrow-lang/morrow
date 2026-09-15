@@ -519,6 +519,14 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
                 format!("resource oracle: {state:?}; baseline retained={baseline}"),
             )?;
             report.callbacks = state.callbacks;
+            if let Err(violation) = memory::verify_heap_edges() {
+                verify(
+                    config,
+                    step,
+                    false,
+                    format!("cross-heap edge violation: {violation}"),
+                )?;
+            }
             hash(&mut report.trace_hash, state.identities);
             // No temporary actor PID is used after this precise collection.
             if step % 64 == 0 {

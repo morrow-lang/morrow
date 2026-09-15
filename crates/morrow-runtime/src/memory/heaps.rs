@@ -49,6 +49,43 @@ impl Domain {
             retired_collections: 0,
         }
     }
+    /// Assert that the only edge leaving an actor payload heap is its control edge.
+    ///
+    /// Exactly three classes are permitted:
+    ///   1. payload to payload within one heap,
+    ///   2. payload to control storage in the invocation heap,
+    ///   3. invocation-internal.
+    pub(crate) fn verify_edges(&self) -> Result<(), EdgeViolation> {
+        let invocation = &self.slots[&0].heap.blocks;
+        for (&id, slot) in &self.slots {
+            if id == 0 {
+                continue;
+            }
+            for (&block, metadata) in &slot.heap.blocks {
+                if metadata.control != 0 && !invocation.contains_key(&metadata.control) {
+                    return Err(EdgeViolation {
+                        heap: id,
+                        block,
+                        target: metadata.control,
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+    /// Fabricate an edge the collector would never build, so the oracle above is
+    /// demonstrably able to fail.
+    #[cfg(test)]
+    pub(crate) fn force_control_edge(&mut self, id: usize, block: usize, control: usize) {
+        self.slots
+            .get_mut(&id)
+            .unwrap()
+            .heap
+            .blocks
+            .get_mut(&block)
+            .unwrap()
+            .control = control;
+    }
     pub(crate) fn enter(&mut self, id: usize) -> Scope {
         let previous = self.active;
         let slot = self
@@ -283,6 +320,16 @@ impl Domain {
         }
     }
 }
+/// A managed edge that leaves an actor payload heap without landing in invocation
+/// control storage. Step 4 of the parallel actor work has to sever the permitted
+/// control edges; anything else must not exist in the first place.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct EdgeViolation {
+    pub heap: usize,
+    pub block: usize,
+    pub target: usize,
+}
+
 // Owned fallback for programs and tests that never activate a domain explicitly.
 thread_local! { static DEFAULT: RefCell<Domain> = RefCell::new(Domain::new()); }
 // Borrowed cursor. It never owns a domain; Activation keeps the pointer valid.
@@ -418,3 +465,11 @@ pub unsafe extern "C" fn morrow_gc_frame_enter(slots: *const usize, words: usize
 pub extern "C" fn morrow_gc_frame_leave(token: usize) {
     with_current(|domain| domain.frame_leave(token));
 }
+
+// A Domain must remain movable between threads: step 2 of the parallel actor work
+// hands one to each scheduler. Root and Scope stay thread-bound by design and keep
+// their PhantomData<Rc<()>> markers.
+const _: fn() = || {
+    fn assert_send<T: Send>() {}
+    assert_send::<Domain>();
+};
