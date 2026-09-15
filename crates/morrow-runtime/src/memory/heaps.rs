@@ -47,6 +47,73 @@ impl Domain {
             retired_collections: 0,
         }
     }
+    pub(crate) fn collect_active(&mut self, roots: &[usize]) -> Stats {
+        let active = self.active;
+        let mut controls = Vec::new();
+        if active == 0 {
+            // Foreign payload is never scanned. Metadata survives exactly as long
+            // as its wrapper allocation, including until that heap's next sweep.
+            controls.extend_from_slice(roots);
+            for (&id, slot) in &self.slots {
+                if id != 0 {
+                    controls.extend(
+                        slot.heap
+                            .blocks
+                            .values()
+                            .filter_map(|block| (block.control != 0).then_some(block.control)),
+                    );
+                }
+            }
+        }
+        let roots = if active == 0 { &controls } else { roots };
+        let Domain { slots, frames, .. } = self;
+        let heap = &mut slots.get_mut(&active).unwrap().heap;
+        if frames.is_empty() {
+            heap.trace(roots)
+        } else {
+            // Borrow registrations while tracing only their owning heap. Scan
+            // slots in place, without copying potentially large frame contents.
+            let ranges = frames
+                .iter()
+                .filter(|frame| frame.heap == active)
+                .map(|frame| (frame.pointer, frame.words));
+            heap.trace_ranges(roots, ranges)
+        }
+    }
+    pub(crate) fn stats(&self) -> Stats {
+        self.slots.values().fold(
+            Stats {
+                collections: self.retired_collections,
+                ..Stats::default()
+            },
+            |mut total, slot| {
+                let stats = slot.heap.stats();
+                total.bytes += stats.bytes;
+                total.objects += stats.objects;
+                total.collections += stats.collections;
+                total
+            },
+        )
+    }
+    pub(crate) fn shutdown(&mut self) {
+        assert_eq!(self.active, 0);
+        assert!(self.frames.is_empty());
+        // Persistent actor control registrations are owned by this store. Native
+        // callers must still retire their own stack/foreign-container Root tokens.
+        let controlled = self
+            .slots
+            .values()
+            .filter(|slot| slot.control_root.is_some())
+            .count();
+        assert_eq!(self.slots[&0].heap.roots.len(), controlled);
+        assert!(self.slots.values().all(|slot| slot.scopes == 0));
+        assert!(
+            self.slots
+                .iter()
+                .all(|(&id, slot)| id == 0 || slot.heap.roots.len() == 1)
+        );
+        *self = Domain::new();
+    }
     /// Attach a PID's exact control edge without rooting another actor's payload.
     /// # Safety
     /// `pointer` is an allocation base in the active heap, and `control` is a live
@@ -202,40 +269,7 @@ pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
 }
 
 pub(super) fn collect(roots: &[usize]) -> Stats {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let active = store.active;
-        let mut controls = Vec::new();
-        if active == 0 {
-            // Foreign payload is never scanned. Metadata survives exactly as long
-            // as its wrapper allocation, including until that heap's next sweep.
-            controls.extend_from_slice(roots);
-            for (&id, slot) in &store.slots {
-                if id != 0 {
-                    controls.extend(
-                        slot.heap
-                            .blocks
-                            .values()
-                            .filter_map(|block| (block.control != 0).then_some(block.control)),
-                    );
-                }
-            }
-        }
-        let roots = if active == 0 { &controls } else { roots };
-        let Domain { slots, frames, .. } = &mut *store;
-        let heap = &mut slots.get_mut(&active).unwrap().heap;
-        if frames.is_empty() {
-            heap.trace(roots)
-        } else {
-            // Borrow registrations while tracing only their owning heap. Scan
-            // slots in place, without copying potentially large frame contents.
-            let ranges = frames
-                .iter()
-                .filter(|frame| frame.heap == active)
-                .map(|frame| (frame.pointer, frame.words));
-            heap.trace_ranges(roots, ranges)
-        }
-    })
+    STORE.with(|store| store.borrow_mut().collect_active(roots))
 }
 fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root = heap
@@ -307,45 +341,10 @@ pub(crate) fn owns(id: usize, pointer: *const std::ffi::c_void) -> bool {
     STORE.with(|store| store.borrow().owns(id, pointer))
 }
 pub(super) fn stats() -> Stats {
-    STORE.with(|store| {
-        let store = store.borrow();
-        store.slots.values().fold(
-            Stats {
-                collections: store.retired_collections,
-                ..Stats::default()
-            },
-            |mut total, slot| {
-                let stats = slot.heap.stats();
-                total.bytes += stats.bytes;
-                total.objects += stats.objects;
-                total.collections += stats.collections;
-                total
-            },
-        )
-    })
+    STORE.with(|store| store.borrow().stats())
 }
 pub(super) fn shutdown() {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        assert_eq!(store.active, 0);
-        assert!(store.frames.is_empty());
-        // Persistent actor control registrations are owned by this store. Native
-        // callers must still retire their own stack/foreign-container Root tokens.
-        let controlled = store
-            .slots
-            .values()
-            .filter(|slot| slot.control_root.is_some())
-            .count();
-        assert_eq!(store.slots[&0].heap.roots.len(), controlled);
-        assert!(store.slots.values().all(|slot| slot.scopes == 0));
-        assert!(
-            store
-                .slots
-                .iter()
-                .all(|(&id, slot)| id == 0 || slot.heap.roots.len() == 1)
-        );
-        *store = Domain::new();
-    });
+    STORE.with(|store| store.borrow_mut().shutdown());
 }
 
 /// Register zero-initialized native stack root words in the current heap; no GC.

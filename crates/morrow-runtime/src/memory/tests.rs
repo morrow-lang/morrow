@@ -409,3 +409,21 @@ fn actor_heaps_register_and_retire_their_invocation_control_root() {
     domain.retire_heap(id);
     assert_eq!(domain.with(|heap| heap.roots.len()), before);
 }
+
+#[test]
+fn invocation_collection_gathers_control_words_from_every_actor_heap() {
+    let mut domain = Domain::new();
+    let control = domain.with_mut(|heap| heap.allocate(8, false));
+    // SAFETY: control is a live one-word invocation-heap allocation owned by this
+    // domain, retired below and never freed or replaced before then.
+    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    domain.with_mut(|heap| heap.allocate(64, false));
+    let retained = domain.collect_active(&[]);
+    assert_eq!(
+        (retained.objects, retained.bytes),
+        (1, 8),
+        "the actor control object survives while unreachable invocation payload does not"
+    );
+    assert_eq!(domain.stats().objects, 1);
+    domain.retire_heap(id);
+}
