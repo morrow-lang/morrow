@@ -26,7 +26,7 @@ fn snippet_path(root: &Path, source: &str) -> Result<PathBuf, String> {
         }
         path.push(component);
     }
-    path.set_extension("fn");
+    path.set_extension("mr");
     Ok(path)
 }
 
@@ -118,7 +118,7 @@ fn documentation_module_names_cannot_escape_the_private_workspace() {
     }
     assert_eq!(
         snippet_path(Path::new("/owned"), "module samples.example\nfn main(): ()").unwrap(),
-        Path::new("/owned/samples/example.fn")
+        Path::new("/owned/samples/example.mr")
     );
 }
 
@@ -213,7 +213,7 @@ fn all_public_example_and_stdlib_documentation_snippets_typecheck() {
     for directory in ["examples", "docs/doctests"] {
         for entry in fs::read_dir(root.join(directory)).unwrap() {
             let path = entry.unwrap().path();
-            if path.extension().is_none_or(|extension| extension != "fn") {
+            if path.extension().is_none_or(|extension| extension != "mr") {
                 continue;
             }
             let source = fs::read_to_string(&path).unwrap();

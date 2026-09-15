@@ -59,10 +59,10 @@ fn unchanged(path: &Path, text: &str, before: &fs::Metadata) {
 #[test]
 fn check_reports_all_dirty_paths_sorted_without_mutating_anything() {
     let dir = Directory::new();
-    let z = dir.write("z.fn", DIRTY);
-    let a = dir.write("nested/a.fn", DIRTY);
+    let z = dir.write("z.mr", DIRTY);
+    let a = dir.write("nested/a.mr", DIRTY);
     let clean_text = morrow_compiler::format::format(DIRTY).unwrap();
-    let clean = dir.write("clean.fn", &clean_text);
+    let clean = dir.write("clean.mr", &clean_text);
     let before: Vec<_> = [&a, &z, &clean, &dir.0, a.parent().unwrap()]
         .into_iter()
         .map(|p| fs::metadata(p).unwrap())
@@ -98,8 +98,8 @@ fn check_reports_all_dirty_paths_sorted_without_mutating_anything() {
 #[test]
 fn formats_nested_sources_preserving_permissions_then_check_is_silent() {
     let dir = Directory::new();
-    let a = dir.write("nested/a.fn", DIRTY);
-    let z = dir.write("z.fn", DIRTY);
+    let a = dir.write("nested/a.mr", DIRTY);
+    let z = dir.write("z.mr", DIRTY);
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -134,15 +134,15 @@ fn formats_nested_sources_preserving_permissions_then_check_is_silent() {
 #[test]
 fn ignores_non_sources_hidden_build_dependencies_and_child_symlinks() {
     let dir = Directory::new();
-    let source = dir.write("main.fn", DIRTY);
+    let source = dir.write("main.mr", DIRTY);
     for name in [
-        ".hidden.fn",
-        ".git/a.fn",
-        "target/a.fn",
-        "build/a.fn",
-        "bin/a.fn",
-        "deps/a.fn",
-        "node_modules/a.fn",
+        ".hidden.mr",
+        ".git/a.mr",
+        "target/a.mr",
+        "build/a.mr",
+        "bin/a.mr",
+        "deps/a.mr",
+        "node_modules/a.mr",
         "README.md",
     ] {
         dir.write(name, "malformed");
@@ -151,7 +151,7 @@ fn ignores_non_sources_hidden_build_dependencies_and_child_symlinks() {
     {
         use std::os::unix::fs::symlink;
         symlink(&dir.0, dir.0.join("cycle")).unwrap();
-        symlink(dir.0.join(".hidden.fn"), dir.0.join("linked.fn")).unwrap();
+        symlink(dir.0.join(".hidden.mr"), dir.0.join("linked.mr")).unwrap();
     }
     let out = dir.run(false, false);
     assert!(out.status.success(), "{out:?}");
@@ -160,15 +160,15 @@ fn ignores_non_sources_hidden_build_dependencies_and_child_symlinks() {
         morrow_compiler::format::format(DIRTY).unwrap()
     );
     assert_eq!(
-        fs::read_to_string(dir.0.join(".hidden.fn")).unwrap(),
+        fs::read_to_string(dir.0.join(".hidden.mr")).unwrap(),
         "malformed"
     );
 }
 #[test]
 fn later_malformed_input_prevents_all_writes_and_reports_its_path() {
     let dir = Directory::new();
-    let a = dir.write("a.fn", DIRTY);
-    let z = dir.write("z.fn", "fn main(:\n");
+    let a = dir.write("a.mr", DIRTY);
+    let z = dir.write("z.mr", "fn main(:\n");
     let before = fs::metadata(&a).unwrap();
     for check in [true, false] {
         let out = dir.run(false, check);
@@ -193,26 +193,26 @@ fn empty_directory_and_file_count_limit_have_formatting_diagnostics() {
     );
     let canonical = morrow_compiler::format::format(DIRTY).unwrap();
     for index in 0..256 {
-        dir.write(&format!("{index:03}.fn"), &canonical);
+        dir.write(&format!("{index:03}.mr"), &canonical);
     }
     assert!(dir.run(false, true).status.success());
-    dir.write("overflow.fn", DIRTY);
+    dir.write("overflow.mr", DIRTY);
     let out = dir.run(false, false);
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("formatting file limit exceeds 256"),
         "{out:?}"
     );
     assert_eq!(
-        fs::read_to_string(dir.0.join("overflow.fn")).unwrap(),
+        fs::read_to_string(dir.0.join("overflow.mr")).unwrap(),
         DIRTY
     );
 }
 #[test]
 fn source_and_aggregate_byte_limits_prevent_publication() {
     let dir = Directory::new();
-    let a = dir.write("a.fn", DIRTY);
+    let a = dir.write("a.mr", DIRTY);
     let before = fs::metadata(&a).unwrap();
-    dir.write("z.fn", &format!("#{}\n", "x".repeat(1024 * 1024)));
+    dir.write("z.mr", &format!("#{}\n", "x".repeat(1024 * 1024)));
     let out = dir.run(false, false);
     assert_eq!(out.status.code(), Some(1));
     assert!(
@@ -220,10 +220,10 @@ fn source_and_aggregate_byte_limits_prevent_publication() {
         "{out:?}"
     );
     unchanged(&a, DIRTY, &before);
-    fs::remove_file(dir.0.join("z.fn")).unwrap();
+    fs::remove_file(dir.0.join("z.mr")).unwrap();
     let large = format!("#{}\n", "x".repeat(1024 * 1024 - 2));
     for index in 0..8 {
-        dir.write(&format!("{index}.fn"), &large);
+        dir.write(&format!("{index}.mr"), &large);
     }
     let out = dir.run(false, false);
     assert!(
@@ -235,8 +235,8 @@ fn source_and_aggregate_byte_limits_prevent_publication() {
 #[test]
 fn excessive_directory_depth_prevents_writes() {
     let dir = Directory::new();
-    let a = dir.write("a.fn", DIRTY);
-    let nested = format!("{}z.fn", "d/".repeat(33));
+    let a = dir.write("a.mr", DIRTY);
+    let nested = format!("{}z.mr", "d/".repeat(33));
     dir.write(&nested, DIRTY);
     let out = dir.run(false, false);
     assert!(
@@ -250,7 +250,7 @@ fn excessive_directory_depth_prevents_writes() {
 fn explicit_root_directory_link_is_supported_without_following_child_links() {
     use std::os::unix::fs::symlink;
     let outer = Directory::new();
-    let source = outer.write("actual/main.fn", DIRTY);
+    let source = outer.write("actual/main.mr", DIRTY);
     symlink(outer.0.join("actual"), outer.0.join("alias")).unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_morrow"))
         .arg("fmt")
@@ -275,7 +275,7 @@ fn source_at_exact_limit_and_aggregate_at_exact_limit_are_accepted() {
     let dir = Directory::new();
     let large = format!("#{}\n", "x".repeat(1024 * 1024 - 2));
     for index in 0..8 {
-        dir.write(&format!("{index}.fn"), &large);
+        dir.write(&format!("{index}.mr"), &large);
     }
     let out = dir.run(false, true);
     assert!(out.status.success(), "{out:?}");
@@ -285,7 +285,7 @@ fn source_at_exact_limit_and_aggregate_at_exact_limit_are_accepted() {
 #[test]
 fn directory_entry_budget_includes_skipped_entries() {
     let dir = Directory::new();
-    let source = dir.write("source.fn", DIRTY);
+    let source = dir.write("source.mr", DIRTY);
     for index in 0..8192 {
         dir.write(&format!(".ignored{index}"), "");
     }
@@ -307,15 +307,15 @@ fn output_expansion_is_bounded_before_any_file_is_staged() {
     assert!(canonical.len() > source.len());
     // Keep individual canonical files valid, then fill the remaining aggregate space.
     for index in 0..8 {
-        dir.write(&format!("{index}.fn"), &source);
+        dir.write(&format!("{index}.mr"), &source);
     }
     let remaining = 8 * 1024 * 1024 - source.len() * 8;
-    dir.write("tail.fn", &format!("#{}\n", "x".repeat(remaining - 2)));
+    dir.write("tail.mr", &format!("#{}\n", "x".repeat(remaining - 2)));
     let out = dir.run(false, false);
     assert!(
         String::from_utf8_lossy(&out.stderr).contains("formatting output exceeds 8 MiB"),
         "{out:?}"
     );
-    assert_eq!(fs::read_to_string(dir.0.join("0.fn")).unwrap(), source);
+    assert_eq!(fs::read_to_string(dir.0.join("0.mr")).unwrap(), source);
     assert_eq!(fs::read_dir(&dir.0).unwrap().count(), 9);
 }

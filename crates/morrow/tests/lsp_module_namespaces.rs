@@ -66,7 +66,7 @@ fn query(project: &Project, marked: &str, method: &str) -> String {
     let line = before.bytes().filter(|b| *b == b'\n').count();
     let character = before.rsplit('\n').next().unwrap().encode_utf16().count();
     let source = marked.replace('§', "");
-    let path = project.write("main.fn", &source);
+    let path = project.write("main.mr", &source);
     let uri = format!("file://{}", path.display());
     let messages = vec![
         r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#.into(),
@@ -91,7 +91,7 @@ fn query(project: &Project, marked: &str, method: &str) -> String {
 fn import_selector_returns_type_then_value_locations() {
     let p = Project::new();
     p.write(
-        "ids.fn",
+        "ids.mr",
         "module ids\npub type Id=Int\npub fn Id(x:Int)->Int:x\n",
     );
     let result = query(
@@ -109,7 +109,7 @@ fn import_selector_returns_type_then_value_locations() {
 #[test]
 fn qualified_annotation_and_call_choose_namespace_and_own_documentation() {
     let p = Project::new();
-    p.write("ids.fn","module ids\n@doc \"\"\"Type docs.\"\"\"\npub type Id=Int\n@doc \"\"\"Function docs.\"\"\"\npub fn Id(x:Int)->Int:x\n");
+    p.write("ids.mr","module ids\n@doc \"\"\"Type docs.\"\"\"\npub type Id=Int\n@doc \"\"\"Function docs.\"\"\"\npub fn Id(x:Int)->Int:x\n");
     let source = "import ids as m\nfn main():\n    let ids=3\n    let value:m.Id=m.Id(ids)\n    println(value)\n";
     let ty = query(&p, &source.replace(":m.Id", ":m.Id§"), "hover");
     assert!(
@@ -126,7 +126,7 @@ fn qualified_annotation_and_call_choose_namespace_and_own_documentation() {
 fn record_selector_deduplicates_owner_but_newtype_retains_constructor_anchor() {
     let p = Project::new();
     p.write(
-        "ids.fn",
+        "ids.mr",
         "module ids\npub type Point:\n    x:Int\npub newtype Id=Id(Int)\n",
     );
     let result = query(&p, "import ids.{Point§}\nfn main():()\n", "definition");
@@ -138,7 +138,7 @@ fn record_selector_deduplicates_owner_but_newtype_retains_constructor_anchor() {
 fn private_sibling_is_never_offered_in_wrong_namespace() {
     let p = Project::new();
     p.write(
-        "ids.fn",
+        "ids.mr",
         "module ids\npub type Token=Int\nfn Token(x:Int)->Int:x\n",
     );
     let result = query(
@@ -152,9 +152,9 @@ fn private_sibling_is_never_offered_in_wrong_namespace() {
 #[test]
 fn selector_visibility_tracks_current_overlay_and_close_without_stale_locations() {
     let p = Project::new();
-    let dependency = p.write("ids.fn", "pub type Id=Int\nfn Id(x:Int)->Int:x\n");
+    let dependency = p.write("ids.mr", "pub type Id=Int\nfn Id(x:Int)->Int:x\n");
     let source = "import ids.{Id}\nfn main():()\n";
-    let main = p.write("main.fn", source);
+    let main = p.write("main.mr", source);
     let main_uri = format!("file://{}", main.display());
     let dependency_uri = format!("file://{}", dependency.display());
     let open = |uri: &str, text: &str| {
@@ -201,7 +201,7 @@ fn selector_visibility_tracks_current_overlay_and_close_without_stale_locations(
 fn unicode_import_selectors_use_exact_utf16_ranges_and_real_delimiters() {
     let p = Project::new();
     p.write(
-        "ids.fn",
+        "ids.mr",
         "pub type Δείκτης=Int\npub fn Δείκτης(x:Int)->Int:x\n",
     );
     let result = query(
@@ -217,7 +217,7 @@ fn unicode_import_selectors_use_exact_utf16_ranges_and_real_delimiters() {
 #[test]
 fn type_completion_ignores_value_shadowing_and_selectors_offer_type_aliases() {
     let p = Project::new();
-    p.write("ids.fn", "pub type Token=Int\npub fn value()->Int:1\n");
+    p.write("ids.mr", "pub type Token=Int\npub fn value()->Int:1\n");
     let result = query(
         &p,
         "import ids\nfn main():\n    let ids=3\n    let value:ids.To§ken=1\n    println(value+ids)\n",

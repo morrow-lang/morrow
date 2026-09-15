@@ -18,7 +18,7 @@ impl Fixture {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        fs::write(path.join("source.fn"), "fn main(): ()\n").unwrap();
+        fs::write(path.join("source.mr"), "fn main(): ()\n").unwrap();
         fs::write(path.join("runtime.a"), "runtime fixture").unwrap();
         let fixture = Self(path);
         fixture.script(
@@ -81,12 +81,12 @@ impl Drop for Fixture {
 #[test]
 fn explicit_cranelift_matches_default_textual_emission_without_native_tools() {
     let fixture = Fixture::new();
-    let default = fixture.run(&["emit", "source.fn"]);
+    let default = fixture.run(&["emit", "source.mr"]);
     assert!(default.status.success(), "{default:?}");
     for arguments in [
-        vec!["emit", "--backend=cranelift", "source.fn"],
-        vec!["emit", "source.fn", "--backend=cranelift"],
-        vec!["emit", "--backend", "cranelift", "source.fn"],
+        vec!["emit", "--backend=cranelift", "source.mr"],
+        vec!["emit", "source.mr", "--backend=cranelift"],
+        vec!["emit", "--backend", "cranelift", "source.mr"],
     ] {
         let explicit = fixture.run(&arguments);
         assert!(explicit.status.success(), "{explicit:?}");
@@ -101,25 +101,25 @@ fn invalid_duplicate_or_misplaced_backend_fails_before_output_or_tools() {
     fs::write(fixture.0.join("output"), "retained").unwrap();
     for (arguments, message) in [
         (
-            vec!["build", "source.fn", "-o", "output", "--backend=unknown"],
+            vec!["build", "source.mr", "-o", "output", "--backend=unknown"],
             "only cranelift is supported",
         ),
         (
-            vec!["build", "source.fn", "-o", "output", "--backend="],
+            vec!["build", "source.mr", "-o", "output", "--backend="],
             "only cranelift is supported",
         ),
         (
-            vec!["build", "source.fn", "--backend"],
+            vec!["build", "source.mr", "--backend"],
             "--backend requires cranelift",
         ),
         (
-            vec!["build", "source.fn", "--backend", "--quiet"],
+            vec!["build", "source.mr", "--backend", "--quiet"],
             "only cranelift is supported",
         ),
         (
             vec![
                 "build",
-                "source.fn",
+                "source.mr",
                 "--backend",
                 "cranelift",
                 "--backend=cranelift",
@@ -129,7 +129,7 @@ fn invalid_duplicate_or_misplaced_backend_fails_before_output_or_tools() {
         (
             vec![
                 "build",
-                "source.fn",
+                "source.mr",
                 "-o",
                 "output",
                 "--backend=cranelift",
@@ -138,7 +138,7 @@ fn invalid_duplicate_or_misplaced_backend_fails_before_output_or_tools() {
             "backend specified more than once",
         ),
         (
-            vec!["check", "source.fn", "--backend=cranelift"],
+            vec!["check", "source.mr", "--backend=cranelift"],
             "--backend is only valid for emit/build/run",
         ),
     ] {
@@ -159,7 +159,7 @@ fn run_tail_preserves_backend_looking_and_literal_arguments() {
     let result = fixture.run(&[
         "run",
         "--backend=cranelift",
-        "source.fn",
+        "source.mr",
         "--",
         "--backend=unknown",
         "--quiet",
@@ -182,7 +182,7 @@ fn explicit_backend_link_failure_preserves_destination_and_cleans_staging() {
     let backends = ["--backend=cranelift"];
     for backend in backends {
         let result = fixture
-            .command(&["build", backend, "source.fn", "-o", "output"])
+            .command(&["build", backend, "source.mr", "-o", "output"])
             .env("FAIL_LINK", "1")
             .output()
             .unwrap();
@@ -198,19 +198,19 @@ fn explicit_backend_link_failure_preserves_destination_and_cleans_staging() {
 #[test]
 fn every_available_backend_rejects_source_aliases_before_native_tools() {
     let fixture = Fixture::new();
-    fs::hard_link(fixture.0.join("source.fn"), fixture.0.join("hard-link")).unwrap();
-    std::os::unix::fs::symlink("source.fn", fixture.0.join("symbolic-link")).unwrap();
+    fs::hard_link(fixture.0.join("source.mr"), fixture.0.join("hard-link")).unwrap();
+    std::os::unix::fs::symlink("source.mr", fixture.0.join("symbolic-link")).unwrap();
     let backends = ["--backend=cranelift"];
     for backend in backends {
-        for output in ["source.fn", "hard-link", "symbolic-link"] {
-            let result = fixture.run(&["build", "source.fn", backend, "-o", output]);
+        for output in ["source.mr", "hard-link", "symbolic-link"] {
+            let result = fixture.run(&["build", "source.mr", backend, "-o", output]);
             assert!(!result.status.success(), "{result:?}");
             assert!(
                 String::from_utf8_lossy(&result.stderr).contains("refusing to overwrite source"),
                 "{result:?}"
             );
             assert_eq!(
-                fs::read(fixture.0.join("source.fn")).unwrap(),
+                fs::read(fixture.0.join("source.mr")).unwrap(),
                 b"fn main(): ()\n"
             );
         }
@@ -224,7 +224,7 @@ fn cranelift_object_pipeline_skips_qbe_and_assembly_and_preserves_run_tail() {
     let result = fixture
         .command(&[
             "run",
-            "source.fn",
+            "source.mr",
             "--backend=cranelift",
             "--",
             "--backend=cranelift",

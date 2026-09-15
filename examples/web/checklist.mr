@@ -1,5 +1,5 @@
 # A portable typed application. Compile with:
-# morrow build --target=wasm32 examples/web/checklist.fn -o checklist.wasm
+# morrow build --target=wasm32 examples/web/checklist.mr -o checklist.wasm
 #
 # The host owns DOM handles, storage and transport. Morrow owns the domain transition,
 # immutable local model, event update and view. No host or application-specific

@@ -16,7 +16,7 @@ impl Fixture {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        fs::write(path.join("source.fn"), "fn main(): ()\n").unwrap();
+        fs::write(path.join("source.mr"), "fn main(): ()\n").unwrap();
         fs::write(path.join("runtime ' λ.a"), b"archive fixture").unwrap();
         fs::write(path.join("linker.rs"),r#"use std::{env,fs,os::unix::ffi::OsStrExt};
 fn main()->std::process::ExitCode {
@@ -40,7 +40,7 @@ fn main()->std::process::ExitCode {
         let mut command = Command::new(env!("CARGO_BIN_EXE_morrow"));
         command
             .current_dir(&self.0)
-            .args(["build", "source.fn", "-o", "output"])
+            .args(["build", "source.mr", "-o", "output"])
             .env("PATH", &self.0)
             .env("CC", self.0.join("linker"))
             .env("MORROW_RUNTIME_LIB", self.0.join("runtime ' λ.a"))

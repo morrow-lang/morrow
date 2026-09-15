@@ -39,7 +39,7 @@ pub(super) fn run(source: &Path, check_only: bool) -> Result<u8, String> {
     }
     let staged = stage(&files)?;
     for (file, workspace) in files.iter().filter(|file| file.changed).zip(&staged) {
-        fs::rename(workspace.file("formatted.fn"), &file.path)
+        fs::rename(workspace.file("formatted.mr"), &file.path)
             .map_err(|error| format!("{}: {error}", file.name.display()))?;
     }
     for file in files.iter().filter(|file| file.changed || !directory) {
@@ -106,7 +106,7 @@ fn stage(files: &[Formatted]) -> Result<Vec<Workspace>, String> {
         let parent = file.path.parent().ok_or("source has no parent directory")?;
         let workspace =
             Workspace::new(parent).map_err(|error| format!("{}: {error}", file.name.display()))?;
-        let path = workspace.file("formatted.fn");
+        let path = workspace.file("formatted.mr");
         fs::write(&path, &file.text)
             .and_then(|()| fs::set_permissions(&path, fs::metadata(&file.path)?.permissions()))
             .map_err(|error| format!("{}: {error}", file.name.display()))?;
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn failed_later_preparation_removes_all_staging_without_replacing_sources() {
         let root = Workspace::new(&std::env::temp_dir()).unwrap();
-        let original = root.file("a.fn");
+        let original = root.file("a.mr");
         fs::write(&original, "unchanged").unwrap();
         let files = vec![
             Formatted {
@@ -132,8 +132,8 @@ mod tests {
                 changed: true,
             },
             Formatted {
-                name: root.file("missing.fn"),
-                path: root.file("missing.fn"),
+                name: root.file("missing.mr"),
+                path: root.file("missing.mr"),
                 text: "replacement".into(),
                 changed: true,
             },

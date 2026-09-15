@@ -15,7 +15,7 @@ impl Directory {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        fs::write(path.join("source.fn"), "fn main():println(42)\n").unwrap();
+        fs::write(path.join("source.mr"), "fn main():println(42)\n").unwrap();
         Self(path)
     }
     fn run(&self, args: &[&str]) -> Output {
@@ -37,23 +37,23 @@ impl Drop for Directory {
 fn quiet_check_accepts_global_positions_and_preserves_errors() {
     let d = Directory::new();
     for args in [
-        ["--quiet", "check", "source.fn"],
-        ["check", "--quiet", "source.fn"],
-        ["check", "source.fn", "--quiet"],
+        ["--quiet", "check", "source.mr"],
+        ["check", "--quiet", "source.mr"],
+        ["check", "source.mr", "--quiet"],
     ] {
         let out = d.run(&args);
         assert!(out.status.success(), "{out:?}");
         assert!(out.stdout.is_empty() && out.stderr.is_empty(), "{out:?}");
     }
-    fs::write(d.0.join("bad.fn"), "fn main():unknown\n").unwrap();
-    let out = d.run(&["--quiet", "check", "bad.fn"]);
+    fs::write(d.0.join("bad.mr"), "fn main():unknown\n").unwrap();
+    let out = d.run(&["--quiet", "check", "bad.mr"]);
     assert!(!out.status.success());
-    assert!(String::from_utf8_lossy(&out.stderr).contains("bad.fn:1:"));
+    assert!(String::from_utf8_lossy(&out.stderr).contains("bad.mr:1:"));
 }
 #[test]
 fn verbose_reports_only_the_action_on_stderr() {
     let d = Directory::new();
-    let out = d.run(&["check", "source.fn", "--verbose"]);
+    let out = d.run(&["check", "source.mr", "--verbose"]);
     assert!(out.status.success(), "{out:?}");
     assert!(String::from_utf8_lossy(&out.stdout).contains("No type errors"));
     assert_eq!(out.stderr, b"verbose: command=check\n");
@@ -61,32 +61,32 @@ fn verbose_reports_only_the_action_on_stderr() {
 #[test]
 fn quiet_does_not_discard_ir_or_documents_or_literal_output_names() {
     let d = Directory::new();
-    let ordinary = d.run(&["emit", "source.fn"]);
-    let quiet = d.run(&["--quiet", "emit", "source.fn"]);
+    let ordinary = d.run(&["emit", "source.mr"]);
+    let quiet = d.run(&["--quiet", "emit", "source.mr"]);
     assert!(quiet.status.success(), "{quiet:?}");
     assert_eq!(quiet.stdout, ordinary.stdout);
-    let out = d.run(&["emit", "source.fn", "-o", "--quiet"]);
+    let out = d.run(&["emit", "source.mr", "-o", "--quiet"]);
     assert!(out.status.success(), "{out:?}");
     assert_eq!(fs::read(d.0.join("--quiet")).unwrap(), ordinary.stdout);
-    let ordinary = d.run(&["doc", "source.fn"]);
-    let quiet = d.run(&["--quiet", "doc", "source.fn"]);
+    let ordinary = d.run(&["doc", "source.mr"]);
+    let quiet = d.run(&["--quiet", "doc", "source.mr"]);
     assert!(quiet.status.success(), "{quiet:?}");
     assert_eq!(quiet.stdout, ordinary.stdout);
 }
 #[test]
 fn color_policy_is_explicit_and_does_not_color_ir() {
     let d = Directory::new();
-    fs::write(d.0.join("bad.fn"), "fn main():unknown\n").unwrap();
+    fs::write(d.0.join("bad.mr"), "fn main():unknown\n").unwrap();
     for mode in ["--color=never", "--color=auto", "--color=always"] {
-        let out = d.run(&[mode, "check", "bad.fn"]);
+        let out = d.run(&[mode, "check", "bad.mr"]);
         assert!(!out.status.success());
         let ansi = out.stderr.windows(2).any(|s| s == b"\x1b[");
         assert_eq!(ansi, mode == "--color=always", "{out:?}");
-        let ir = d.run(&[mode, "emit", "source.fn"]);
+        let ir = d.run(&[mode, "emit", "source.mr"]);
         assert!(ir.status.success(), "{ir:?}");
         assert!(!ir.stdout.contains(&27));
     }
-    let out = d.run(&["--color=invalid", "check", "source.fn"]);
+    let out = d.run(&["--color=invalid", "check", "source.mr"]);
     assert!(!out.status.success());
     assert!(String::from_utf8_lossy(&out.stderr).contains("color"));
 }
@@ -106,8 +106,8 @@ fn version_alias_and_missing_action_have_stable_status() {
 #[test]
 fn quiet_test_summaries_keep_failures_and_apply_requested_color() {
     let d = Directory::new();
-    fs::write(d.0.join("empty.fn"), "fn helper():()\n").unwrap();
-    for action in [vec!["test", "empty.fn"], vec!["test", "--doc", "empty.fn"]] {
+    fs::write(d.0.join("empty.mr"), "fn helper():()\n").unwrap();
+    for action in [vec!["test", "empty.mr"], vec!["test", "--doc", "empty.mr"]] {
         let ordinary = d.run(&action);
         assert!(ordinary.status.success(), "{ordinary:?}");
         assert!(String::from_utf8_lossy(&ordinary.stdout).contains("0/0 passed"));
@@ -120,8 +120,8 @@ fn quiet_test_summaries_keep_failures_and_apply_requested_color() {
             "{output:?}"
         );
     }
-    fs::write(d.0.join("failed.fn"), "fn test_bad():false\n").unwrap();
-    let out = d.run(&["--quiet", "--color=always", "test", "failed.fn"]);
+    fs::write(d.0.join("failed.mr"), "fn test_bad():false\n").unwrap();
+    let out = d.run(&["--quiet", "--color=always", "test", "failed.mr"]);
     assert_eq!(out.status.code(), Some(1), "{out:?}");
     assert!(out.stdout.is_empty());
     assert!(String::from_utf8_lossy(&out.stderr).contains("test_bad failed"));
@@ -186,7 +186,7 @@ fn quiet_run_preserves_program_streams_status_and_all_forwarded_controls() {
         "--quiet",
         "--color=always",
         "run",
-        "source.fn",
+        "source.mr",
         "--",
         "--quiet",
         "--verbose",
@@ -205,10 +205,10 @@ fn quiet_run_preserves_program_streams_status_and_all_forwarded_controls() {
 #[test]
 fn quiet_build_hides_only_the_success_summary() {
     let d = Directory::new();
-    let ordinary = d.native(&["build", "source.fn", "-o", "first"]);
+    let ordinary = d.native(&["build", "source.mr", "-o", "first"]);
     assert!(ordinary.status.success(), "{ordinary:?}");
     assert!(String::from_utf8_lossy(&ordinary.stdout).contains("Created executable: first"));
-    let quiet = d.native(&["build", "source.fn", "--quiet", "-o", "--verbose"]);
+    let quiet = d.native(&["build", "source.mr", "--quiet", "-o", "--verbose"]);
     assert!(quiet.status.success(), "{quiet:?}");
     assert!(
         quiet.stdout.is_empty() && quiet.stderr.is_empty(),

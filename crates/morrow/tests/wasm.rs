@@ -498,7 +498,7 @@ fn managed_heap_exhaustion_traps_without_corrupting_the_next_invocation() {
 
 #[test]
 fn real_checklist_policy_executes_offline_view_and_submission_rules() {
-    let (mut store, module) = instance(include_str!("../../../examples/web/checklist.fn"));
+    let (mut store, module) = instance(include_str!("../../../examples/web/checklist.mr"));
     let visible = module
         .get_typed_func::<(i64, i32), i32>(&store, "task_visible")
         .unwrap();
@@ -573,12 +573,12 @@ fn rejects_runtime_capabilities_hidden_behind_imported_function_values() {
     )));
     fs::create_dir(&project.0).unwrap();
     fs::write(
-        project.0.join("native.fn"),
+        project.0.join("native.mr"),
         "pub fn output(n: Int) -> Unit: println(n)\n",
     )
     .unwrap();
-    fs::write(project.0.join("bridge.fn"), "import native\npub fn call(n: Int) -> Unit:\n    let callback = native.output\n    callback(n)\n").unwrap();
-    let entry = project.0.join("main.fn");
+    fs::write(project.0.join("bridge.mr"), "import native\npub fn call(n: Int) -> Unit:\n    let callback = native.output\n    callback(n)\n").unwrap();
+    let entry = project.0.join("main.mr");
     fs::write(&entry, "import bridge\nfn main(): bridge.call(7)\n").unwrap();
     let loaded = morrow_compiler::modules::load(&entry).unwrap();
     let program = check::check(&loaded.program).unwrap();

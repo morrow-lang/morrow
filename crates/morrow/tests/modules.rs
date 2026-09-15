@@ -33,16 +33,16 @@ impl Drop for Project {
 #[test]
 fn modules_resolve_aliases_and_keep_private_helpers_local() {
     let project = Project::new();
-    project.write("math.fn", "module math\nfn helper(x: Int) -> Int: x + 1\npub fn increment(x: Int) -> Int: helper(x)\n");
+    project.write("math.mr", "module math\nfn helper(x: Int) -> Int: x + 1\npub fn increment(x: Int) -> Int: helper(x)\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "module main\nimport math as m\nfn main(): println(m.increment(4))\n",
     );
     let loaded = modules::load(&main).unwrap();
     let checked = morrow_compiler::check::check(&loaded.program).unwrap();
     morrow_compiler::lowering::emit(&checked).unwrap();
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "module main\nimport math\nfn main(): println(math.helper(4))\n",
     );
     let error = modules::load(&main).unwrap_err();
@@ -56,11 +56,11 @@ fn modules_resolve_aliases_and_keep_private_helpers_local() {
 fn imported_diagnostics_retain_their_source_path() {
     let project = Project::new();
     let library = project.write(
-        "broken.fn",
+        "broken.mr",
         "module broken\npub fn value() -> Int: missing\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import broken\nfn main(): println(broken.value())\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -75,14 +75,14 @@ fn imported_diagnostics_retain_their_source_path() {
 #[test]
 fn import_cycles_and_missing_files_are_diagnosed() {
     let project = Project::new();
-    let main = project.write("main.fn", "import cycle\nfn main(): 0\n");
+    let main = project.write("main.mr", "import cycle\nfn main(): 0\n");
     project.write(
-        "cycle.fn",
+        "cycle.mr",
         "module cycle\nimport main\npub fn x() -> Int: 0\n",
     );
     assert!(modules::load(&main).unwrap_err().message.contains("cycle"));
     project.write(
-        "cycle.fn",
+        "cycle.mr",
         "module cycle\nimport missing\npub fn x() -> Int: 0\n",
     );
     assert!(
@@ -96,9 +96,9 @@ fn import_cycles_and_missing_files_are_diagnosed() {
 #[test]
 fn selective_imports_reexports_and_record_names_are_preserved() {
     let project = Project::new();
-    project.write("model.fn", "module model\npub type Box(a):\n    value: a\npub fn wrap(value: a) -> Box(a): Box(value)\n");
-    project.write("api/mod.fn", "module api\npub import model.{Box, wrap}\n");
-    let main = project.write("main.fn", "import api.{Box, wrap}\nfn value(box: Box(Int)) -> Int: box.value\nfn main(): println(value(wrap(7)))\n");
+    project.write("model.mr", "module model\npub type Box(a):\n    value: a\npub fn wrap(value: a) -> Box(a): Box(value)\n");
+    project.write("api/mod.mr", "module api\npub import model.{Box, wrap}\n");
+    let main = project.write("main.mr", "import api.{Box, wrap}\nfn value(box: Box(Int)) -> Int: box.value\nfn main(): println(value(wrap(7)))\n");
     let loaded = modules::load(&main).unwrap();
     morrow_compiler::lowering::emit(&morrow_compiler::check::check(&loaded.program).unwrap())
         .unwrap();
@@ -107,9 +107,9 @@ fn selective_imports_reexports_and_record_names_are_preserved() {
 #[test]
 fn local_bindings_shadow_imported_functions() {
     let project = Project::new();
-    project.write("math.fn", "pub fn value() -> Int: 1\n");
+    project.write("math.mr", "pub fn value() -> Int: 1\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import math.{value}\nfn main():\n    let value = 2\n    println(value)\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -120,11 +120,11 @@ fn local_bindings_shadow_imported_functions() {
 fn private_nominal_annotations_and_constructor_patterns_cannot_bypass_exports() {
     let project = Project::new();
     project.write(
-        "library.fn",
+        "library.mr",
         "module library\ntype Hidden:\n    Secret(Int)\npub fn hidden() -> Hidden: Secret(1)\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import library\nfn leak(value: library.Hidden) -> Int: 0\nfn main(): 0\n",
     );
     let error = modules::load(&main).unwrap_err();
@@ -132,7 +132,7 @@ fn private_nominal_annotations_and_constructor_patterns_cannot_bypass_exports() 
         error.message.contains("private") || error.message.contains("export"),
         "{error:?}"
     );
-    project.write("main.fn", "import library\nfn main():\n    match library.hidden():\n        library.Secret(n) -> println(n)\n");
+    project.write("main.mr", "import library\nfn main():\n    match library.hidden():\n        library.Secret(n) -> println(n)\n");
     let error = modules::load(&main).unwrap_err();
     assert!(
         error.message.contains("private") || error.message.contains("export"),
@@ -144,20 +144,20 @@ fn private_nominal_annotations_and_constructor_patterns_cannot_bypass_exports() 
 fn transitive_and_unaliased_qualified_names_cannot_reach_private_functions() {
     let project = Project::new();
     project.write(
-        "library.fn",
+        "library.mr",
         "module library\nfn secret() -> Int: 7\npub fn value() -> Int: secret()\n",
     );
     project.write(
-        "api.fn",
+        "api.mr",
         "module api\nimport library\npub fn value() -> Int: library.value()\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import api\nfn main(): println(library.secret())\n",
     );
     assert!(modules::load(&main).is_err());
     project.write(
-        "main.fn",
+        "main.mr",
         "import library as l\nfn main(): println(library.secret())\n",
     );
     assert!(modules::load(&main).is_err());
@@ -168,7 +168,7 @@ fn builtin_constructor_names_cannot_be_hidden_by_module_qualification() {
     let project = Project::new();
     for builtin in ["Some", "None", "Ok", "Err", "Int", "String"] {
         let main = project.write(
-            "main.fn",
+            "main.mr",
             &format!("type Fake:\n    {builtin}(Int)\nfn main(): 0\n"),
         );
         let error = modules::load(&main).unwrap_err();
@@ -181,7 +181,7 @@ fn graph_limit_counts_unique_files_not_repeat_dependency_visits() {
     let project = Project::new();
     for index in 0..127 {
         project.write(
-            &format!("m{index}.fn"),
+            &format!("m{index}.mr"),
             &format!("module m{index}\npub fn value() -> Int: {index}\n"),
         );
     }
@@ -190,12 +190,12 @@ fn graph_limit_counts_unique_files_not_repeat_dependency_visits() {
         writeln!(source, "import m{index}").unwrap();
     }
     source.push_str("import m0 as shared\nfn main(): println(shared.value())\n");
-    let main = project.write("main.fn", &source);
+    let main = project.write("main.mr", &source);
     let loaded = modules::load(&main).unwrap();
     assert_eq!(loaded.program.functions.len(), 128);
     morrow_compiler::check::check(&loaded.program).unwrap();
-    project.write("extra.fn", "pub fn value() -> Int: 0\n");
-    project.write("main.fn", &format!("import extra\n{source}"));
+    project.write("extra.mr", "pub fn value() -> Int: 0\n");
+    project.write("main.mr", &format!("import extra\n{source}"));
     assert!(
         modules::load(&main)
             .unwrap_err()
@@ -207,15 +207,15 @@ fn graph_limit_counts_unique_files_not_repeat_dependency_visits() {
 #[test]
 fn all_module_failures_carry_the_cli_error_marker() {
     let project = Project::new();
-    let main = project.write("main.fn", "import missing\nfn main(): 0\n");
+    let main = project.write("main.mr", "import missing\nfn main(): 0\n");
     assert!(modules::load(&main).unwrap_err().message.contains("error:"));
     project.write(
-        "main.fn",
+        "main.mr",
         "fn duplicate() -> Int: 0\nfn main(): 0\nfn duplicate() -> Int: 1\n",
     );
     assert!(modules::load(&main).unwrap_err().message.contains("error:"));
     assert!(
-        modules::load(&project.0.join("absent.fn"))
+        modules::load(&project.0.join("absent.mr"))
             .unwrap_err()
             .message
             .contains("error:")
@@ -226,11 +226,11 @@ fn all_module_failures_carry_the_cli_error_marker() {
 fn self_qualified_helpers_and_library_main_keep_distinct_entry_identities() {
     let project = Project::new();
     project.write(
-        "library.fn",
+        "library.mr",
         "module library\npub fn main() -> Int: library.helper()\nfn helper() -> Int: 4\n",
     );
     let main = project.write(
-        "entry.fn",
+        "entry.mr",
         "module entry\nimport library\nfn main(): println(library.main())\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -249,15 +249,15 @@ fn self_qualified_helpers_and_library_main_keep_distinct_entry_identities() {
 #[test]
 fn diamond_dependencies_are_loaded_once_and_deep_rewrites_fail_cleanly() {
     let project = Project::new();
-    project.write("common.fn", "pub fn value() -> Int: 1\n");
+    project.write("common.mr", "pub fn value() -> Int: 1\n");
     for name in ["left", "right"] {
         project.write(
-            &format!("{name}.fn"),
+            &format!("{name}.mr"),
             "import common\npub fn value() -> Int: common.value()\n",
         );
     }
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import left\nimport right\nfn main(): println(left.value() + right.value())\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -272,7 +272,7 @@ fn diamond_dependencies_are_loaded_once_and_deep_rewrites_fail_cleanly() {
     );
     morrow_compiler::check::check(&loaded.program).unwrap();
     let nested = format!("{}0{}", "Some(".repeat(300), ")".repeat(300));
-    project.write("left.fn", &format!("pub fn value() -> Int: {nested}\n"));
+    project.write("left.mr", &format!("pub fn value() -> Int: {nested}\n"));
     let error = modules::load(&main).unwrap_err();
     assert!(
         error.message.contains("limit") || error.message.contains("nesting"),
@@ -283,8 +283,8 @@ fn diamond_dependencies_are_loaded_once_and_deep_rewrites_fail_cleanly() {
 #[test]
 fn dependencies_cannot_call_the_entry_main_without_an_import() {
     let project = Project::new();
-    project.write("library.fn", "pub fn enter() -> Unit: main()\n");
-    let main = project.write("main.fn", "import library\nfn main(): library.enter()\n");
+    project.write("library.mr", "pub fn enter() -> Unit: main()\n");
+    let main = project.write("main.mr", "import library\nfn main(): library.enter()\n");
     let error = modules::load(&main).unwrap_err();
     assert!(
         error.message.contains("main") && error.message.contains("import"),
@@ -296,8 +296,8 @@ fn dependencies_cannot_call_the_entry_main_without_an_import() {
 fn source_overlays_replace_disk_and_admit_new_files_without_writing() {
     use std::collections::HashMap;
     let project = Project::new();
-    let main = project.write("main.fn", "import math\nfn main(): println(math.value())\n");
-    let math = project.write("math.fn", "module math\npub fn value() -> Int: missing\n");
+    let main = project.write("main.mr", "import math\nfn main(): println(math.value())\n");
+    let math = project.write("math.mr", "module math\npub fn value() -> Int: missing\n");
     let snapshots = HashMap::from([(
         math.clone(),
         "module math\npub fn value() -> Int: 7\n".into(),
@@ -305,7 +305,7 @@ fn source_overlays_replace_disk_and_admit_new_files_without_writing() {
     let loaded = modules::load_with_sources(&main, &snapshots).unwrap();
     morrow_compiler::check::check(&loaded.program).unwrap();
     assert!(fs::read_to_string(&math).unwrap().contains("missing"));
-    let new = project.0.join("new.fn");
+    let new = project.0.join("new.mr");
     let snapshots = HashMap::from([(new.clone(), "fn main(): ()\n".into())]);
     modules::load_with_sources(&new, &snapshots).unwrap();
     assert!(!new.exists());
@@ -315,8 +315,8 @@ fn source_overlays_replace_disk_and_admit_new_files_without_writing() {
 fn source_overlay_errors_retain_structured_original_locations() {
     use std::collections::HashMap;
     let project = Project::new();
-    let main = project.write("main.fn", "import math\nfn main(): println(math.value())\n");
-    let math = project.0.join("math.fn");
+    let main = project.write("main.mr", "import math\nfn main(): println(math.value())\n");
+    let math = project.0.join("math.mr");
     let source = "module math\npub fn value() -> Int: missing\n";
     let snapshots = HashMap::from([(math.clone(), source.into())]);
     let loaded = modules::load_with_sources(&main, &snapshots).unwrap();
@@ -339,8 +339,8 @@ fn source_overlay_errors_retain_structured_original_locations() {
 fn source_overlays_preserve_cycles_containment_and_size_limits() {
     use std::collections::HashMap;
     let project = Project::new();
-    let main = project.write("main.fn", "import math\nfn main(): ()\n");
-    let math = project.0.join("math.fn");
+    let main = project.write("main.mr", "import math\nfn main(): ()\n");
+    let math = project.0.join("math.mr");
     let snapshots = HashMap::from([(math.clone(), "module math\nimport main\n".into())]);
     assert!(
         modules::load_with_sources(&main, &snapshots)
@@ -363,9 +363,9 @@ fn source_overlays_cannot_bypass_symlink_containment() {
     use std::collections::HashMap;
     let project = Project::new();
     let outside = Project::new();
-    let main = project.write("main.fn", "import math\nfn main(): ()\n");
-    let target = outside.write("math.fn", "module math\n");
-    let alias = project.0.join("math.fn");
+    let main = project.write("main.mr", "import math\nfn main(): ()\n");
+    let target = outside.write("math.mr", "module math\n");
+    let alias = project.0.join("math.mr");
     std::os::unix::fs::symlink(target, &alias).unwrap();
     let snapshots = HashMap::from([(alias, "module math\n".into())]);
     assert!(
@@ -379,8 +379,8 @@ fn source_overlays_cannot_bypass_symlink_containment() {
 #[test]
 fn imported_module_name_mismatch_points_to_the_offending_source() {
     let project = Project::new();
-    let main = project.write("main.fn", "import math\nfn main(): ()\n");
-    let math = project.write("math.fn", "module different\n");
+    let main = project.write("main.mr", "import math\nfn main(): ()\n");
+    let math = project.write("math.mr", "module different\n");
     let error = modules::load(&main).unwrap_err();
     assert_eq!(error.location.unwrap().path, math.canonicalize().unwrap());
 }

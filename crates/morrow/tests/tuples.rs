@@ -151,9 +151,9 @@ fn tuple_types_remain_structural_across_module_boundaries() {
             .as_nanos()
     ));
     fs::create_dir(&root).unwrap();
-    fs::write(root.join("pairs.fn"),"pub type Box(a):\n    value: a\npub fn make() -> (Box(Int), String): (Box(42), \"tuple\")\n").unwrap();
-    fs::write(root.join("main.fn"),"import pairs\nfn main():\n    let (box, text): (pairs.Box(Int), String) = pairs.make()\n    println(box.value)\n    println(text)\n").unwrap();
-    let result = morrow_compiler::modules::load(&root.join("main.fn"));
+    fs::write(root.join("pairs.mr"),"pub type Box(a):\n    value: a\npub fn make() -> (Box(Int), String): (Box(42), \"tuple\")\n").unwrap();
+    fs::write(root.join("main.mr"),"import pairs\nfn main():\n    let (box, text): (pairs.Box(Int), String) = pairs.make()\n    println(box.value)\n    println(text)\n").unwrap();
+    let result = morrow_compiler::modules::load(&root.join("main.mr"));
     fs::remove_dir_all(root).unwrap();
     lowering::emit(&check::check(&result.unwrap().program).unwrap()).unwrap();
 }

@@ -63,17 +63,17 @@ impl NativeCode {
 fn help() {
     println!(
         "morrow: the Morrow programming language\n\
-Usage: morrow <command> [options] [source.fn|directory]\n\
+Usage: morrow <command> [options] [source.mr|directory]\n\
 Commands: check, emit, build, run, fmt, doc, test, lex, parse, repl, lsp.\n\
-Run arguments: morrow run source.fn -- [arguments]\n\
+Run arguments: morrow run source.mr -- [arguments]\n\
 Native backend: Cranelift is the native backend; --backend=cranelift is optional. emit retains textual machine IR.\n\
-Browser builds: morrow build --target=wasm32 source.fn [-o app.wasm] compiles the supported portable subset without a native linker.\n\
+Browser builds: morrow build --target=wasm32 source.mr [-o app.wasm] compiles the supported portable subset without a native linker.\n\
 Global controls: --quiet, --verbose, --color=auto|always|never; -v aliases --version.\n\
 Language: generic functions, custom types, modules, Int/Bool/String, List/Option/Result, guarded match, and Result ?.\n\
-Documentation: morrow doc [source.fn|directory] [--html] [--inferred] [--open] [-o output] generates source documentation; --site <directory> publishes a multi-page site (morrow doc --help).\n\
-Tests: morrow test [--doc] [source.fn|directory] executes unit tests and documentation examples.\n\
-Formatting: morrow fmt <source.fn|directory> updates sources after validating every file.\n\
-Format validation: morrow fmt --check <source.fn|directory> checks canonical formatting without writing.\n\
+Documentation: morrow doc [source.mr|directory] [--html] [--inferred] [--open] [-o output] generates source documentation; --site <directory> publishes a multi-page site (morrow doc --help).\n\
+Tests: morrow test [--doc] [source.mr|directory] executes unit tests and documentation examples.\n\
+Formatting: morrow fmt <source.mr|directory> updates sources after validating every file.\n\
+Format validation: morrow fmt --check <source.mr|directory> checks canonical formatting without writing.\n\
 Interactive evaluation: morrow repl retains successful bindings and typed functions. Terminal editing includes Tab completion and ~/.morrow_history (MORROW_REPL_HISTORY overrides the path).\n\
 Editor protocol: morrow lsp communicates over standard input/output.\n\
 Native builds: MORROW_RUNTIME_LIB overrides the Rust runtime archive path."
@@ -86,7 +86,7 @@ fn options(
     controls: cli_controls::Controls,
 ) -> Result<Option<Options>, String> {
     if arguments.is_empty() {
-        return Err("Usage: morrow <command> [options] <source.fn>\nUse morrow --help for commands and global controls.".into());
+        return Err("Usage: morrow <command> [options] <source.mr>\nUse morrow --help for commands and global controls.".into());
     }
     if arguments[0] == "--help" || arguments[0] == "-h" {
         help();

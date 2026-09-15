@@ -1,4 +1,4 @@
-# Repeat the historical workloads.fn functions in one native process.
+# Repeat the historical workloads.mr functions in one native process.
 # Controlled runtime arguments: scalar|model|precision, steps, seed, repeats.
 fn decimal(text: String, index: Int, value: Int) -> Int:
     if index == String.len(text): value

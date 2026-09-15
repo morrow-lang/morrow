@@ -39,11 +39,11 @@ fn page<'a>(pages: &'a [morrow_compiler::documentation::site::Page], path: &str)
 fn renders_module_pages_with_summary_navigation_and_cross_references() {
     let modules = [
         SourceDocument {
-            path: "lib/math.fn",
+            path: "lib/math.mr",
             source: MATH,
         },
         SourceDocument {
-            path: "lib/text.fn",
+            path: "lib/text.mr",
             source: TEXT,
         },
     ];
@@ -110,11 +110,11 @@ fn renders_guides_with_rewritten_links_and_readme_as_landing_page() {
         },
         Extra {
             path: "docs/GUIDE.md",
-            source: "# Getting Started\n\n## Usage\n\nBack to the [readme](../README.md), the [source](../lib/math.fn) and [missing](OTHER.md).\n\n| Command | Purpose |\n| --- | --- |\n| `morrow doc` | docs |\n",
+            source: "# Getting Started\n\n## Usage\n\nBack to the [readme](../README.md), the [source](../lib/math.mr) and [missing](OTHER.md).\n\n| Command | Purpose |\n| --- | --- |\n| `morrow doc` | docs |\n",
         },
     ];
     let modules = [SourceDocument {
-        path: "lib/math.fn",
+        path: "lib/math.mr",
         source: MATH,
     }];
     let pages =
@@ -140,7 +140,7 @@ fn renders_guides_with_rewritten_links_and_readme_as_landing_page() {
 #[test]
 fn rejects_collisions_reserved_names_and_oversized_input() {
     let modules = [SourceDocument {
-        path: "guide.fn",
+        path: "guide.mr",
         source: "pub fn f() -> Int: 1\n",
     }];
     let extras = [Extra {
@@ -168,10 +168,10 @@ fn rejects_collisions_reserved_names_and_oversized_input() {
         morrow_compiler::documentation::site::render_site(&site(&[], &oversized)).unwrap_err();
     assert!(error.message.contains("1 MiB"), "{}", error.message);
     let invalid = [SourceDocument {
-        path: "bad.fn",
+        path: "bad.mr",
         source: "fn bad():\n    (\n",
     }];
     let error =
         morrow_compiler::documentation::site::render_site(&site(&invalid, &[])).unwrap_err();
-    assert!(error.message.starts_with("bad.fn:"), "{}", error.message);
+    assert!(error.message.starts_with("bad.mr:"), "{}", error.message);
 }

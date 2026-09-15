@@ -170,8 +170,8 @@ fn dynamic_prefix_and_rest_form_distinct_complete_partitions() {
 
 #[test]
 fn dynamic_prefix_patterns_preserve_existing_generic_and_capture_programs() {
-    checked(include_str!("sequences/generic.fn")).unwrap();
-    checked(include_str!("sequences/escape.fn")).unwrap();
+    checked(include_str!("sequences/generic.mr")).unwrap();
+    checked(include_str!("sequences/escape.mr")).unwrap();
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn nested_dynamic_partitions_and_nested_result_layers_keep_distinct_duties() {
 
 #[test]
 fn recursive_return_contracts_preserve_exact_aliases_without_handling_credit() {
-    checked(include_str!("tail_calls/results.fn")).unwrap();
+    checked(include_str!("tail_calls/results.mr")).unwrap();
     let forward = "fn first(n:Int,r:Result(Int,String))->Result(Int,String):if n==0:r else:second(n-1,r)\nfn second(n:Int,r:Result(Int,String))->Result(Int,String):first(n,r)\n";
     checked(&format!(
         "{forward}fn main():Result.unwrap_or(first(2,Err(\"handled\")),0)\n"
@@ -225,9 +225,9 @@ fn recursive_return_contracts_preserve_exact_aliases_without_handling_credit() {
 
 #[test]
 fn loop_function_exits_preserve_outer_duties_and_function_owned_defers() {
-    checked(include_str!("iteration/captures.fn")).unwrap();
-    checked(include_str!("iteration/with_loop.fn")).unwrap();
-    checked(include_str!("json_values/valid/members.fn")).unwrap();
+    checked(include_str!("iteration/captures.mr")).unwrap();
+    checked(include_str!("iteration/with_loop.mr")).unwrap();
+    checked(include_str!("json_values/valid/members.mr")).unwrap();
     rejected(
         "fn bad()->Int:\n    let r:Result(Int,String)=Err(\"outer skipped\")\n    for n in [1,2]:return n\n    Result.unwrap_or(r,0)\n",
     );
@@ -252,7 +252,7 @@ fn wrapping_a_returned_iteration_item_does_not_transfer_the_unvisited_family() {
 
 #[test]
 fn structurally_decreasing_list_handlers_require_every_prefix_and_payload_duty() {
-    checked(include_str!("sequences/results.fn")).unwrap();
+    checked(include_str!("sequences/results.mr")).unwrap();
     rejected(
         "fn skip(xs:List(Result(Int,String)))->Int:\n    match xs:\n        []->0\n        [head,..tail]->\n            println(List.len([head]))\n            skip(tail)\nfn main():skip([Err(\"first\"),Ok(2)])\n",
     );
@@ -266,7 +266,7 @@ fn structurally_decreasing_list_handlers_require_every_prefix_and_payload_duty()
 
 #[test]
 fn recursive_nominal_shapes_expand_only_the_source_observed_fields() {
-    checked(include_str!("types/recursive_tree.fn")).unwrap();
+    checked(include_str!("types/recursive_tree.mr")).unwrap();
     let prefix = "type Node:\n    value:Int\n    next:Option(Node)\nfn inspect(r:Result(Node,String))->Int:\n    match r:\n        Ok(node)->node.value\n        Err(_)->0\n";
     checked(&format!("{prefix}fn main():inspect(Ok(Node(1,None)))\n")).unwrap();
     rejected(&format!(
@@ -276,8 +276,8 @@ fn recursive_nominal_shapes_expand_only_the_source_observed_fields() {
 
 #[test]
 fn recursive_callable_collections_retain_proven_code_and_input_targets() {
-    checked(include_str!("closures/stress.fn")).unwrap();
-    checked(include_str!("maps/stress.fn")).unwrap();
+    checked(include_str!("closures/stress.mr")).unwrap();
+    checked(include_str!("maps/stress.mr")).unwrap();
     let helper = "fn grow(n:Int,state:Map(Int,()->Int))->Map(Int,()->Int):\n    if n==0:state else:grow(n-1,Map.put(state,n,()->n))\nfn factory(handler:(Result(Int,String))->Int)->()->Int:()->handler(Err(\"created inside callback\"))\n";
     rejected(&format!(
         "{helper}fn main():\n    let original:Map(Int,()->Int)=%{{0:factory((r)->List.len([r]))}}\n    let result=grow(2,original)\n    Option.unwrap_or(Map.get(result,0),()->0)()\n"

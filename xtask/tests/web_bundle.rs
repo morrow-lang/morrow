@@ -85,7 +85,7 @@ fn static_linux_gate_rejects_dynamic_loading_and_wrong_architecture() {
 fn executable_source_and_aliases_are_never_output_artifacts() {
     use std::os::unix::fs::{PermissionsExt, symlink};
     let directory = xtask::Temporary::new(&std::env::temp_dir()).unwrap();
-    let source = directory.0.join("checklist.fn");
+    let source = directory.0.join("checklist.mr");
     fs::write(&source, b"pub fn answer() -> Int { 42 }").unwrap();
     fs::set_permissions(&source, fs::Permissions::from_mode(0o755)).unwrap();
     let alias = directory.0.join("alias");

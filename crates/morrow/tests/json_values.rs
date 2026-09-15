@@ -137,8 +137,8 @@ fn runtime_json_signature_validation_precedes_argument_effects() {
 #[test]
 fn qualified_json_types_roundtrip_through_formatter() {
     for source in [
-        include_str!("json_values/valid/aliases.fn"),
-        include_str!("json_values/valid/first_class.fn"),
+        include_str!("json_values/valid/aliases.mr"),
+        include_str!("json_values/valid/first_class.mr"),
     ] {
         let formatted = morrow_compiler::format::format(source).unwrap();
         let emit =

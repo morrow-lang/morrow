@@ -23,7 +23,7 @@ fn native_sequence_fixtures_preserve_canonical_syntax_and_checked_emission() {
     let mut paths = std::fs::read_dir(directory)
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "fn"))
+        .filter(|path| path.extension().is_some_and(|extension| extension == "mr"))
         .collect::<Vec<_>>();
     paths.sort();
     assert!(!paths.is_empty());

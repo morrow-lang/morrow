@@ -15,7 +15,7 @@ impl Directory {
         ));
         fs::create_dir(&path).unwrap();
         fs::write(
-            path.join("library.fn"),
+            path.join("library.mr"),
             "@doc \"\"\"A helper.\"\"\"\npub fn helper(value: Int) -> Int: value + 1\n",
         )
         .unwrap();
@@ -38,11 +38,11 @@ impl Drop for Directory {
 #[test]
 fn doc_prints_markdown_without_main_or_backend_and_writes_html() {
     let dir = Directory::new();
-    let result = dir.run(&["doc", "library.fn"]);
+    let result = dir.run(&["doc", "library.mr"]);
     assert!(result.status.success(), "{:?}", result);
     assert!(String::from_utf8_lossy(&result.stdout).contains("A helper."));
     assert!(result.stderr.is_empty());
-    let result = dir.run(&["doc", "--html", "-o", "docs.html", "library.fn"]);
+    let result = dir.run(&["doc", "--html", "-o", "docs.html", "library.mr"]);
     assert!(result.status.success(), "{:?}", result);
     assert!(
         fs::read_to_string(dir.0.join("docs.html"))
@@ -54,11 +54,11 @@ fn doc_prints_markdown_without_main_or_backend_and_writes_html() {
 #[test]
 fn doc_invalid_source_preserves_output_and_reports_source_location() {
     let dir = Directory::new();
-    fs::write(dir.0.join("bad.fn"), "fn bad():\n    (\n").unwrap();
+    fs::write(dir.0.join("bad.mr"), "fn bad():\n    (\n").unwrap();
     fs::write(dir.0.join("output.md"), "preserved").unwrap();
-    let result = dir.run(&["doc", "bad.fn", "-o", "output.md"]);
+    let result = dir.run(&["doc", "bad.mr", "-o", "output.md"]);
     assert_eq!(result.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&result.stderr).contains("bad.fn:"));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("bad.mr:"));
     assert_eq!(
         fs::read_to_string(dir.0.join("output.md")).unwrap(),
         "preserved"
@@ -67,18 +67,18 @@ fn doc_invalid_source_preserves_output_and_reports_source_location() {
 #[test]
 fn doc_rejects_source_aliases_and_malformed_options() {
     let dir = Directory::new();
-    let original = fs::read(dir.0.join("library.fn")).unwrap();
-    fs::hard_link(dir.0.join("library.fn"), dir.0.join("hard.fn")).unwrap();
-    for destination in ["library.fn", "hard.fn"] {
-        let result = dir.run(&["doc", "library.fn", "-o", destination]);
+    let original = fs::read(dir.0.join("library.mr")).unwrap();
+    fs::hard_link(dir.0.join("library.mr"), dir.0.join("hard.mr")).unwrap();
+    for destination in ["library.mr", "hard.mr"] {
+        let result = dir.run(&["doc", "library.mr", "-o", destination]);
         assert_eq!(result.status.code(), Some(1), "{:?}", result);
-        assert_eq!(fs::read(dir.0.join("library.fn")).unwrap(), original);
+        assert_eq!(fs::read(dir.0.join("library.mr")).unwrap(), original);
     }
     for args in [
-        vec!["doc", "library.fn", "-o"],
-        vec!["doc", "--html", "--html", "library.fn"],
-        vec!["doc", "library.fn", "extra.fn"],
-        vec!["doc", "--unknown", "library.fn"],
+        vec!["doc", "library.mr", "-o"],
+        vec!["doc", "--html", "--html", "library.mr"],
+        vec!["doc", "library.mr", "extra.mr"],
+        vec!["doc", "--unknown", "library.mr"],
     ] {
         assert_eq!(dir.run(&args).status.code(), Some(1));
     }
@@ -87,11 +87,11 @@ fn doc_rejects_source_aliases_and_malformed_options() {
 #[test]
 fn doc_preserves_source_when_output_is_a_symlink_to_it() {
     let dir = Directory::new();
-    std::os::unix::fs::symlink("library.fn", dir.0.join("alias.fn")).unwrap();
-    let original = fs::read(dir.0.join("library.fn")).unwrap();
-    let result = dir.run(&["doc", "library.fn", "-o", "alias.fn"]);
+    std::os::unix::fs::symlink("library.mr", dir.0.join("alias.mr")).unwrap();
+    let original = fs::read(dir.0.join("library.mr")).unwrap();
+    let result = dir.run(&["doc", "library.mr", "-o", "alias.mr"]);
     assert_eq!(result.status.code(), Some(1));
-    assert_eq!(fs::read(dir.0.join("library.fn")).unwrap(), original);
+    assert_eq!(fs::read(dir.0.join("library.mr")).unwrap(), original);
 }
 
 #[test]
@@ -109,44 +109,44 @@ fn doc_help_describes_formats_and_source_only_generation() {
 fn doc_directory_orders_modules_and_excludes_hidden_build_and_symlink_entries() {
     let dir = Directory::new();
     fs::create_dir(dir.0.join("nested")).unwrap();
-    fs::write(dir.0.join("nested/second.fn"), "fn second(): ()\n").unwrap();
+    fs::write(dir.0.join("nested/second.mr"), "fn second(): ()\n").unwrap();
     for name in [".hidden", "target", "build", "deps", "node_modules"] {
         fs::create_dir(dir.0.join(name)).unwrap();
-        fs::write(dir.0.join(name).join("bad.fn"), "fn broken(:").unwrap();
+        fs::write(dir.0.join(name).join("bad.mr"), "fn broken(:").unwrap();
     }
     #[cfg(unix)]
     std::os::unix::fs::symlink(".", dir.0.join("cycle")).unwrap();
     let result = dir.run(&["doc", ".", "--html", "-o", "docs.html"]);
     assert!(result.status.success(), "{:?}", result);
     let html = fs::read_to_string(dir.0.join("docs.html")).unwrap();
-    assert!(html.contains("nested/second.fn"));
+    assert!(html.contains("nested/second.mr"));
     assert!(html.contains("browser’s Find command"));
     assert!(html.contains("<kbd>Ctrl+F</kbd>"));
     assert!(html.contains("<kbd>Command+F</kbd>"));
     assert!(html.contains("<h3>second</h3>"));
     assert!(!html.contains("<script"));
     assert!(!html.contains(" hidden"));
-    assert!(html.find("library.fn").unwrap() < html.find("nested/second.fn").unwrap());
+    assert!(html.find("library.mr").unwrap() < html.find("nested/second.mr").unwrap());
 }
 
 #[test]
 fn doc_directory_error_preserves_output_and_all_source_aliases() {
     let dir = Directory::new();
     fs::write(dir.0.join("output.html"), "preserved").unwrap();
-    fs::write(dir.0.join("bad.fn"), "fn bad(:").unwrap();
+    fs::write(dir.0.join("bad.mr"), "fn bad(:").unwrap();
     let result = dir.run(&["doc", ".", "--html", "-o", "output.html"]);
     assert_eq!(result.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&result.stderr).contains("bad.fn:1:"));
+    assert!(String::from_utf8_lossy(&result.stderr).contains("bad.mr:1:"));
     assert_eq!(
         fs::read_to_string(dir.0.join("output.html")).unwrap(),
         "preserved"
     );
-    fs::remove_file(dir.0.join("bad.fn")).unwrap();
-    fs::hard_link(dir.0.join("library.fn"), dir.0.join("alias.html")).unwrap();
-    let original = fs::read(dir.0.join("library.fn")).unwrap();
-    for output in ["library.fn", "alias.html"] {
+    fs::remove_file(dir.0.join("bad.mr")).unwrap();
+    fs::hard_link(dir.0.join("library.mr"), dir.0.join("alias.html")).unwrap();
+    let original = fs::read(dir.0.join("library.mr")).unwrap();
+    for output in ["library.mr", "alias.html"] {
         assert_eq!(dir.run(&["doc", ".", "-o", output]).status.code(), Some(1));
-        assert_eq!(fs::read(dir.0.join("library.fn")).unwrap(), original);
+        assert_eq!(fs::read(dir.0.join("library.mr")).unwrap(), original);
     }
 }
 
@@ -156,7 +156,7 @@ fn doc_directory_rejects_empty_and_excessive_sources_without_partial_output() {
     fs::create_dir(dir.0.join("empty")).unwrap();
     assert_eq!(dir.run(&["doc", "empty"]).status.code(), Some(1));
     for i in 0..256 {
-        fs::write(dir.0.join(format!("file{i}.fn")), "fn helper(): ()\n").unwrap();
+        fs::write(dir.0.join(format!("file{i}.mr")), "fn helper(): ()\n").unwrap();
     }
     let result = dir.run(&["doc", ".", "-o", "output.html"]);
     assert_eq!(result.status.code(), Some(1));
@@ -167,8 +167,8 @@ fn doc_directory_rejects_empty_and_excessive_sources_without_partial_output() {
 #[test]
 fn directory_paths_preserve_literal_backslashes_in_unix_filenames() {
     let dir = Directory::new();
-    fs::write(dir.0.join(r"literal\name.fn"), "fn helper(): ()\n").unwrap();
+    fs::write(dir.0.join(r"literal\name.mr"), "fn helper(): ()\n").unwrap();
     let result = dir.run(&["doc", ".", "--html"]);
     assert!(result.status.success(), "{:?}", result);
-    assert!(String::from_utf8_lossy(&result.stdout).contains(r"literal\name.fn"));
+    assert!(String::from_utf8_lossy(&result.stdout).contains(r"literal\name.mr"));
 }

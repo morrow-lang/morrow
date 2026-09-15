@@ -26,7 +26,7 @@ impl Drop for Fixture {
 #[test]
 fn default_native_compilation_does_not_resolve_qbe() {
     let fixture = Fixture::new();
-    let source = fixture.0.join("program.fn");
+    let source = fixture.0.join("program.mr");
     fs::write(&source, "fn main():\n    println(9223372036854775807)\n").unwrap();
     let result = Command::new(env!("CARGO_BIN_EXE_morrow"))
         .args(["run", source.to_str().unwrap()])
@@ -44,7 +44,7 @@ fn default_native_compilation_does_not_resolve_qbe() {
 #[test]
 fn removed_backend_rejects_before_source_access() {
     let result = Command::new(env!("CARGO_BIN_EXE_morrow"))
-        .args(["run", "--backend=qbe", "missing.fn"])
+        .args(["run", "--backend=qbe", "missing.mr"])
         .output()
         .unwrap();
     assert!(!result.status.success());

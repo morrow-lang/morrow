@@ -61,7 +61,7 @@ pub fn run(root: &Path, bin: &Path, output: &Path) -> Result<(), String> {
         let started = Instant::now();
         let result = Command::new(&compiler)
             .arg("build")
-            .arg(root.join(format!("benchmarks/{name}_morrow.fn")))
+            .arg(root.join(format!("benchmarks/{name}_morrow.mr")))
             .arg("-o")
             .arg(&executable)
             .output()

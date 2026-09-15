@@ -39,7 +39,7 @@ pub fn run(root: &Path, bin: &Path) -> Result<(), String> {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| e.to_string())?;
         paths.retain(|path| {
-            path.extension().is_some_and(|ext| ext == "fn")
+            path.extension().is_some_and(|ext| ext == "mr")
                 && (group.ends_with("invalid")
                     || path
                         .file_name()
@@ -87,7 +87,7 @@ fn prepare(directory: &Path, case: &Value) -> Result<std::path::PathBuf, String>
             .map_err(|e| e.to_string())?;
         }
     }
-    let source = directory.join("hello 'source' $literal.fn");
+    let source = directory.join("hello 'source' $literal.mr");
     fs::write(&source, case["source"].as_str().ok_or("missing source")?)
         .map_err(|e| e.to_string())?;
     Ok(source)
@@ -202,10 +202,10 @@ fn unchanged(output: &Path, before: Option<&fs::Metadata>) -> Result<(), String>
 }
 fn union_tests(bin: &Path) -> Result<(), String> {
     let work = crate::Temporary::new(&std::env::temp_dir())?;
-    let path = work.0.join("unit_library.fn");
+    let path = work.0.join("unit_library.mr");
     fs::write(
         &path,
-        include_str!("../../tests/fixtures/union-test-continuation.fn"),
+        include_str!("../../tests/fixtures/union-test-continuation.mr"),
     )
     .map_err(|e| e.to_string())?;
     let actual = command(bin, &work.0, "test", &path)?;
@@ -247,13 +247,13 @@ mod tests {
     #[test]
     fn fixture_siblings_cannot_escape_private_workspace() {
         let work = crate::Temporary::new(&std::env::temp_dir()).unwrap();
-        let bad = serde_json::json!({"source":"fn main():()","files":{"../escaped.fn":""}});
+        let bad = serde_json::json!({"source":"fn main():()","files":{"../escaped.mr":""}});
         assert!(prepare(&work.0, &bad).is_err());
         let good =
-            serde_json::json!({"source":"fn main():()","files":{"model.fn":"pub fn value():1"}});
+            serde_json::json!({"source":"fn main():()","files":{"model.mr":"pub fn value():1"}});
         assert!(prepare(&work.0, &good).is_ok());
         assert_eq!(
-            fs::read_to_string(work.0.join("model.fn")).unwrap(),
+            fs::read_to_string(work.0.join("model.mr")).unwrap(),
             "pub fn value():1"
         );
     }

@@ -1,7 +1,7 @@
 //! Semantic rename and actionable editor edits must never mutate accepted buffers.
 use super::*;
 
-const URI: &str = "untitled:rename.fn";
+const URI: &str = "untitled:rename.mr";
 fn server(source: &str) -> Server {
     let mut server = Server {
         state: State::Running,
@@ -309,8 +309,8 @@ fn rename_bounds_references_and_does_not_offer_edits_for_invalid_source() {
 fn rename_uses_unsaved_module_graph_and_rejects_imported_declarations() {
     let temp = std::env::temp_dir().join(format!("morrow-rename-{}", std::process::id()));
     std::fs::create_dir_all(&temp).unwrap();
-    let dependency = temp.join("math.fn");
-    let entry = temp.join("main.fn");
+    let dependency = temp.join("math.mr");
+    let entry = temp.join("main.mr");
     std::fs::write(&dependency, "this disk source is stale and invalid").unwrap();
     std::fs::write(&entry, "also stale").unwrap();
     let source = "import math\nfn main():\n    let value = math.double(2)\n    println(value)\n";

@@ -31,8 +31,8 @@ impl Drop for Project {
 #[test]
 fn with_error_types_and_loop_bindings_resolve_in_their_own_scopes() {
     let project = Project::new();
-    project.write("model.fn","pub type First:\n    FirstError(Int)\npub type Second:\n    SecondError(String)\npub fn start() -> Result(Int, First): Ok(1)\npub fn next(value: Int) -> Result(Int, Second): Ok(value + 1)\npub fn numbers() -> Range: 0..2\n");
-    let path=project.write("main.fn","import model\nfn run() -> Int:\n    with\n        value <- model.start(),\n        next <- model.next(value)\n    do\n        for model in model.numbers():\n            println(model)\n        next\n    else\n        Err(model.FirstError(code)) -> code\n        Err(model.SecondError(text)) -> String.len(text)\nfn main(): println(run())\n");
+    project.write("model.mr","pub type First:\n    FirstError(Int)\npub type Second:\n    SecondError(String)\npub fn start() -> Result(Int, First): Ok(1)\npub fn next(value: Int) -> Result(Int, Second): Ok(value + 1)\npub fn numbers() -> Range: 0..2\n");
+    let path=project.write("main.mr","import model\nfn run() -> Int:\n    with\n        value <- model.start(),\n        next <- model.next(value)\n    do\n        for model in model.numbers():\n            println(model)\n        next\n    else\n        Err(model.FirstError(code)) -> code\n        Err(model.SecondError(text)) -> String.len(text)\nfn main(): println(run())\n");
     let loaded = modules::load(&path).unwrap();
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
 }
@@ -46,10 +46,10 @@ fn private_range_endpoints_with_handlers_and_iterables_remain_inaccessible() {
     ] {
         let project = Project::new();
         project.write(
-            "model.fn",
+            "model.mr",
             "fn secret() -> Int: 0\npub fn start() -> Result(Int, String): Ok(1)\n",
         );
-        let path = project.write("main.fn", &format!("import model\nfn main(): {body}\n"));
+        let path = project.write("main.mr", &format!("import model\nfn main(): {body}\n"));
         assert!(
             modules::load(&path)
                 .unwrap_err()

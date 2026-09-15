@@ -1204,8 +1204,8 @@ fn local_feedback_and_authoritative_loading_have_expected_native_values() {
     };
     let source = format!(
         "{}\n{}",
-        include_str!("../../../examples/web/checklist.fn"),
-        include_str!("fixtures/web_feedback.fn")
+        include_str!("../../../examples/web/checklist.mr"),
+        include_str!("fixtures/web_feedback.mr")
     );
     let checked = check::check_library(&parse::parse(&source).unwrap()).unwrap();
     let program =
@@ -1236,7 +1236,7 @@ fn main() {
 
 #[test]
 fn compiled_decoded_map_capture_and_literal_mailbox_preserve_untagged_pairs() {
-    let source = include_str!("fixtures/actor_map.fn");
+    let source = include_str!("fixtures/actor_map.mr");
     let checked =
         morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
     let program = morrow_compiler::lowering::lower(&checked).unwrap();
@@ -2286,7 +2286,7 @@ assert_eq!(*fault, 9);
 
 #[test]
 fn actor_with_result_steps_suspend_and_preserve_logical_cleanup() {
-    let source = include_str!("actors/with_cps.fn");
+    let source = include_str!("actors/with_cps.mr");
     let checked =
         morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
     let program = morrow_compiler::lowering::lower(&checked).unwrap();
@@ -2364,7 +2364,7 @@ fn main():
 
 #[test]
 fn actor_result_sequencing_preserves_full_payloads_and_fairness_under_collection() {
-    let mut source = include_str!("actors/result_cps.fn").to_owned();
+    let mut source = include_str!("actors/result_cps.mr").to_owned();
     source.push_str("\nfn main():\n");
     let mut expected = vec!["sibling".to_owned()];
     for mode in 0..3 {
@@ -2419,7 +2419,7 @@ fn actor_result_sequencing_preserves_full_payloads_and_fairness_under_collection
 
 #[test]
 fn actor_sum_callbacks_preserve_eager_factories_and_lazy_calls_under_collection() {
-    let source = include_str!("actors/sums_cps.fn");
+    let source = include_str!("actors/sums_cps.mr");
     let checked =
         morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
     let mut program = morrow_compiler::lowering::lower(&checked).unwrap();

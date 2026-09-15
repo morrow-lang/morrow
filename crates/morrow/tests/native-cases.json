@@ -1,1896 +1,1896 @@
 [
   {
-    "file": "actors/bad_timeout.fn",
+    "file": "actors/bad_timeout.mr",
     "exit": 1,
     "stdout": "",
     "stderr": "morrow: runtime error: actor timeout must be between 0 and 600000 milliseconds\n"
   },
   {
-    "file": "actors/captures.fn",
+    "file": "actors/captures.mr",
     "exit": 0,
     "stdout": "later\n🌿\n",
     "stderr": ""
   },
   {
-    "file": "actors/deadlock.fn",
+    "file": "actors/deadlock.mr",
     "exit": 1,
     "stdout": "main\n",
     "stderr": "morrow: runtime error: actor deadlock: no runnable actor or pending timeout\n"
   },
   {
-    "file": "actors/full_width.fn",
+    "file": "actors/full_width.mr",
     "exit": 0,
     "stdout": "-0.5\n9223372036854775807\n🌿 alive\n",
     "stderr": ""
   },
   {
-    "file": "actors/gc_roots.fn",
+    "file": "actors/gc_roots.mr",
     "exit": 0,
     "stdout": "16384\n9223372036854775807\n16384\n",
     "stderr": ""
   },
   {
-    "file": "actors/helper_cleanup.fn",
+    "file": "actors/helper_cleanup.mr",
     "exit": 1,
     "stdout": "main\ncleanup\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "actors/live_quota.fn",
+    "file": "actors/live_quota.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: actor resource limit exceeded\n"
   },
   {
-    "file": "actors/local_result.fn",
+    "file": "actors/local_result.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "actors/mailbox_quota.fn",
+    "file": "actors/mailbox_quota.mr",
     "exit": 0,
     "stdout": "4\ndone\n",
     "stderr": ""
   },
   {
-    "file": "actors/main_failure.fn",
+    "file": "actors/main_failure.mr",
     "exit": 1,
     "stdout": "main cleanup\n",
     "stderr": "morrow: main returned Err\n"
   },
   {
-    "file": "actors/pid_identity.fn",
+    "file": "actors/pid_identity.mr",
     "exit": 0,
     "stdout": "true\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "actors/pure_cleanup.fn",
+    "file": "actors/pure_cleanup.mr",
     "exit": 0,
     "stdout": "main\nbody\ncleanup\n",
     "stderr": ""
   },
   {
-    "file": "actors/receive_continues.fn",
+    "file": "actors/receive_continues.mr",
     "exit": 0,
     "stdout": "one\ntwo\n",
     "stderr": ""
   },
   {
-    "file": "actors/receive_suspends.fn",
+    "file": "actors/receive_suspends.mr",
     "exit": 0,
     "stdout": "waiting\n9223372036854775807\n",
     "stderr": ""
   },
   {
-    "file": "actors/selective_preserves.fn",
+    "file": "actors/selective_preserves.mr",
     "exit": 0,
     "stdout": "42\nretained\n",
     "stderr": ""
   },
   {
-    "file": "actors/spawn_runs.fn",
+    "file": "actors/spawn_runs.mr",
     "exit": 0,
     "stdout": "main\nworker\n",
     "stderr": ""
   },
   {
-    "file": "actors/sums_cps.fn",
+    "file": "actors/sums_cps.mr",
     "exit": 0,
     "stdout": "sibling\nmap factory\nnone\nmap factory\nmap callback 2\n🌿 80\nmap factory\nouter 🌿\nmap factory\nmap callback 2\n🌿 80\nbind factory\nouter 🌿\nbind factory\nbind callback 2\n🌿 80\nbind factory\nbind callback -1\ninner\nfallback factory\nfallback callback outer 🌿\n78\nfallback factory\n2\n",
     "stderr": ""
   },
   {
-    "file": "actors/tail.fn",
+    "file": "actors/tail.mr",
     "exit": 0,
     "stdout": "1\n",
     "stderr": ""
   },
   {
-    "file": "actors/tail_long.fn",
+    "file": "actors/tail_long.mr",
     "exit": 0,
     "stdout": "0\n",
     "stderr": ""
   },
   {
-    "file": "actors/timeout.fn",
+    "file": "actors/timeout.mr",
     "exit": 0,
     "stdout": "main\ntimeout\n",
     "stderr": ""
   },
   {
-    "file": "actors/with_cps.fn",
+    "file": "actors/with_cps.mr",
     "exit": 0,
     "stdout": "await cleanup\nawait cleanup\n7\nworker cleanup\nbad\nworker cleanup\n",
     "stderr": ""
   },
   {
-    "file": "actors/zero_timeout.fn",
+    "file": "actors/zero_timeout.mr",
     "exit": 0,
     "stdout": "message\ntimeout\n",
     "stderr": ""
   },
   {
-    "file": "aliases/clauses.fn",
+    "file": "aliases/clauses.mr",
     "exit": 0,
     "stdout": "42\nfallback\n",
     "stderr": ""
   },
   {
-    "file": "aliases/generic.fn",
+    "file": "aliases/generic.mr",
     "exit": 0,
     "stdout": "label\n42\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "aliases/modules/main.fn",
+    "file": "aliases/modules/main.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "aliases/records.fn",
+    "file": "aliases/records.mr",
     "exit": 0,
     "stdout": "42\n43\n",
     "stderr": ""
   },
   {
-    "file": "aliases/result.fn",
+    "file": "aliases/result.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "aliases/scalar.fn",
+    "file": "aliases/scalar.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "aliases/unicode.fn",
+    "file": "aliases/unicode.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "clauses/basic.fn",
+    "file": "clauses/basic.mr",
     "exit": 0,
     "stdout": "720\nnegative\nzero\npositive\n",
     "stderr": ""
   },
   {
-    "file": "clauses/cleanup.fn",
+    "file": "clauses/cleanup.mr",
     "exit": 0,
     "stdout": "1\n2\n3\n7\n9\n3\n",
     "stderr": ""
   },
   {
-    "file": "clauses/generic.fn",
+    "file": "clauses/generic.mr",
     "exit": 0,
     "stdout": "42\nfallback\n1.25\n9\n",
     "stderr": ""
   },
   {
-    "file": "clauses/guard_order.fn",
+    "file": "clauses/guard_order.mr",
     "exit": 0,
     "stdout": "first\nsecond\n2\nfirst\nsecond\n3\n",
     "stderr": ""
   },
   {
-    "file": "clauses/project/main.fn",
+    "file": "clauses/project/main.mr",
     "exit": 0,
     "stdout": "99\n5\n",
     "stderr": ""
   },
   {
-    "file": "clauses/sequences.fn",
+    "file": "clauses/sequences.mr",
     "exit": 0,
     "stdout": "10\nMorrow\nMORROW\n",
     "stderr": ""
   },
   {
-    "file": "clauses/wide.fn",
+    "file": "clauses/wide.mr",
     "exit": 0,
     "stdout": "1\n",
     "stderr": ""
   },
   {
-    "file": "closures/captures.fn",
+    "file": "closures/captures.mr",
     "exit": 0,
     "stdout": "4294967303\n-4294967289\n4294967304\n3.75\n60\nescaping 🌿\ntrue\n11\n99\n",
     "stderr": ""
   },
   {
-    "file": "closures/lists.fn",
+    "file": "closures/lists.mr",
     "exit": 0,
     "stdout": "4294967299\n3\n123\n4.25\nprefix:ab\n2\n1\n2\n2\n1\n2\ntrue\n1\n0\nfalse\nfalse\n9223372036854775807\n0\n42\n0\ntrue\nfalse\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "closures/order.fn",
+    "file": "closures/order.mr",
     "exit": 0,
     "stdout": "callee\nargument\ninvoked\n42\nitems\nmapper\n1\n2\n2\nitems\ninitial\nfolder\n3\n",
     "stderr": ""
   },
   {
-    "file": "closures/stress.fn",
+    "file": "closures/stress.mr",
     "exit": 0,
     "stdout": "4294967297\n4294967552\n4294967808\n2199023386880\n10\n30\n1\n2\n2\nunit\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "closures/sums.fn",
+    "file": "closures/sums.mr",
     "exit": 0,
     "stdout": "mapped\n2\n0\nmapped\n4294967297\n0\nchained\n4294967298\n0\n4294967296\nfailure\n-4294967296\ntrue\n2.5\n",
     "stderr": ""
   },
   {
-    "file": "closures/values.fn",
+    "file": "closures/values.mr",
     "exit": 0,
     "stdout": "9223372036854775807\nHELLO\n2\n42\n3\n3.25\n42\n42\n",
     "stderr": ""
   },
   {
-    "file": "collections/allocation_stress.fn",
+    "file": "collections/allocation_stress.mr",
     "exit": 0,
     "stdout": "1500\nretained 🌿\nretained 🌿\n",
     "stderr": ""
   },
   {
-    "file": "collections/bool_lists.fn",
+    "file": "collections/bool_lists.mr",
     "exit": 0,
     "stdout": "true\nfalse\ntrue\n2\n",
     "stderr": ""
   },
   {
-    "file": "collections/inference.fn",
+    "file": "collections/inference.mr",
     "exit": 0,
     "stdout": "0\ninferred\ncontext\n0\n",
     "stderr": ""
   },
   {
-    "file": "collections/lists.fn",
+    "file": "collections/lists.mr",
     "exit": 0,
     "stdout": "100\n3\n40\n65\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "collections/match_once.fn",
+    "file": "collections/match_once.mr",
     "exit": 0,
     "stdout": "evaluated\ncorrect\n",
     "stderr": ""
   },
   {
-    "file": "collections/match_scopes.fn",
+    "file": "collections/match_scopes.mr",
     "exit": 0,
     "stdout": "outside/inside!\noutside/outside\n",
     "stderr": ""
   },
   {
-    "file": "collections/multiline.fn",
+    "file": "collections/multiline.mr",
     "exit": 0,
     "stdout": "first\n",
     "stderr": ""
   },
   {
-    "file": "collections/nested_lists.fn",
+    "file": "collections/nested_lists.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n9223372036854775807\n4294967296\n3\n2\n",
     "stderr": ""
   },
   {
-    "file": "collections/nested_propagation.fn",
+    "file": "collections/nested_propagation.mr",
     "exit": 0,
     "stdout": "inner error\nbranch!\ninner error\n",
     "stderr": ""
   },
   {
-    "file": "collections/nested_sums.fn",
+    "file": "collections/nested_sums.mr",
     "exit": 0,
     "stdout": "nested\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "collections/option_int.fn",
+    "file": "collections/option_int.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n9\ntrue\ntrue\n9223372036854775807\n",
     "stderr": ""
   },
   {
-    "file": "collections/option_string.fn",
+    "file": "collections/option_string.mr",
     "exit": 0,
     "stdout": "Hello, Morrow\nHello, stranger\nretained pointer\n",
     "stderr": ""
   },
   {
-    "file": "collections/propagation.fn",
+    "file": "collections/propagation.mr",
     "exit": 0,
     "stdout": "continued\nfour\ndivision by zero\n",
     "stderr": ""
   },
   {
-    "file": "collections/result_int.fn",
+    "file": "collections/result_int.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n9223372036854775807\n",
     "stderr": ""
   },
   {
-    "file": "collections/results.fn",
+    "file": "collections/results.mr",
     "exit": 0,
     "stdout": "ok: payload\nerror: unavailable\ntrue\ntrue\nfallback\n",
     "stderr": ""
   },
   {
-    "file": "collections/scalar_matches.fn",
+    "file": "collections/scalar_matches.mr",
     "exit": 0,
     "stdout": "negative\nother\nlanguage\nother: tree\nyes\n",
     "stderr": ""
   },
   {
-    "file": "collections/short_circuit_propagation.fn",
+    "file": "collections/short_circuit_propagation.mr",
     "exit": 0,
     "stdout": "false\nprobe\nfailed\n",
     "stderr": ""
   },
   {
-    "file": "collections/string_lists.fn",
+    "file": "collections/string_lists.mr",
     "exit": 0,
     "stdout": "Ada\n林\n林\ntrue\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "collections/unit_results.fn",
+    "file": "collections/unit_results.mr",
     "exit": 0,
     "stdout": "saved\nfailed\n",
     "stderr": ""
   },
   {
-    "file": "comptime_native/values.fn",
+    "file": "comptime_native/values.mr",
     "exit": 0,
     "stdout": "720\n9007199254740993\n🌿 Morrow\n9223372036854775807\n-9223372036854775808\n2\n42\n3\n3\n7\n",
     "stderr": ""
   },
   {
-    "file": "control/arguments.fn",
+    "file": "control/arguments.mr",
     "exit": 0,
     "stdout": "1\ncleanup\n7\n4\n8\n9\n",
     "stderr": ""
   },
   {
-    "file": "control/branches.fn",
+    "file": "control/branches.mr",
     "exit": 0,
     "stdout": "1.25\n2.5\n4294967296\n-4294967296\nyes\nno\n8\n9\n",
     "stderr": ""
   },
   {
-    "file": "control/conditions.fn",
+    "file": "control/conditions.mr",
     "exit": 0,
     "stdout": "0\n-1\n0\n10\n1\n0\n10\n2\n",
     "stderr": ""
   },
   {
-    "file": "control/defers.fn",
+    "file": "control/defers.mr",
     "exit": 0,
     "stdout": "body\nafter block\nconditional\n2\n1\n7\nafter block\n2\n1\n9\n",
     "stderr": ""
   },
   {
-    "file": "control/errors.fn",
+    "file": "control/errors.mr",
     "exit": 0,
     "stdout": "inner\nouter\n1.25\n4294967296\n3\n",
     "stderr": ""
   },
   {
-    "file": "control/lambdas.fn",
+    "file": "control/lambdas.mr",
     "exit": 0,
     "stdout": "cleanup body\ncleanup's cleanup\nafter callback\nouter\n13\n",
     "stderr": ""
   },
   {
-    "file": "control/let_else.fn",
+    "file": "control/let_else.mr",
     "exit": 0,
     "stdout": "unwrapped\n42\nunwrapped\n-1\nunwrapped\n-1\n",
     "stderr": ""
   },
   {
-    "file": "control/return_value.fn",
+    "file": "control/return_value.mr",
     "exit": 0,
     "stdout": "early\ncleanup\ncleanup\nearly\nimplicit\ncleanup\ncleanup\nimplicit\n",
     "stderr": ""
   },
   {
-    "file": "control/stress.fn",
+    "file": "control/stress.mr",
     "exit": 0,
     "stdout": "saved 0\nsaved 256\nsaved 256\n",
     "stderr": ""
   },
   {
-    "file": "corpus/bool_binding.fn",
+    "file": "corpus/bool_binding.mr",
     "exit": 0,
     "stdout": "true\n",
     "stderr": ""
   },
   {
-    "file": "corpus/branch_string.fn",
+    "file": "corpus/branch_string.mr",
     "exit": 0,
     "stdout": "positive\n",
     "stderr": ""
   },
   {
-    "file": "corpus/escaped.fn",
+    "file": "corpus/escaped.mr",
     "exit": 0,
     "stdout": "quote: \" slash: \\ Unicode: Grüße 🌿\n",
     "stderr": ""
   },
   {
-    "file": "corpus/exit_code.fn",
+    "file": "corpus/exit_code.mr",
     "exit": 7,
     "stdout": "",
     "stderr": ""
   },
   {
-    "file": "corpus/factorial.fn",
+    "file": "corpus/factorial.mr",
     "exit": 0,
     "stdout": "5040\n",
     "stderr": ""
   },
   {
-    "file": "corpus/hello.fn",
+    "file": "corpus/hello.mr",
     "exit": 0,
     "stdout": "Hello, Morrow!\n",
     "stderr": ""
   },
   {
-    "file": "corpus/int64.fn",
+    "file": "corpus/int64.mr",
     "exit": 0,
     "stdout": "4294967296\n-9223372036854775808\n9223372036854775807\n",
     "stderr": ""
   },
   {
-    "file": "corpus/long_unicode.fn",
+    "file": "corpus/long_unicode.mr",
     "exit": 0,
     "stdout": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz🌿\"\\\n",
     "stderr": ""
   },
   {
-    "file": "corpus/negative.fn",
+    "file": "corpus/negative.mr",
     "exit": 0,
     "stdout": "-42\n",
     "stderr": ""
   },
   {
-    "file": "corpus/nested_string.fn",
+    "file": "corpus/nested_string.mr",
     "exit": 0,
     "stdout": "two\none\nzero\n",
     "stderr": ""
   },
   {
-    "file": "corpus/regex_optional.fn",
+    "file": "corpus/regex_optional.mr",
     "exit": 0,
     "stdout": "3\nb\n-1\n-1\ntrue\nb\n3\n-1\n0\n0\n",
     "stderr": ""
   },
   {
-    "file": "corpus/repl_parity.fn",
+    "file": "corpus/repl_parity.mr",
     "exit": 0,
     "stdout": "STRAßE éLèVE AZ\nÄbc İ z\n x \nx \n\n x\na|b|c\n0\n1\n|a||\na|b|c\n1\n2\n\n195\n169\n-1\n2\n0\ntrue\nabc\n\né\nbb\nabc\nababab\n\n",
     "stderr": ""
   },
   {
-    "file": "corpus/runtime_tuples.fn",
+    "file": "corpus/runtime_tuples.mr",
     "exit": 0,
     "stdout": "7\nstdout\nstderr\n0\nliteral ' ; $(echo forbidden) 🌿\ntrue\n-1\nNo command specified\n2\n5\nabc\ntrue\ntrue\n0\n0\ntrue\n3\nabc123\nabc\n123\n3\n6\n0\n0\n80\n24\n",
     "stderr": ""
   },
   {
-    "file": "corpus/shadow.fn",
+    "file": "corpus/shadow.mr",
     "exit": 0,
     "stdout": "15\n",
     "stderr": ""
   },
   {
-    "file": "corpus/short_circuit.fn",
+    "file": "corpus/short_circuit.mr",
     "exit": 0,
     "stdout": "false\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "corpus/signed_arithmetic.fn",
+    "file": "corpus/signed_arithmetic.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n9223372036854775807\n-9223372036854775808\n-4\n-1\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "corpus/sql_lifecycle.fn",
+    "file": "corpus/sql_lifecycle.mr",
     "exit": 0,
     "stdout": "-3\n-3\n-3\n0\n0\n-3\n-3\ntrue\n-3\n0\n0\n0\n0\n",
     "stderr": ""
   },
   {
-    "file": "corpus/string_add.fn",
+    "file": "corpus/string_add.mr",
     "exit": 0,
     "stdout": "Hello, Morrow!\n",
     "stderr": ""
   },
   {
-    "file": "corpus/string_function.fn",
+    "file": "corpus/string_function.mr",
     "exit": 0,
     "stdout": "Hello, Morrow\n",
     "stderr": ""
   },
   {
-    "file": "corpus/strings.fn",
+    "file": "corpus/strings.mr",
     "exit": 0,
     "stdout": "ab\n3\nsame\n",
     "stderr": ""
   },
   {
-    "file": "corpus/tui_objects.fn",
+    "file": "corpus/tui_objects.mr",
     "exit": 0,
     "stdout": "true\ntrue\ntrue\ntrue\ntrue\ntrue\nfalse\nwork [██░░]  50%\nwork [████] 100%\n- wait\n\\ wait\n",
     "stderr": ""
   },
   {
-    "file": "custom_json_native/values.fn",
+    "file": "custom_json_native/values.mr",
     "exit": 0,
     "stdout": "{\"ids\":[\"user-9223372036854775807\",\"user--9223372036854775808\"]}\n9007199254740993\n5\n/ids/1\n",
     "stderr": ""
   },
   {
-    "file": "generic_schemes/nominal_keys.fn",
+    "file": "generic_schemes/nominal_keys.mr",
     "exit": 0,
     "stdout": "42\n1\n",
     "stderr": ""
   },
   {
-    "file": "generic_schemes/operations.fn",
+    "file": "generic_schemes/operations.mr",
     "exit": 0,
     "stdout": "9\n4\n42\n3.75\nMorrow\nvalue=true\n4\n9\nvalue=42\n",
     "stderr": ""
   },
   {
-    "file": "generic_schemes/parametric.fn",
+    "file": "generic_schemes/parametric.mr",
     "exit": 0,
     "stdout": "9223372036854775807\nMorrow\nsecond\nn=42\n",
     "stderr": ""
   },
   {
-    "file": "generic_schemes/requirements.fn",
+    "file": "generic_schemes/requirements.mr",
     "exit": 0,
     "stdout": "value=42\nvalue=Morrow\nvalue=true\ntrue\ntrue\n42\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/branches.fn",
+    "file": "inference_shapes/branches.mr",
     "exit": 0,
     "stdout": "42\nconsume\n0\n7\nconsume\n0\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/callbacks.fn",
+    "file": "inference_shapes/callbacks.mr",
     "exit": 0,
     "stdout": "action\n42\nMorrow\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/guards.fn",
+    "file": "inference_shapes/guards.mr",
     "exit": 0,
     "stdout": "consume\ncleanup\n42\n0\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/iteration.fn",
+    "file": "inference_shapes/iteration.mr",
     "exit": 0,
     "stdout": "7\n8\n2\nMorrow\n1\n3\n7\n2\n0\n1\nrange\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/records.fn",
+    "file": "inference_shapes/records.mr",
     "exit": 0,
     "stdout": "consume\nMorrow\nconsume\n7\nmark\nconsume\n42\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/results.fn",
+    "file": "inference_shapes/results.mr",
     "exit": 0,
     "stdout": "consume\ncleanup\n42\ncleanup\nfailed\n",
     "stderr": ""
   },
   {
-    "file": "inference_shapes/suffixes.fn",
+    "file": "inference_shapes/suffixes.mr",
     "exit": 0,
     "stdout": "5\ntuple\nsaved\n",
     "stderr": ""
   },
   {
-    "file": "iteration/captures.fn",
+    "file": "iteration/captures.mr",
     "exit": 0,
     "stdout": "leaving\n42\n",
     "stderr": ""
   },
   {
-    "file": "iteration/collections.fn",
+    "file": "iteration/collections.mr",
     "exit": 0,
     "stdout": "values\n1.25\n2.5\n0=x\n1=y\n0\n1.25\n1\n2.5\nfirst\n4294967296\nsecond\n-4294967296\ntrue\n1.25\nfalse\n2.5\n",
     "stderr": ""
   },
   {
-    "file": "iteration/defers.fn",
+    "file": "iteration/defers.mr",
     "exit": 0,
     "stdout": "0\ndone\n2\n0\n",
     "stderr": ""
   },
   {
-    "file": "iteration/nested.fn",
+    "file": "iteration/nested.mr",
     "exit": 0,
     "stdout": "0\nouter\n10\nouter\n0\n2\n",
     "stderr": ""
   },
   {
-    "file": "iteration/order.fn",
+    "file": "iteration/order.mr",
     "exit": 0,
     "stdout": "0\n3\n0\n1\n2\nitems\n4\n5\n",
     "stderr": ""
   },
   {
-    "file": "iteration/ranges.fn",
+    "file": "iteration/ranges.mr",
     "exit": 0,
     "stdout": "9223372036854775806\n9223372036854775807\n-9223372036854775808\n-9223372036854775807\n2\n",
     "stderr": ""
   },
   {
-    "file": "iteration/values.fn",
+    "file": "iteration/values.mr",
     "exit": 0,
     "stdout": "0\n1\n2\n3\n2\n3\n",
     "stderr": ""
   },
   {
-    "file": "iteration/with_loop.fn",
+    "file": "iteration/with_loop.mr",
     "exit": 0,
     "stdout": "11\nafter\nfinished\n2\n1\n0\n",
     "stderr": ""
   },
   {
-    "file": "json_codecs_native/containers.fn",
+    "file": "json_codecs_native/containers.mr",
     "exit": 0,
     "stdout": "9007199254740993\n2.5\nMorrow\n{\"second\":[2,3],\"first\":[]}\ntrue\nnull\n",
     "stderr": ""
   },
   {
-    "file": "json_codecs_native/errors.fn",
+    "file": "json_codecs_native/errors.mr",
     "exit": 0,
     "stdout": "9\n-1\n/a~1b~0c/1\n12\n-1\n/extra\n6\n-1\n/count\n1\n3\n\n",
     "stderr": ""
   },
   {
-    "file": "json_codecs_native/generics.fn",
+    "file": "json_codecs_native/generics.mr",
     "exit": 0,
     "stdout": "{\"value\":-0}\n9007199254740993\n{\"value\":{\"value\":42}}\n",
     "stderr": ""
   },
   {
-    "file": "json_codecs_native/records.fn",
+    "file": "json_codecs_native/records.mr",
     "exit": 0,
     "stdout": "9007199254740993\ntrue\n{\"age\":9007199254740993,\"name\":null}\n",
     "stderr": ""
   },
   {
-    "file": "json_constraints_native/containers.fn",
+    "file": "json_constraints_native/containers.mr",
     "exit": 0,
     "stdout": "{\"value\":42,\"children\":[]}\n\"morrow\"\n{\"value\":7}\n1\n2\n",
     "stderr": ""
   },
   {
-    "file": "json_constraints_native/effects.fn",
+    "file": "json_constraints_native/effects.mr",
     "exit": 0,
     "stdout": "input\ncleanup\n1\n",
     "stderr": ""
   },
   {
-    "file": "json_constraints_native/instances.fn",
+    "file": "json_constraints_native/instances.mr",
     "exit": 0,
     "stdout": "9007199254740993\n\"Morrow\"\n-0\n",
     "stderr": ""
   },
   {
-    "file": "json_deep_unions/values.fn",
+    "file": "json_deep_unions/values.mr",
     "exit": 0,
     "stdout": "{\"payload\":{\"value\":9007199254740993}}\n{\"payload\":{\"value\":\"🌿\"}}\n[\"🌿\",-9223372036854775808]\n14\n{\"tag\":\"Payload\",\"fields\":[\"🌿\"]}\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/array_union.fn",
+    "file": "json_j6_proposal/array_union.mr",
     "exit": 0,
     "stdout": "[42]\n[\"left\",\"right\"]\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/conditional_union.fn",
+    "file": "json_j6_proposal/conditional_union.mr",
     "exit": 0,
     "stdout": "42\n\"Morrow\"\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/float_union.fn",
+    "file": "json_j6_proposal/float_union.mr",
     "exit": 0,
     "stdout": "-0\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/record_union.fn",
+    "file": "json_j6_proposal/record_union.mr",
     "exit": 0,
     "stdout": "{\"name\":\"Morrow\",\"email\":null}\n{\"count\":42}\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/recursive.fn",
+    "file": "json_j6_proposal/recursive.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Link\",\"fields\":[1,{\"tag\":\"Link\",\"fields\":[2,{\"tag\":\"End\",\"fields\":[]}]}]}\n{\"tag\":\"Link\",\"fields\":[\"Morrow\",{\"tag\":\"End\",\"fields\":[]}]}\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/scalar_union.fn",
+    "file": "json_j6_proposal/scalar_union.mr",
     "exit": 0,
     "stdout": "9007199254740993\n\"Morrow\"\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/sum_union.fn",
+    "file": "json_j6_proposal/sum_union.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Started\",\"fields\":[]}\n{\"tag\":\"Message\",\"fields\":[\"done\"]}\n",
     "stderr": ""
   },
   {
-    "file": "json_j6_proposal/sums.fn",
+    "file": "json_j6_proposal/sums.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Idle\",\"fields\":[]}\n{\"tag\":\"Count\",\"fields\":[9007199254740993]}\n{\"tag\":\"Named\",\"fields\":[\"Morrow\",true]}\n42\n",
     "stderr": ""
   },
   {
-    "file": "json_newtype_native/nullable.fn",
+    "file": "json_newtype_native/nullable.mr",
     "exit": 0,
     "stdout": "{\"required\":null,\"optional\":null}\n6\n/required\n",
     "stderr": ""
   },
   {
-    "file": "json_newtype_native/values.fn",
+    "file": "json_newtype_native/values.mr",
     "exit": 0,
     "stdout": "9223372036854775807\n-9223372036854775808\n[-0]\n4.9406564584124654e-324\n42.5\n9007199254740993\n[[]]\n",
     "stderr": ""
   },
   {
-    "file": "json_recursive_native/depth.fn",
+    "file": "json_recursive_native/depth.mr",
     "exit": 0,
     "stdout": "true\n4\n-1\n704\n",
     "stderr": ""
   },
   {
-    "file": "json_recursive_native/map.fn",
+    "file": "json_recursive_native/map.mr",
     "exit": 0,
     "stdout": "{\"children\":{\"a/b~c\":{\"children\":{}}}}\n{\"children\":{\"a/b~c\":{\"children\":{}}}}\n5\n/children/a~1b~0c/children\n",
     "stderr": ""
   },
   {
-    "file": "json_recursive_native/mutual.fn",
+    "file": "json_recursive_native/mutual.mr",
     "exit": 0,
     "stdout": "{\"next\":{\"next\":{\"next\":null}}}\n{\"next\":{\"next\":null}}\n",
     "stderr": ""
   },
   {
-    "file": "json_recursive_native/tree.fn",
+    "file": "json_recursive_native/tree.mr",
     "exit": 0,
     "stdout": "{\"value\":9223372036854775807,\"children\":[{\"value\":-9223372036854775808,\"children\":[]}]}\n{\"value\":\"Morrow\",\"children\":[{\"value\":\"🌿\",\"children\":[]}]}\n",
     "stderr": ""
   },
   {
-    "file": "json_sums_native/effects.fn",
+    "file": "json_sums_native/effects.mr",
     "exit": 0,
     "stdout": "input\ncleanup\n9\n-1\n/fields/0\n",
     "stderr": ""
   },
   {
-    "file": "json_sums_native/full64.fn",
+    "file": "json_sums_native/full64.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Packed\",\"fields\":[-0]}\n[{\"tag\":\"Packed\",\"fields\":[-0]},{\"tag\":\"Packed\",\"fields\":[-0]}]\n{\"exact\":{\"tag\":\"Packed\",\"fields\":[9007199254740993]}}\n",
     "stderr": ""
   },
   {
-    "file": "json_sums_native/mutual.fn",
+    "file": "json_sums_native/mutual.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"More\",\"fields\":[{\"tag\":\"Item\",\"fields\":[7,{\"tag\":\"Stop\",\"fields\":[]}]}]}\n{\"tag\":\"More\",\"fields\":[{\"tag\":\"Item\",\"fields\":[7,{\"tag\":\"Stop\",\"fields\":[]}]}]}\n{\"tag\":\"Marker\",\"fields\":[]}\n",
     "stderr": ""
   },
   {
-    "file": "json_sums_native/recursive.fn",
+    "file": "json_sums_native/recursive.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Link\",\"fields\":[1,{\"tag\":\"Link\",\"fields\":[2,{\"tag\":\"End\",\"fields\":[]}]}]}\n{\"tag\":\"Link\",\"fields\":[\"Morrow\",{\"tag\":\"End\",\"fields\":[]}]}\n",
     "stderr": ""
   },
   {
-    "file": "json_sums_native/sums.fn",
+    "file": "json_sums_native/sums.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Idle\",\"fields\":[]}\n{\"tag\":\"Count\",\"fields\":[9007199254740993]}\n{\"tag\":\"Named\",\"fields\":[\"Morrow\",true]}\n42\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/array_union.fn",
+    "file": "json_unions_native/array_union.mr",
     "exit": 0,
     "stdout": "[42]\n[\"left\",\"right\"]\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/conditional_union.fn",
+    "file": "json_unions_native/conditional_union.mr",
     "exit": 0,
     "stdout": "42\n\"Morrow\"\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/exact_primitives.fn",
+    "file": "json_unions_native/exact_primitives.mr",
     "exit": 0,
     "stdout": "1\n1\n9007199254740993\n9\n-1\n\n8\n-1\n\n10\n-1\n\n14\n-1\n\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/float_errors.fn",
+    "file": "json_unions_native/float_errors.mr",
     "exit": 0,
     "stdout": "-0\n8\n-1\n\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/float_union.fn",
+    "file": "json_unions_native/float_union.mr",
     "exit": 0,
     "stdout": "-0\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/generic_decoder.fn",
+    "file": "json_unions_native/generic_decoder.mr",
     "exit": 0,
     "stdout": "7\nword\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/generic_map_union.fn",
+    "file": "json_unions_native/generic_map_union.mr",
     "exit": 0,
     "stdout": "{\"a\":7}\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/inline_containers.fn",
+    "file": "json_unions_native/inline_containers.mr",
     "exit": 0,
     "stdout": "[1,\"leaf\"]\n{\"a\":true,\"b\":7}\n[\"leaf\",true]\nnull\n{\"value\":7}\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/inline_generic.fn",
+    "file": "json_unions_native/inline_generic.mr",
     "exit": 0,
     "stdout": "7\nword\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/inline_scalar.fn",
+    "file": "json_unions_native/inline_scalar.mr",
     "exit": 0,
     "stdout": "9007199254740993\n\"🌿\"\n14\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/mixed_selectors.fn",
+    "file": "json_unions_native/mixed_selectors.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Ready\",\"fields\":[],\"extra\":true}\n9\n-1\n/fields/0\n13\n-1\n/tag\n14\n-1\n\n14\n-1\n\n5\n-1\n/extra\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/nested_selector_path.fn",
+    "file": "json_unions_native/nested_selector_path.mr",
     "exit": 0,
     "stdout": "14\n-1\n/choice\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/newtype_float_union.fn",
+    "file": "json_unions_native/newtype_float_union.mr",
     "exit": 0,
     "stdout": "[-0]\n-0\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/nullable_record_profile.fn",
+    "file": "json_unions_native/nullable_record_profile.mr",
     "exit": 0,
     "stdout": "{\"other\":null}\n{\"value\":null}\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/nullable_union.fn",
+    "file": "json_unions_native/nullable_union.mr",
     "exit": 0,
     "stdout": "null\n42\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/record_selectors.fn",
+    "file": "json_unions_native/record_selectors.mr",
     "exit": 0,
     "stdout": "{\"id\":3,\"note\":null}\n{\"title\":\"x\"}\n14\n-1\n\n14\n-1\n\n14\n-1\n\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/record_union.fn",
+    "file": "json_unions_native/record_union.mr",
     "exit": 0,
     "stdout": "{\"name\":\"Morrow\",\"email\":null}\n{\"count\":42}\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/recursive_union.fn",
+    "file": "json_unions_native/recursive_union.mr",
     "exit": 0,
     "stdout": "{\"next\":{\"next\":\"done\"}}\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/scalar_union.fn",
+    "file": "json_unions_native/scalar_union.mr",
     "exit": 0,
     "stdout": "9007199254740993\n\"Morrow\"\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/sum_selectors.fn",
+    "file": "json_unions_native/sum_selectors.mr",
     "exit": 0,
     "stdout": "9\n-1\n/fields/0\n12\n-1\n/extra\n6\n-1\n/fields\n14\n-1\n\n14\n-1\n\n",
     "stderr": ""
   },
   {
-    "file": "json_unions_native/sum_union.fn",
+    "file": "json_unions_native/sum_union.mr",
     "exit": 0,
     "stdout": "{\"tag\":\"Started\",\"fields\":[]}\n{\"tag\":\"Message\",\"fields\":[\"done\"]}\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/aliases.fn",
+    "file": "json_values/valid/aliases.mr",
     "exit": 0,
     "stdout": "[]\n7\nordinary\n9\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/builders.fn",
+    "file": "json_values/valid/builders.mr",
     "exit": 0,
     "stdout": "[null,true,-7,1.5,\"🌿\\n\",1.00e2]\n{\"second\":[null,true,-7,1.5,\"🌿\\n\",1.00e2],\"first\":1}\n[]\n{}\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/containers.fn",
+    "file": "json_values/valid/containers.mr",
     "exit": 0,
     "stdout": "{\"retained\":true}\n1\n1\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/core.fn",
+    "file": "json_values/valid/core.mr",
     "exit": 0,
     "stdout": "42\ntrue\n2\n{\"count\":42,\"empty\":null}\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/dag_limits.fn",
+    "file": "json_values/valid/dag_limits.mr",
     "exit": 0,
     "stdout": "4\n-1\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/effects.fn",
+    "file": "json_values/valid/effects.mr",
     "exit": 0,
     "stdout": "read done\nrun done\n1\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/errors.fn",
+    "file": "json_values/valid/errors.mr",
     "exit": 0,
     "stdout": "1\n3\ninvalid JSON syntax\n6\n-1\nJSON object key not found\n7\n-1\nJSON array index out of bounds\n11\n-1\nJSON number is not finite\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/first_class.fn",
+    "file": "json_values/valid/first_class.mr",
     "exit": 0,
     "stdout": "[1,2,3]\n2.5\nfalse\nbuild once\n{\"x\":1}\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/members.fn",
+    "file": "json_values/valid/members.mr",
     "exit": 0,
     "stdout": "\"a\\u0000b\"\n1\n\"🌿\"\n2\nfalse\n{\"a\\u0000b\":1,\"🌿\":2}\n5\n0\n",
     "stderr": ""
   },
   {
-    "file": "json_values/valid/numeric.fn",
+    "file": "json_values/valid/numeric.mr",
     "exit": 0,
     "stdout": "9007199254740993\n9007199254740993\n1.5\n-9223372036854775808\n1e999999999999999999999999\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "labels_native/clauses.fn",
+    "file": "labels_native/clauses.mr",
     "exit": 0,
     "stdout": "1\n0\n42\n0\n",
     "stderr": ""
   },
   {
-    "file": "labels_native/contracts.fn",
+    "file": "labels_native/contracts.mr",
     "exit": 0,
     "stdout": "true\ntrue\ntrue\n3\nor\n",
     "stderr": ""
   },
   {
-    "file": "labels_native/exit.fn",
+    "file": "labels_native/exit.mr",
     "exit": 0,
     "stdout": "cleanup\n9\nresult cleanup\nstop\n",
     "stderr": ""
   },
   {
-    "file": "labels_native/generic.fn",
+    "file": "labels_native/generic.mr",
     "exit": 0,
     "stdout": "9223372036854775807\n42\n🌿\n",
     "stderr": ""
   },
   {
-    "file": "labels_native/order.fn",
+    "file": "labels_native/order.mr",
     "exit": 0,
     "stdout": "R\nL\n7\nP\nR\n7\n",
     "stderr": ""
   },
   {
-    "file": "literals/multiline.fn",
+    "file": "literals/multiline.mr",
     "exit": 0,
     "stdout": "first\n  second 3\nlast\na \"quoted\" word\n",
     "stderr": ""
   },
   {
-    "file": "literals/unicode.fn",
+    "file": "literals/unicode.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "maps/basics.fn",
+    "file": "maps/basics.mr",
     "exit": 0,
     "stdout": "true\n0\ntrue\n0\n0\n0\n2\n3\ntrue\nfalse\n3\n9\na\nb\n2\n1\ntrue\nb\na\n2\n11\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "maps/keys.fn",
+    "file": "maps/keys.mr",
     "exit": 0,
     "stdout": "1\n3\n4\n1\n2\n3\nmin\nmax\nwide\nzero\n4294967296\n-4294967296\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "maps/order.fn",
+    "file": "maps/order.mr",
     "exit": 0,
     "stdout": "1\n10\n2\n20\n1\n30\n1\n2\n30\nmap\n1\n40\n40\n",
     "stderr": ""
   },
   {
-    "file": "maps/record_update.fn",
+    "file": "maps/record_update.mr",
     "exit": 0,
     "stdout": "base\ntext\ninteger\n1\noriginal\n42\nchanged\n1.25\n42\nbase\n1\n3.75\n",
     "stderr": ""
   },
   {
-    "file": "maps/stress.fn",
+    "file": "maps/stress.mr",
     "exit": 0,
     "stdout": "0\n256\n4294967552\n4294967297\n4294967552\n7\n255\ntrue\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "maps/values.fn",
+    "file": "maps/values.mr",
     "exit": 0,
     "stdout": "1.25\n-2.5\n3.75\n42\n42\n9223372036854775807\nstored failure\ntrue\n0\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "migration/aliases.fn",
+    "file": "migration/aliases.mr",
     "exit": 0,
     "stdout": "0\n0\nerror\nerror\n0\nmessage\n",
     "stderr": ""
   },
   {
-    "file": "migration/index_fault.fn",
+    "file": "migration/index_fault.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: list index out of bounds\n"
   },
   {
-    "file": "migration/indexing.fn",
+    "file": "migration/indexing.mr",
     "exit": 0,
     "stdout": "1\n2\n4294967297\n42\n🌿\n3.5\n2\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "migration/inline_match.fn",
+    "file": "migration/inline_match.mr",
     "exit": 0,
     "stdout": "1\n2\n3\n2\n10\n30\n20\n30\n",
     "stderr": ""
   },
   {
-    "file": "migration/membership.fn",
+    "file": "migration/membership.mr",
     "exit": 0,
     "stdout": "1\n2\ntrue\nfalse\ntrue\nfalse\ntrue\nfalse\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "migration/reference.fn",
+    "file": "migration/reference.mr",
     "exit": 0,
     "stdout": "1\n2\n3\n10\n20\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/alias_constructor.fn",
+    "file": "namespaces_native/alias_constructor.mr",
     "exit": 0,
     "stdout": "51\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/alias_type.fn",
+    "file": "namespaces_native/alias_type.mr",
     "exit": 0,
     "stdout": "41\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/alias_value.fn",
+    "file": "namespaces_native/alias_value.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/both_alias.fn",
+    "file": "namespaces_native/both_alias.mr",
     "exit": 0,
     "stdout": "49\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/both_selected.fn",
+    "file": "namespaces_native/both_selected.mr",
     "exit": 0,
     "stdout": "47\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/both_wildcard.fn",
+    "file": "namespaces_native/both_wildcard.mr",
     "exit": 0,
     "stdout": "both\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/cross_namespace.fn",
+    "file": "namespaces_native/cross_namespace.mr",
     "exit": 0,
     "stdout": "50\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/newtype_type.fn",
+    "file": "namespaces_native/newtype_type.mr",
     "exit": 0,
     "stdout": "45\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/newtype_value.fn",
+    "file": "namespaces_native/newtype_value.mr",
     "exit": 0,
     "stdout": "46\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/shadowing.fn",
+    "file": "namespaces_native/shadowing.mr",
     "exit": 0,
     "stdout": "4294967296\n2\n5\n13\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/sum_type.fn",
+    "file": "namespaces_native/sum_type.mr",
     "exit": 0,
     "stdout": "43\n",
     "stderr": ""
   },
   {
-    "file": "namespaces_native/sum_value.fn",
+    "file": "namespaces_native/sum_value.mr",
     "exit": 0,
     "stdout": "44\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/closures.fn",
+    "file": "newtypes_native/closures.mr",
     "exit": 0,
     "stdout": "1.25\n4.25\n7.5\n4294967296\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/collections.fn",
+    "file": "newtypes_native/collections.mr",
     "exit": 0,
     "stdout": "1\n1.5\n2.5\ntrue\ntrue\nfalse\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_constructors.fn",
+    "file": "newtypes_native/frontend_constructors.mr",
     "exit": 0,
     "stdout": "4294967296\n3.75\nx\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_control.fn",
+    "file": "newtypes_native/frontend_control.mr",
     "exit": 0,
     "stdout": "7\n11\ntrue\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_float_closures.fn",
+    "file": "newtypes_native/frontend_float_closures.mr",
     "exit": 0,
     "stdout": "3.75\ntrue\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_json.fn",
+    "file": "newtypes_native/frontend_json.mr",
     "exit": 0,
     "stdout": "true\n4294967296\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_keys.fn",
+    "file": "newtypes_native/frontend_keys.mr",
     "exit": 0,
     "stdout": "1\n1\n2\ntrue\n0\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_recursive.fn",
+    "file": "newtypes_native/frontend_recursive.mr",
     "exit": 0,
     "stdout": "2\n1\n2\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/frontend_scalars.fn",
+    "file": "newtypes_native/frontend_scalars.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n4294967296\n9223372036854775807\ntrue\nunit\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/patterns.fn",
+    "file": "newtypes_native/patterns.mr",
     "exit": 0,
     "stdout": "1\n0\n4294967296\n-1\n1.5\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/scalars.fn",
+    "file": "newtypes_native/scalars.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n1.25\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/sums_records.fn",
+    "file": "newtypes_native/sums_records.mr",
     "exit": 0,
     "stdout": "1.25\n4294967296\n1.25\n4294967296\n1.25\n",
     "stderr": ""
   },
   {
-    "file": "newtypes_native/tail_effects.fn",
+    "file": "newtypes_native/tail_effects.mr",
     "exit": 0,
     "stdout": "50000\nonce\n42\ndone\n7\n",
     "stderr": ""
   },
   {
-    "file": "numeric/bits.fn",
+    "file": "numeric/bits.mr",
     "exit": 0,
     "stdout": "10\n23\n15\n-1\n-9223372036854775808\n1\n-9223372036854775808\n-2\n-1\n9223372036854775807\n-9223372036854775808\n",
     "stderr": ""
   },
   {
-    "file": "numeric/division.fn",
+    "file": "numeric/division.mr",
     "exit": 0,
     "stdout": "-3\n-1\n-3\n1\n-9223372036854775808\n0\n",
     "stderr": ""
   },
   {
-    "file": "numeric/ieee.fn",
+    "file": "numeric/ieee.mr",
     "exit": 0,
     "stdout": "true\ntrue\nfalse\ntrue\ntrue\ntrue\nfalse\ntrue\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "numeric/order.fn",
+    "file": "numeric/order.mr",
     "exit": 0,
     "stdout": "2\n3\n8\n1\n2\n4\nfalse\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "numeric/powers.fn",
+    "file": "numeric/powers.mr",
     "exit": 0,
     "stdout": "512\n4\n1\n1\n-9223372036854775808\n0\n-1\n0.125\n-8\n",
     "stderr": ""
   },
   {
-    "file": "numeric/checked.fn",
+    "file": "numeric/checked.mr",
     "exit": 0,
     "stdout": "ok 3\noverflow\noverflow\noverflow\nok -9223372036854775808\noverflow\nok -9223372036854775808\nok 3\noverflow\noverflow\nok -1\noverflow\noverflow\nok -5\noverflow\nSome(3)\n1000000000000\n-1\n",
     "stderr": ""
   },
   {
-    "file": "numeric_faults/argument.fn",
+    "file": "numeric_faults/argument.mr",
     "exit": 1,
     "stdout": "1\nfail\nmain\n",
     "stderr": "morrow: runtime error: negative integer exponent\n"
   },
   {
-    "file": "numeric_faults/cleanup.fn",
+    "file": "numeric_faults/cleanup.mr",
     "exit": 1,
     "stdout": "nested\nlast\nmain\n",
     "stderr": "morrow: runtime error: negative integer exponent\n"
   },
   {
-    "file": "numeric_faults/higher_order.fn",
+    "file": "numeric_faults/higher_order.mr",
     "exit": 1,
     "stdout": "1\n2\n99\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "numeric_faults/nested.fn",
+    "file": "numeric_faults/nested.mr",
     "exit": 1,
     "stdout": "inner\nouter\nmain\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "numeric_faults/option.fn",
+    "file": "numeric_faults/option.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "numeric_faults/primary.fn",
+    "file": "numeric_faults/primary.mr",
     "exit": 1,
     "stdout": "first\nnested\nlast\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "numeric_faults/remainder.fn",
+    "file": "numeric_faults/remainder.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "numeric_faults/result.fn",
+    "file": "numeric_faults/result.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: negative integer exponent\n"
   },
   {
-    "file": "parameters/annotations.fn",
+    "file": "parameters/annotations.mr",
     "exit": 0,
     "stdout": "fallback\n42\n2.5\n",
     "stderr": ""
   },
   {
-    "file": "parameters/errors.fn",
+    "file": "parameters/errors.mr",
     "exit": 0,
     "stdout": "4\n-1\n9\n3\n-1\n",
     "stderr": ""
   },
   {
-    "file": "parameters/factorial.fn",
+    "file": "parameters/factorial.mr",
     "exit": 0,
     "stdout": "720\nyes\nno\n",
     "stderr": ""
   },
   {
-    "file": "parameters/lists.fn",
+    "file": "parameters/lists.mr",
     "exit": 0,
     "stdout": "6\n0\n",
     "stderr": ""
   },
   {
-    "file": "parameters/nominal.fn",
+    "file": "parameters/nominal.mr",
     "exit": 0,
     "stdout": "42\n6.25\n0\n",
     "stderr": ""
   },
   {
-    "file": "parameters/project/main.fn",
+    "file": "parameters/project/main.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "parameters/tuples.fn",
+    "file": "parameters/tuples.mr",
     "exit": 0,
     "stdout": "8\n-8\n-4\n-1\n",
     "stderr": ""
   },
   {
-    "file": "result_builders/accumulators.fn",
+    "file": "result_builders/accumulators.mr",
     "exit": 0,
     "stdout": "false\ntrue\ntrue\nfalse\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "result_builders/fresh.fn",
+    "file": "result_builders/fresh.mr",
     "exit": 0,
     "stdout": "true\ntrue\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "result_builders/generic.fn",
+    "file": "result_builders/generic.mr",
     "exit": 0,
     "stdout": "true\ntrue\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "result_builders/payloads.fn",
+    "file": "result_builders/payloads.mr",
     "exit": 0,
     "stdout": "true\ntrue\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "sequences/embedded.fn",
+    "file": "sequences/embedded.mr",
     "exit": 0,
     "stdout": "13\n42\n1\n2\n7\n5\n",
     "stderr": ""
   },
   {
-    "file": "sequences/escape.fn",
+    "file": "sequences/escape.mr",
     "exit": 0,
     "stdout": "9.25\n",
     "stderr": ""
   },
   {
-    "file": "sequences/generic.fn",
+    "file": "sequences/generic.mr",
     "exit": 0,
     "stdout": "9.75\n🌿\n",
     "stderr": ""
   },
   {
-    "file": "sequences/lists.fn",
+    "file": "sequences/lists.mr",
     "exit": 0,
     "stdout": "0\n7\n12\n",
     "stderr": ""
   },
   {
-    "file": "sequences/loops.fn",
+    "file": "sequences/loops.mr",
     "exit": 0,
     "stdout": "2\n0\n0\n1.25\n1\n2.5\n2\n",
     "stderr": ""
   },
   {
-    "file": "sequences/nested.fn",
+    "file": "sequences/nested.mr",
     "exit": 0,
     "stdout": "2\n99\n",
     "stderr": ""
   },
   {
-    "file": "sequences/safe_access.fn",
+    "file": "sequences/safe_access.mr",
     "exit": 0,
     "stdout": "some -9223372036854775808\nsome 9223372036854775807\nnone\nnone\nsome -9223372036854775808\nsome 9223372036854775807\nnone\nnone\n2\n0\n3\n2\n0\n3\nsome 0\nsome 9223372036854775807\n3\nmoss\nsome 42\nsome -9223372036854775808\nsome 7\nnone\nnone\nnone\nnone\nnone\n42\n",
     "stderr": ""
   },
   {
-    "file": "sequences/order.fn",
+    "file": "sequences/order.mr",
     "exit": 0,
     "stdout": "source\n2\n2\n",
     "stderr": ""
   },
   {
-    "file": "sequences/results.fn",
+    "file": "sequences/results.mr",
     "exit": 0,
     "stdout": "9223372036854775807\n10\n",
     "stderr": ""
   },
   {
-    "file": "sequences/tuples.fn",
+    "file": "sequences/tuples.mr",
     "exit": 0,
     "stdout": "9223372036854775807\n🌿\n1.25\nsingle\nunit\nwhole unit\n",
     "stderr": ""
   },
   {
-    "file": "sequences/whole.fn",
+    "file": "sequences/whole.mr",
     "exit": 0,
     "stdout": "0\nall\n",
     "stderr": ""
   },
   {
-    "file": "sequences/utilities.fn",
+    "file": "sequences/utilities.mr",
     "exit": 0,
     "stdout": "[-9223372036854775808, 0, 1, 3, 9223372036854775807]\n[3, -9223372036854775808, 1, 9223372036854775807, 0]\n[\"\", \"Apple\", \"apple\", \"pear\", \"zebra\", \"éclair\"]\n[false, true, true]\n[-0.5, 1, 2.5]\n[Score(-1), Score(2), Score(3)]\n[0, 1, 2, 3, 4]\n[-2, -1, 0]\n[]\n[]\n1\n6\n5050\n0\n-9223372036854775808\n[(1, \"a\"), (2, \"b\")]\n0\n1a\n2b\n-9223372036854775806\n50\n",
     "stderr": ""
   },
   {
-    "file": "sequences/sort_by.fn",
+    "file": "sequences/sort_by.mr",
     "exit": 0,
     "stdout": "[Person(name: \"Ada\", age: 36), Person(name: \"Al\", age: 36), Person(name: \"Bo\", age: 40), Person(name: \"Cy\", age: 40)]\n[Person(name: \"Ada\", age: 36), Person(name: \"Al\", age: 36), Person(name: \"Cy\", age: 40), Person(name: \"Bo\", age: 40)]\n[Person(name: \"Cy\", age: 40), Person(name: \"Bo\", age: 40), Person(name: \"Ada\", age: 36), Person(name: \"Al\", age: 36)]\n[(1, \"z\"), (2, \"a\"), (2, \"b\")]\n[Some(1), Some(3), None]\n[[], [2], [3, 1]]\n[Low, High, High]\n[1, 2, 3]\n[\"a\", \"b\"]\n[-1, 2.5]\n[9, 5, 3]\n[]\n[7]\nSome(19999)\nSome(0)\n20000\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/count.fn",
+    "file": "tail_calls/count.mr",
     "exit": 0,
     "stdout": "1000000\n1000007\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/fault.fn",
+    "file": "tail_calls/fault.mr",
     "exit": 1,
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: integer division by zero\n"
   },
   {
-    "file": "tail_calls/nested_cleanup.fn",
+    "file": "tail_calls/nested_cleanup.mr",
     "exit": 0,
     "stdout": "nested\n7\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/order.fn",
+    "file": "tail_calls/order.mr",
     "exit": 0,
     "stdout": "n\na\nb\n32\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/own_cleanup.fn",
+    "file": "tail_calls/own_cleanup.mr",
     "exit": 0,
     "stdout": "0\n1\n2\n3\n7\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/results.fn",
+    "file": "tail_calls/results.mr",
     "exit": 0,
     "stdout": "9223372036854775807\n9\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/scratch.fn",
+    "file": "tail_calls/scratch.mr",
     "exit": 0,
     "stdout": "42\n",
     "stderr": ""
   },
   {
-    "file": "tail_calls/values.fn",
+    "file": "tail_calls/values.mr",
     "exit": 0,
     "stdout": "true\nretained\n9223372036854775802\n2.5\n",
     "stderr": ""
   },
   {
-    "file": "traits/values.fn",
+    "file": "traits/values.mr",
     "exit": 0,
     "stdout": "10\nPoint(x: 9223372036854775807, y: -9223372036854775808)\ntrue\ntrue\n-1\nBranch([Leaf(1), Branch([Leaf(2), Leaf(3)])])\ntrue\n-1\n",
     "stderr": ""
   },
   {
-    "file": "traits/printing.fn",
+    "file": "traits/printing.mr",
     "exit": 0,
     "stdout": "[1, 2, 3]\n[\"a\", \"b\"]\n[\"\", \"say \\\"hi\\\"\", \"back\\\\slash\", \"tab\\tline\\nbreak\"]\n\"plain\"\n1\n[1]\ns\n[\"s\"]\nSome(Point(x: 0, y: 0))\n[Some(Point(x: 0, y: 0))]\n[[1], [], [2, 3]]\nSome(9223372036854775807)\nNone\n(1, \"two\", true, 2.5)\nOk(42)\nErr(\"not a number: x\")\nPoint(x: -9223372036854775808, y: 2)\n[Circle(1), Square(2, 3), Dot]\nUserId(7)\nSome(Point(x: 1, y: 2))\n%{\"b\": [2], \"a\": [1]}\n[1](2, 3)Some(\"!\")\n[(1, \"x\"), (2, \"y\")]\n[(0, \"p\"), (1, \"q\")]\nplain\n7\n1.5\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/custom_sum.fn",
+    "file": "types/custom_sum.mr",
     "exit": 0,
     "stdout": "active\nnow\nwaiting: approval\n",
     "stderr": ""
   },
   {
-    "file": "types/floats.fn",
+    "file": "types/floats.mr",
     "exit": 0,
     "stdout": "3.125\n3.5\ntrue\ntrue\ntrue\ntrue\n1.5\n2.25\n4.5\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/generic_identity.fn",
+    "file": "types/generic_identity.mr",
     "exit": 0,
     "stdout": "42\ngeneric\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/interpolation.fn",
+    "file": "types/interpolation.mr",
     "exit": 0,
     "stdout": "Hello 🌿, answer=42!\n9223372036854775807 -9223372036854775808\nbool=true/false float=1.25\nliteral {brace}; nested 🌿 # text\n1\n2\n1:2\ngeneric=42\n",
     "stderr": ""
   },
   {
-    "file": "types/mutual_result_list.fn",
+    "file": "types/mutual_result_list.mr",
     "exit": 0,
     "stdout": "false\ntrue\nfalse\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/mutual_result_tree.fn",
+    "file": "types/mutual_result_tree.mr",
     "exit": 0,
     "stdout": "false\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/mutual_result_wrapped_map.fn",
+    "file": "types/mutual_result_wrapped_map.mr",
     "exit": 0,
     "stdout": "false\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "types/nested_guards.fn",
+    "file": "types/nested_guards.mr",
     "exit": 0,
     "stdout": "yes\nno\ninner empty\nouter empty\n1\n2\n2\n",
     "stderr": ""
   },
   {
-    "file": "types/pipes.fn",
+    "file": "types/pipes.mr",
     "exit": 0,
     "stdout": "input\nconfig\n10\n",
     "stderr": ""
   },
   {
-    "file": "types/project/main.fn",
+    "file": "types/project/main.mr",
     "exit": 0,
     "stdout": "Morrow inventory\n42\n",
     "stderr": ""
   },
   {
-    "file": "types/records.fn",
+    "file": "types/records.mr",
     "exit": 0,
     "stdout": "9223372036854775807\nhello\ntrue\nfallback\n",
     "stderr": ""
   },
   {
-    "file": "types/recursive_tree.fn",
+    "file": "types/recursive_tree.mr",
     "exit": 0,
     "stdout": "4294967338\n4294967296\nretained 🌿\n",
     "stderr": ""
   },
   {
-    "file": "types/tuples.fn",
+    "file": "types/tuples.mr",
     "exit": 0,
     "stdout": "once\n9223372036854775807\ntrue\n🌿\n1.25\nswapped\n42\n7\n42\n0\n-1\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/alias_canonical_equality.fn",
+    "file": "unions_native/alias_canonical_equality.mr",
     "exit": 0,
     "stdout": "4294967296\nmorrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/contextual_branches_both_orders.fn",
+    "file": "unions_native/contextual_branches_both_orders.mr",
     "exit": 0,
     "stdout": "number:7\nstring:morrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/contextual_list.fn",
+    "file": "unions_native/contextual_list.mr",
     "exit": 0,
     "stdout": "number:1\nstring:morrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/contextual_payloads.fn",
+    "file": "unions_native/contextual_payloads.mr",
     "exit": 0,
     "stdout": "record\n4294967297\n4294967296\nmorrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/declared_generic_wrapper.fn",
+    "file": "unions_native/declared_generic_wrapper.mr",
     "exit": 0,
     "stdout": "4294967296\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/design_members.fn",
+    "file": "unions_native/design_members.mr",
     "exit": 0,
     "stdout": "number:4294967296\nstring:morrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/effects_and_defer.fn",
+    "file": "unions_native/effects_and_defer.mr",
     "exit": 0,
     "stdout": "4294967296\ncleanup\n4294967296\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/float_bits_through_captures.fn",
+    "file": "unions_native/float_bits_through_captures.mr",
     "exit": 0,
     "stdout": "true\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/float_finite_capture.fn",
+    "file": "unions_native/float_finite_capture.mr",
     "exit": 0,
     "stdout": "1.25\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/function_and_collection_boundaries.fn",
+    "file": "unions_native/function_and_collection_boundaries.mr",
     "exit": 0,
     "stdout": "handler\n4294967296\nmorrow\n4294967297\nmap\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/function_member.fn",
+    "file": "unions_native/function_member.mr",
     "exit": 0,
     "stdout": "4294967298\n6\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/generic_duplicate_collapse.fn",
+    "file": "unions_native/generic_duplicate_collapse.mr",
     "exit": 0,
     "stdout": "4294967296\nmorrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/generic_independent_evidence.fn",
+    "file": "unions_native/generic_independent_evidence.mr",
     "exit": 0,
     "stdout": "3\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/generic_overlap_collapse.fn",
+    "file": "unions_native/generic_overlap_collapse.mr",
     "exit": 0,
     "stdout": "1\n2\n1\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/generic_return_context.fn",
+    "file": "unions_native/generic_return_context.mr",
     "exit": 0,
     "stdout": "0\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/guard_order.fn",
+    "file": "unions_native/guard_order.mr",
     "exit": 0,
     "stdout": "int\ngroup\n-3\ngroup\n6\n99\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/json_pointer.fn",
+    "file": "unions_native/json_pointer.mr",
     "exit": 0,
     "stdout": "4294967296\nmorrow\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/module_namespaces.fn",
+    "file": "unions_native/module_namespaces.mr",
     "exit": 0,
     "stdout": "4294967296\nmorrow\n42\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/newtype_same_abi_distinct_tags.fn",
+    "file": "unions_native/newtype_same_abi_distinct_tags.mr",
     "exit": 0,
     "stdout": "4294967296\n4294967297\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/newtype_union_and_recursion.fn",
+    "file": "unions_native/newtype_union_and_recursion.mr",
     "exit": 0,
     "stdout": "4294967296\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/result_narrow_and_handle.fn",
+    "file": "unions_native/result_narrow_and_handle.mr",
     "exit": 0,
     "stdout": "6\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/source_order_injection_and_early_return.fn",
+    "file": "unions_native/source_order_injection_and_early_return.mr",
     "exit": 0,
     "stdout": "7\n7\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/subset_pattern_narrow.fn",
+    "file": "unions_native/subset_pattern_narrow.mr",
     "exit": 0,
     "stdout": "6\n1\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/subset_widen_preserves_alias.fn",
+    "file": "unions_native/subset_widen_preserves_alias.mr",
     "exit": 0,
     "stdout": "6\n6\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/typed_nonresult_wildcard_safe.fn",
+    "file": "unions_native/typed_nonresult_wildcard_safe.mr",
     "exit": 0,
     "stdout": "",
     "stderr": ""
   },
   {
-    "file": "unions_native/unit_alternative.fn",
+    "file": "unions_native/unit_alternative.mr",
     "exit": 0,
     "stdout": "0\n7\n",
     "stderr": ""
   },
   {
-    "file": "unions_native/widths_and_bool.fn",
+    "file": "unions_native/widths_and_bool.mr",
     "exit": 0,
     "stdout": "-9223372036854775808\n9223372036854775807\n1.25\nfalse\ntrue\nunit\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/capabilities.fn",
+    "file": "whole_signatures/capabilities.mr",
     "exit": 0,
     "stdout": "42\n3.75\nMorrow\n9\n4\nvalue=true\ntrue\n42\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/constructed.fn",
+    "file": "whole_signatures/constructed.mr",
     "exit": 0,
     "stdout": "42\nMorrow\ndefault\n0\nanswer\n42\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/higher_order.fn",
+    "file": "whole_signatures/higher_order.mr",
     "exit": 0,
     "stdout": "42\nvalue=true\nvalue=42\nMorrow\n42\n2\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/identity.fn",
+    "file": "whole_signatures/identity.mr",
     "exit": 0,
     "stdout": "42\nMorrow\ntrue\nanswer\n42\nsaved\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/partial_recursion.fn",
+    "file": "whole_signatures/partial_recursion.mr",
     "exit": 0,
     "stdout": "42\nMorrow\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/project/main.fn",
+    "file": "whole_signatures/project/main.mr",
     "exit": 0,
     "stdout": "42\nMorrow\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/recursive.fn",
+    "file": "whole_signatures/recursive.mr",
     "exit": 0,
     "stdout": "3\n2\ntrue\ntrue\n",
     "stderr": ""
   },
   {
-    "file": "whole_signatures/reversed.fn",
+    "file": "whole_signatures/reversed.mr",
     "exit": 0,
     "stdout": "first\n42\nfalse\n",
     "stderr": ""
   },
   {
-    "file": "with/cleanup.fn",
+    "file": "with/cleanup.mr",
     "exit": 0,
     "stdout": "forward cleanup\ntrue\nrecover cleanup\n9\n",
     "stderr": ""
   },
   {
-    "file": "with/generic.fn",
+    "file": "with/generic.mr",
     "exit": 0,
     "stdout": "1.25\nfallback\n4294967296\nbad\n",
     "stderr": ""
   },
   {
-    "file": "with/guards.fn",
+    "file": "with/guards.mr",
     "exit": 0,
     "stdout": "guard\nguard\n5\n",
     "stderr": ""
   },
   {
-    "file": "with/heterogeneous.fn",
+    "file": "with/heterogeneous.mr",
     "exit": 0,
     "stdout": "auth\n7\ndone\nauth\ndenied\nauth\n7\nfailed 5\n",
     "stderr": ""
   },
   {
-    "file": "with/payloads.fn",
+    "file": "with/payloads.mr",
     "exit": 0,
     "stdout": "2.5\n-2.5\n",
     "stderr": ""
   },
   {
-    "file": "with/scopes.fn",
+    "file": "with/scopes.mr",
     "exit": 0,
     "stdout": "104\n",
     "stderr": ""

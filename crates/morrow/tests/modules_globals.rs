@@ -32,8 +32,8 @@ impl Drop for Project {
 #[test]
 fn aliased_globals_keep_identity_when_canonical_root_is_local() {
     let project = Project::new();
-    project.write("model.fn", "pub fn value(x: a) -> a: x\n");
-    let main = project.write("main.fn", "import model as m\nfn main():\n    let model = 41\n    let direct = m.value(model)\n    let callable = m.value\n    let piped = model |> m.value()\n    let capture = () -> m.value(model)\n    println(direct + callable(piped) + capture())\n");
+    project.write("model.mr", "pub fn value(x: a) -> a: x\n");
+    let main = project.write("main.mr", "import model as m\nfn main():\n    let model = 41\n    let direct = m.value(model)\n    let callable = m.value\n    let piped = model |> m.value()\n    let capture = () -> m.value(model)\n    println(direct + callable(piped) + capture())\n");
     let loaded = modules::load(&main).unwrap();
     let checked = morrow_compiler::check::check(&loaded.program).unwrap();
     morrow_compiler::lowering::emit(&checked).unwrap();
@@ -42,9 +42,9 @@ fn aliased_globals_keep_identity_when_canonical_root_is_local() {
 #[test]
 fn aliased_globals_keep_dependency_edges_for_inferred_private_callers() {
     let project = Project::new();
-    project.write("model.fn", "pub fn value(x: Int) -> Int: x+1\n");
+    project.write("model.mr", "pub fn value(x: Int) -> Int: x+1\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model as m\nfn caller(model): m.value(model)\nfn main(): println(caller(3))\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -54,12 +54,12 @@ fn aliased_globals_keep_dependency_edges_for_inferred_private_callers() {
 #[test]
 fn real_source_alias_shadowing_still_selects_local_record_fields() {
     let project = Project::new();
-    project.write("model.fn", "pub fn value(x: Int) -> Int: x+1\n");
-    let main=project.write("main.fn", "import model as m\ntype Callbacks:\n    value: fn(Int) -> Int\nfn main():\n    let m = Callbacks((x) -> x+2)\n    println(m.value(1))\n");
+    project.write("model.mr", "pub fn value(x: Int) -> Int: x+1\n");
+    let main=project.write("main.mr", "import model as m\ntype Callbacks:\n    value: fn(Int) -> Int\nfn main():\n    let m = Callbacks((x) -> x+2)\n    println(m.value(1))\n");
     let loaded = modules::load(&main).unwrap();
     morrow_compiler::check::check(&loaded.program).unwrap();
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model as m\nfn main():\n    let m=3\n    println(m.value(1))\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -70,9 +70,9 @@ fn real_source_alias_shadowing_still_selects_local_record_fields() {
 fn loader_preserves_source_spellings_and_resolved_declaration_identity() {
     use morrow_compiler::ast::{ExprKind, Stmt};
     let project = Project::new();
-    project.write("model.fn", "pub fn value(x: Int) -> Int: x\n");
+    project.write("model.mr", "pub fn value(x: Int) -> Int: x\n");
     let source = "import model as m\nfn main():\n    let model=3\n    let callable=m.value\n    let called=m.value(model)\n    let piped=model |> m.value()\n    println(called+piped)\n";
-    let main = project.write("main.fn", source);
+    let main = project.write("main.mr", source);
     let loaded = modules::load(&main).unwrap();
     let function = loaded
         .program
@@ -104,21 +104,21 @@ fn loader_preserves_source_spellings_and_resolved_declaration_identity() {
     }
     let formatted = morrow_compiler::format::format(source).unwrap();
     assert!(formatted.contains("m.value"));
-    let main = project.write("main.fn", &formatted);
+    let main = project.write("main.mr", &formatted);
     morrow_compiler::check::check(&modules::load(&main).unwrap().program).unwrap();
 }
 
 #[test]
 fn global_call_arguments_still_use_lexical_names_and_report_local_types() {
     let project = Project::new();
-    project.write("model.fn", "pub fn value(x: Int) -> Int: x\n");
+    project.write("model.mr", "pub fn value(x: Int) -> Int: x\n");
     for expr in [
         "m.value(model)",
         "model |> m.value()",
         "(() -> m.value(model))()",
     ] {
         let main = project.write(
-            "main.fn",
+            "main.mr",
             &format!(
                 "import model as m\nfn main():\n    let model=\"wrong\"\n    println({expr})\n"
             ),
@@ -175,10 +175,10 @@ fn public_global_ast_nodes_validate_both_names_and_recursive_children() {
 fn transparent_aliases_expand_inside_resolved_call_and_pipe_arguments() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "pub fn apply(f: fn(Int) -> Int, x: Int) -> Int: f(x)\n",
     );
-    let main = project.write("main.fn", "import model as m\ntype Number = Int\nfn main():\n    let model=3\n    println(m.apply((x: Number) -> x+1, model))\n    println(model |> m.apply((x: Number) -> x+2, _))\n");
+    let main = project.write("main.mr", "import model as m\ntype Number = Int\nfn main():\n    let model=3\n    println(m.apply((x: Number) -> x+1, model))\n    println(model |> m.apply((x: Number) -> x+2, _))\n");
     let loaded = modules::load(&main).unwrap();
     let checked = morrow_compiler::check::check(&loaded.program).unwrap();
     morrow_compiler::lowering::emit(&checked).unwrap();

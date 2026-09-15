@@ -33,7 +33,7 @@ impl Drop for Project {
 /// Resolve modules and check; the first diagnostic message from either stage is returned.
 fn failure(source: &str) -> String {
     let project = Project::new();
-    let main = project.write("main.fn", source);
+    let main = project.write("main.mr", source);
     match modules::load(&main) {
         Err(error) => error.message,
         Ok(loaded) => morrow_compiler::check::check(&loaded.program)

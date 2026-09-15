@@ -18,7 +18,7 @@ impl Directory {
         ));
         fs::create_dir(&path).unwrap();
         fs::write(
-            path.join("library.fn"),
+            path.join("library.mr"),
             "@doc \"\"\"A helper.\"\"\"\nfn helper(value:Int):value+1\n",
         )
         .unwrap();
@@ -73,13 +73,13 @@ impl Drop for Directory {
 #[test]
 fn open_implies_complete_retained_html_and_literal_absolute_argument() {
     let dir = Directory::new();
-    let result = dir.run(&["doc", "library.fn", "--open"]);
+    let result = dir.run(&["doc", "library.mr", "--open"]);
     assert!(result.status.success(), "{result:?}");
     assert!(result.stdout.is_empty());
     assert!(String::from_utf8_lossy(&result.stderr).contains("morrow-docs.html"));
     dir.assert_opened(dir.0.join("morrow-docs.html"));
     let name = "-docs $(touch INJECTED); ' λ.html";
-    let result = dir.run(&["doc", "--open", "--html", "library.fn", "-o", name]);
+    let result = dir.run(&["doc", "--open", "--html", "library.mr", "-o", name]);
     assert!(result.status.success(), "{result:?}");
     dir.assert_opened(dir.0.join(name));
     assert!(!dir.0.join("INJECTED").exists());
@@ -89,7 +89,7 @@ fn directory_and_inferred_modes_keep_generation_and_source_protection() {
     let dir = Directory::new();
     for args in [
         vec!["doc", ".", "--open"],
-        vec!["doc", "library.fn", "--inferred", "--open"],
+        vec!["doc", "library.mr", "--inferred", "--open"],
         vec!["doc", ".", "--inferred", "--open"],
     ] {
         let result = dir.run(&args);
@@ -97,22 +97,22 @@ fn directory_and_inferred_modes_keep_generation_and_source_protection() {
         dir.assert_opened(dir.0.join("morrow-docs.html"));
     }
     fs::remove_file(dir.0.join("calls")).unwrap();
-    let before = fs::read(dir.0.join("library.fn")).unwrap();
-    let result = dir.run(&["doc", ".", "--inferred", "--open", "-o", "library.fn"]);
+    let before = fs::read(dir.0.join("library.mr")).unwrap();
+    let result = dir.run(&["doc", ".", "--inferred", "--open", "-o", "library.mr"]);
     assert!(!result.status.success());
     assert!(!dir.0.join("calls").exists());
-    assert_eq!(before, fs::read(dir.0.join("library.fn")).unwrap());
+    assert_eq!(before, fs::read(dir.0.join("library.mr")).unwrap());
 }
 #[test]
 fn parse_check_write_and_option_failures_never_launch() {
     let dir = Directory::new();
-    fs::write(dir.0.join("bad.fn"), "fn broken(:\n").unwrap();
-    fs::write(dir.0.join("wrong.fn"), "fn wrong()->Int:true\n").unwrap();
+    fs::write(dir.0.join("bad.mr"), "fn broken(:\n").unwrap();
+    fs::write(dir.0.join("wrong.mr"), "fn wrong()->Int:true\n").unwrap();
     for args in [
-        vec!["doc", "bad.fn", "--open"],
-        vec!["doc", "wrong.fn", "--inferred", "--open"],
-        vec!["doc", "library.fn", "--open", "-o", "absent/out.html"],
-        vec!["doc", "library.fn", "--open", "--open"],
+        vec!["doc", "bad.mr", "--open"],
+        vec!["doc", "wrong.mr", "--inferred", "--open"],
+        vec!["doc", "library.mr", "--open", "-o", "absent/out.html"],
+        vec!["doc", "library.mr", "--open", "--open"],
     ] {
         let result = dir.run(&args);
         assert!(!result.status.success(), "{result:?}");
@@ -128,7 +128,7 @@ fn opener_fixture_exit_configuration_does_not_depend_on_argv_zero() {
     // argv[0]. Force that behavior on every Unix platform for this regression.
     let result = Command::new(dir.0.join("tools/xdg-open"))
         .arg0("xdg-open")
-        .arg(dir.0.join("library.fn"))
+        .arg(dir.0.join("library.mr"))
         .current_dir(&dir.0)
         .env(
             "MORROW_OPENER_FIXTURE_EXIT_FILE",
@@ -144,7 +144,7 @@ fn failed_or_missing_opener_is_visible_even_when_quiet_and_keeps_artifact() {
     let dir = Directory::new();
     dir.opener_failure(7);
     for flag in ["--quiet", "--verbose"] {
-        let result = dir.run(&["doc", "library.fn", "--open", flag]);
+        let result = dir.run(&["doc", "library.mr", "--open", flag]);
         assert!(result.status.success(), "{result:?}");
         assert!(String::from_utf8_lossy(&result.stderr).contains("open"));
         assert!(
@@ -154,7 +154,7 @@ fn failed_or_missing_opener_is_visible_even_when_quiet_and_keeps_artifact() {
         assert!(dir.0.join("morrow-docs.html").exists());
     }
     fs::remove_dir_all(dir.0.join("tools")).unwrap();
-    let result = dir.run(&["doc", "library.fn", "--open"]);
+    let result = dir.run(&["doc", "library.mr", "--open"]);
     assert!(result.status.success(), "{result:?}");
     assert!(String::from_utf8_lossy(&result.stderr).contains("note:"));
 }
@@ -165,7 +165,7 @@ fn non_utf8_output_is_passed_as_literal_os_path() {
     let name = OsString::from_vec(b"docs-\xff.html".to_vec());
     let args = vec![
         "doc".into(),
-        "library.fn".into(),
+        "library.mr".into(),
         "--open".into(),
         "-o".into(),
         name.clone(),
@@ -179,11 +179,11 @@ fn byte_cap_precedes_utf8_validation_in_every_doc_mode() {
     let dir = Directory::new();
     let mut bytes = vec![b'#'; 1024 * 1024];
     bytes.extend_from_slice("🌿".as_bytes());
-    fs::write(dir.0.join("library.fn"), bytes).unwrap();
+    fs::write(dir.0.join("library.mr"), bytes).unwrap();
     for args in [
-        vec!["doc", "library.fn"],
+        vec!["doc", "library.mr"],
         vec!["doc", "."],
-        vec!["doc", "library.fn", "--inferred"],
+        vec!["doc", "library.mr", "--inferred"],
         vec!["doc", ".", "--inferred"],
     ] {
         let result = dir.run(&args);
@@ -200,7 +200,7 @@ fn output_budget_failure_preserves_previous_artifact_and_never_launches() {
     let dir = Directory::new();
     for index in 0..5 {
         fs::write(
-            dir.0.join(format!("large{index}.fn")),
+            dir.0.join(format!("large{index}.mr")),
             format!(
                 "@doc \"\"\"{}\"\"\"\nfn helper{index}():()\n",
                 "&".repeat(700_000)
@@ -225,14 +225,14 @@ fn output_budget_failure_preserves_previous_artifact_and_never_launches() {
 #[test]
 fn exact_source_cap_and_invalid_utf8_retain_independent_diagnostics() {
     let dir = Directory::new();
-    fs::write(dir.0.join("library.fn"), vec![b'#'; 1024 * 1024]).unwrap();
-    let result = dir.run(&["doc", "library.fn", "--open"]);
+    fs::write(dir.0.join("library.mr"), vec![b'#'; 1024 * 1024]).unwrap();
+    let result = dir.run(&["doc", "library.mr", "--open"]);
     assert!(result.status.success(), "{result:?}");
     dir.assert_opened(dir.0.join("morrow-docs.html"));
     fs::remove_file(dir.0.join("calls")).unwrap();
     let before = fs::read(dir.0.join("morrow-docs.html")).unwrap();
-    fs::write(dir.0.join("library.fn"), [0xff]).unwrap();
-    let result = dir.run(&["doc", "library.fn", "--open"]);
+    fs::write(dir.0.join("library.mr"), [0xff]).unwrap();
+    let result = dir.run(&["doc", "library.mr", "--open"]);
     assert!(!result.status.success());
     assert!(String::from_utf8_lossy(&result.stderr).contains("invalid UTF-8"));
     assert_eq!(before, fs::read(dir.0.join("morrow-docs.html")).unwrap());

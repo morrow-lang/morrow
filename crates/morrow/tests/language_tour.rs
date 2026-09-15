@@ -2,7 +2,7 @@ use morrow_compiler::{check, format, parse, repl::Session};
 
 #[test]
 fn runnable_language_tour_composes_the_new_features_and_keeps_its_output_contract() {
-    let source = include_str!("../../../examples/language_tour.fn");
+    let source = include_str!("../../../examples/language_tour.mr");
     let formatted = format::format(source).unwrap();
     let program = check::check(&parse::parse(&formatted).unwrap()).unwrap();
     morrow_compiler::lowering::lower(&program).unwrap();

@@ -149,16 +149,16 @@ fn imported_newtype_type_and_constructor_navigate_to_distinct_original_tokens() 
     let directory = std::env::temp_dir().join(format!("morrow-lsp-newtype-{}", std::process::id()));
     std::fs::create_dir(&directory).unwrap();
     let declaration = "pub newtype Wrapper(a) = Packed(a)\n";
-    std::fs::write(directory.join("ids.fn"), declaration).unwrap();
+    std::fs::write(directory.join("ids.mr"), declaration).unwrap();
     let source = "import ids as api\nfn read(value: api.Wrapper(Int)) -> Int: value.0\nfn main(): println(api.Packed(1).0)\n";
-    std::fs::write(directory.join("main.fn"), source).unwrap();
+    std::fs::write(directory.join("main.mr"), source).unwrap();
     let uri = format!(
         "file://{}",
-        directory.join("main.fn").canonicalize().unwrap().display()
+        directory.join("main.mr").canonicalize().unwrap().display()
     );
     let target = format!(
         "file://{}",
-        directory.join("ids.fn").canonicalize().unwrap().display()
+        directory.join("ids.mr").canonicalize().unwrap().display()
     );
     let mut messages = vec![
         r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#.into(),

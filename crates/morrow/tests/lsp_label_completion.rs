@@ -234,9 +234,9 @@ fn answer(messages: &[String], id: &str) -> String {
 #[test]
 fn module_aliases_use_current_overlay_interfaces_and_restore_disk_on_close() {
     let project = Project::new();
-    let api = project.file("api.fn", "pub fn real(external value:Int)->Int:value\n");
+    let api = project.file("api.mr", "pub fn real(external value:Int)->Int:value\n");
     let marked = "import api as lib\nfn main():lib.real(§)\n";
-    let main = project.file("main.fn", &marked.replace('§', ""));
+    let main = project.file("main.mr", &marked.replace('§', ""));
     let messages = file_session(vec![
         open(&main, &marked.replace('§', "")),
         complete(&main, "disk", marked),
@@ -258,10 +258,10 @@ fn module_aliases_use_current_overlay_interfaces_and_restore_disk_on_close() {
 fn selected_reexports_and_canonical_names_preserve_source_lexical_identity() {
     let project = Project::new();
     project.file(
-        "api.fn",
+        "api.mr",
         "pub fn real(external value:Int)->Int:value\nfn hidden(secret value:Int)->Int:value\n",
     );
-    project.file("bridge.fn", "pub import api.{real}\n");
+    project.file("bridge.mr", "pub import api.{real}\n");
     for (marked, wanted) in [
         (
             "import api as lib\nfn main():\n    let api=1\n    lib.real(§)\n",
@@ -274,7 +274,7 @@ fn selected_reexports_and_canonical_names_preserve_source_lexical_identity() {
         ),
         ("import api as lib\nfn main():lib.hidden(§)\n", false),
     ] {
-        let main = project.file("main.fn", &marked.replace('§', ""));
+        let main = project.file("main.mr", &marked.replace('§', ""));
         let messages = file_session(vec![
             open(&main, &marked.replace('§', "")),
             complete(&main, "q", marked),
@@ -292,10 +292,10 @@ fn selected_reexports_and_canonical_names_preserve_source_lexical_identity() {
 fn unclosed_imported_calls_and_new_unsaved_dependencies_use_current_sources() {
     let project = Project::new();
     let marked = "import fresh.{real}\nfn main():real(ex§";
-    let main = project.file("main.fn", "fn main():()\n");
+    let main = project.file("main.mr", "fn main():()\n");
     let fresh = format!(
         "file://{}",
-        project.0.canonicalize().unwrap().join("fresh.fn").display()
+        project.0.canonicalize().unwrap().join("fresh.mr").display()
     );
     let messages = file_session(vec![
         open(&fresh, "pub fn real(external value:Int)->Int:value\n"),
@@ -303,7 +303,7 @@ fn unclosed_imported_calls_and_new_unsaved_dependencies_use_current_sources() {
         complete(&main, "q", marked),
     ]);
     names(&answer(&messages, "q"), &["external"]);
-    assert!(!project.0.join("fresh.fn").exists());
+    assert!(!project.0.join("fresh.mr").exists());
 }
 #[test]
 fn every_lexical_binding_scope_erases_source_function_labels() {
@@ -425,9 +425,9 @@ fn reserved_or_colliding_value_declarations_have_no_source_interface() {
 #[test]
 fn malformed_current_dependency_clears_previously_available_labels() {
     let project = Project::new();
-    let api = project.file("api.fn", "pub fn real(external value:Int)->Int:value\n");
+    let api = project.file("api.mr", "pub fn real(external value:Int)->Int:value\n");
     let marked = "import api as lib\nfn main():lib.real(§)\n";
-    let main = project.file("main.fn", &marked.replace('§', ""));
+    let main = project.file("main.mr", &marked.replace('§', ""));
     let changed = format!(
         r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":{},"version":2}},"contentChanges":[{{"text":"pub fn broken("}}]}}}}"#,
         quote(&api)

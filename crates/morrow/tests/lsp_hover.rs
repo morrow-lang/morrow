@@ -248,12 +248,12 @@ fn answer(messages: &[String], id: &str) -> String {
 fn dependency_overlay_signatures_docs_and_aliases_refresh_without_stale_facts() {
     let project = Project::new();
     let model = project.file(
-        "model.fn",
+        "model.mr",
         "@doc \"\"\"Disk docs\"\"\"\npub fn value() -> Int: 1\n",
     );
-    project.file("api.fn", "pub import model.{value}\n");
+    project.file("api.mr", "pub import model.{value}\n");
     let source = "import api as long_alias\nfn main(): println(long_alias.value())\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let messages = session(vec![
         opening(&main, source),
         request(&main, "disk", "hover", 1, 35),
@@ -281,15 +281,15 @@ fn dependency_overlay_signatures_docs_and_aliases_refresh_without_stale_facts() 
 fn duplicate_imported_type_leaf_names_use_resolver_identity() {
     let project = Project::new();
     project.file(
-        "first.fn",
+        "first.mr",
         "@doc \"\"\"First type\"\"\"\npub type Box:\n    value: Int\n",
     );
     project.file(
-        "second.fn",
+        "second.mr",
         "@doc \"\"\"Second type\"\"\"\npub type Box:\n    value: String\n",
     );
     let source = "import first as first\nimport second as second\nfn describe(x: second.Box) -> (): ()\nfn main(): ()\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let messages = session(vec![
         opening(&main, source),
         request(&main, "type", "hover", 2, 23),
@@ -330,9 +330,9 @@ fn nested_lambda_parameter_origin_is_not_overwritten_by_its_outer_let() {
 #[test]
 fn aliased_generic_call_hover_retains_the_concrete_use_signature() {
     let project = Project::new();
-    project.file("model.fn", "pub fn identity(x: a) -> a: x\n");
+    project.file("model.mr", "pub fn identity(x: a) -> a: x\n");
     let source = "import model as longer_alias\nfn main(): println(longer_alias.identity(1))\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let result = answer(
         &session(vec![
             opening(&main, source),

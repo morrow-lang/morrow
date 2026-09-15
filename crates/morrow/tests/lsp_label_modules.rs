@@ -88,10 +88,10 @@ fn module_labels_follow_original_alias_identity_and_live_overlays() {
     let project = Project::new();
     let disk = "pub fn choose(enabled value:Bool)->Int:if value:1 else:0\n";
     let live = "\n# current buffer\npub fn choose(enabled value:Bool)->Int:if value:1 else:0\n";
-    let model = project.file("model.fn", disk);
-    project.file("api.fn", "pub import model.{choose}\n");
+    let model = project.file("model.mr", disk);
+    project.file("api.mr", "pub import model.{choose}\n");
     let source = "import api as m\nfn main():\n    let model=3\n    println(m.choose(enabled:true))\n    println(true |> m.choose(enabled:_))\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let mut messages = vec![opening(&model, live), opening(&main, source)];
     for line in [3, 4] {
         let col = source.lines().nth(line).unwrap().find("enabled").unwrap() + 2;
@@ -122,8 +122,8 @@ fn stale_or_invalid_dependency_buffers_cannot_publish_label_facts() {
     let project = Project::new();
     let source = "import model as m\nfn main():println(m.choose(enabled:true))\n";
     let good = "pub fn choose(enabled value:Bool)->Int:if value:1 else:0\n";
-    let model = project.file("model.fn", good);
-    let main = project.file("main.fn", source);
+    let model = project.file("model.mr", good);
+    let main = project.file("main.mr", source);
     let col = source.lines().nth(1).unwrap().find("enabled").unwrap() + 2;
     let change = |version, text: &str| {
         format!(
@@ -160,9 +160,9 @@ fn private_and_lexically_shadowed_module_interfaces_are_not_guessed() {
         ),
     ] {
         let project = Project::new();
-        project.file("model.fn", declaration);
+        project.file("model.mr", declaration);
         let source = format!("import model as m\nfn main():\n    {body}\n");
-        let main = project.file("main.fn", &source);
+        let main = project.file("main.mr", &source);
         let line = source.lines().count() - 1;
         let col = source.lines().nth(line).unwrap().find("enabled").unwrap() + 2;
         let output = session(vec![

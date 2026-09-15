@@ -13,13 +13,13 @@ fn roundtrip(source: &str, expected: &str) {
 }
 #[test]
 fn sums_wire_contract() {
-    let source = include_str!("json_sums_native/sums.fn");
+    let source = include_str!("json_sums_native/sums.mr");
     accepts(source);
     roundtrip(source, include_str!("json_sums_native/sums.stdout"));
 }
 #[test]
 fn recursive_wire_contract() {
-    let source = include_str!("json_sums_native/recursive.fn");
+    let source = include_str!("json_sums_native/recursive.mr");
     accepts(source);
     roundtrip(source, include_str!("json_sums_native/recursive.stdout"));
 }
@@ -119,12 +119,12 @@ fn module_aliases_do_not_become_wire_tag_prefixes() {
     ));
     fs::create_dir(&directory).unwrap();
     fs::write(
-        directory.join("model.fn"),
+        directory.join("model.mr"),
         "pub type State derive(Json):\n    Ready\n    Count(Int)\n",
     )
     .unwrap();
-    fs::write(directory.join("main.fn"),"import model as renamed\nfn main()->Result(Unit,json.Error):\n    println(json.encode(renamed.Count(42))?)\n    Ok(())\n").unwrap();
-    let loaded = morrow_compiler::modules::load(&directory.join("main.fn")).unwrap();
+    fs::write(directory.join("main.mr"),"import model as renamed\nfn main()->Result(Unit,json.Error):\n    println(json.encode(renamed.Count(42))?)\n    Ok(())\n").unwrap();
+    let loaded = morrow_compiler::modules::load(&directory.join("main.mr")).unwrap();
     let checked = check::check(&loaded.program);
     fs::remove_dir_all(directory).unwrap();
     let checked = checked.unwrap();
@@ -150,18 +150,18 @@ fn constructor_spelling_preserves_existing_lowercase_and_unicode_tokens() {
 fn sums_keep_full64_payloads_generic_cycles_and_source_effect_order() {
     for (source, expected) in [
         (
-            include_str!("json_sums_native/full64.fn"),
+            include_str!("json_sums_native/full64.mr"),
             include_str!("json_sums_native/full64.stdout"),
         ),
         (
-            include_str!("json_sums_native/mutual.fn"),
+            include_str!("json_sums_native/mutual.mr"),
             include_str!("json_sums_native/mutual.stdout"),
         ),
     ] {
         accepts(source);
         roundtrip(source, expected);
     }
-    let source = include_str!("json_sums_native/effects.fn");
+    let source = include_str!("json_sums_native/effects.mr");
     accepts(source);
     let mut session = Session::default();
     session

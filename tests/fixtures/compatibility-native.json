@@ -388,7 +388,7 @@
     "name": "global-identity/0",
     "source": "import model as m\nfn main():\n    let model=41\n    let direct=m.value(model)\n    let callable=m.value\n    let piped=model |> m.value()\n    let capture=() -> m.value(model)\n    println(direct+callable(piped)+capture())\n",
     "files": {
-      "model.fn": "pub fn value(x:a)->a:x\n"
+      "model.mr": "pub fn value(x:a)->a:x\n"
     },
     "exit": 0,
     "stdout": "123\n",
@@ -398,7 +398,7 @@
     "name": "global-identity/1",
     "source": "import model as m\nfn caller(model):m.value(model)\nfn main():println(caller(3))\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "exit": 0,
     "stdout": "4\n",
@@ -408,7 +408,7 @@
     "name": "global-identity/2",
     "source": "import model as m\ntype Callbacks:\n    value: fn(Int)->Int\nfn main():\n    let m=Callbacks((x)->x+2)\n    println(m.value(1))\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "exit": 0,
     "stdout": "3\n",
@@ -418,7 +418,7 @@
     "name": "global-identity/3",
     "source": "import model as m\ntype Number=Int\nfn main():\n    let model=3\n    println(m.apply((x:Number)->x+1,model))\n    println(model |> m.apply((x:Number)->x+2,_))\n",
     "files": {
-      "model.fn": "pub fn apply(f:fn(Int)->Int,x:Int)->Int:f(x)\n"
+      "model.mr": "pub fn apply(f:fn(Int)->Int,x:Int)->Int:f(x)\n"
     },
     "exit": 0,
     "stdout": "4\n5\n",

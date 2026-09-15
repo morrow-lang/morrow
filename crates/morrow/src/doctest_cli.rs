@@ -19,7 +19,7 @@ struct Options {
 pub(super) fn run(arguments: Vec<OsString>, controls: Controls) -> Result<u8, String> {
     if arguments.len() == 2 && (arguments[1] == "--help" || arguments[1] == "-h") {
         println!(
-            "Usage: morrow test [--doc] [source.fn|directory] [--timeout seconds]\nExecute zero-argument test_ functions and fenced Morrow documentation examples. --doc runs only documentation examples and # => pattern expectations.\nDefaults to the current directory and a 10-second timeout per example (1–60).\nExamples execute user code. Unit tests must return Unit or Result(Unit, E). Assertion libraries, coverage, benchmarks and watch mode are not yet supported."
+            "Usage: morrow test [--doc] [source.mr|directory] [--timeout seconds]\nExecute zero-argument test_ functions and fenced Morrow documentation examples. --doc runs only documentation examples and # => pattern expectations.\nDefaults to the current directory and a 10-second timeout per example (1–60).\nExamples execute user code. Unit tests must return Unit or Result(Unit, E). Assertion libraries, coverage, benchmarks and watch mode are not yet supported."
         );
         return Ok(0);
     }

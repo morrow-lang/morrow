@@ -240,11 +240,11 @@ fn answer(messages: &[String], id: &str) -> String {
 fn dependency_overlays_refresh_hole_receiver_types_without_stale_facts() {
     let project = Project::new();
     let model = project.file(
-        "model.fn",
+        "model.mr",
         "pub type Box:\n    value: Int\npub fn make() -> Box: Box(1)\n",
     );
     let source = "import model as m\nfn main(): println(m.make().)\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let character = source.lines().nth(1).unwrap().find(".)").unwrap() + 1;
     let messages = session(vec![
         opening(&main, source),
@@ -384,11 +384,11 @@ fn let_else_and_with_bindings_are_checked_in_their_actual_scopes() {
 fn recovered_receiver_retains_import_identity_when_its_canonical_root_is_local() {
     let project = Project::new();
     project.file(
-        "model.fn",
+        "model.mr",
         "pub type Box:\n    value: Int\npub fn make() -> Box: Box(1)\n",
     );
     let source = "import model as m\nfn main():\n    let model=1\n    println(m.make().)\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let character = source.lines().nth(3).unwrap().find(".)").unwrap() + 1;
     let messages = session(vec![
         opening(&main, source),

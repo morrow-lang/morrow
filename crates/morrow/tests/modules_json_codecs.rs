@@ -31,11 +31,11 @@ impl Drop for Project {
 fn static_targets_resolve_type_aliases_even_when_values_have_the_same_name() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "type User derive(Json):\n    name:String\npub type Data=User\npub fn Data()->Int:42\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model as m\nfn main():\n    let Data=1\n    json.decode(\"1\",m.Data)\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -62,7 +62,7 @@ fn static_targets_resolve_type_aliases_even_when_values_have_the_same_name() {
 fn source_local_json_root_cannot_trigger_static_argument_reinterpretation() {
     let project = Project::new();
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "fn main():\n    let json=1\n    json.decode(\"1\",Int)\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -71,9 +71,9 @@ fn source_local_json_root_cannot_trigger_static_argument_reinterpretation() {
 #[test]
 fn static_target_privacy_and_arbitrary_call_errors_are_located_before_value_rewriting() {
     let project = Project::new();
-    project.write("model.fn", "type Hidden derive(Json):\n    value:Int\n");
+    project.write("model.mr", "type Hidden derive(Json):\n    value:Int\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model as m\nfn main():json.decode(\"1\",m.Hidden)\n",
     );
     let failure = modules::load(&main).unwrap_err();
@@ -84,7 +84,7 @@ fn static_target_privacy_and_arbitrary_call_errors_are_located_before_value_rewr
         "m.Hidden"
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "fn effect():1\nfn main():json.decode(\"1\",effect())\n",
     );
     let error = modules::load(&main).unwrap_err();
@@ -100,8 +100,8 @@ fn imported_derived_newtypes_keep_type_identity_and_shift_trait_spans() {
     use morrow_compiler::{check, lowering};
     let project = Project::new();
     let module = "pub newtype Id derive(Json) = Packed(Int)\npub fn Id()->Int:99\n";
-    project.write("model.fn", module);
-    let main=project.write("main.fn","import model as m\nfn main() -> Result(Unit,json.Error):\n    let value=json.decode(\"42\",m.Id)?\n    println(value.0)\n    Ok(())\n");
+    project.write("model.mr", module);
+    let main=project.write("main.mr","import model as m\nfn main() -> Result(Unit,json.Error):\n    let value=json.decode(\"42\",m.Id)?\n    println(value.0)\n    Ok(())\n");
     let loaded = modules::load(&main).unwrap();
     let newtype = &loaded.program.newtypes[0];
     assert_eq!(newtype.name, "model.Id");
@@ -110,7 +110,7 @@ fn imported_derived_newtypes_keep_type_identity_and_shift_trait_spans() {
         module.find("Json").unwrap() - module.find("newtype").unwrap()
     );
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
-    project.write("model.fn", "newtype Id derive(Json) = Packed(Int)\n");
+    project.write("model.mr", "newtype Id derive(Json) = Packed(Int)\n");
     assert!(
         modules::load(&main)
             .unwrap_err()
@@ -122,8 +122,8 @@ fn imported_derived_newtypes_keep_type_identity_and_shift_trait_spans() {
 #[test]
 fn generic_static_targets_keep_module_identity_and_source_type_namespace() {
     let project = Project::new();
-    project.write("codec.fn","pub fn read(text:String)->Result(a,json.Error):json.decode(text,a)\npub fn write(value:a)->Result(String,json.Error):json.encode(value)\n");
-    let main=project.write("main.fn","import codec as c\nfn main()->Result(Unit,json.Error):\n    let value:Int=c.read(\"42\")?\n    println(c.write(value)?)\n    Ok(())\n");
+    project.write("codec.mr","pub fn read(text:String)->Result(a,json.Error):json.decode(text,a)\npub fn write(value:a)->Result(String,json.Error):json.encode(value)\n");
+    let main=project.write("main.mr","import codec as c\nfn main()->Result(Unit,json.Error):\n    let value:Int=c.read(\"42\")?\n    println(c.write(value)?)\n    Ok(())\n");
     let loaded = modules::load(&main).unwrap();
     let typed = morrow_compiler::check::check(&loaded.program).unwrap();
     morrow_compiler::lowering::emit(&typed).unwrap();

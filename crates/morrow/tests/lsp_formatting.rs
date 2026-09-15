@@ -61,7 +61,7 @@ fn open(uri: &str, source: &str) -> String {
     )
 }
 
-const URI: &str = "untitled:format.fn";
+const URI: &str = "untitled:format.mr";
 fn formatting(id: i32, options: &str) -> String {
     format!(
         r#"{{"jsonrpc":"2.0","id":{id},"method":"textDocument/formatting","params":{{"textDocument":{{"uri":"{URI}"}},"options":{options}}}}}"#
@@ -165,7 +165,7 @@ fn latest_accepted_buffer_wins_and_stale_changes_cannot_restore_old_formatting()
 }
 #[test]
 fn formatting_needs_syntax_but_no_types_imports_backend_or_disk_source() {
-    let uri = "file:///absent/morrow-format/main.fn";
+    let uri = "file:///absent/morrow-format/main.mr";
     let source = "import absent\nfn main():unknown(1)";
     let expected = morrow_compiler::format::format(source).unwrap();
     let (status, output) = run(&[

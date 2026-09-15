@@ -375,7 +375,7 @@ fn deterministic_transcripts_can_replay_explicit_cancellation() {
 
 #[test]
 fn result_sequencing_actor_campaign_matches_independent_rust_model() {
-    let definitions = include_str!("actors/result_cps.fn");
+    let definitions = include_str!("actors/result_cps.mr");
     for mut seed in [1_u64, 0x4645524e, u64::MAX] {
         let mut session = Session::default();
         session.evaluate(definitions).unwrap();
@@ -466,7 +466,7 @@ fn receiving_helpers_preserve_nested_result_obligations() {
 fn sum_callbacks_are_eager_to_create_selective_to_call_and_cooperative() {
     let mut session = Session::default();
     session
-        .evaluate(&include_str!("actors/sums_cps.fn").replace("fn main():", "fn sum_campaign():"))
+        .evaluate(&include_str!("actors/sums_cps.mr").replace("fn main():", "fn sum_campaign():"))
         .unwrap();
     assert_eq!(
         session.evaluate("sum_campaign()").unwrap(),

@@ -3,7 +3,7 @@ use morrow_compiler::documentation::{Output, render};
 #[test]
 fn newtype_docs_preserve_source_order_generics_visibility_and_ownership() {
     let source = "@doc \"\"\"Type documentation.\"\"\"\npub newtype Box(a)=Packed(a)\n@doc \"\"\"Function documentation.\"\"\"\nfn Box(value: Int) -> Int: value\n";
-    let output = render(source, "types.fn", Output::Markdown).unwrap();
+    let output = render(source, "types.mr", Output::Markdown).unwrap();
     assert!(output.contains("pub newtype Box(a)=Packed(a)"), "{output}");
     assert_eq!(output.matches("Type documentation.").count(), 1, "{output}");
     assert_eq!(
@@ -15,7 +15,7 @@ fn newtype_docs_preserve_source_order_generics_visibility_and_ownership() {
         output.find("Type documentation.").unwrap()
             < output.find("Function documentation.").unwrap()
     );
-    let html = render(source, "types.fn", Output::Html).unwrap();
+    let html = render(source, "types.mr", Output::Html).unwrap();
     assert!(html.contains("pub newtype Box(a)=Packed(a)"), "{html}");
 }
 

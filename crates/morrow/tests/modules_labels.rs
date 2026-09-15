@@ -33,9 +33,9 @@ impl Drop for Project {
 fn labels_survive_alias_reexports_without_canonical_root_capture() {
     let project = Project::new();
     let model = "module model\npub fn subtract(left:Int,right:Int)->Int:left-right\n";
-    project.write("model.fn", model);
-    project.write("api.fn", "module api\npub import model.{subtract}\n");
-    let entry=project.write("main.fn","import api as m\nfn main():\n    let model=99\n    println(m.subtract(right:2,left:9))\n    println(9 |> m.subtract(right:2,left:_))\n");
+    project.write("model.mr", model);
+    project.write("api.mr", "module api\npub import model.{subtract}\n");
+    let entry=project.write("main.mr","import api as m\nfn main():\n    let model=99\n    println(m.subtract(right:2,left:9))\n    println(9 |> m.subtract(right:2,left:_))\n");
     let loaded = modules::load(&entry).unwrap();
     let checked = morrow_compiler::check::check(&loaded.program).unwrap();
     assert!(
@@ -48,9 +48,9 @@ fn labels_survive_alias_reexports_without_canonical_root_capture() {
 fn external_label_spans_relocate_independently_from_local_pattern_names() {
     let project = Project::new();
     let model = "module model\npub fn choose(ενεργό true:Bool)->Int:1\npub fn choose(ενεργό false:Bool)->Int:0\n";
-    let path = project.write("model.fn", model);
+    let path = project.write("model.mr", model);
     let entry = project.write(
-        "main.fn",
+        "main.mr",
         "import model.{choose}\nfn main():println(choose(ενεργό:true))\n",
     );
     let loaded = modules::load(&entry).unwrap();

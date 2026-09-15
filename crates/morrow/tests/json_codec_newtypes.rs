@@ -100,7 +100,7 @@ fn newtype_docs_keep_explicit_opt_in_and_distinct_source_ownership() {
     use morrow_compiler::documentation::{Output, render};
     let source =
         "@doc \"\"\"Wire ID.\"\"\"\npub newtype Id derive(Json) = Packed(Int)\nfn Id(): 99\n";
-    let output = render(source, "ids.fn", Output::Markdown).unwrap();
+    let output = render(source, "ids.mr", Output::Markdown).unwrap();
     assert!(
         output.contains("pub newtype Id derive(Json) = Packed(Int)"),
         "{output}"
@@ -112,11 +112,11 @@ fn newtype_docs_keep_explicit_opt_in_and_distinct_source_ownership() {
 fn native_newtype_sources_have_identical_repl_outputs() {
     for (source, expected) in [
         (
-            include_str!("json_newtype_native/values.fn"),
+            include_str!("json_newtype_native/values.mr"),
             include_str!("json_newtype_native/values.stdout"),
         ),
         (
-            include_str!("json_newtype_native/nullable.fn"),
+            include_str!("json_newtype_native/nullable.mr"),
             include_str!("json_newtype_native/nullable.stdout"),
         ),
     ] {

@@ -1,7 +1,7 @@
 //! Native optimization followup; run from the repository root on macOS.
 //! Usage: codegen BEFORE_COMPILER AFTER_COMPILER RUNTIME BEFORE_PROGRAM
 //!        AFTER_PROGRAM RUST_PROGRAM NEW_OUTPUT_DIRECTORY
-//! Uses unchanged workloads.fn; every build gets the same explicit runtime.
+//! Uses unchanged workloads.mr; every build gets the same explicit runtime.
 #[allow(dead_code)]
 mod oracle;
 
@@ -13,7 +13,7 @@ use std::{
     time::Instant,
 };
 
-const SOURCE: &str = "benchmarks/language-comparison/programs/workloads.fn";
+const SOURCE: &str = "benchmarks/language-comparison/programs/workloads.mr";
 
 fn rss(stderr: &str) -> u64 {
     stderr

@@ -13,49 +13,49 @@ fn roundtrip(source: &str, expected: &str) {
 }
 #[test]
 fn sums_wire_contract() {
-    let source = include_str!("json_j6_proposal/sums.fn");
+    let source = include_str!("json_j6_proposal/sums.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/sums.stdout"));
 }
 #[test]
 fn recursive_wire_contract() {
-    let source = include_str!("json_j6_proposal/recursive.fn");
+    let source = include_str!("json_j6_proposal/recursive.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/recursive.stdout"));
 }
 #[test]
 fn scalar_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/scalar_union.fn");
+    let source = include_str!("json_j6_proposal/scalar_union.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/scalar_union.stdout"));
 }
 #[test]
 fn float_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/float_union.fn");
+    let source = include_str!("json_j6_proposal/float_union.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/float_union.stdout"));
 }
 #[test]
 fn record_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/record_union.fn");
+    let source = include_str!("json_j6_proposal/record_union.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/record_union.stdout"));
 }
 #[test]
 fn array_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/array_union.fn");
+    let source = include_str!("json_j6_proposal/array_union.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/array_union.stdout"));
 }
 #[test]
 fn sum_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/sum_union.fn");
+    let source = include_str!("json_j6_proposal/sum_union.mr");
     accepts(source);
     roundtrip(source, include_str!("json_j6_proposal/sum_union.stdout"));
 }
 #[test]
 fn conditional_union_wire_contract() {
-    let source = include_str!("json_j6_proposal/conditional_union.fn");
+    let source = include_str!("json_j6_proposal/conditional_union.mr");
     accepts(source);
     roundtrip(
         source,
@@ -187,12 +187,12 @@ fn module_aliases_do_not_become_wire_tag_prefixes() {
     ));
     fs::create_dir(&directory).unwrap();
     fs::write(
-        directory.join("model.fn"),
+        directory.join("model.mr"),
         "pub type State derive(Json):\n    Ready\n    Count(Int)\n",
     )
     .unwrap();
-    fs::write(directory.join("main.fn"),"import model as renamed\nfn main()->Result(Unit,json.Error):\n    println(json.encode(renamed.Count(42))?)\n    Ok(())\n").unwrap();
-    let loaded = morrow_compiler::modules::load(&directory.join("main.fn")).unwrap();
+    fs::write(directory.join("main.mr"),"import model as renamed\nfn main()->Result(Unit,json.Error):\n    println(json.encode(renamed.Count(42))?)\n    Ok(())\n").unwrap();
+    let loaded = morrow_compiler::modules::load(&directory.join("main.mr")).unwrap();
     let checked = check::check(&loaded.program);
     fs::remove_dir_all(directory).unwrap();
     let checked = checked.unwrap();

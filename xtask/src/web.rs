@@ -251,7 +251,7 @@ pub fn build(root: &Path, output: Option<&Path>) -> Result<PathBuf, String> {
         Command::new(target.join("release/morrow"))
             .current_dir(root)
             .args(["build", "--target=wasm32"])
-            .arg(root.join("examples/web/checklist.fn"))
+            .arg(root.join("examples/web/checklist.mr"))
             .arg("-o")
             .arg(assets.join("morrow_app.wasm")),
     )?;

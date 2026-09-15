@@ -16,7 +16,9 @@ fn fixtures_are_prechecked_and_preserve_their_distinct_workloads() {
             .find(|f| f.name == "main")
             .unwrap();
         assert_eq!(main.return_type, Type::Unit);
-        assert!(fixture.lowering.contains("export function w $morrow_main()"));
+        assert!(fixture
+            .lowering
+            .contains("export function w $morrow_main()"));
         assert!(!fixture.lowering.contains("json_codec_") || fixture.name == "json_record");
     }
     assert!(

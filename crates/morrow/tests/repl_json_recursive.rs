@@ -3,19 +3,19 @@ use morrow_compiler::{check, format, lowering, parse, repl::Session};
 fn recursive_native_sources_have_exact_repl_outputs_and_format_equivalence() {
     for (source, expected) in [
         (
-            include_str!("json_recursive_native/map.fn"),
+            include_str!("json_recursive_native/map.mr"),
             include_str!("json_recursive_native/map.stdout"),
         ),
         (
-            include_str!("json_recursive_native/tree.fn"),
+            include_str!("json_recursive_native/tree.mr"),
             include_str!("json_recursive_native/tree.stdout"),
         ),
         (
-            include_str!("json_recursive_native/mutual.fn"),
+            include_str!("json_recursive_native/mutual.mr"),
             include_str!("json_recursive_native/mutual.stdout"),
         ),
         (
-            include_str!("json_recursive_native/depth.fn"),
+            include_str!("json_recursive_native/depth.mr"),
             include_str!("json_recursive_native/depth.stdout"),
         ),
     ] {

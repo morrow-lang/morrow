@@ -166,7 +166,7 @@ fn every_direct_registry_contract_instantiates_into_checked_ir() {
 fn loader_uses_registry_paths_without_imports_and_reserves_legacy_aliases() {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let path = std::env::temp_dir().join(format!(
-        "morrow-runtime-check-{}-{}.fn",
+        "morrow-runtime-check-{}-{}.mr",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

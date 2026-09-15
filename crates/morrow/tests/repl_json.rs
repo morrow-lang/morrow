@@ -3,7 +3,7 @@ use morrow_compiler::repl::Session;
 
 const CASES: &[(&str, &str)] = &[
     (
-        include_str!("json_values/valid/core.fn"),
+        include_str!("json_values/valid/core.mr"),
         r###"42
 true
 2
@@ -11,7 +11,7 @@ true
 "###,
     ),
     (
-        include_str!("json_values/valid/builders.fn"),
+        include_str!("json_values/valid/builders.mr"),
         r###"[null,true,-7,1.5,"🌿\n",1.00e2]
 {"second":[null,true,-7,1.5,"🌿\n",1.00e2],"first":1}
 []
@@ -19,7 +19,7 @@ true
 "###,
     ),
     (
-        include_str!("json_values/valid/members.fn"),
+        include_str!("json_values/valid/members.mr"),
         r###""a\u0000b"
 1
 "🌿"
@@ -31,7 +31,7 @@ false
 "###,
     ),
     (
-        include_str!("json_values/valid/errors.fn"),
+        include_str!("json_values/valid/errors.mr"),
         r###"1
 3
 invalid JSON syntax
@@ -47,7 +47,7 @@ JSON number is not finite
 "###,
     ),
     (
-        include_str!("json_values/valid/numeric.fn"),
+        include_str!("json_values/valid/numeric.mr"),
         r###"9007199254740993
 9007199254740993
 1.5
@@ -57,7 +57,7 @@ true
 "###,
     ),
     (
-        include_str!("json_values/valid/first_class.fn"),
+        include_str!("json_values/valid/first_class.mr"),
         r###"[1,2,3]
 2.5
 false
@@ -66,21 +66,21 @@ build once
 "###,
     ),
     (
-        include_str!("json_values/valid/containers.fn"),
+        include_str!("json_values/valid/containers.mr"),
         r###"{"retained":true}
 1
 1
 "###,
     ),
     (
-        include_str!("json_values/valid/effects.fn"),
+        include_str!("json_values/valid/effects.mr"),
         r###"read done
 run done
 1
 "###,
     ),
     (
-        include_str!("json_values/valid/aliases.fn"),
+        include_str!("json_values/valid/aliases.mr"),
         r###"[]
 7
 ordinary
@@ -88,7 +88,7 @@ ordinary
 "###,
     ),
     (
-        include_str!("json_values/valid/dag_limits.fn"),
+        include_str!("json_values/valid/dag_limits.mr"),
         r###"4
 -1
 "###,

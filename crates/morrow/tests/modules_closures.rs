@@ -36,10 +36,10 @@ impl Drop for Project {
 fn function_annotations_and_lambda_parameter_scopes_resolve_across_modules() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "pub type Box(a):\n    value: a\npub fn value() -> Int: 1\n",
     );
-    let main=project.write("main.fn","import model\nfn apply(action: (model.Box(Int)) -> Int, item: model.Box(Int)) -> Int: action(item)\nfn main():\n    let callback = (model: Int) -> model + 1\n    println(callback(41))\n    println(apply((box: model.Box(Int)) -> box.value, model.Box(42)))\n");
+    let main=project.write("main.mr","import model\nfn apply(action: (model.Box(Int)) -> Int, item: model.Box(Int)) -> Int: action(item)\nfn main():\n    let callback = (model: Int) -> model + 1\n    println(callback(41))\n    println(apply((box: model.Box(Int)) -> box.value, model.Box(42)))\n");
     let loaded = modules::load(&main).unwrap();
     morrow_compiler::lowering::emit(&morrow_compiler::check::check(&loaded.program).unwrap())
         .unwrap();
@@ -77,11 +77,11 @@ fn function_annotations_and_lambda_parameter_scopes_resolve_across_modules() {
 fn lambda_annotations_cannot_bypass_private_type_exports() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "type Hidden:\n    value: Int\npub fn number() -> Int: 1\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model\nfn main():\n    let callback = (box: model.Hidden) -> box.value\n    0\n",
     );
     assert!(

@@ -146,7 +146,7 @@ fn prepare(tools: &Tools, out: &Path) {
     fs::write(out.join("environment.txt"), metadata).unwrap();
     let mut sizes = String::from("program,language,bytes\n");
     for name in ["startup", "workloads"] {
-        for (language, extension) in [("morrow", "fn"), ("rust", "rs")] {
+        for (language, extension) in [("morrow", "mr"), ("rust", "rs")] {
             let source = PathBuf::from(format!(
                 "benchmarks/language-comparison/programs/{name}.{extension}"
             ));
@@ -235,7 +235,7 @@ fn verify(tools: &Tools, out: &Path) {
         ("newtypes", true, true, true),
     ] {
         for (language, extension, reject) in [
-            ("morrow", "fn", morrow_reject),
+            ("morrow", "mr", morrow_reject),
             ("rust", "rs", rust_reject),
             ("typescript", "ts", ts_reject),
         ] {
@@ -299,7 +299,7 @@ fn verify(tools: &Tools, out: &Path) {
             success(&execute(&mut tools.check(language, &positive, out, true)));
         }
     }
-    for (language, extension) in [("morrow", "fn"), ("rust", "rs")] {
+    for (language, extension) in [("morrow", "mr"), ("rust", "rs")] {
         let source = PathBuf::from(format!(
             "benchmarks/language-comparison/mutations/bounds.{extension}"
         ));
@@ -403,7 +403,7 @@ fn measure(tools: &Tools, out: &Path) {
         }
     }
     for iteration in 0..5 {
-        for (language, extension) in [("morrow", "fn"), ("rust", "rs"), ("typescript", "ts")] {
+        for (language, extension) in [("morrow", "mr"), ("rust", "rs"), ("typescript", "ts")] {
             let source = PathBuf::from(format!(
                 "benchmarks/language-comparison/programs/workloads.{extension}"
             ));

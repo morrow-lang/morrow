@@ -1,6 +1,6 @@
 defmodule MorrowComparison do
   @moduledoc """
-  Elixir equivalents of workloads.fn and workloads.rs.
+  Elixir equivalents of workloads.mr and workloads.rs.
 
   Compile once with elixirc, then invoke MorrowComparison.main/0 with runtime
   arguments. The default model uses a list of {index, value} tuples; model-struct

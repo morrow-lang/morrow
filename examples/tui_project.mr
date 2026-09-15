@@ -1,7 +1,7 @@
 # A deterministic CLI report. Pipe it into a file without cursor escape codes.
 fn main() -> Int:
     let root = Tui.Tree.new("morrow-app")
-    let source = Tui.Tree.add(Tui.Tree.new("src"), Tui.Tree.new("main.fn"))
+    let source = Tui.Tree.add(Tui.Tree.new("src"), Tui.Tree.new("main.mr"))
     let project = Tui.Tree.add(Tui.Tree.add(root, source), Tui.Tree.new("README.md"))
     println(Tui.Log.info("Project ready"))
     println(Tui.Tree.render(project))

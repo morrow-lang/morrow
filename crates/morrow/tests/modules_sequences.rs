@@ -32,10 +32,10 @@ impl Drop for Project {
 fn sequence_patterns_qualify_nested_constructors_and_keep_suffix_bindings_local() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "pub type Item:\n    value: Int\npub fn tail() -> Int: 99\n",
     );
-    let path=project.write("main.fn", "import model.{Item,tail}\nfn read() -> Int:\n    match [Item(1),Item(2)]:\n        [Item(value), ..tail] if List.len(tail)>0 -> value\n        _ -> 0\nfn main():\n    println(read())\n    println(tail())\n");
+    let path=project.write("main.mr", "import model.{Item,tail}\nfn read() -> Int:\n    match [Item(1),Item(2)]:\n        [Item(value), ..tail] if List.len(tail)>0 -> value\n        _ -> 0\nfn main():\n    println(read())\n    println(tail())\n");
     let loaded = modules::load(&path).unwrap();
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
 }
@@ -43,11 +43,11 @@ fn sequence_patterns_qualify_nested_constructors_and_keep_suffix_bindings_local(
 #[test]
 fn let_else_failure_sees_outer_names_and_suffix_constructor_privacy_is_preserved() {
     let project = Project::new();
-    project.write("model.fn", "type Hidden:\n    value: Int\npub fn tail() -> Int: 99\npub fn values() -> List(Int): [1,2]\n");
-    let path=project.write("main.fn", "import model.{tail,values}\nfn read() -> Int:\n    let [first,..tail]=values() else: return tail()\n    first+List.len(tail)\nfn main(): println(read())\n");
+    project.write("model.mr", "type Hidden:\n    value: Int\npub fn tail() -> Int: 99\npub fn values() -> List(Int): [1,2]\n");
+    let path=project.write("main.mr", "import model.{tail,values}\nfn read() -> Int:\n    let [first,..tail]=values() else: return tail()\n    first+List.len(tail)\nfn main(): println(read())\n");
     let loaded = modules::load(&path).unwrap();
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
-    let path=project.write("main.fn", "import model\nfn main(): match []:\n    [model.Hidden(value),..rest] -> value\n    _ -> 0\n");
+    let path=project.write("main.mr", "import model\nfn main(): match []:\n    [model.Hidden(value),..rest] -> value\n    _ -> 0\n");
     assert!(
         modules::load(&path)
             .unwrap_err()

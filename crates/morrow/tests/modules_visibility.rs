@@ -33,12 +33,12 @@ impl Drop for Project {
 fn public_origin_survives_qualification_reexports_and_loader_flattening() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "fn hidden(): 42\npub fn visible() -> Int: hidden()\n",
     );
-    project.write("facade.fn", "pub import model.{visible}\nfn local(): 1\n");
+    project.write("facade.mr", "pub import model.{visible}\nfn local(): 1\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import facade\npub fn api() -> Int: facade.visible()\nfn main(): println(api())\n",
     );
     let loaded = modules::load(&main).unwrap();

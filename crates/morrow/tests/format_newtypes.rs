@@ -31,7 +31,7 @@ fn newtype_native_sources_roundtrip_without_changing_generated_code() {
     let mut files = std::fs::read_dir("tests/newtypes_native")
         .unwrap()
         .map(|entry| entry.unwrap().path())
-        .filter(|path| path.extension().is_some_and(|extension| extension == "fn"))
+        .filter(|path| path.extension().is_some_and(|extension| extension == "mr"))
         .collect::<Vec<_>>();
     files.sort();
     assert!(!files.is_empty());

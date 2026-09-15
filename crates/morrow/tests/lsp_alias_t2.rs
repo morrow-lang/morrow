@@ -96,7 +96,7 @@ fn project_docs_preserve_alias_signatures_and_own_source_docs() {
     let source = "@doc \"\"\"Alias-only docs.\"\"\"\npub type Id = Int\nfn following(): 42\n";
     let docs = render_project(
         &[SourceDocument {
-            path: "values.fn",
+            path: "values.mr",
             source,
         }],
         "Aliases",

@@ -193,7 +193,7 @@ fn extracted_headers_accept_new_bodies_across_the_native_corpus() {
             continue;
         }
         for entry in std::fs::read_dir(folder.path()).unwrap().flatten() {
-            if entry.path().extension().is_none_or(|ext| ext != "fn") {
+            if entry.path().extension().is_none_or(|ext| ext != "mr") {
                 continue;
             }
             let source = std::fs::read_to_string(entry.path()).unwrap();

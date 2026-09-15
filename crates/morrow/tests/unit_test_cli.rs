@@ -6,7 +6,7 @@ use std::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn run(source: &str, doc_only: bool) -> std::process::Output {
     let path = std::env::temp_dir().join(format!(
-        "morrow-unit-cli-{}-{}.fn",
+        "morrow-unit-cli-{}-{}.mr",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

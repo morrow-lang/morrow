@@ -32,12 +32,12 @@ impl Drop for Project {
 fn clause_group_identity_and_scopes_survive_module_qualification() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "pub type Item:\n    value: Int\npub fn fallback() -> Int: 99\n",
     );
-    project.write("api.fn", "import model.{Item,fallback}\n@doc \"\"\"All clauses.\"\"\"\npub fn choose([Item(fallback),..tail]: List(Item)) if fallback>0 -> Int: fallback+List.len(tail)\npub fn choose(_: List(Item)) -> Int: fallback()\n");
+    project.write("api.mr", "import model.{Item,fallback}\n@doc \"\"\"All clauses.\"\"\"\npub fn choose([Item(fallback),..tail]: List(Item)) if fallback>0 -> Int: fallback+List.len(tail)\npub fn choose(_: List(Item)) -> Int: fallback()\n");
     let path = project.write(
-        "main.fn",
+        "main.mr",
         "import api.{choose}\nfn main(): println(choose([]))\n",
     );
     let loaded = modules::load(&path).unwrap();
@@ -63,12 +63,12 @@ fn clause_group_identity_and_scopes_survive_module_qualification() {
 #[test]
 fn parameter_patterns_and_guards_cannot_expose_private_names() {
     let project = Project::new();
-    project.write("model.fn", "type Hidden:\n    value: Int\nfn secret() -> Bool: true\npub type Public:\n    value: Int\n");
+    project.write("model.mr", "type Hidden:\n    value: Int\nfn secret() -> Bool: true\npub type Public:\n    value: Int\n");
     for source in [
         "import model\nfn f(model.Hidden(x): model.Public) -> Int: x\nfn main(): 0\n",
         "import model\nfn f(x: Int) if model.secret() -> Int: x\nfn f(_: Int) -> Int: 0\nfn main(): 0\n",
     ] {
-        let path = project.write("main.fn", source);
+        let path = project.write("main.mr", source);
         assert!(
             modules::load(&path)
                 .unwrap_err()

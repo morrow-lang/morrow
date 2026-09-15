@@ -7,10 +7,10 @@ use morrow_compiler::{
 #[test]
 fn parses_reference_examples() {
     for source in [
-        include_str!("../../../examples/factorial.fn"),
-        include_str!("../../../examples/fibonacci.fn"),
-        include_str!("../../../examples/add.fn"),
-        include_str!("../../../examples/conditionals.fn"),
+        include_str!("../../../examples/factorial.mr"),
+        include_str!("../../../examples/fibonacci.mr"),
+        include_str!("../../../examples/add.mr"),
+        include_str!("../../../examples/conditionals.mr"),
     ] {
         assert!(parse(source).is_ok(), "{:#?}", parse(source));
     }

@@ -199,7 +199,7 @@ fn load_sources(
     }
     if syntax.module.is_some() {
         let stem = root.join(name.replace('.', "/"));
-        if entry != stem.with_extension("fn") && entry != stem.join("mod.fn") {
+        if entry != stem.with_extension("mr") && entry != stem.join("mod.mr") {
             return Err(failure(format!(
                 "{}: module declaration {name} does not match file path",
                 entry.display()
@@ -507,11 +507,11 @@ impl Loader<'_> {
         parse::parse(text).map_err(|e| located(path, text, e))
     }
 
-    /// Resolve module.fn or module/mod.fn within the project, rejecting ambiguity.
+    /// Resolve module.mr or module/mod.mr within the project, rejecting ambiguity.
     fn import_path(&self, name: &str) -> Result<PathBuf, Error> {
         valid_module(name)?;
         let stem = self.root.join(name.replace('.', "/"));
-        let candidates: Vec<_> = [stem.with_extension("fn"), stem.join("mod.fn")]
+        let candidates: Vec<_> = [stem.with_extension("mr"), stem.join("mod.mr")]
             .into_iter()
             .filter(|p| {
                 p.is_file() || source_identity(p).is_ok_and(|id| self.snapshots.contains_key(&id))

@@ -56,19 +56,19 @@ fn nested_error_paths_escape_keys_without_changing_primitive_error_codes() {
 fn complete_native_codec_sources_have_identical_interactive_outputs() {
     for (source, expected) in [
         (
-            include_str!("json_codecs_native/records.fn"),
+            include_str!("json_codecs_native/records.mr"),
             include_str!("json_codecs_native/records.stdout"),
         ),
         (
-            include_str!("json_codecs_native/containers.fn"),
+            include_str!("json_codecs_native/containers.mr"),
             include_str!("json_codecs_native/containers.stdout"),
         ),
         (
-            include_str!("json_codecs_native/generics.fn"),
+            include_str!("json_codecs_native/generics.mr"),
             include_str!("json_codecs_native/generics.stdout"),
         ),
         (
-            include_str!("json_codecs_native/errors.fn"),
+            include_str!("json_codecs_native/errors.mr"),
             include_str!("json_codecs_native/errors.stdout"),
         ),
     ] {

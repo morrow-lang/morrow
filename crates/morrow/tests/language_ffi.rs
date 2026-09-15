@@ -134,8 +134,8 @@ fn foreign_imports_preserve_nominal_pointees_and_aliases() {
     }
     std::fs::create_dir_all(&directory).unwrap();
     let _cleanup = Cleanup(directory.clone());
-    std::fs::write(directory.join("native.fn"), "module native\npub type Handle:\n    Handle\npub type Alias = Handle\npub foreign \"C\" fn open() -> Ptr(Alias) as \"test_open\"\npub foreign \"C\" fn identity(value: Ptr(Handle)) -> Ptr(Handle) as \"test_identity\"\n").unwrap();
-    let path = directory.join("main.fn");
+    std::fs::write(directory.join("native.mr"), "module native\npub type Handle:\n    Handle\npub type Alias = Handle\npub foreign \"C\" fn open() -> Ptr(Alias) as \"test_open\"\npub foreign \"C\" fn identity(value: Ptr(Handle)) -> Ptr(Handle) as \"test_identity\"\n").unwrap();
+    let path = directory.join("main.mr");
     std::fs::write(&path, "import native\nfn main():\n    let handle: Ptr(native.Handle) = native.open()\n    println(Ptr.is_null(native.identity(handle)))\n").unwrap();
     let loaded = morrow_compiler::modules::load(&path).unwrap();
     let checked = check::check(&loaded.program).unwrap();

@@ -50,7 +50,7 @@ pub(super) fn discover(root: &Path, purpose: &str) -> Result<Vec<PathBuf>, Strin
                 ) {
                     pending.push((path, depth + 1));
                 }
-            } else if kind.is_file() && path.extension().is_some_and(|extension| extension == "fn")
+            } else if kind.is_file() && path.extension().is_some_and(|extension| extension == "mr")
             {
                 if files.len() == 256 {
                     return Err(format!("{purpose} file limit exceeds 256"));
@@ -71,6 +71,43 @@ pub(super) fn discover(root: &Path, purpose: &str) -> Result<Vec<PathBuf>, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> std::io::Result<Self> {
+            static NEXT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "morrow-source-discovery-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+            ));
+            fs::create_dir(&path)?;
+            Ok(Self(path))
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            drop(fs::remove_dir_all(&self.0));
+        }
+    }
+
+    #[test]
+    fn discovers_mr_sources_while_ignoring_legacy_fn_sources()
+    -> Result<(), Box<dyn std::error::Error>> {
+        let root = TestDirectory::new()?;
+        fs::create_dir(root.0.join("nested"))?;
+        fs::write(root.0.join("z.mr"), "")?;
+        fs::write(root.0.join("nested/a.mr"), "")?;
+        fs::write(root.0.join("legacy.fn"), "")?;
+
+        let files = discover(&root.0, "format").map_err(std::io::Error::other)?;
+
+        assert_eq!(files, vec![root.0.join("nested/a.mr"), root.0.join("z.mr")]);
+        Ok(())
+    }
+
     #[test]
     fn oversized_initial_path_is_rejected_before_copy_or_filesystem_lookup() {
         let text = "x".repeat(4097);

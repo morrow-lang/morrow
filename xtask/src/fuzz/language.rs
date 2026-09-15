@@ -2,22 +2,22 @@
 use super::*;
 
 const SOURCES: &[(&str, &str)] = &[
-    ("tour", include_str!("../../../examples/language_tour.fn")),
+    ("tour", include_str!("../../../examples/language_tour.mr")),
     (
         "custom-json",
-        include_str!("../../../crates/morrow/tests/custom_json_native/values.fn"),
+        include_str!("../../../crates/morrow/tests/custom_json_native/values.mr"),
     ),
     (
         "comptime",
-        include_str!("../../../crates/morrow/tests/comptime_native/values.fn"),
+        include_str!("../../../crates/morrow/tests/comptime_native/values.mr"),
     ),
     (
         "deep-json",
-        include_str!("../../../crates/morrow/tests/json_deep_unions/values.fn"),
+        include_str!("../../../crates/morrow/tests/json_deep_unions/values.mr"),
     ),
     (
         "traits",
-        include_str!("../../../crates/morrow/tests/traits/values.fn"),
+        include_str!("../../../crates/morrow/tests/traits/values.mr"),
     ),
     (
         "foreign",

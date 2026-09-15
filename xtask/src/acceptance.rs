@@ -33,7 +33,7 @@ pub fn cases(source: &str) -> Result<Vec<Case>, String> {
             let file = text("file")?;
             if Path::new(&file)
                 .extension()
-                .is_none_or(|extension| extension != "fn")
+                .is_none_or(|extension| extension != "mr")
                 || Path::new(&file)
                     .components()
                     .any(|component| !matches!(component, Component::Normal(_)))
@@ -146,7 +146,7 @@ pub fn examples(root: &Path, bin: &Path) -> Result<(), String> {
     let mut count = 0;
     for path in paths
         .iter()
-        .filter(|path| path.extension().is_some_and(|extension| extension == "fn"))
+        .filter(|path| path.extension().is_some_and(|extension| extension == "mr"))
     {
         let mut command = Command::new(bin.join("morrow"));
         command.arg("check").arg(path);
@@ -176,16 +176,16 @@ mod tests {
         assert_eq!(actual.len(), 316);
         let fault = actual
             .iter()
-            .find(|case| case.file == "actors/bad_timeout.fn")
+            .find(|case| case.file == "actors/bad_timeout.mr")
             .unwrap();
         assert_eq!(fault.exit, 1);
         assert!(fault.stdout.is_empty());
         assert!(fault.stderr.contains("600000"));
         for path in [
-            "../outside.fn",
-            "/outside.fn",
-            "x/../../outside.fn",
-            "same.fn",
+            "../outside.mr",
+            "/outside.mr",
+            "x/../../outside.mr",
+            "same.mr",
         ] {
             let input = serde_json::json!([
                 {"file":path,"exit":0,"stdout":"","stderr":""},

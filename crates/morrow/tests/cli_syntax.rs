@@ -10,7 +10,7 @@ fn invoke_controls(action: &str, source: &[u8], controls: &[&str]) -> std::proce
         NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
     ));
     fs::create_dir_all(&work).unwrap();
-    let path = work.join("literal source.fn");
+    let path = work.join("literal source.mr");
     fs::write(&path, source).unwrap();
     let output = Command::new(env!("CARGO_BIN_EXE_morrow"))
         .args(controls)
@@ -61,7 +61,7 @@ fn malformed_syntax_fails_atomically_with_a_location() {
     let output = invoke("parse", b"fn main(:\n");
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
-    assert!(String::from_utf8_lossy(&output.stderr).contains("literal source.fn:1:"));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("literal source.mr:1:"));
 }
 
 #[test]
@@ -167,7 +167,7 @@ fn diagnostics_count_unicode_columns_and_crlf_lines() {
     assert!(!output.status.success());
     assert!(output.stdout.is_empty());
     assert!(
-        String::from_utf8_lossy(&output.stderr).contains("literal source.fn:2:12:"),
+        String::from_utf8_lossy(&output.stderr).contains("literal source.mr:2:12:"),
         "{output:?}"
     );
 }
@@ -177,11 +177,11 @@ fn inspection_cli_rejects_invalid_arguments_before_reading_or_writing() {
     for args in [
         vec!["lex"],
         vec!["parse"],
-        vec!["lex", "missing.fn", "second.fn"],
-        vec!["parse", "missing.fn", "-o", "output.fn"],
-        vec!["lex", "--check", "missing.fn"],
-        vec!["parse", "missing.fn", "--", "tail"],
-        vec!["lex", "--unknown", "missing.fn"],
+        vec!["lex", "missing.mr", "second.mr"],
+        vec!["parse", "missing.mr", "-o", "output.mr"],
+        vec!["lex", "--check", "missing.mr"],
+        vec!["parse", "missing.mr", "--", "tail"],
+        vec!["lex", "--unknown", "missing.mr"],
     ] {
         let output = Command::new(env!("CARGO_BIN_EXE_morrow"))
             .args(&args)

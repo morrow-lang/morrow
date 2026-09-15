@@ -3,15 +3,15 @@ use morrow_compiler::repl::Session;
 fn conditional_codec_sources_match_native_contract() {
     for (source, expected) in [
         (
-            include_str!("json_constraints_native/instances.fn"),
+            include_str!("json_constraints_native/instances.mr"),
             include_str!("json_constraints_native/instances.stdout"),
         ),
         (
-            include_str!("json_constraints_native/containers.fn"),
+            include_str!("json_constraints_native/containers.mr"),
             include_str!("json_constraints_native/containers.stdout"),
         ),
         (
-            include_str!("json_constraints_native/effects.fn"),
+            include_str!("json_constraints_native/effects.mr"),
             include_str!("json_constraints_native/effects.stdout"),
         ),
     ] {

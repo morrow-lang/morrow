@@ -3,7 +3,7 @@ use morrow_compiler::{check, modules};
 #[test]
 fn shared_application_is_checked_as_a_library_with_domain_model_update_and_view() {
     let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/web/checklist.fn");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/web/checklist.mr");
     let loaded = modules::load(&path).unwrap();
     let program = check::check_library(&loaded.program).unwrap();
     for required in [
@@ -25,7 +25,7 @@ fn shared_application_is_checked_as_a_library_with_domain_model_update_and_view(
 #[test]
 fn native_gateway_is_a_typed_actor_with_a_separate_json_boundary() {
     let path =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/web/server.fn");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/web/server.mr");
     let loaded = modules::load(&path).unwrap();
     let program = check::check_library(&loaded.program).unwrap();
     for required in [
@@ -52,7 +52,7 @@ fn native_gateway_is_a_typed_actor_with_a_separate_json_boundary() {
 fn compiled_shared_domain_and_local_events_have_independent_expected_traces() {
     let source = format!(
         "{}\n{}",
-        include_str!("../../../examples/web/checklist.fn"),
+        include_str!("../../../examples/web/checklist.mr"),
         r#"
 pub fn domain_trace(which: Int) -> Int:
     let first = domain_update(domain_init(), Add("苗 🌱"), 100)
@@ -136,8 +136,8 @@ fn fill_domain(state: Domain, remaining: Int) -> Domain:
 fn local_feedback_and_authoritative_loading_have_expected_wasm_values() {
     let source = format!(
         "{}\n{}",
-        include_str!("../../../examples/web/checklist.fn"),
-        include_str!("fixtures/web_feedback.fn")
+        include_str!("../../../examples/web/checklist.mr"),
+        include_str!("fixtures/web_feedback.mr")
     );
     let checked = check::check_library(&morrow_compiler::parse::parse(&source).unwrap()).unwrap();
     let bytes = morrow_compiler::wasm::compile(&checked).unwrap();

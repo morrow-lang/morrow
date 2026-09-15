@@ -607,7 +607,7 @@
     "name": "global-identity/0",
     "source": "import model as m\nfn main():\n    let m=3\n    println(m.value(1))\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "diagnostic": "error:",
     "absent_diagnostic": ""
@@ -616,7 +616,7 @@
     "name": "global-identity/1",
     "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println(m.value(model))\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "diagnostic": "String",
     "absent_diagnostic": "field access"
@@ -625,7 +625,7 @@
     "name": "global-identity/2",
     "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println(model |> m.value())\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "diagnostic": "String",
     "absent_diagnostic": "field access"
@@ -634,7 +634,7 @@
     "name": "global-identity/3",
     "source": "import model as m\nfn main():\n    let model=\"wrong\"\n    println((() -> m.value(model))())\n",
     "files": {
-      "model.fn": "pub fn value(x:Int)->Int:x+1\n"
+      "model.mr": "pub fn value(x:Int)->Int:x+1\n"
     },
     "diagnostic": "String",
     "absent_diagnostic": "field access"

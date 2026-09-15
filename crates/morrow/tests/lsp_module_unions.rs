@@ -66,7 +66,7 @@ fn query(project: &Project, marked: &str, method: &str) -> String {
     let line = before.bytes().filter(|b| *b == b'\n').count();
     let character = before.rsplit('\n').next().unwrap().encode_utf16().count();
     let source = marked.replace('§', "");
-    let path = project.write("main.fn", &source);
+    let path = project.write("main.mr", &source);
     let uri = format!("file://{}", path.display());
     let messages = vec![
         r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}"#.into(),
@@ -93,8 +93,8 @@ fn imported_union_narrowing_keeps_local_and_member_definition_offsets() {
     let project = Project::new();
     let model =
         "pub newtype Id=Wrapped(Int)\npub type Choice=Int | Id\npub fn Choice(x:Int)->Int:x\n";
-    project.write("model.fn", model);
-    project.write("api.fn", "pub import model.{Id,Choice}\n");
+    project.write("model.mr", model);
+    project.write("api.mr", "pub import model.{Id,Choice}\n");
     let source = "import api as m\nfn size(x:m.Choice)->Int:\n    match x:\n        n:Int -> m.Choice(n)\n        id:m.Id -> id.0\nfn main():()\n";
     let local = query(
         &project,
@@ -102,11 +102,11 @@ fn imported_union_narrowing_keeps_local_and_member_definition_offsets() {
         "definition",
     );
     assert!(
-        local.contains("main.fn") && local.contains("\"start\":{\"character\":8,\"line\":3}"),
+        local.contains("main.mr") && local.contains("\"start\":{\"character\":8,\"line\":3}"),
         "{local}"
     );
     let member = query(&project, &source.replace("id.0", "id.0§"), "definition");
-    assert!(member.contains("model.fn"), "{member}");
+    assert!(member.contains("model.mr"), "{member}");
     assert!(
         member.contains(&format!(
             "\"start\":{{\"character\":{},\"line\":0}}",
@@ -121,7 +121,7 @@ fn imported_union_narrowing_keeps_local_and_member_definition_offsets() {
 fn private_typed_union_alternatives_produce_no_fabricated_editor_targets() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "newtype Secret=Hidden(Int)\npub type Choice=Int | Secret\n",
     );
     let source = "import model as m\nfn size(x:m.Choice)->Int:\n    match x:\n        n:Int -> n\n        hidden:m.Secret§ -> hidden.0\n";

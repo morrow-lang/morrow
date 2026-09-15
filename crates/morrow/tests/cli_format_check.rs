@@ -52,7 +52,7 @@ fn unchanged(path: &Path, bytes: &[u8], before: &fs::Metadata) {
 #[test]
 fn clean_format_check_is_silent_read_only_and_accepts_both_flag_positions() {
     let directory = Directory::new();
-    let source = directory.0.join("🌿 $(literal); source.fn");
+    let source = directory.0.join("🌿 $(literal); source.mr");
     let canonical = morrow_compiler::format::format("fn main():println(\"🌿\")\n").unwrap();
     fs::write(&source, &canonical).unwrap();
     let before = fs::metadata(&source).unwrap();
@@ -71,7 +71,7 @@ fn clean_format_check_is_silent_read_only_and_accepts_both_flag_positions() {
 #[test]
 fn drift_returns_one_with_source_diagnostic_and_never_formats_the_input() {
     let directory = Directory::new();
-    let source = directory.0.join("drift.fn");
+    let source = directory.0.join("drift.mr");
     let bytes = b"fn main():println(1)\n";
     fs::write(&source, bytes).unwrap();
     let before = fs::metadata(&source).unwrap();
@@ -101,7 +101,7 @@ fn drift_returns_one_with_source_diagnostic_and_never_formats_the_input() {
 #[test]
 fn malformed_and_invalid_utf8_sources_are_not_modified() {
     let directory = Directory::new();
-    let source = directory.0.join("invalid.fn");
+    let source = directory.0.join("invalid.mr");
     for bytes in [b"fn main(:\n".as_slice(), &[0xff, b'\n']] {
         fs::write(&source, bytes).unwrap();
         let before = fs::metadata(&source).unwrap();
@@ -116,7 +116,7 @@ fn malformed_and_invalid_utf8_sources_are_not_modified() {
 #[test]
 fn check_flag_is_scoped_to_fmt_and_rejects_duplicates_and_missing_sources() {
     let directory = Directory::new();
-    let source = directory.0.join("source.fn");
+    let source = directory.0.join("source.mr");
     fs::write(&source, "fn main(): 0\n").unwrap();
     for command in ["check", "emit", "build", "run"] {
         let output = directory.run(&[command.as_ref(), "--check".as_ref(), source.as_os_str()]);
@@ -143,8 +143,8 @@ fn check_flag_is_scoped_to_fmt_and_rejects_duplicates_and_missing_sources() {
 fn check_preserves_symlink_and_read_only_target_identity() {
     use std::os::unix::fs::{PermissionsExt, symlink};
     let directory = Directory::new();
-    let source = directory.0.join("target.fn");
-    let link = directory.0.join("link.fn");
+    let source = directory.0.join("target.mr");
+    let link = directory.0.join("link.mr");
     let bytes = b"fn main():println(1)\n";
     fs::write(&source, bytes).unwrap();
     fs::set_permissions(&source, fs::Permissions::from_mode(0o444)).unwrap();

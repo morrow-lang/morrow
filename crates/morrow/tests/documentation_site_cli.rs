@@ -18,12 +18,12 @@ impl Project {
         fs::create_dir_all(path.join("lib")).unwrap();
         fs::create_dir_all(path.join("docs")).unwrap();
         fs::write(
-            path.join("lib/math.fn"),
+            path.join("lib/math.mr"),
             "module lib.math\n\n@moduledoc \"\"\"Arithmetic helpers.\"\"\"\n\n@doc \"\"\"Add two numbers.\"\"\"\npub fn add(a: Int, b: Int) -> Int: a + b\n\nfn twice(value) -> Int: value + value\n",
         )
         .unwrap();
         fs::write(
-            path.join("lib/text.fn"),
+            path.join("lib/text.mr"),
             "@doc \"\"\"Shout.\"\"\"\npub fn shout(text: String) -> String: text\n",
         )
         .unwrap();
@@ -98,7 +98,7 @@ fn site_writes_pages_guides_assets_and_replaces_previous_output_atomically() {
     assert!(!project.0.join("site/notes.html").exists());
     // A second build replaces the directory completely, removing stale pages.
     fs::write(project.0.join("site/stale.html"), "old").unwrap();
-    fs::remove_file(project.0.join("lib/text.fn")).unwrap();
+    fs::remove_file(project.0.join("lib/text.mr")).unwrap();
     let result = project.run(&["doc", "lib", "--site", "site", "--title", "Sample"]);
     assert!(result.status.success(), "{result:?}");
     assert!(!project.0.join("site/stale.html").exists());
@@ -122,11 +122,11 @@ fn site_fails_before_publishing_when_any_input_is_invalid() {
             .status
             .success()
     );
-    fs::write(project.0.join("lib/broken.fn"), "fn bad():\n    (\n").unwrap();
+    fs::write(project.0.join("lib/broken.mr"), "fn bad():\n    (\n").unwrap();
     let result = project.run(&["doc", "lib", "--site", "site"]);
     assert_eq!(result.status.code(), Some(1));
     let stderr = String::from_utf8_lossy(&result.stderr);
-    assert!(stderr.contains("broken.fn:"), "{stderr}");
+    assert!(stderr.contains("broken.mr:"), "{stderr}");
     assert!(project.0.join("site/lib.math.html").is_file());
     assert!(!project.0.join("site/broken.html").exists());
 }
@@ -141,7 +141,7 @@ fn site_refuses_directories_it_does_not_own() {
         let stderr = String::from_utf8_lossy(&result.stderr);
         assert!(stderr.contains("refusing"), "{target}: {stderr}");
     }
-    assert!(project.0.join("lib/math.fn").is_file());
+    assert!(project.0.join("lib/math.mr").is_file());
     assert!(project.0.join("docs/GUIDE.md").is_file());
     fs::write(project.0.join("file"), "x").unwrap();
     let result = project.run(&["doc", "lib", "--site", "file"]);

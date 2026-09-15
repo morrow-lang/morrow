@@ -110,15 +110,15 @@ fn source_ranges_and_type_limits_remain_exact() {
 fn native_sources_preserve_generic_requirements_and_interactive_output() {
     for (source, expected) in [
         (
-            include_str!("json_unions_native/inline_scalar.fn"),
+            include_str!("json_unions_native/inline_scalar.mr"),
             include_str!("json_unions_native/inline_scalar.stdout"),
         ),
         (
-            include_str!("json_unions_native/inline_containers.fn"),
+            include_str!("json_unions_native/inline_containers.mr"),
             include_str!("json_unions_native/inline_containers.stdout"),
         ),
         (
-            include_str!("json_unions_native/inline_generic.fn"),
+            include_str!("json_unions_native/inline_generic.mr"),
             include_str!("json_unions_native/inline_generic.stdout"),
         ),
     ] {

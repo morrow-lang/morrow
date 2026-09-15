@@ -10,7 +10,7 @@ use std::{env, fs, io, path::PathBuf};
 
 fn main() -> io::Result<()> {
     let root = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap())
-        .join("../../examples/web/server.fn");
+        .join("../../examples/web/server.mr");
     let source = modules::load(&root).map_err(|e| io::Error::other(e.message))?;
     for file in source.sources() {
         println!("cargo:rerun-if-changed={}", file.path.display());

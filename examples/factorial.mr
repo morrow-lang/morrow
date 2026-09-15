@@ -2,7 +2,7 @@
 Factorial calculation using recursion.
 
 Demonstrates recursive functions, conditionals and executable documentation
-examples. Run `morrow test --doc examples/factorial.fn` to check the examples
+examples. Run `morrow test --doc examples/factorial.mr` to check the examples
 below, or `morrow doc examples --site docs-site` to browse them.
 """
 

@@ -16,7 +16,7 @@ impl Fixture {
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        fs::write(path.join("source.fn"), "fn main() -> Int: 42\n").unwrap();
+        fs::write(path.join("source.mr"), "fn main() -> Int: 42\n").unwrap();
         Self(path)
     }
     fn run(&self, args: &[&str]) -> std::process::Output {
@@ -40,8 +40,8 @@ impl Drop for Fixture {
 fn browser_build_needs_no_native_tools_and_defaults_to_wasm_extension() {
     let fixture = Fixture::new();
     for args in [
-        vec!["build", "--target=wasm32", "source.fn"],
-        vec!["build", "source.fn", "--target", "wasm32"],
+        vec!["build", "--target=wasm32", "source.mr"],
+        vec!["build", "source.mr", "--target", "wasm32"],
     ] {
         let result = fixture.run(&args);
         assert!(result.status.success(), "{result:?}");
@@ -55,11 +55,11 @@ fn browser_build_needs_no_native_tools_and_defaults_to_wasm_extension() {
 fn browser_library_exports_do_not_require_a_native_main() {
     let fixture = Fixture::new();
     fs::write(
-        fixture.0.join("source.fn"),
+        fixture.0.join("source.mr"),
         "pub fn update(value: Int) -> Int: value + 1\n",
     )
     .unwrap();
-    let result = fixture.run(&["build", "--target=wasm32", "source.fn"]);
+    let result = fixture.run(&["build", "--target=wasm32", "source.mr"]);
     assert!(result.status.success(), "{result:?}");
     assert!(
         fs::read(fixture.0.join("source.wasm"))
@@ -80,7 +80,7 @@ fn browser_library_exports_do_not_require_a_native_main() {
         update.call(&mut store, 9_007_199_254_740_993).unwrap(),
         9_007_199_254_740_994
     );
-    assert!(!fixture.run(&["build", "source.fn"]).status.success());
+    assert!(!fixture.run(&["build", "source.mr"]).status.success());
 }
 
 #[test]
@@ -88,12 +88,12 @@ fn browser_failure_preserves_output_and_rejects_native_option_combinations() {
     let fixture = Fixture::new();
     fs::write(fixture.0.join("out.wasm"), b"previous").unwrap();
     for args in [
-        vec!["build", "--target=unknown", "source.fn", "-o", "out.wasm"],
+        vec!["build", "--target=unknown", "source.mr", "-o", "out.wasm"],
         vec![
             "build",
             "--target=wasm32",
             "--backend=cranelift",
-            "source.fn",
+            "source.mr",
             "-o",
             "out.wasm",
         ],
@@ -101,23 +101,23 @@ fn browser_failure_preserves_output_and_rejects_native_option_combinations() {
             "build",
             "--target=wasm32",
             "--target=wasm32",
-            "source.fn",
+            "source.mr",
             "-o",
             "out.wasm",
         ],
-        vec!["run", "--target=wasm32", "source.fn"],
-        vec!["emit", "--target=wasm32", "source.fn"],
+        vec!["run", "--target=wasm32", "source.mr"],
+        vec!["emit", "--target=wasm32", "source.mr"],
     ] {
         let result = fixture.run(&args);
         assert!(!result.status.success(), "{result:?}");
         assert_eq!(fs::read(fixture.0.join("out.wasm")).unwrap(), b"previous");
     }
     fs::write(
-        fixture.0.join("source.fn"),
+        fixture.0.join("source.mr"),
         "fn main(): println(\"native IO\")\n",
     )
     .unwrap();
-    let result = fixture.run(&["build", "--target=wasm32", "source.fn", "-o", "out.wasm"]);
+    let result = fixture.run(&["build", "--target=wasm32", "source.mr", "-o", "out.wasm"]);
     assert!(!result.status.success(), "{result:?}");
     assert_eq!(fs::read(fixture.0.join("out.wasm")).unwrap(), b"previous");
 }
@@ -125,15 +125,15 @@ fn browser_failure_preserves_output_and_rejects_native_option_combinations() {
 #[test]
 fn browser_output_cannot_overwrite_any_loaded_source() {
     let fixture = Fixture::new();
-    fs::write(fixture.0.join("shared.fn"), "pub fn answer() -> Int: 42\n").unwrap();
+    fs::write(fixture.0.join("shared.mr"), "pub fn answer() -> Int: 42\n").unwrap();
     fs::write(
-        fixture.0.join("source.fn"),
+        fixture.0.join("source.mr"),
         "import shared\nfn main() -> Int: shared.answer()\n",
     )
     .unwrap();
-    for name in ["source.fn", "shared.fn"] {
+    for name in ["source.mr", "shared.mr"] {
         let before = fs::read(fixture.0.join(name)).unwrap();
-        let result = fixture.run(&["build", "--target=wasm32", "source.fn", "-o", name]);
+        let result = fixture.run(&["build", "--target=wasm32", "source.mr", "-o", name]);
         assert!(!result.status.success(), "{result:?}");
         assert!(
             String::from_utf8_lossy(&result.stderr).contains("refusing to overwrite source"),

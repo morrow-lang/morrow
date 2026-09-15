@@ -33,10 +33,10 @@ impl Drop for Project {
 fn let_else_failure_uses_outer_imports_while_success_names_stay_local() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "pub fn number() -> Int: 0\npub fn cleanup(value: Int) -> Unit: println(value)\n",
     );
-    let path=project.write("main.fn","import model.{number, cleanup}\nfn unwrap(value: Option(Int)) -> Int:\n    defer cleanup(number())\n    let Some(number) = value else: return number()\n    match:\n        number > 0 -> return number\n        _ -> 0\nfn main(): println(unwrap(Some(42)))\n");
+    let path=project.write("main.mr","import model.{number, cleanup}\nfn unwrap(value: Option(Int)) -> Int:\n    defer cleanup(number())\n    let Some(number) = value else: return number()\n    match:\n        number > 0 -> return number\n        _ -> 0\nfn main(): println(unwrap(Some(42)))\n");
     let loaded = modules::load(&path).unwrap();
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
 }
@@ -52,11 +52,11 @@ fn control_children_cannot_bypass_private_module_names() {
     ] {
         let project = Project::new();
         project.write(
-            "model.fn",
+            "model.mr",
             "fn secret() -> Int: 1\npub fn visible() -> Int: 0\n",
         );
         let path = project.write(
-            "main.fn",
+            "main.mr",
             &format!("import model\nfn main() -> Int:\n    {statement}\n"),
         );
         assert!(

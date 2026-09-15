@@ -30,27 +30,27 @@ impl Drop for Project {
 #[test]
 fn inline_targets_resolve_selected_reexports_in_the_type_namespace() {
     let project = Project::new();
-    project.write("model.fn","pub type Box(a) derive(Json):\n    value:a\npub type Data=Box(Int)\npub fn Data()->Int:42\n");
-    project.write("api.fn", "pub import model.{Box,Data}\n");
+    project.write("model.mr","pub type Box(a) derive(Json):\n    value:a\npub type Data=Box(Int)\npub fn Data()->Int:42\n");
+    project.write("api.mr", "pub import model.{Box,Data}\n");
     for import in ["import api as m", "import api.{Box,Data}", "import api.*"] {
         let prefix = if import.ends_with("as m") { "m." } else { "" };
         let source = format!(
             "{import}\nfn read(text:String):json.decode(text,{prefix}Box(Int) | String)\nfn other(text:String):json.decode(text,List({prefix}Data | Bool))\nfn main():()\n"
         );
-        let loaded = modules::load(&project.write("main.fn", &source)).unwrap();
+        let loaded = modules::load(&project.write("main.mr", &source)).unwrap();
         check::check(&loaded.program).unwrap();
     }
 }
 #[test]
 fn inline_syntax_never_promotes_private_types_or_fake_codec_aliases() {
     let project = Project::new();
-    project.write("model.fn","type Hidden derive(Json):\n    value:Int\npub fn Hidden()->Int:1\npub fn decode(text:String,value:Int)->Int:value\n");
+    project.write("model.mr","type Hidden derive(Json):\n    value:Int\npub fn Hidden()->Int:1\npub fn decode(text:String,value:Int)->Int:value\n");
     for source in [
         "import model as m\nfn read(text:String):json.decode(text,m.Hidden | String)\nfn main():()\n",
         "import model as json\nfn read(text:String):json.decode(text,Int | String)\nfn main():()\n",
         "import model.{decode}\nfn read(text:String):decode(text,Int | String)\nfn main():()\n",
     ] {
-        let result = modules::load(&project.write("main.fn", source));
+        let result = modules::load(&project.write("main.mr", source));
         assert!(
             result
                 .map(|loaded| check::check(&loaded.program).is_err())

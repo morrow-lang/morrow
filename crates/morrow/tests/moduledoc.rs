@@ -63,11 +63,11 @@ fn module_documentation_examples_run_as_documentation_tests() {
 
 #[test]
 fn documentation_output_renders_module_documentation_first() {
-    let markdown = render(SOURCE, "math.fn", Output::Markdown).unwrap();
+    let markdown = render(SOURCE, "math.mr", Output::Markdown).unwrap();
     let module = markdown.find("Arithmetic helpers.").unwrap();
     let function = markdown.find("## add").unwrap();
     assert!(module < function);
-    let html = render(SOURCE, "math.fn", Output::Html).unwrap();
+    let html = render(SOURCE, "math.mr", Output::Html).unwrap();
     assert!(html.contains("Arithmetic helpers."));
     assert!(!html.contains("<script"));
 }

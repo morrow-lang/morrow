@@ -101,7 +101,7 @@ mod tests {
     #[test]
     fn flags_preserve_output_timeout_operands_and_run_tail() {
         let mut flags = Controls::default();
-        let args = ["run", "source.fn", "--", "--quiet", "--color=invalid", "-v"]
+        let args = ["run", "source.mr", "--", "--quiet", "--color=invalid", "-v"]
             .map(OsString::from)
             .to_vec();
         assert_eq!(flags.arguments(args.clone()).unwrap(), args);
@@ -159,7 +159,7 @@ mod tests {
     fn non_utf8_operands_are_preserved() {
         use std::os::unix::ffi::OsStringExt;
         let value = OsString::from_vec(vec![255, 254]);
-        let args = vec!["emit".into(), "source.fn".into(), "-o".into(), value];
+        let args = vec!["emit".into(), "source.mr".into(), "-o".into(), value];
         assert_eq!(Controls::default().arguments(args.clone()).unwrap(), args);
     }
 }

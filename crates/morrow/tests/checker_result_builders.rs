@@ -170,10 +170,10 @@ fn builder_cannot_replace_retention_with_handling_or_early_return() {
 #[test]
 fn executable_builder_fixtures_share_the_checked_native_ir() {
     for source in [
-        include_str!("result_builders/fresh.fn"),
-        include_str!("result_builders/accumulators.fn"),
-        include_str!("result_builders/generic.fn"),
-        include_str!("result_builders/payloads.fn"),
+        include_str!("result_builders/fresh.mr"),
+        include_str!("result_builders/accumulators.mr"),
+        include_str!("result_builders/generic.mr"),
+        include_str!("result_builders/payloads.mr"),
     ] {
         let program = check::check(&parse::parse(source).unwrap()).unwrap();
         morrow_compiler::lowering::emit(&program).unwrap();

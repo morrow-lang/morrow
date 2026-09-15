@@ -1,120 +1,120 @@
 [
   {
-    "file": "spawn_runs.fn",
+    "file": "spawn_runs.mr",
     "stdout": "main\nworker\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "receive_suspends.fn",
+    "file": "receive_suspends.mr",
     "stdout": "waiting\n9223372036854775807\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "receive_continues.fn",
+    "file": "receive_continues.mr",
     "stdout": "one\ntwo\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "selective_preserves.fn",
+    "file": "selective_preserves.mr",
     "stdout": "42\nretained\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "timeout.fn",
+    "file": "timeout.mr",
     "stdout": "main\ntimeout\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "captures.fn",
+    "file": "captures.mr",
     "stdout": "later\n\ud83c\udf3f\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "helper_cleanup.fn",
+    "file": "helper_cleanup.mr",
     "stdout": "main\ncleanup\n",
     "stderr": "morrow: runtime error: integer division by zero\n",
     "exit": 1
   },
   {
-    "file": "tail.fn",
+    "file": "tail.mr",
     "stdout": "1\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "deadlock.fn",
+    "file": "deadlock.mr",
     "stdout": "main\n",
     "stderr": "morrow: runtime error: actor deadlock: no runnable actor or pending timeout\n",
     "exit": 1
   },
   {
-    "file": "bad_timeout.fn",
+    "file": "bad_timeout.mr",
     "stdout": "",
     "stderr": "morrow: runtime error: actor timeout must be between 0 and 600000 milliseconds\n",
     "exit": 1
   },
   {
-    "file": "live_quota.fn",
+    "file": "live_quota.mr",
     "stdout": "cleanup\n",
     "stderr": "morrow: runtime error: actor resource limit exceeded\n",
     "exit": 1
   },
   {
-    "file": "mailbox_quota.fn",
+    "file": "mailbox_quota.mr",
     "stdout": "4\ndone\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "local_result.fn",
+    "file": "local_result.mr",
     "stdout": "42\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "pure_cleanup.fn",
+    "file": "pure_cleanup.mr",
     "stdout": "main\nbody\ncleanup\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "full_width.fn",
+    "file": "full_width.mr",
     "stdout": "-0.5\n9223372036854775807\n\ud83c\udf3f alive\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "pid_identity.fn",
+    "file": "pid_identity.mr",
     "stdout": "true\ntrue\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "main_failure.fn",
+    "file": "main_failure.mr",
     "stdout": "main cleanup\n",
     "stderr": "morrow: main returned Err\n",
     "exit": 1
   },
   {
-    "file": "zero_timeout.fn",
+    "file": "zero_timeout.mr",
     "stdout": "message\ntimeout\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "gc_roots.fn",
+    "file": "gc_roots.mr",
     "stdout": "16384\n9223372036854775807\n16384\n",
     "stderr": "",
     "exit": 0
   },
   {
-    "file": "tail_long.fn",
+    "file": "tail_long.mr",
     "stdout": "0\n",
     "stderr": "",
     "exit": 0

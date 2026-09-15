@@ -9,7 +9,7 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 ### Morrow rename (2026-09-15, Decision155)
 
 - [x] Rename all 12 workspace packages, component paths, CLI, runtime symbols and Cargo tooling. macOS ARM64 `cargo xtask check` passes: 2,249 Rust tests, 316 native-output fixtures, 20 examples, 63 dynamic programs, 295 atomic rejections and 64+192+231 fuzz cases; dependency versions and persisted cluster identities remain unchanged.
-- [ ] Adopt `.mr` source files, compiler discovery, editor registration, formatter and test/documentation fixtures; verify the full repository gate.
+- [x] Rename all 455 source files to `.mr` and update discovery, module imports, formatter, LSP requests and test/documentation fixtures. An independent discovery test fails before and passes after migration. The full macOS ARM64 `cargo xtask check` passes; all three standalone benchmark workspaces also pass tests, formatting and Clippy.
 - [ ] Update active documentation, public introductions, canonical URLs and `MORROW_STYLE.md`; preserve historical evidence and verify the full repository gate.
 - [ ] Replace old logo usage with a Morrow text mark and update browser/preview branding; verify web output and the full repository gate.
 - [ ] Transfer and rename the GitHub repository to `morrow-lang/morrow`, update metadata and origin, and create `morrow-lang/morrow-lang.github.io` for the docs site.

@@ -248,7 +248,7 @@ kbd {
 
 .kw { color: var(--morrow-kw); font-weight: 600; }
 .ty { color: var(--morrow-ty); }
-.fn { color: var(--morrow-fn); }
+.mr { color: var(--morrow-fn); }
 .str { color: var(--morrow-str); }
 .num { color: var(--morrow-num); }
 .cmt { color: var(--morrow-cmt); font-style: italic; }

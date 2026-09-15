@@ -18,7 +18,7 @@ impl Directory {
     }
     fn write(&self, code: &str, body: &str) {
         fs::write(
-            self.0.join("library.fn"),
+            self.0.join("library.mr"),
             format!("@doc \"\"\"\n```morrow\n{code}\n```\n\"\"\"\n{body}\n"),
         )
         .unwrap();
@@ -69,7 +69,7 @@ fn doc_cli_rejects_unsupported_modes_and_invalid_timeouts() {
 fn malformed_documentation_fails_before_native_compilation() {
     let dir = Directory::new();
     dir.write("let x = 3 # => 3", "fn library(): ()");
-    let result = dir.run(&["test", "--doc", "library.fn"]);
+    let result = dir.run(&["test", "--doc", "library.mr"]);
     assert_eq!(result.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&result.stderr).contains("example 1"));
     assert!(String::from_utf8_lossy(&result.stdout).contains("0/1 passed"));

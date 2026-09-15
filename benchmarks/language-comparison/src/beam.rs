@@ -102,7 +102,7 @@ fn main() {
     );
     files.extend(
         [
-            "programs/batch.fn",
+            "programs/batch.mr",
             "programs/batch.rs",
             "programs/workloads.ex",
             "src/beam.rs",

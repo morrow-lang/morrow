@@ -16,7 +16,7 @@ const SEEDS: [&str; 7] = [
 /// The first seven iterations use retained seed files, matching the original runner.
 pub fn run(root: &Path, bin: &Path, iterations: u32, seed: u64) -> Result<(), String> {
     let temporary = crate::Temporary::new(&std::env::temp_dir())?;
-    let path = temporary.0.join("case.fn");
+    let path = temporary.0.join("case.mr");
     let mut invoke = |action: &str, path: &Path| {
         let mut command = Command::new(bin.join("morrow"));
         command.arg(action).arg(path);
@@ -34,7 +34,7 @@ pub fn run(root: &Path, bin: &Path, iterations: u32, seed: u64) -> Result<(), St
     };
     for index in 0..iterations {
         let source = if (index as usize) < SEEDS.len() {
-            fs::read_to_string(root.join(format!("fuzz/corpus/{}.fn", SEEDS[index as usize])))
+            fs::read_to_string(root.join(format!("fuzz/corpus/{}.mr", SEEDS[index as usize])))
                 .map_err(|error| error.to_string())?
         } else {
             generator::generate(seed, index)
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn mutations_reject_failed_formatter_writes_and_checked_lowering_failure() {
         let temporary = crate::Temporary::new(&std::env::temp_dir()).unwrap();
-        let path = temporary.0.join("case.fn");
+        let path = temporary.0.join("case.mr");
         fs::write(&path, "source").unwrap();
         assert!(
             mutation("source", &path, &mut |action, _| Ok(output(
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn mutations_reject_changed_lowering_and_non_idempotent_formatting() {
         let temporary = crate::Temporary::new(&std::env::temp_dir()).unwrap();
-        let path = temporary.0.join("case.fn");
+        let path = temporary.0.join("case.mr");
         fs::write(&path, "source").unwrap();
         let mut emissions = 0;
         assert!(

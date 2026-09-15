@@ -87,11 +87,11 @@ fn answer(messages: &[String], id: &str) -> String {
 fn canonical_root_locals_do_not_change_alias_hover_or_definition_targets() {
     let project = Project::new();
     let model = project.file(
-        "model.fn",
+        "model.mr",
         "@doc \"\"\"Global docs.\"\"\"\npub fn value(x: a) -> a: x\n",
     );
     let source = "import model as m\nfn main():\n    let model=3\n    let callable=m.value\n    let result=m.value(model)\n    let piped=model |> m.value()\n    println(callable(result)+piped)\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let mut requests = vec![opening(&main, source)];
     for line in [3, 4, 5] {
         let character = source.lines().nth(line).unwrap().find("m.value").unwrap() + 4;

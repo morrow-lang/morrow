@@ -227,8 +227,8 @@ fn public_traits_and_impls_resolve_across_modules() {
         NEXT.fetch_add(1, Ordering::Relaxed)
     )));
     std::fs::create_dir(&project.0).unwrap();
-    std::fs::write(project.0.join("model.fn"),"@doc \"\"\"Named developer-facing rendering contract.\"\"\"\npub trait Describe(a):\n    fn describe(value:a)->String\npub type Point:\n    x:Int\nimpl Describe(Point):\n    fn describe(value:Point)->String: \"point {value.x}\"\n").unwrap();
-    let main = project.0.join("main.fn");
+    std::fs::write(project.0.join("model.mr"),"@doc \"\"\"Named developer-facing rendering contract.\"\"\"\npub trait Describe(a):\n    fn describe(value:a)->String\npub type Point:\n    x:Int\nimpl Describe(Point):\n    fn describe(value:Point)->String: \"point {value.x}\"\n").unwrap();
+    let main = project.0.join("main.mr");
     std::fs::write(&main,"import model.*\nfn render(value:a)->String where Describe(a): describe(value)\nfn main(): println(render(Point(42)))\n").unwrap();
     let loaded = morrow_compiler::modules::load(&main).unwrap();
     let checked = check::check(&loaded.program).unwrap();

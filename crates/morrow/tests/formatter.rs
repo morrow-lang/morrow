@@ -53,7 +53,7 @@ fn formats_every_native_collection_and_nominal_fixture() {
             .join(directory);
         for entry in std::fs::read_dir(root).unwrap() {
             let path = entry.unwrap().path();
-            if path.extension().is_some_and(|extension| extension == "fn") {
+            if path.extension().is_some_and(|extension| extension == "mr") {
                 let source = std::fs::read_to_string(&path).unwrap();
                 let formatted =
                     format(&source).unwrap_or_else(|error| panic!("{}: {error:?}", path.display()));
@@ -113,7 +113,7 @@ fn formatting_native_fixtures_preserves_checked_qbe_exactly() {
             .join(directory);
         for entry in std::fs::read_dir(root).unwrap() {
             let path = entry.unwrap().path();
-            if path.extension().is_some_and(|extension| extension == "fn") {
+            if path.extension().is_some_and(|extension| extension == "mr") {
                 let source = std::fs::read_to_string(&path).unwrap();
                 let formatted = format(&source).unwrap();
                 let compile = |source: &str| {

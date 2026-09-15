@@ -44,7 +44,7 @@ fn literal_source_delimiter_preserves_dash_prefixed_paths() {
     for command in [
         "check", "emit", "lex", "parse", "fmt", "doc", "test", "build", "run",
     ] {
-        let result = dir.run(&[command, "--", "--quiet", "extra.fn"]);
+        let result = dir.run(&[command, "--", "--quiet", "extra.mr"]);
         assert!(!result.status.success(), "{command}: {result:?}");
     }
     fs::write(dir.0.join("--bad"), "fn main(): missing\n").unwrap();
@@ -64,7 +64,7 @@ fn literal_source_delimiter_preserves_dash_prefixed_paths() {
 fn documentation_defaults_to_current_project_directory() {
     let dir = Directory::new();
     fs::write(
-        dir.0.join("library.fn"),
+        dir.0.join("library.mr"),
         "@doc \"\"\"Documented helper.\"\"\"\npub fn helper() -> Int: 42\n",
     )
     .unwrap();

@@ -10,7 +10,7 @@ fn all_native_with_and_iteration_fixtures_preserve_checked_emission() {
         let mut files = fs::read_dir(path)
             .unwrap()
             .map(|entry| entry.unwrap().path())
-            .filter(|path| path.extension().is_some_and(|ext| ext == "fn"))
+            .filter(|path| path.extension().is_some_and(|ext| ext == "mr"))
             .collect::<Vec<_>>();
         files.sort();
         for file in files {

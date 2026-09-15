@@ -32,8 +32,8 @@ impl Drop for Project {
 #[test]
 fn map_values_callbacks_and_record_updates_resolve_imports() {
     let project = Project::new();
-    project.write("model.fn", "pub type Box(a):\n    value: a\npub fn make(value: Int) -> Box(Int): Box(value)\npub fn key() -> String: \"answer\"\npub fn number() -> Int: 42\n");
-    let path = project.write("main.fn", "import model\nfn main():\n    let values: Map(String, model.Box(Int)) = %{model.key(): model.make(1)}\n    let callbacks: Map(String, (model.Box(Int)) -> Int) = %{\n        model.key(): (item) ->\n            let updated = %{item | value: model.number()}\n            updated.value\n    }\n    println(Map.len(values) + Map.len(callbacks))\n");
+    project.write("model.mr", "pub type Box(a):\n    value: a\npub fn make(value: Int) -> Box(Int): Box(value)\npub fn key() -> String: \"answer\"\npub fn number() -> Int: 42\n");
+    let path = project.write("main.mr", "import model\nfn main():\n    let values: Map(String, model.Box(Int)) = %{model.key(): model.make(1)}\n    let callbacks: Map(String, (model.Box(Int)) -> Int) = %{\n        model.key(): (item) ->\n            let updated = %{item | value: model.number()}\n            updated.value\n    }\n    println(Map.len(values) + Map.len(callbacks))\n");
     let loaded = modules::load(&path).unwrap();
     lowering::emit(&check::check(&loaded.program).unwrap()).unwrap();
 }
@@ -46,9 +46,9 @@ fn map_types_and_update_expressions_cannot_bypass_private_exports() {
         "let value = %{model.make() | value: model.secret()}",
     ] {
         let project = Project::new();
-        project.write("model.fn", "type Hidden:\n    value: Int\nfn secret() -> Int: 1\npub fn make() -> Hidden: Hidden(0)\n");
+        project.write("model.mr", "type Hidden:\n    value: Int\nfn secret() -> Int: 1\npub fn make() -> Hidden: Hidden(0)\n");
         let path = project.write(
-            "main.fn",
+            "main.mr",
             &format!("import model\nfn main():\n    {expression}\n    0\n"),
         );
         let error = modules::load(&path).unwrap_err();
@@ -59,7 +59,7 @@ fn map_types_and_update_expressions_cannot_bypass_private_exports() {
 #[test]
 fn map_type_name_cannot_be_shadowed_by_source_declarations() {
     let project = Project::new();
-    let path = project.write("main.fn", "type Map:\n    value: Int\nfn main(): 0\n");
+    let path = project.write("main.mr", "type Map:\n    value: Int\nfn main(): 0\n");
     assert!(
         modules::load(&path)
             .unwrap_err()

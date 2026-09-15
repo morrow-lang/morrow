@@ -36,9 +36,9 @@ impl Drop for Project {
 #[test]
 fn inferred_cli_resolves_imports_and_directory_names_without_running_examples() {
     let p = Project::new();
-    p.write("helper.fn", "pub fn identity(x:a)->a:x\n");
-    p.write("library.fn","import helper as h\n@doc \"\"\"Library docs.\"\"\"\nfn answer():h.identity(42)\nfn main():println(\"DO NOT EXECUTE\")\n");
-    let result = p.run(&["doc", "library.fn", "--inferred"]);
+    p.write("helper.mr", "pub fn identity(x:a)->a:x\n");
+    p.write("library.mr","import helper as h\n@doc \"\"\"Library docs.\"\"\"\nfn answer():h.identity(42)\nfn main():println(\"DO NOT EXECUTE\")\n");
+    let result = p.run(&["doc", "library.mr", "--inferred"]);
     assert!(result.status.success(), "{:?}", result);
     let text = String::from_utf8(result.stdout).unwrap();
     assert!(text.contains("fn answer() -> Int"), "{text}");
@@ -55,10 +55,10 @@ fn inferred_cli_resolves_imports_and_directory_names_without_running_examples() 
 #[test]
 fn invalid_inferred_docs_preserve_output_and_source_only_docs_still_work() {
     let p = Project::new();
-    p.write("library.fn", "fn broken(x:a)->a:42\n");
+    p.write("library.mr", "fn broken(x:a)->a:42\n");
     p.write("docs.md", "prior docs");
     assert!(
-        !p.run(&["doc", "library.fn", "--inferred", "-o", "docs.md"])
+        !p.run(&["doc", "library.mr", "--inferred", "-o", "docs.md"])
             .status
             .success()
     );
@@ -66,9 +66,9 @@ fn invalid_inferred_docs_preserve_output_and_source_only_docs_still_work() {
         fs::read_to_string(p.0.join("docs.md")).unwrap(),
         "prior docs"
     );
-    assert!(p.run(&["doc", "library.fn"]).status.success());
+    assert!(p.run(&["doc", "library.mr"]).status.success());
     assert!(
-        !p.run(&["doc", "library.fn", "--inferred", "--inferred"])
+        !p.run(&["doc", "library.mr", "--inferred", "--inferred"])
             .status
             .success()
     );
@@ -78,13 +78,13 @@ fn invalid_inferred_docs_preserve_output_and_source_only_docs_still_work() {
 fn inferred_output_cannot_replace_an_imported_dependency_or_its_hardlink() {
     let p = Project::new();
     let helper = "pub fn value()->Int:42\n";
-    p.write("helper.fn", helper);
-    p.write("library.fn", "import helper as h\nfn value():h.value()\n");
-    fs::hard_link(p.0.join("helper.fn"), p.0.join("alias.md")).unwrap();
-    for output in ["helper.fn", "alias.md"] {
-        let result = p.run(&["doc", "library.fn", "--inferred", "-o", output]);
+    p.write("helper.mr", helper);
+    p.write("library.mr", "import helper as h\nfn value():h.value()\n");
+    fs::hard_link(p.0.join("helper.mr"), p.0.join("alias.md")).unwrap();
+    for output in ["helper.mr", "alias.md"] {
+        let result = p.run(&["doc", "library.mr", "--inferred", "-o", output]);
         assert!(!result.status.success(), "{:?}", result);
-        assert_eq!(fs::read_to_string(p.0.join("helper.fn")).unwrap(), helper);
+        assert_eq!(fs::read_to_string(p.0.join("helper.mr")).unwrap(), helper);
     }
 }
 
@@ -92,7 +92,7 @@ fn inferred_output_cannot_replace_an_imported_dependency_or_its_hardlink() {
 fn checked_directory_can_exceed_one_graphs_128_file_limit() {
     let p = Project::new();
     for index in 0..129 {
-        p.write(&format!("m{index}.fn"), "fn value():42\n");
+        p.write(&format!("m{index}.mr"), "fn value():42\n");
     }
     let result = p.run(&["doc", ".", "--inferred", "--html"]);
     assert!(result.status.success(), "{:?}", result);
@@ -105,7 +105,7 @@ fn independent_modules_do_not_copy_every_unrelated_snapshot_for_each_graph() {
     let p = Project::new();
     let source = format!("# {}\nfn value():42\n", "x".repeat(2048));
     for index in 0..129 {
-        p.write(&format!("m{index}.fn"), &source);
+        p.write(&format!("m{index}.mr"), &source);
     }
     let result = p.run(&["doc", ".", "--inferred", "--html"]);
     assert!(result.status.success(), "{:?}", result);

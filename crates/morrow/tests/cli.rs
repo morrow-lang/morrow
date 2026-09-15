@@ -8,7 +8,7 @@ static NEXT_FILE: AtomicUsize = AtomicUsize::new(0);
 
 fn run_source(source: &str, command: &str) -> std::process::Output {
     let file = std::env::temp_dir().join(format!(
-        "morrow-rs-test-{}-{}-{}.fn",
+        "morrow-rs-test-{}-{}-{}.mr",
         std::process::id(),
         command,
         NEXT_FILE.fetch_add(1, Ordering::Relaxed)
@@ -39,7 +39,7 @@ fn check_reports_file_line_and_column() {
     let output = run_source("fn main():\n    unknown\n", "check");
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains(".fn:2:5:"), "{stderr}");
+    assert!(stderr.contains(".mr:2:5:"), "{stderr}");
     assert!(!stderr.contains("panicked"));
 }
 
@@ -95,7 +95,7 @@ impl Drop for TestDirectory {
 #[test]
 fn refuses_source_output_collision_before_writing_or_running_backend() {
     let directory = TestDirectory::new();
-    let source = directory.0.join("source.fn");
+    let source = directory.0.join("source.mr");
     let original = "fn main():\n    println(42)\n";
     fs::write(&source, original).unwrap();
     for action in ["emit", "build"] {
@@ -120,7 +120,7 @@ fn refuses_source_output_collision_before_writing_or_running_backend() {
 #[test]
 fn refuses_symlink_and_hardlink_source_output_aliases() {
     let directory = TestDirectory::new();
-    let source = directory.0.join("source.fn");
+    let source = directory.0.join("source.mr");
     let original = "fn main():\n    println(42)\n";
     fs::write(&source, original).unwrap();
     let symlink = directory.0.join("symlink");
@@ -144,7 +144,7 @@ fn refuses_symlink_and_hardlink_source_output_aliases() {
 #[test]
 fn failures_preserve_previous_output_and_remove_workspaces() {
     let directory = TestDirectory::new();
-    let source = directory.0.join("source.fn");
+    let source = directory.0.join("source.mr");
     let output = directory.0.join("existing");
     fs::write(&source, "fn main():\n    println(42)\n").unwrap();
     fs::write(&output, "previous output").unwrap();
@@ -173,7 +173,7 @@ fn failures_preserve_previous_output_and_remove_workspaces() {
 #[test]
 fn emit_replaces_output_symlink_without_modifying_target() {
     let directory = TestDirectory::new();
-    let source = directory.0.join("source.fn");
+    let source = directory.0.join("source.mr");
     let target = directory.0.join("target");
     let output = directory.0.join("output");
     fs::write(&source, "fn main():\n    println(42)\n").unwrap();
@@ -194,7 +194,7 @@ fn emit_replaces_output_symlink_without_modifying_target() {
 #[test]
 fn formatter_preserves_comments_and_rejects_invalid_source_without_writing() {
     let directory = TestDirectory::new();
-    let source = directory.0.join("format.fn");
+    let source = directory.0.join("format.mr");
     fs::write(&source, "# keep me\nfn main():\n  println( 42 ) # answer\n").unwrap();
     let result = directory.invoke("fmt", &source, None);
     assert!(result.status.success(), "{:?}", result);

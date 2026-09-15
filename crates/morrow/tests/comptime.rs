@@ -141,8 +141,8 @@ fn documented_exported_constants_respect_module_visibility() {
         }
     }
     let _cleanup = Cleanup(directory.clone());
-    fs::write(directory.join("config.fn"), "@doc \"\"\"The answer\"\"\"\npub const answer: Int = comptime:\n    hidden + 2\nconst hidden = comptime:\n    40\n").unwrap();
-    let entry = directory.join("main.fn");
+    fs::write(directory.join("config.mr"), "@doc \"\"\"The answer\"\"\"\npub const answer: Int = comptime:\n    hidden + 2\nconst hidden = comptime:\n    40\n").unwrap();
+    let entry = directory.join("main.mr");
     fs::write(&entry, "import config as c\nfn main(): println(c.answer)\n").unwrap();
     let program = morrow_compiler::modules::load(&entry).unwrap();
     let ir = check::check(&program.program).unwrap();

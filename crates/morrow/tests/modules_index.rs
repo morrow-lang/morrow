@@ -27,11 +27,11 @@ impl Drop for Project {
 fn editor_metadata_retains_aliases_without_changing_ordinary_compiler_syntax() {
     let project = Project::new();
     let model = project.write(
-        "model.fn",
+        "model.mr",
         "pub type Item:\n    value: Int\npub fn value()->Int:1\nfn hidden()->Int:2\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model as m\nfn main():println(m.value())\n",
     );
     let plain = modules::load(&main).unwrap();
@@ -87,13 +87,13 @@ fn identifier_ranges_are_exact_unicode_and_exclude_noncode_contents() {
 fn editor_alias_retention_has_an_aggregate_byte_limit_before_cloning() {
     let project = Project::new();
     let name = "x".repeat(65_536);
-    project.write("base.fn", &format!("pub fn {name}() -> Int: 1\n"));
+    project.write("base.mr", &format!("pub fn {name}() -> Int: 1\n"));
     let mut source = String::new();
     for index in 0..64 {
         source.push_str(&format!("import base as a{index}\n"));
     }
     source.push_str("fn main(): ()\n");
-    let main = project.write("main.fn", &source);
+    let main = project.write("main.mr", &source);
     let error = modules::load_editor_sources(&main, &HashMap::new()).unwrap_err();
     assert!(
         error.message.contains("editor symbol byte limit"),

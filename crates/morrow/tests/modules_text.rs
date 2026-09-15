@@ -32,9 +32,9 @@ impl Drop for Project {
 #[test]
 fn imported_unicode_docs_and_multiline_interpolation_keep_names_and_locations() {
     let project = Project::new();
-    let library = project.write("café.fn", "module café\n@doc \"\"\"Literal {example}.\"\"\"\npub fn valeur() -> Int: 0x2a\n@doc \"\"\"A Unicode record.\"\"\"\npub type Boîte:\n    valeur: Int\n");
+    let library = project.write("café.mr", "module café\n@doc \"\"\"Literal {example}.\"\"\"\npub fn valeur() -> Int: 0x2a\n@doc \"\"\"A Unicode record.\"\"\"\npub type Boîte:\n    valeur: Int\n");
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import café\nfn main(): println(\"\"\"answer\n{café.valeur()}\"\"\")\n",
     );
     let loaded = modules::load(&main).unwrap();
@@ -58,11 +58,11 @@ fn imported_unicode_docs_and_multiline_interpolation_keep_names_and_locations() 
 fn multiline_interpolation_cannot_expose_private_imports() {
     let project = Project::new();
     project.write(
-        "model.fn",
+        "model.mr",
         "fn secret() -> Int: 42\npub fn number() -> Int: 1\n",
     );
     let main = project.write(
-        "main.fn",
+        "main.mr",
         "import model\nfn main(): println(\"\"\"answer\n{model.secret()}\"\"\")\n",
     );
     assert!(

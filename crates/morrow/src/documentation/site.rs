@@ -786,9 +786,9 @@ fn anchor(declaration: &Declaration<'_>) -> String {
     }
 }
 
-/// `lib/math.fn` becomes `lib.math` when a source declares no module name.
+/// `lib/math.mr` becomes `lib.math` when a source declares no module name.
 fn module_name(path: &str) -> String {
-    let stem = path.strip_suffix(".fn").unwrap_or(path);
+    let stem = path.strip_suffix(".mr").unwrap_or(path);
     stem.replace(['/', '\\'], ".")
 }
 

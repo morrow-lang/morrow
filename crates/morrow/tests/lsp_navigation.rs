@@ -238,12 +238,12 @@ fn answer(messages: &[String], id: &str) -> String {
 fn imported_aliases_reexports_and_unsaved_sources_retain_definition_identity() {
     let project = Project::new();
     let model = project.file(
-        "model.fn",
+        "model.mr",
         "pub fn value() -> Int: 1\nfn hidden() -> Int: 2\n",
     );
-    project.file("api.fn", "pub import model.{value}\n");
+    project.file("api.mr", "pub import model.{value}\n");
     let source = "import api as api\nfn main(): println(api.value())\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let messages = session(vec![
         opening(&main, source),
         request(&main, "disk", "definition", 1, 27),
@@ -331,9 +331,9 @@ fn completion_is_bounded_and_does_not_split_unicode_replacement_ranges() {
 fn newly_open_unsaved_dependencies_supply_navigation_without_disk_writes() {
     let project = Project::new();
     let source = "import fresh\nfn main(): println(fresh.value())\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let fresh = format!(
-        "file://{}/fresh.fn",
+        "file://{}/fresh.mr",
         project.0.canonicalize().unwrap().display()
     );
     let messages = session(vec![
@@ -344,7 +344,7 @@ fn newly_open_unsaved_dependencies_supply_navigation_without_disk_writes() {
     ]);
     assert!(answer(&messages, "missing").contains("\"result\":null"));
     assert!(answer(&messages, "fresh").contains(&quote(&fresh)));
-    assert!(!project.0.join("fresh.fn").exists());
+    assert!(!project.0.join("fresh.mr").exists());
 }
 
 #[test]
@@ -369,11 +369,11 @@ fn pattern_declarations_and_record_declarations_do_not_resolve_unrelated_names()
 fn qualified_annotations_and_pipe_targets_resolve_through_import_aliases() {
     let project = Project::new();
     let model = project.file(
-        "model.fn",
+        "model.mr",
         "pub type Item:\n    value: Int\npub fn size(value: Int) -> Int: value\n",
     );
     let source = "import model as m\nfn read(value: m.Item) -> Int: value.value\nfn main(): println(1 |> m.size())\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let messages = session(vec![
         opening(&main, source),
         request(&main, "type", "definition", 1, 20),
@@ -428,9 +428,9 @@ fn compiler_owned_combinators_are_available_in_builtin_completion() {
 #[test]
 fn source_aliases_are_not_shadowed_by_canonical_module_names() {
     let project = Project::new();
-    let model = project.file("model.fn", "pub fn value() -> Int: 1\n");
+    let model = project.file("model.mr", "pub fn value() -> Int: 1\n");
     let source = "import model as m\nfn main():\n    let model=3\n    println(m.value())\n";
-    let main = project.file("main.fn", source);
+    let main = project.file("main.mr", source);
     let messages = session(vec![
         opening(&main, source),
         request(&main, "member", "definition", 3, 17),

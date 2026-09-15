@@ -85,14 +85,14 @@ fn initialize_and_shutdown_obey_lifecycle() {
 fn open_change_close_publish_and_clear_diagnostics() {
     let change = |version, text: &str| {
         format!(
-            r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.fn","version":{version}}},"contentChanges":[{{"text":{}}}]}}}}"#,
+            r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.mr","version":{version}}},"contentChanges":[{{"text":{}}}]}}}}"#,
             quote(text)
         )
     };
-    let close = r#"{"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///demo.fn"}}}"#;
+    let close = r#"{"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":"file:///demo.mr"}}}"#;
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///demo.fn", "fn main(): unknown"),
+        open("file:///demo.mr", "fn main(): unknown"),
         change(2, "fn main(): println(42)"),
         change(1, "bad stale source"),
         close.into(),
@@ -119,7 +119,7 @@ fn diagnostic_positions_count_utf16_not_utf8_bytes() {
         .count();
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///🌿.fn", source),
+        open("file:///🌿.mr", source),
         shutdown().into(),
         exit().into(),
     ]);
@@ -130,7 +130,7 @@ fn diagnostic_positions_count_utf16_not_utf8_bytes() {
         output[1]
     );
     assert!(output[1].contains(&format!(r#""end":{{"character":{},"line":0}}"#, column + 7)));
-    assert!(output[1].contains("file:///🌿.fn"));
+    assert!(output[1].contains("file:///🌿.mr"));
 }
 
 #[test]
@@ -140,12 +140,12 @@ fn incremental_changes_apply_sequential_utf16_ranges() {
         .encode_utf16()
         .count();
     let change = format!(
-        r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.fn","version":2}},"contentChanges":[{{"range":{{"start":{{"line":0,"character":{column}}},"end":{{"line":0,"character":{}}}}},"text":"\"green\""}}]}}}}"#,
+        r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.mr","version":2}},"contentChanges":[{{"range":{{"start":{{"line":0,"character":{column}}},"end":{{"line":0,"character":{}}}}},"text":"\"green\""}}]}}}}"#,
         column + 7
     );
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///demo.fn", source),
+        open("file:///demo.mr", source),
         change,
         shutdown().into(),
         exit().into(),
@@ -207,8 +207,8 @@ fn framing_failures_and_excessive_json_depth_are_bounded() {
 fn library_buffers_are_checked_without_requiring_a_user_main() {
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///library.fn", "pub fn answer() -> Int: 42\n"),
-        open("file:///broken.fn", "pub fn answer() -> Int: unknown\n"),
+        open("file:///library.mr", "pub fn answer() -> Int: 42\n"),
+        open("file:///broken.mr", "pub fn answer() -> Int: unknown\n"),
         shutdown().into(),
         exit().into(),
     ]);
@@ -223,14 +223,14 @@ fn malformed_utf16_edits_leave_document_and_version_unchanged() {
     let source = "fn main(): \"🌿\" == missing";
     let emoji = source[..source.find('🌿').unwrap()].encode_utf16().count();
     let bad = format!(
-        r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.fn","version":2}},"contentChanges":[{{"range":{{"start":{{"line":0,"character":{}}},"end":{{"line":0,"character":{}}}}},"text":""}}]}}}}"#,
+        r#"{{"jsonrpc":"2.0","method":"textDocument/didChange","params":{{"textDocument":{{"uri":"file:///demo.mr","version":2}},"contentChanges":[{{"range":{{"start":{{"line":0,"character":{}}},"end":{{"line":0,"character":{}}}}},"text":""}}]}}}}"#,
         emoji + 1,
         emoji + 2
     );
-    let good = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.fn","version":2},"contentChanges":[{"text":"fn main(): println(1)"}]}}"#;
+    let good = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.mr","version":2},"contentChanges":[{"text":"fn main(): println(1)"}]}}"#;
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///demo.fn", source),
+        open("file:///demo.mr", source),
         bad,
         good.into(),
         shutdown().into(),
@@ -268,7 +268,7 @@ fn failed_transport_writes_stop_without_attempting_more_messages() {
     }
     let input: Vec<u8> = [
         initialize().to_owned(),
-        open("file:///demo.fn", "fn main(): 0"),
+        open("file:///demo.mr", "fn main(): 0"),
         shutdown().into(),
         exit().into(),
     ]
@@ -289,8 +289,8 @@ fn oversized_buffers_are_rejected_without_poisoning_open_state() {
     let huge = " ".repeat(1024 * 1024 + 1);
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///demo.fn", &huge),
-        open("file:///demo.fn", "fn main(): 0"),
+        open("file:///demo.mr", &huge),
+        open("file:///demo.mr", "fn main(): 0"),
         shutdown().into(),
         exit().into(),
     ]);
@@ -301,11 +301,11 @@ fn oversized_buffers_are_rejected_without_poisoning_open_state() {
 
 #[test]
 fn malformed_later_edit_rolls_back_the_entire_batch() {
-    let bad_batch = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.fn","version":2},"contentChanges":[{"text":"fn main(): 0"},{"range":{"start":{"line":9,"character":0},"end":{"line":9,"character":0}},"text":"bad"}]}}"#;
-    let good_batch = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.fn","version":2},"contentChanges":[{"range":{"start":{"line":0,"character":11},"end":{"line":0,"character":18}},"rangeLength":7,"text":"0"}]}}"#;
+    let bad_batch = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.mr","version":2},"contentChanges":[{"text":"fn main(): 0"},{"range":{"start":{"line":9,"character":0},"end":{"line":9,"character":0}},"text":"bad"}]}}"#;
+    let good_batch = r#"{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file:///demo.mr","version":2},"contentChanges":[{"range":{"start":{"line":0,"character":11},"end":{"line":0,"character":18}},"rangeLength":7,"text":"0"}]}}"#;
     let (result, output) = run(&[
         initialize().into(),
-        open("file:///demo.fn", "fn main(): missing"),
+        open("file:///demo.mr", "fn main(): missing"),
         bad_batch.into(),
         good_batch.into(),
         shutdown().into(),
@@ -372,8 +372,8 @@ fn imported_open_buffers_override_disk_and_recover_diagnostics() {
     let project = Project::new();
     let main_source = "import math\nfn main(): println(math.value())\n";
     let good = "module math\npub fn value() -> Int: 7\n";
-    let main = project.file("main.fn", main_source);
-    let math = project.file("math.fn", good);
+    let main = project.file("main.mr", main_source);
+    let math = project.file("math.mr", good);
     let (_, output) = run(&[
         initialize().into(),
         open(&main, main_source),
@@ -408,9 +408,9 @@ fn imported_open_buffers_override_disk_and_recover_diagnostics() {
 fn imported_disk_errors_have_original_uri_utf16_ranges_and_private_access() {
     let project = Project::new();
     let main_source = "import math\nfn main(): println(math.value())\n";
-    let main = project.file("main.fn", main_source);
+    let main = project.file("main.mr", main_source);
     let math = project.file(
-        "math.fn",
+        "math.mr",
         "module math\npub fn value() -> Int: String.len(\"🌿\") + missing\n",
     );
     let (_, output) = run(&[
@@ -425,7 +425,7 @@ fn imported_disk_errors_have_original_uri_utf16_ranges_and_private_access() {
         .expect("imported error");
     assert!(error.contains(&math), "{output:?}");
     assert!(error.contains(r#""character":42,"line":1"#), "{output:?}");
-    project.file("math.fn", "module math\nfn value() -> Int: 7\n");
+    project.file("math.mr", "module math\nfn value() -> Int: 7\n");
     let (_, output) = run(&[
         initialize().into(),
         open(&main, main_source),
@@ -444,8 +444,8 @@ fn imported_disk_errors_have_original_uri_utf16_ranges_and_private_access() {
 fn closing_imported_buffer_reloads_disk_and_clears_its_error() {
     let project = Project::new();
     let main_source = "import math\nfn main(): println(math.value())\n";
-    let main = project.file("main.fn", main_source);
-    let math = project.file("math.fn", "module math\npub fn value() -> Int: 7\n");
+    let main = project.file("main.mr", main_source);
+    let math = project.file("math.mr", "module math\npub fn value() -> Int: 7\n");
     let close = format!(
         r#"{{"jsonrpc":"2.0","method":"textDocument/didClose","params":{{"textDocument":{{"uri":{}}}}}}}"#,
         quote(&math)
@@ -478,8 +478,8 @@ fn closing_imported_buffer_reloads_disk_and_clears_its_error() {
 #[test]
 fn new_percent_encoded_file_buffers_resolve_disk_imports_without_creating_files() {
     let project = Project::new();
-    project.file("math.fn", "module math\npub fn value() -> Int: 7\n");
-    let path = project.0.join("new file.fn");
+    project.file("math.mr", "module math\npub fn value() -> Int: 7\n");
+    let path = project.0.join("new file.mr");
     let uri = format!("file://{}", path.display()).replace(' ', "%20");
     let (_, output) = run(&[
         initialize().into(),
@@ -496,8 +496,8 @@ fn new_percent_encoded_file_buffers_resolve_disk_imports_without_creating_files(
 fn dependency_api_changes_invalidate_callers_and_imported_parse_errors_are_located() {
     let project = Project::new();
     let source = "import math\nfn main(): println(math.value(1))\n";
-    let main = project.file("main.fn", source);
-    let math = project.file("math.fn", "module math\npub fn value(x: Int) -> Int: x\n");
+    let main = project.file("main.mr", source);
+    let math = project.file("math.mr", "module math\npub fn value(x: Int) -> Int: x\n");
     let (_, output) = run(&[
         initialize().into(),
         open(&main, source),
@@ -524,8 +524,8 @@ fn dependency_api_changes_invalidate_callers_and_imported_parse_errors_are_locat
 fn opening_new_imported_buffer_clears_missing_module_without_disk_mutation() {
     let project = Project::new();
     let source = "import math\nfn main(): println(math.value())\n";
-    let main = project.file("main.fn", source);
-    let path = project.0.join("math.fn");
+    let main = project.file("main.mr", source);
+    let path = project.0.join("math.mr");
     let math = format!("file://{}", path.display());
     let (_, output) = run(&[
         initialize().into(),
@@ -552,13 +552,13 @@ fn opening_new_imported_buffer_clears_missing_module_without_disk_mutation() {
 #[test]
 fn file_uri_aliases_and_malformed_escapes_do_not_replace_open_buffers() {
     let project = Project::new();
-    let uri = project.file("main.fn", "fn main(): ()\n");
-    let alias = uri.replace("main.fn", "%6Dain.fn");
+    let uri = project.file("main.mr", "fn main(): ()\n");
+    let alias = uri.replace("main.mr", "%6Dain.mr");
     let (_, output) = run(&[
         initialize().into(),
         open(&uri, "fn main(): ()\n"),
         open(&alias, "fn main(): missing\n"),
-        open("file:///broken%XX.fn", "fn main(): ()\n"),
+        open("file:///broken%XX.mr", "fn main(): ()\n"),
         replace(&uri, 2, "fn main(): ()\n"),
         shutdown().into(),
         exit().into(),

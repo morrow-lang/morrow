@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn native_language_tour_composes_features_with_an_independent_output_oracle() {
-    let source = include_str!("../../../../examples/language_tour.fn");
+    let source = include_str!("../../../../examples/language_tour.mr");
     let checked =
         morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
     let program = morrow_compiler::lowering::lower(&checked).unwrap();
