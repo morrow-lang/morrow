@@ -1,5 +1,7 @@
 //! Invocation control storage and independently collected actor payload heaps.
 use super::*;
+use std::cell::Cell;
+use std::ptr::null_mut;
 
 struct Slot {
     heap: Heap,
@@ -45,6 +47,36 @@ impl Domain {
             next_frame: 0,
             frames: Vec::new(),
             retired_collections: 0,
+        }
+    }
+    pub(crate) fn enter(&mut self, id: usize) -> Scope {
+        let previous = self.active;
+        let slot = self
+            .slots
+            .get_mut(&id)
+            .expect("heap identity must remain live");
+        assert!(!slot.retired, "cannot enter retired actor heap");
+        slot.scopes += 1;
+        self.active = id;
+        Scope {
+            previous,
+            entered: id,
+            _thread: PhantomData,
+        }
+    }
+    fn leave(&mut self, entered: usize, previous: usize) {
+        assert_eq!(self.active, entered, "heap scopes must unwind in order");
+        self.slots.get_mut(&entered).unwrap().scopes -= 1;
+        self.active = previous;
+        self.remove_retired(entered);
+    }
+    #[allow(dead_code)]
+    pub(crate) fn activate(&mut self) -> Activation<'_> {
+        let previous = CURRENT.with(|cell| cell.replace(self as *mut Domain));
+        Activation {
+            previous,
+            _domain: PhantomData,
+            _thread: PhantomData,
         }
     }
     pub(crate) fn collect_active(&mut self, roots: &[usize]) -> Stats {
@@ -251,13 +283,55 @@ impl Domain {
         }
     }
 }
-thread_local! { static STORE: RefCell<Domain> = RefCell::new(Domain::new()); }
+// Owned fallback for programs and tests that never activate a domain explicitly.
+thread_local! { static DEFAULT: RefCell<Domain> = RefCell::new(Domain::new()); }
+// Borrowed cursor. It never owns a domain; Activation keeps the pointer valid.
+thread_local! { static CURRENT: Cell<*mut Domain> = const { Cell::new(null_mut()) }; }
+// Preserves, on the cursor path, the aliasing check RefCell gives the default.
+thread_local! { static BUSY: Cell<bool> = const { Cell::new(false) }; }
+
+/// Run `f` against the domain currently executing on this thread.
+pub(super) fn with_current<R>(f: impl FnOnce(&mut Domain) -> R) -> R {
+    let current = CURRENT.with(|cell| cell.get());
+    if current.is_null() {
+        return DEFAULT.with(|domain| f(&mut domain.borrow_mut()));
+    }
+    struct Release;
+    impl Drop for Release {
+        fn drop(&mut self) {
+            BUSY.with(|busy| busy.set(false));
+        }
+    }
+    assert!(
+        !BUSY.with(|busy| busy.replace(true)),
+        "the active heap domain cannot be entered re-entrantly"
+    );
+    let _release = Release;
+    // SAFETY: Activation installed this pointer from a &mut Domain that outlives the
+    // guard and restores the previous value on drop, and BUSY rejects aliasing here.
+    f(unsafe { &mut *current })
+}
+
+/// Installs a domain as this thread's current domain until dropped.
+// Step 2 of the parallel actor work hands one Domain to each scheduler and
+// activates it there; until then only the tests construct one.
+#[allow(dead_code)]
+pub(crate) struct Activation<'a> {
+    previous: *mut Domain,
+    _domain: PhantomData<&'a mut Domain>,
+    _thread: PhantomData<Rc<()>>,
+}
+impl Drop for Activation<'_> {
+    fn drop(&mut self) {
+        CURRENT.with(|cell| cell.set(self.previous));
+    }
+}
 
 pub(super) fn with<R>(f: impl FnOnce(&Heap) -> R) -> R {
-    STORE.with(|store| store.borrow().with(f))
+    with_current(|domain| domain.with(f))
 }
 pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
-    STORE.with(|store| store.borrow_mut().with_mut(f))
+    with_current(|domain| domain.with_mut(f))
 }
 
 /// Attach a PID's exact control edge without rooting another actor's payload.
@@ -265,11 +339,11 @@ pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
 /// `pointer` is an allocation base in the active heap, and `control` is a live
 /// invocation-owned Actor whose immutable identity the initialized PID retains.
 pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
-    STORE.with(|store| unsafe { store.borrow_mut().control_edge(pointer, control) });
+    with_current(|domain| unsafe { domain.control_edge(pointer, control) });
 }
 
 pub(super) fn collect(roots: &[usize]) -> Stats {
-    STORE.with(|store| store.borrow_mut().collect_active(roots))
+    with_current(|domain| domain.collect_active(roots))
 }
 fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root = heap
@@ -280,11 +354,17 @@ fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root
 }
 pub(super) fn root(pointer: *const usize, words: usize) -> Root {
-    STORE.with(|store| store.borrow_mut().root(pointer, words))
+    with_current(|domain| domain.root(pointer, words))
 }
 pub(super) fn remove_root(heap: usize, id: usize) {
     // Root::drop can run while thread-local storage is being destroyed.
-    let _ = STORE.try_with(|store| store.borrow_mut().remove_root(heap, id));
+    let current = CURRENT.try_with(|cell| cell.get()).unwrap_or(null_mut());
+    if !current.is_null() {
+        // SAFETY: as in with_current; Activation keeps this pointer live.
+        unsafe { &mut *current }.remove_root(heap, id);
+        return;
+    }
+    let _ = DEFAULT.try_with(|domain| domain.borrow_mut().remove_root(heap, id));
 }
 
 /// An allocation/collection scope on this thread, restored before payload retirement.
@@ -295,35 +375,11 @@ pub(crate) struct Scope {
 }
 impl Drop for Scope {
     fn drop(&mut self) {
-        STORE.with(|store| {
-            let mut store = store.borrow_mut();
-            assert_eq!(
-                store.active, self.entered,
-                "heap scopes must unwind in order"
-            );
-            store.slots.get_mut(&self.entered).unwrap().scopes -= 1;
-            store.active = self.previous;
-            store.remove_retired(self.entered);
-        });
+        with_current(|domain| domain.leave(self.entered, self.previous));
     }
 }
 pub(crate) fn enter(id: usize) -> Scope {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let previous = store.active;
-        let slot = store
-            .slots
-            .get_mut(&id)
-            .expect("heap identity must remain live");
-        assert!(!slot.retired, "cannot enter retired actor heap");
-        slot.scopes += 1;
-        store.active = id;
-        Scope {
-            previous,
-            entered: id,
-            _thread: PhantomData,
-        }
-    })
+    with_current(|domain| domain.enter(id))
 }
 
 /// Create a payload heap whose external roots are the invocation-owned actor words.
@@ -331,20 +387,20 @@ pub(crate) fn enter(id: usize) -> Scope {
 /// The control object must be an invocation-heap allocation, readable for `words`
 /// words, and cannot be freed or replaced until this payload heap is retired.
 pub(crate) unsafe fn create(control: *const usize, words: usize) -> usize {
-    STORE.with(|store| unsafe { store.borrow_mut().create_actor_heap(control, words) })
+    with_current(|domain| unsafe { domain.create_actor_heap(control, words) })
 }
 /// Retire payload storage once its final active callback/scope has returned.
 pub(crate) fn retire(id: usize) {
-    STORE.with(|store| store.borrow_mut().retire_heap(id));
+    with_current(|domain| domain.retire_heap(id));
 }
 pub(crate) fn owns(id: usize, pointer: *const std::ffi::c_void) -> bool {
-    STORE.with(|store| store.borrow().owns(id, pointer))
+    with_current(|domain| domain.owns(id, pointer))
 }
 pub(super) fn stats() -> Stats {
-    STORE.with(|store| store.borrow().stats())
+    with_current(|domain| domain.stats())
 }
 pub(super) fn shutdown() {
-    STORE.with(|store| store.borrow_mut().shutdown());
+    with_current(|domain| domain.shutdown());
 }
 
 /// Register zero-initialized native stack root words in the current heap; no GC.
@@ -355,10 +411,10 @@ pub(super) fn shutdown() {
 pub unsafe extern "C" fn morrow_gc_frame_enter(slots: *const usize, words: usize) -> usize {
     assert!(!slots.is_null() || words == 0);
     assert!(words <= 1_048_576);
-    STORE.with(|store| store.borrow_mut().frame_enter(slots, words))
+    with_current(|domain| domain.frame_enter(slots, words))
 }
 /// Retire the exact frame's heap registration even after an allocation-scope switch.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_gc_frame_leave(token: usize) {
-    STORE.with(|store| store.borrow_mut().frame_leave(token));
+    with_current(|domain| domain.frame_leave(token));
 }

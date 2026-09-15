@@ -427,3 +427,23 @@ fn invocation_collection_gathers_control_words_from_every_actor_heap() {
     assert_eq!(domain.stats().objects, 1);
     domain.retire_heap(id);
 }
+
+#[test]
+fn a_domain_can_be_built_on_one_thread_and_used_on_another() {
+    let mut domain = Domain::new();
+    let bytes = domain.with_mut(|heap| heap.allocate(48, false));
+    assert!(!bytes.is_null());
+    let moved = std::thread::spawn(move || {
+        let mut domain = domain;
+        {
+            let _active = domain.activate();
+            // The ordinary public allocation path must land in the activated domain.
+            let more = alloc(16, false);
+            assert!(!more.is_null());
+        }
+        domain.with(|heap| heap.bytes)
+    })
+    .join()
+    .expect("moved domain thread");
+    assert_eq!(moved, 64);
+}
