@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Fern and Elixir on BEAM
 
 This is a dated comparison. Subsequent [native arithmetic improvements](ARITHMETIC.md)

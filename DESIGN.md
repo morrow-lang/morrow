@@ -1,16 +1,16 @@
-# Fern Language Design Document
+# Morrow Language Design Document
 
 *A statically-typed, functional language with Python aesthetics that compiles to single binaries*
 
-**Name:** Fern  
-**CLI tool:** `fern`  
-**File extension:** `.fn`
+- **Name:** Morrow
+- **CLI tool:** `morrow`
+- **File extension:** `.mr`
 
 ## Active full-stack direction
 
-Decision124 selects supervised native actors plus a reactive Fern application
+Decision124 selects supervised native actors plus a reactive Morrow application
 compiled to WebAssembly, connected through a typed WebSocket protocol. Shared
-Fern types and pure functions cross compilation targets; heaps, authority and
+Morrow types and pure functions cross compilation targets; heaps, authority and
 runtime handles do not. The server owns business state and the browser owns local
 interaction and rendering. A first-party framework supplies the application
 experience while small CLI programs retain a focused dependency surface.
@@ -20,8 +20,8 @@ implemented; precise native root/layout coverage and fair resumable scheduling
 remain open. The separate WASM backend supports scalar values, strings and bounded
 aggregates with precise tracing. WasmGC will be evaluated before ABI stabilization; borrow
 inference and reuse remain internal optimizations. The working
-[web preview](docs/WEB_PREVIEW.md) executes a complete typed Fern model/update/view
-through a generic Rust browser host and native Fern room actors on pinned worker
+[web preview](docs/WEB_PREVIEW.md) executes a complete typed Morrow model/update/view
+through a generic Rust browser host and native Morrow room actors on pinned worker
 threads, with optional durable checkpoints. General application packaging,
 preemptive scheduling and clustered ownership remain integration goals.
 The [full-stack architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the current
@@ -33,10 +33,10 @@ direction and supersedes conflicting older proposals below. The
 ### The Four Pillars
 
 **1. Spark Joy** 🌿
-For those familiar with functional programming, writing Fern should feel delightful. Pattern matching, pipes, and immutability aren't obstacles - they're tools that make code a pleasure to write and read.
+For those familiar with functional programming, writing Morrow should feel delightful. Pattern matching, pipes, and immutability aren't obstacles - they're tools that make code a pleasure to write and read.
 
 **2. One Obvious Way**
-There should be one clear, idiomatic way to accomplish any task. We actively avoid the "many ways to do it" trap. When you see Fern code, you know what it does. When you write Fern code, you don't agonize over which approach to use.
+There should be one clear, idiomatic way to accomplish any task. We actively avoid the "many ways to do it" trap. When you see Morrow code, you know what it does. When you write Morrow code, you don't agonize over which approach to use.
 
 **3. No Surprises**
 The language actively prevents the bugs that waste your afternoon debugging. No null pointer exceptions. No unhandled errors silently failing. No race conditions from shared mutable state. If your code compiles, it probably works.
@@ -46,7 +46,7 @@ Everything you need is built-in: actors for concurrency, embedded database, HTTP
 
 ### What We Prevent
 
-| Bug Class | How Fern Prevents It |
+| Bug Class | How Morrow Prevents It |
 |-----------|---------------------|
 | Null pointer exceptions | `Option` type, exhaustive pattern matching |
 | Unhandled exceptions | `Result` type, compiler enforces handling |
@@ -82,7 +82,7 @@ Everything you need is built-in: actors for concurrency, embedded database, HTTP
 
 ## Dual-Purpose Design
 
-Fern is designed to excel at **two distinct use cases** with the same language and syntax:
+Morrow is designed to excel at **two distinct use cases** with the same language and syntax:
 
 ### 1. Fast CLI Tools
 **Target: Sub-millisecond startup, < 1 MB binaries**
@@ -149,7 +149,7 @@ The compiler automatically detects which mode to use based on code analysis:
 
 **Examples:**
 
-```fern
+```morrow
 # CLI Mode (minimal) - 600 KB
 fn main() -> Result((), Error):
     let content = read_file("data.txt")?
@@ -158,7 +158,7 @@ fn main() -> Result((), Error):
 # No actors, no database → CLI mode
 ```
 
-```fern
+```morrow
 # Server Mode (actors only) - 900 KB
 fn main() -> Result((), Error):
     let cache = spawn(cache_actor)  # Actor detected → include runtime
@@ -166,7 +166,7 @@ fn main() -> Result((), Error):
 # Actor runtime included, no database
 ```
 
-```fern
+```morrow
 # Server Mode (database only) - 2.7 MB
 fn main() -> Result((), Error):
     let db = sql.open("app.db")?  # Database detected → include libSQL
@@ -174,7 +174,7 @@ fn main() -> Result((), Error):
 # libSQL included, no actor runtime
 ```
 
-```fern
+```morrow
 # Server Mode (full) - 3.5 MB
 fn main() -> Result((), Error):
     let db = sql.open("app.db")?      # Database detected
@@ -184,7 +184,7 @@ fn main() -> Result((), Error):
 ```
 
 **Conditional usage (runtime still included):**
-```fern
+```morrow
 fn main() -> Result((), Error):
     let use_cache = env.get("USE_CACHE") == "true"
     
@@ -202,24 +202,24 @@ fn main() -> Result((), Error):
 **Manual override available:**
 ```bash
 # Force minimal mode (fails if actors/db detected)
-fern build --mode=cli tool.fn      
+morrow build --mode=cli tool.mr
 
 # Force full mode (includes everything)
-fern build --mode=full tool.fn     
+morrow build --mode=full tool.mr
 
 # Auto-detect (default, recommended)
-fern build tool.fn                 
+morrow build tool.mr
 
 # Explicit control over components
-fern build --no-actors tool.fn     # Fail if spawn() used
-fern build --no-db tool.fn         # Fail if sql.open() used
+morrow build --no-actors tool.mr     # Fail if spawn() used
+morrow build --no-db tool.mr         # Fail if sql.open() used
 ```
 
 ### The Same Language, Two Scales
 
 **Morning: Build a CLI tool**
 ```
-# git-stats.fn - Analyze git repositories
+# git-stats.mr - Analyze git repositories
 fn main() -> Result((), Error):
     let repo = git.open(".")?
     let commits = repo.log()?
@@ -237,7 +237,7 @@ fn main() -> Result((), Error):
 
 **Afternoon: Build a web service**
 ```
-# api.fn - REST API with caching and database
+# api.mr - REST API with caching and database
 fn main() -> Result((), Error):
     let db = sql.open("api.db")?
     let cache = spawn(cache_actor)
@@ -274,7 +274,7 @@ Ruby:                    30+ MB (with gems)
 Node.js:                 60+ MB (with runtime)
 Go:                      2-5 MB
 Rust:                    500 KB - 2 MB
-Fern (CLI mode):         500 KB - 1 MB ✅
+Morrow (CLI mode):         500 KB - 1 MB ✅
 ```
 
 **Web Services:**
@@ -283,7 +283,7 @@ Node.js + Redis + DB:    200+ MB, 3+ services
 Python + Celery + DB:    300+ MB, 4+ services
 Go + Redis + DB:         50 MB, 3+ services
 Elixir/Erlang:           15 MB, 1 service (but larger binary)
-Fern (Server mode):      3 MB, 1 service ✅
+Morrow (Server mode):      3 MB, 1 service ✅
 ```
 
 ---
@@ -308,13 +308,13 @@ let x = x + 1  # Creates new binding, doesn't mutate
 ### Comments and Documentation
 
 **Single-line comments:**
-```fern
+```morrow
 # This is a regular comment
 let x = 42  # inline comment
 ```
 
 **Block comments:**
-```fern
+```morrow
 /*
 This is a block comment
 useful for temporarily disabling code
@@ -323,13 +323,13 @@ or writing longer explanations
 ```
 
 **Documentation comments:**
-```fern
+```morrow
 @doc """
 Calculates the factorial of a number.
 
 # Examples
 
-```fern
+```morrow
 factorial(5)  # => 120
 factorial(0)  # => 1
 ```
@@ -349,7 +349,7 @@ pub fn factorial(n: Int) -> Int:
 ```
 
 **Multi-line string literals:**
-```fern
+```morrow
 # Not a doc comment, just a string value
 let poem = """
 Roses are red
@@ -358,7 +358,7 @@ Violets are blue
 ```
 
 **Module documentation:**
-```fern
+```morrow
 module geometry.shapes
 
 @moduledoc """
@@ -381,13 +381,13 @@ Two-dimensional shapes. See `Shape` and `area`.
 
 Examples in `@doc` comments are automatically tested:
 
-```fern
+```morrow
 @doc """
 Divides two numbers.
 
 # Examples
 
-```fern
+```morrow
 divide(10, 2)  # => Ok(5)
 divide(15, 3)  # => Ok(5)
 divide(10, 0)  # => Err(DivideError.DivisionByZero)
@@ -405,21 +405,21 @@ pub fn divide(a: Int, b: Int) -> Result(Int, DivideError):
 **Running doc tests:**
 ```bash
 # Test all examples in @doc comments
-fern test --doc
+morrow test --doc
 
 # Test docs in specific file
-fern test --doc src/math.fn
+morrow test --doc src/math.mr
 
 # Include in regular test run
-fern test  # Runs both unit tests and doc tests
+morrow test  # Runs both unit tests and doc tests
 ```
 
 **Doc test assertions:**
-```fern
+```morrow
 @doc """
 # Examples
 
-```fern
+```morrow
 # Test equality
 add(2, 3)  # => 5
 
@@ -470,16 +470,16 @@ let doc = """
 
 Basic function definition:
 
-```fern
+```morrow
 fn greet(name: String) -> String:
     "Hello, {name}!"
 ```
 
 **Program Entry Point (`main`):**
 
-Every Fern program requires a `main` function. The return type can be omitted or explicit:
+Every Morrow program requires a `main` function. The return type can be omitted or explicit:
 
-```fern
+```morrow
 # Shorthand: omit return type (defaults to Unit, auto-returns 0)
 fn main():
     println("Hello, world!")
@@ -500,7 +500,7 @@ The shorthand `fn main():` is equivalent to `fn main() -> (): 0` — it defaults
 
 **Labeled arguments:**
 
-```fern
+```morrow
 # Definition - labels match parameter names
 fn connect(host: String, port: Int, timeout: Int, retry: Bool):
     # ...
@@ -534,7 +534,7 @@ Simple binding parameters use their names as labels. Pattern clauses can declare
 an external name independently of local bindings, and every clause contributes to
 one consistent external interface:
 
-```fern
+```morrow
 fn choose(enabled true: Bool) -> Int: 1
 fn choose(enabled false: Bool) -> Int: 0
 choose(enabled: true)
@@ -547,7 +547,7 @@ Labels may reorder parameter binding, but argument effects run once in written
 order. A pipe evaluates its left side first. Its placeholder must carry the
 required label. Positional arguments must precede labeled arguments.
 
-```fern
+```morrow
 # Multiple parameters of same type - labels prevent confusion
 fn send_message(from: String, to: String, subject: String, body: String):
     # ...
@@ -570,7 +570,7 @@ fetch_data(cache: true, async: false)  # Clear!
 
 **Documentation with labeled arguments:**
 
-```fern
+```morrow
 @doc """
 Connects to a server.
 
@@ -583,7 +583,7 @@ Connects to a server.
 
 # Examples
 
-```fern
+```morrow
 connect(host: "localhost", port: 8080, timeout: 5000, retry: true)
 ```
 """
@@ -593,7 +593,7 @@ pub fn connect(host: String, port: Int, timeout: Int, retry: Bool):
 
 Multiple clauses with pattern matching:
 
-```fern
+```morrow
 fn factorial(0: Int) -> Int:
     1
 
@@ -603,7 +603,7 @@ fn factorial(n: Int) -> Int:
 
 Anonymous functions:
 
-```fern
+```morrow
 let double = (x: Int) -> x * 2
 
 items |> map((x) -> x * 2)
@@ -657,7 +657,7 @@ Option(a)  # Optional value (Some(a) or None)
 - This prevents ambiguity: `List(a)` is clearly generic, `List(User)` is concrete
 
 **No Null:**
-- Fern has no `null` or `nil` values
+- Morrow has no `null` or `nil` values
 - Use `Option(a)` to represent optional values explicitly
 - All values must be initialized
 - The compiler guarantees no null pointer exceptions (except in C FFI boundary)
@@ -926,7 +926,7 @@ fn process(items: List(Item)) -> List(Item):
 
 **Note:** Only `if` is supported for postfix guards. There is no `unless` keyword — use `if not` for negated conditions:
 
-```fern
+```morrow
 log("debug: {msg}") if debug_mode
 skip_validation() if not strict_mode
 ```
@@ -935,7 +935,7 @@ skip_validation() if not strict_mode
 
 In let bindings:
 
-```fern
+```morrow
 let (x, y) = get_coordinates()
 let User(name, email, _) = current_user
 let [first, second, ..rest] = items
@@ -943,7 +943,7 @@ let [first, second, ..rest] = items
 
 In function parameters:
 
-```fern
+```morrow
 fn distance((x1, y1): Point, (x2, y2): Point) -> Float:
     sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 ```
@@ -953,7 +953,7 @@ fn distance((x1, y1): Point, (x2, y2): Point) -> Float:
 Use `_` to ignore values you don't need.
 
 **Ignore single value:**
-```fern
+```morrow
 # Tuple destructuring
 let (x, _, z) = point3d  # Ignore y coordinate
 
@@ -971,7 +971,7 @@ plain-list examples below illustrate the pattern shape; potentially failing
 uses require explicit failure handling (decision 60).
 
 **Ignore remaining values:**
-```fern
+```morrow
 # List - collect rest
 let [first, ..rest] = items
 # first: first element
@@ -994,7 +994,7 @@ let (first, second, .._) = tuple_value
 ```
 
 **In function parameters:**
-```fern
+```morrow
 # Ignore unused parameters
 fn handler(_, value, _):
     process(value)
@@ -1012,7 +1012,7 @@ fn format_user((name, _, email): (String, Int, String)) -> String:
 ```
 
 **In match arms:**
-```fern
+```morrow
 # Ignore success value
 match result:
     Ok(_) -> log("Success!")
@@ -1032,7 +1032,7 @@ match value:
 ```
 
 **Multiple wildcards:**
-```fern
+```morrow
 # Each _ is independent, not a binding
 let (_, _, z) = point3d  # Ignore x and y
 
@@ -1044,7 +1044,7 @@ match coords:
 ```
 
 **Style guidelines:**
-```fern
+```morrow
 # ✅ Good: Use _ for truly unused values
 let (x, _, z) = point
 let [first, .._] = items
@@ -1061,7 +1061,7 @@ let (x, y, z) = point
 ```
 
 **Difference between `..rest` and `.._`:**
-```fern
+```morrow
 # ..rest - bind the rest (can use it)
 let [first, ..rest] = [1, 2, 3, 4]
 print(rest)  # [2, 3, 4]
@@ -1159,10 +1159,10 @@ fn process(input: Option(Data)) -> Result(Output, Error):
 
 ### Iteration
 
-Fern provides `for` loops for iterating over collections. For stateful iteration, use recursion or functional combinators.
+Morrow provides `for` loops for iterating over collections. For stateful iteration, use recursion or functional combinators.
 
 **For loops (iteration over collections):**
-```fern
+```morrow
 # Iterate over list
 for item in items:
     process(item)
@@ -1185,7 +1185,7 @@ for (key, value) in user_map:
 ```
 
 **Loop control:**
-```fern
+```morrow
 # Early exit with break
 for item in items:
     break if item.is_target()
@@ -1203,7 +1203,7 @@ None  # No match found
 ```
 
 **Functional alternatives (preferred):**
-```fern
+```morrow
 # Summing - use fold
 let sum = items |> list.fold(0, (acc, x) -> acc + x)
 
@@ -1218,7 +1218,7 @@ let evens = items |> filter((x) -> x % 2 == 0)
 ```
 
 **Stateful iteration - use recursion:**
-```fern
+```morrow
 # Instead of while loops, use tail-recursive functions
 fn count_down(n: Int) -> ():
     return () if n <= 0
@@ -1235,7 +1235,7 @@ fn sum_loop([x, ..xs], acc) -> sum_loop(xs, acc + x)
 
 **Why no `while` or `loop`?**
 
-Fern follows Gleam's approach: no `while` or `loop` constructs. These require mutable state between iterations, which conflicts with immutability. Recursion with tail-call optimization handles all stateful iteration patterns cleanly. This keeps the language simple and the semantics clear.
+Morrow follows Gleam's approach: no `while` or `loop` constructs. These require mutable state between iterations, which conflicts with immutability. Recursion with tail-call optimization handles all stateful iteration patterns cleanly. This keeps the language simple and the semantics clear.
 
 ---
 
@@ -1245,21 +1245,21 @@ Fern follows Gleam's approach: no `while` or `loop` constructs. These require mu
 
 Every file is a module. The module name matches the file path:
 
-```fern
-# File: math/geometry.fn
+```morrow
+# File: math/geometry.mr
 module math.geometry
 
-# File: http/server.fn  
+# File: http/server.mr
 module http.server
 
-# File: main.fn
+# File: main.mr
 module main
 ```
 
 ### Visibility Modifiers
 
 **Public (`pub`) - visible to other modules:**
-```fern
+```morrow
 pub fn public_function() -> Int:
     42
 
@@ -1271,7 +1271,7 @@ pub trait PublicTrait(a):
 ```
 
 **Private (default) - visible only within module:**
-```fern
+```morrow
 # No pub keyword = private
 fn private_helper() -> Int:
     internal_calculation()
@@ -1293,7 +1293,7 @@ fn internal_calculation() -> Int:
 ### Import Syntax
 
 **Import entire module:**
-```fern
+```morrow
 import math.geometry
 
 # Use with qualified names
@@ -1301,7 +1301,7 @@ let area = math.geometry.area(shape)
 ```
 
 **Import specific items:**
-```fern
+```morrow
 import math.geometry.{area, perimeter, volume}
 
 # Use directly
@@ -1309,20 +1309,20 @@ let area = area(shape)
 ```
 
 **Import with alias:**
-```fern
+```morrow
 import math.geometry as geo
 
 let area = geo.area(shape)
 ```
 
 **Import from nested modules:**
-```fern
+```morrow
 import http.server.middleware
 import http.server.middleware.{cors, auth, logging}
 ```
 
 **Import everything (use sparingly):**
-```fern
+```morrow
 import math.geometry.*
 
 # All public items available directly
@@ -1334,8 +1334,8 @@ let perimeter = perimeter(shape)
 
 Make imported items available to module users:
 
-```fern
-# File: http/mod.fn
+```morrow
+# File: http/mod.mr
 module http
 
 # Re-export from submodules
@@ -1351,21 +1351,21 @@ pub import http.server.{serve, Response, Request}
 **Recommended structure:**
 ```
 src/
-├─ main.fn              # Entry point (module main)
-├─ lib.fn               # Library root (module lib)
+├─ main.mr              # Entry point (module main)
+├─ lib.mr               # Library root (module lib)
 ├─ utils/
-│  ├─ string.fn         # module utils.string
-│  ├─ io.fn             # module utils.io
-│  └─ mod.fn            # module utils (re-exports)
+│  ├─ string.mr         # module utils.string
+│  ├─ io.mr             # module utils.io
+│  └─ mod.mr            # module utils (re-exports)
 └─ models/
-   ├─ user.fn           # module models.user
-   ├─ post.fn           # module models.post
-   └─ mod.fn            # module models (re-exports)
+   ├─ user.mr           # module models.user
+   ├─ post.mr           # module models.post
+   └─ mod.mr            # module models (re-exports)
 ```
 
-**mod.fn pattern (re-export hub):**
-```fern
-# File: models/mod.fn
+**mod.mr pattern (re-export hub):**
+```morrow
+# File: models/mod.mr
 module models
 
 pub import models.user.{User, UserId, create_user}
@@ -1378,15 +1378,15 @@ pub import models.post.{Post, PostId, create_post}
 ### Circular Dependencies
 
 **Not allowed - compile error:**
-```fern
-# File: a.fn
+```morrow
+# File: a.mr
 module a
 import b
 
 fn use_b() -> b.Value:
     b.create()
 
-# File: b.fn  
+# File: b.mr
 module b
 import a  # ERROR: Circular dependency
 
@@ -1395,20 +1395,20 @@ fn use_a() -> a.Value:
 ```
 
 **Solution - extract shared module:**
-```fern
-# File: shared.fn
+```morrow
+# File: shared.mr
 module shared
 pub type Value:
     data: String
 
-# File: a.fn
+# File: a.mr
 module a
 import shared
 
 fn create() -> shared.Value:
     shared.Value("from a")
 
-# File: b.fn
+# File: b.mr
 module b
 import shared
 
@@ -1419,31 +1419,31 @@ fn create() -> shared.Value:
 ### Import Resolution
 
 **Imports resolve from project root:**
-```fern
-# File: src/utils/string.fn
-import models.user  # Resolves to src/models/user.fn
-import http.client  # Resolves to stdlib http/client.fn (if not found in src/)
+```morrow
+# File: src/utils/string.mr
+import models.user  # Resolves to src/models/user.mr
+import http.client  # Resolves to stdlib http/client.mr (if not found in src/)
 ```
 
 **Resolution order:**
 1. Project source directory
 2. Standard library
-3. Dependencies (from fern.toml)
+3. Dependencies (from morrow.toml)
 
 ### Standard Library Imports
 
 Standard library modules are available without prefix:
 
-```fern
-import list       # stdlib/core/list.fn
-import json       # stdlib/json.fn
-import http.client  # stdlib/http/client.fn
+```morrow
+import list       # stdlib/core/list.mr
+import json       # stdlib/json.mr
+import http.client  # stdlib/http/client.mr
 ```
 
 ### Example: Complete Module
 
-```fern
-# File: models/user.fn
+```morrow
+# File: models/user.mr
 module models.user
 
 import db.sql
@@ -1513,8 +1513,8 @@ fn parse_user(row: Row) -> Result(User, Error):
 ```
 
 **Using the module:**
-```fern
-# File: main.fn
+```morrow
+# File: main.mr
 module main
 
 import models.user.{User, UserId, create, find_by_id}
@@ -1539,13 +1539,13 @@ fn main() -> Result((), Error):
 
 ## Error Handling
 
-Fern uses explicit error handling with the `Result` type. **Errors must be handled** - the compiler enforces this.
+Morrow uses explicit error handling with the `Result` type. **Errors must be handled** - the compiler enforces this.
 
 ### Result Type
 
 All functions that can fail return `Result`:
 
-```fern
+```morrow
 fn read_file(path: String) -> Result(String, IoError):
     # ...
 
@@ -1561,7 +1561,7 @@ fn divide(a: Int, b: Int) -> Result(Int, DivideError):
 
 **Compiler enforcement:**
 
-```fern
+```morrow
 fn main() -> Result((), Error):
     let content = read_file("config.txt")  # ❌ Compile error!
     # Error: Result value must be handled
@@ -1584,7 +1584,7 @@ fn main() -> Result((), Error):
 
 **Valid handling strategies:**
 
-```fern
+```morrow
 # 1. Use ? operator (propagate error up) - MOST COMMON
 let value = fallible_operation()?
 
@@ -1612,7 +1612,7 @@ else
 
 Unwrap Result or early return on error:
 
-```fern
+```morrow
 fn load_and_process(path: String) -> Result(Output, Error):
     let content = read_file(path)?          # Returns Err if fails
     let config = parse_config(content)?     # Returns Err if fails
@@ -1635,9 +1635,9 @@ fn load_and_process(path: String) -> Result(Output, Error):
 
 ### The `with` Expression (Complex Error Handling)
 
-For cases where you need custom error handling for different operations, use `with`. This is the **only** place where `<-` appears in Fern — it binds Results within a `with` block.
+For cases where you need custom error handling for different operations, use `with`. This is the **only** place where `<-` appears in Morrow — it binds Results within a `with` block.
 
-```fern
+```morrow
 fn process_request(req: Request) -> Result(Response, Error):
     with
         user <- authenticate(req),
@@ -1677,7 +1677,7 @@ fn process_request(req: Request) -> Result(Response, Error):
 
 ### Chaining with Pipes
 
-```fern
+```morrow
 fn load_config(path: String) -> Result(Config, Error):
     path
         |> read_file()          # Result(String, Error)
@@ -1689,7 +1689,7 @@ fn load_config(path: String) -> Result(Config, Error):
 
 Ensure cleanup code runs when function exits (success or error):
 
-```fern
+```morrow
 fn process_file(path: String) -> Result(Data, Error):
     let file = open_file(path)?
     defer close_file(file)  # Guaranteed to run on exit
@@ -1707,7 +1707,7 @@ fn process_file(path: String) -> Result(Data, Error):
 - Cannot access return value
 
 **Multiple defers:**
-```fern
+```morrow
 fn complex_operation() -> Result(Output, Error):
     let resource1 = acquire_resource1()?
     defer release_resource1(resource1)  # Runs last
@@ -1725,7 +1725,7 @@ fn complex_operation() -> Result(Output, Error):
 ```
 
 **With error handling:**
-```fern
+```morrow
 fn read_and_process(path: String) -> Result(Output, Error):
     let file = open_file(path)?
     defer close_file(file)
@@ -1744,7 +1744,7 @@ fn read_and_process(path: String) -> Result(Output, Error):
 
 **Why not in actors?**
 Actors run forever in a loop - no clear "exit" point:
-```fern
+```morrow
 fn actor_loop():
     receive:
         Message(data) ->
@@ -1756,7 +1756,7 @@ For actors, use manual cleanup or wrapper functions.
 
 ### Result Combinators
 
-```fern
+```morrow
 # map - transform success value
 result |> map((x) -> x * 2)
 
@@ -1775,10 +1775,10 @@ result |> unwrap_or_else((e) -> compute_default(e))
 
 ### No Exceptions
 
-Fern has **no exceptions** or try/catch:
+Morrow has **no exceptions** or try/catch:
 
-```fern
-# ❌ Not in Fern
+```morrow
+# ❌ Not in Morrow
 try:
     risky_operation()
 catch e:
@@ -1800,10 +1800,10 @@ match risky_operation():
 
 ### No Panics, No Crashes
 
-**Fern has no panic mechanism.** Programs never crash from error conditions.
+**Morrow has no panic mechanism.** Programs never crash from error conditions.
 
-```fern
-# ❌ Not in Fern - no panic!
+```morrow
+# ❌ Not in Morrow - no panic!
 panic("something went wrong")
 result.unwrap()  # This method doesn't exist
 
@@ -1831,7 +1831,7 @@ match result:
 
 Instead of panicking, return a Result and handle gracefully:
 
-```fern
+```morrow
 # ❌ Don't do this (panic)
 fn get_item(list: List(a), index: Int) -> a:
     panic("index out of bounds") if index >= list.len()
@@ -1863,7 +1863,7 @@ match list.get(5):
 
 Use assertions during development:
 
-```fern
+```morrow
 # Development/debug mode only
 fn internal_check(condition: Bool, msg: String) -> ():
     # In debug builds, logs error and exits
@@ -1889,7 +1889,7 @@ fn process(data: Data) -> Result(Output, Error):
 
 **Define custom error types:**
 
-```fern
+```morrow
 type FileError:
     NotFound(String)      # Path
     PermissionDenied(String)
@@ -1909,7 +1909,7 @@ fn load_file(path: String) -> Result(String, FileError):
 
 **Error conversion:**
 
-```fern
+```morrow
 # Convert specific error to general error
 fn load_config() -> Result(Config, Error):
     let content = read_file("config.txt")
@@ -1954,7 +1954,7 @@ headers |> put("Authorization", token)
 
 Tuples are fixed-size, positional collections:
 
-```fern
+```morrow
 let point = (10, 20)
 let (x, y) = point
 
@@ -1968,7 +1968,7 @@ let mixed = ("hello", 42, true)
 
 **For named fields, use records (declared with `type`):**
 
-```fern
+```morrow
 type Point:
     x: Int
     y: Int
@@ -1981,14 +1981,14 @@ point.x  # 10
 
 ## Concurrency
 
-Fern uses an **actor-based concurrency model** inspired by Erlang/Elixir, with type-safe message passing.
+Morrow uses an **actor-based concurrency model** inspired by Erlang/Elixir, with type-safe message passing.
 
 **Implementation boundary:** the default Rust frontend executes the bounded native
 subset in [the native actor contract](docs/RUST_ACTORS.md), now with actor-owned
 payload heaps, copied messages, bounded typed supervision and recursive Unit-tail
 continuations. The web host pins independent room runtimes to multiple threads.
 Generalized resumable scheduling, per-invocation multicore execution and complete
-actor REPL/FernSim parity remain planned. The old C reference implementation has
+actor REPL/MorrowSim parity remain planned. The old C reference implementation has
 been removed.
 
 ### Lightweight Processes
@@ -2026,7 +2026,7 @@ fn worker_loop() -> ():
 
 Process IDs are typed by the messages they accept:
 
-```fern
+```morrow
 type Pid(msg)  # A process that accepts messages of type msg
 
 type CacheMsg(k, v):
@@ -2077,7 +2077,7 @@ send(cache, "invalid message")             # ❌ Type error!
    - No session types or protocol enforcement (planned for v2)
 
 **Example of compile-time safety:**
-```fern
+```morrow
 let cache: Pid(CacheMsg(String, Int)) = spawn(cache_actor)
 
 send(cache, Set("count", 42))        # ✅ OK - correct type
@@ -2203,21 +2203,21 @@ The planned standard library will package these common patterns. The following
 APIs are architectural sketches, not the current executable module reference:
 
 ```
-# stdlib/concurrent/cache.fn
+# stdlib/concurrent/cache.mr
 pub fn new(ttl: Duration) -> Pid(CacheMsg(k, v))
 pub fn get(cache: Pid(CacheMsg(k, v)), key: k) -> Option(v)
 pub fn set(cache: Pid(CacheMsg(k, v)), key: k, value: v) -> ()
 
-# stdlib/concurrent/queue.fn
+# stdlib/concurrent/queue.mr
 pub fn new(workers: Int) -> Pid(QueueMsg(job))
 pub fn enqueue(queue: Pid(QueueMsg(job)), job: job) -> ()
 
-# stdlib/concurrent/pubsub.fn
+# stdlib/concurrent/pubsub.mr
 pub fn new() -> Pid(PubSubMsg(topic, msg))
 pub fn subscribe(pubsub: Pid(PubSubMsg(topic, msg)), topic: topic) -> Pid(msg)
 pub fn publish(pubsub: Pid(PubSubMsg(topic, msg)), topic: topic, msg: msg) -> ()
 
-# stdlib/concurrent/pool.fn
+# stdlib/concurrent/pool.mr
 pub fn new(size: Int, worker: fn() -> ()) -> Pid(PoolMsg)
 pub fn checkout(pool: Pid(PoolMsg)) -> Result(Worker, Error)
 pub fn checkin(pool: Pid(PoolMsg), worker: Worker) -> ()
@@ -2256,7 +2256,7 @@ let results = parallel_map(items, expensive_computation)
 
 ## Embedded Database
 
-Fern includes **libSQL** (a SQLite-compatible embedded database) for zero-dependency data persistence.
+Morrow includes **libSQL** (a SQLite-compatible embedded database) for zero-dependency data persistence.
 
 The currently executable native surface is `sql.open(String)`,
 `sql.execute(Int, String)`, and `sql.close(Int)`, each returning `Result(Int, Int)`.
@@ -2518,7 +2518,7 @@ let db = sql.connect("libsql://production.turso.io")
 1. **Embedded + Remote modes** (smooth scaling path)
 2. **Built-in replication** (multi-region support)
 3. **Extensions** (vector search, FTS, JSON functions)
-4. **WebAssembly support** (future: run Fern in browser)
+4. **WebAssembly support** (future: run Morrow in browser)
 5. **Commercial backing** (Turso provides managed hosting)
 6. **SQLite compatible** (can use existing SQLite tools)
 
@@ -2576,22 +2576,22 @@ fn filter_active(todos: List(Todo)) -> List(Todo):
 
 ```bash
 # Compile to binary
-fern build main.fn -o myapp
+morrow build main.mr -o myapp
 
 # Run directly
-fern run main.fn
+morrow run main.mr
 
 # Check types without compiling
-fern check main.fn
+morrow check main.mr
 
 # Format code
-fern fmt src/
+morrow fmt src/
 
 # Start REPL
-fern repl
+morrow repl
 ```
 
-Output is a native executable that runs without the Fern compiler. Ordinary host
+Output is a native executable that runs without the Morrow compiler. Ordinary host
 builds retain platform system-library dependencies. The Linux musl web packaging
 path separately verifies a fully static executable with embedded browser assets.
 
@@ -2599,10 +2599,10 @@ path separately verifies a fully static executable with embedded browser assets.
 
 ## Scripting
 
-Fern supports shebang scripts for quick scripting without explicit compilation:
+Morrow supports shebang scripts for quick scripting without explicit compilation:
 
-```fern
-#!/usr/bin/env fern run
+```morrow
+#!/usr/bin/env morrow run
 fn main():
     let name = "World"
     println("Hello, {name}!")
@@ -2611,11 +2611,11 @@ fn main():
 Make the file executable and run it directly:
 
 ```bash
-chmod +x script.fn
-./script.fn
+chmod +x script.mr
+./script.mr
 ```
 
-This is similar to `uvx` for Python or `deno run` for TypeScript. The `fern run` command compiles and executes in one step, cleaning up temporary files automatically.
+This is similar to `uvx` for Python or `deno run` for TypeScript. The `morrow run` command compiles and executes in one step, cleaning up temporary files automatically.
 
 **Use cases:**
 - Quick automation scripts
@@ -2625,8 +2625,8 @@ This is similar to `uvx` for Python or `deno run` for TypeScript. The `fern run`
 
 **String interpolation** makes scripting convenient:
 
-```fern
-#!/usr/bin/env fern run
+```morrow
+#!/usr/bin/env morrow run
 fn main():
     let count = 42
     let status = "complete"
@@ -2637,13 +2637,13 @@ fn main():
 
 ## Built-in Modules
 
-Fern provides built-in modules for common operations. These are always available without imports and use a `Module.function()` syntax for clarity and discoverability.
+Morrow provides built-in modules for common operations. These are always available without imports and use a `Module.function()` syntax for clarity and discoverability.
 
 ### String Module
 
 Functions for string manipulation:
 
-```fern
+```morrow
 # Length and basic operations
 let len = String.len("hello")              # 5
 let upper = String.to_upper("hello")       # "HELLO"
@@ -2694,7 +2694,7 @@ This predicate does not change numeric literal or conversion syntax. See
 
 Functions for list operations:
 
-```fern
+```morrow
 # Length and access
 let len = List.len([1, 2, 3])              # 3
 let first = List.get([1, 2, 3], 0)         # 1
@@ -2716,7 +2716,7 @@ let empty = List.is_empty([])              # true
 
 Functions for file I/O operations (return `Result` types):
 
-```fern
+```morrow
 # Reading and writing
 let result = File.read("data.txt")         # Result(String, Int)
 let written = File.write("out.txt", "hi")  # Result(Int, Int)
@@ -2737,7 +2737,7 @@ let entries = File.list_dir("src")         # Result(List(String), Int); handle e
 Functions for system-level operations like command-line arguments, process control,
 shell command execution, and environment variables:
 
-```fern
+```morrow
 # Command-line arguments
 let count = System.args_count()            # Number of arguments (including program name)
 let program = System.arg(0)                # Program name (first argument)
@@ -2763,7 +2763,7 @@ let ok = System.setenv("KEY", "value")     # Set environment variable (returns 0
 
 Example CLI tool:
 
-```fern
+```morrow
 fn main():
     let count = System.args_count()
     
@@ -2779,7 +2779,7 @@ fn main():
 
 Example shell script:
 
-```fern
+```morrow
 fn main():
     # Run a command and check its output
     let result = System.exec("git status --porcelain")
@@ -2801,14 +2801,14 @@ fn main():
 
 Functions for regular expression pattern matching and text manipulation:
 
-```fern
+```morrow
 # Pattern matching
 let matches = Regex.is_match("hello world", "world")   # Bool - true if pattern found
 let match = Regex.find("hello world", "w\\w+")         # First match or null
 let all = Regex.find_all("a1b2c3", "\\d")              # List(String) of all matches
 
 # Text replacement
-let new = Regex.replace("hello world", "world", "fern")      # Replace first match
+let new = Regex.replace("hello world", "world", "morrow")      # Replace first match
 let all_new = Regex.replace_all("a1b2c3", "\\d", "X")        # Replace all matches
 
 # Splitting
@@ -2820,7 +2820,7 @@ let caps = Regex.captures("abc123", "(\\w+)(\\d+)")    # Access groups with caps
 
 Example - validating input:
 
-```fern
+```morrow
 fn is_valid_email(email: String) -> Bool:
     Regex.is_match(email, "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
 
@@ -2836,13 +2836,13 @@ fn main():
 
 ### Tui Module (Terminal UI)
 
-Fern provides a `Tui.*` namespace for terminal user interface components, inspired by Python's Rich library. All modules are nested under `Tui.` for clear organization.
+Morrow provides a `Tui.*` namespace for terminal user interface components, inspired by Python's Rich library. All modules are nested under `Tui.` for clear organization.
 
 #### Tui.Term - Terminal Capabilities
 
 Query terminal properties and capabilities:
 
-```fern
+```morrow
 # Get terminal size (columns, rows)
 let size = Tui.Term.size()
 let cols = size.0
@@ -2870,7 +2870,7 @@ match colors:
 
 Apply ANSI colors and styles to terminal text:
 
-```fern
+```morrow
 # Basic colors (foreground)
 println(Tui.Style.red("Error!"))
 println(Tui.Style.green("Success!"))
@@ -2907,7 +2907,7 @@ println(Tui.Style.bold(Tui.Style.red("Bold red")))
 
 Create Rich-style bordered panels for content:
 
-```fern
+```morrow
 # Basic panel
 let panel = Tui.Panel.new("Hello, World!")
 println(Tui.Panel.render(panel))
@@ -2935,7 +2935,7 @@ println(Tui.Panel.render(panel))
 
 Create formatted tables with headers and rows:
 
-```fern
+```morrow
 # Create table with columns
 let table = Tui.Table.new()
 let table = Tui.Table.title(table, "Users")
@@ -2962,7 +2962,7 @@ println(Tui.Table.render(table))
 
 Display colored status badges for logging:
 
-```fern
+```morrow
 println(Tui.Status.ok("All systems operational"))
 println(Tui.Status.warn("Low disk space"))
 println(Tui.Status.error("Connection failed"))
@@ -2983,7 +2983,7 @@ Output:
 
 Update text on the same line (for spinners, progress):
 
-```fern
+```morrow
 # Print without newline (stays on same line)
 Tui.Live.print("Loading... ")
 
@@ -3003,7 +3003,7 @@ Tui.Live.done()
 
 Display progress bars with percentage:
 
-```fern
+```morrow
 let progress = Tui.Progress.new(100)  # Total items
 let progress = Tui.Progress.description(progress, "Downloading")
 let progress = Tui.Progress.width(progress, 40)
@@ -3021,7 +3021,7 @@ Tui.Live.done()
 
 Display animated spinners for long-running tasks:
 
-```fern
+```morrow
 let spinner = Tui.Spinner.new()
 let spinner = Tui.Spinner.message(spinner, "Processing")
 let spinner = Tui.Spinner.style(spinner, "dots")  # "dots", "line", "braille"
@@ -3037,7 +3037,7 @@ Tui.Live.done()
 
 #### Tui.Prompt - Interactive Input
 
-```fern
+```morrow
 let name = Tui.Prompt.input("Your name: ")
 let secret = Tui.Prompt.password("Password: ")
 let confirmed = Tui.Prompt.confirm("Continue?")
@@ -3055,9 +3055,9 @@ line without terminal escapes. Interactive lines use the editor's 4096-byte buff
 
 #### Tui.Tree - Immutable Hierarchies
 
-```fern
+```morrow
 let root = Tui.Tree.new("project")
-let source = Tui.Tree.add(Tui.Tree.new("src"), Tui.Tree.new("main.fn"))
+let source = Tui.Tree.add(Tui.Tree.new("src"), Tui.Tree.new("main.mr"))
 let tree = Tui.Tree.add(Tui.Tree.add(root, source), Tui.Tree.new("README.md"))
 println(Tui.Tree.render(tree))
 ```
@@ -3065,7 +3065,7 @@ println(Tui.Tree.render(tree))
 ```text
 project
 ├── src
-│   └── main.fn
+│   └── main.mr
 └── README.md
 ```
 
@@ -3076,7 +3076,7 @@ pre-rendered child text, avoiding recursive traversal and a fixed nesting limit.
 
 #### Tui.Log - Deterministic Log Records
 
-```fern
+```morrow
 println(Tui.Log.debug("Build details"))
 println(Tui.Log.info("Build started"))
 println(Tui.Log.warn("No tests found"))
@@ -3090,7 +3090,7 @@ so each record occupies one line and terminal escape sequences remain visible te
 
 #### Additional Terminal Cursor Controls
 
-```fern
+```morrow
 Tui.Term.save_cursor()
 Tui.Term.move_to(2, 5)  # One-based row and column, each clamped to at least 1
 Tui.Term.up(1)
@@ -3111,7 +3111,7 @@ hiding with showing before returning from your application.
 
 Basic print functions (always available):
 
-```fern
+```morrow
 print(42)              # Print without newline
 println("Hello")       # Print with newline
 
@@ -3187,7 +3187,7 @@ println(true)          # "true"
 
 1. **Foreign declarations**: `foreign "C" fn name(params) -> return_type`
 2. **Type mapping**: Exact C-width scalar types and sealed `Ptr(a)` handles; see [FFI](docs/FFI.md)
-3. **Safety**: Stdlib wraps unsafe C code in safe Fern APIs
+3. **Safety**: Stdlib wraps unsafe C code in safe Morrow APIs
 4. **Users never see pointers**: Only stdlib authors use FFI
 5. **Linking**: Automatic linking with specified C libraries
 
@@ -3216,7 +3216,7 @@ println(true)          # "true"
 
 ### Error Handling & Panics ✅ Decided
 
-1. **No panic mechanism**: Fern has no `panic()` function or `.unwrap()` method
+1. **No panic mechanism**: Morrow has no `panic()` function or `.unwrap()` method
 2. **All errors via Result**: Every fallible operation returns `Result(ok, err)`
 3. **Compiler enforcement**: Unhandled Result values cause compile errors
 4. **Programs never crash**: All errors are recoverable
@@ -3259,10 +3259,10 @@ println(true)          # "true"
 - More powerful than traditional macros
 - Safer than text-based macro systems
 - Enables DSL building (SQL, HTML, regex)
-- Runs real Fern code at compile time
+- Runs real Morrow code at compile time
 
 **Use cases:**
-```fern
+```morrow
 # Compile-time constants
 const pi = comptime:
     355.0 / 113.0  # Computed at compile time
@@ -3277,44 +3277,44 @@ const validated_regex = comptime:
 ```
 
 **Implemented now**: bounded, pure `const name = comptime:` evaluation with
-ordinary Fern arithmetic, collections, nominal values and closures. See
+ordinary Morrow arithmetic, collections, nominal values and closures. See
 [compile-time constants](docs/COMPTIME.md) for exact limits and execution tests.
 Type reflection/code-generation helpers and compile-time native resources in the
 illustrative examples above remain design proposals.
 
 ### Tooling ✅ Decided
 
-**Built into `fern` CLI:**
+**Built into `morrow` CLI:**
 
 1. **Compiler** (v0.1)
-   - `fern build` - Compile to binary
-   - `fern run` - Compile and run
-   - `fern check` - Type check only
+   - `morrow build` - Compile to binary
+   - `morrow run` - Compile and run
+   - `morrow check` - Type check only
 
 2. **Formatter** (v0.2)
-   - `fern fmt` - Format code (automatic indentation, consistency)
-   - Rust frontend: `fern-rs fmt <source.fn|directory>` validates all selected sources before staging replacements. `fern-rs fmt --check <source.fn|directory>` checks canonical formatting without writing; exit0 means clean, exit1 means drift or an input error. Directory discovery skips hidden/build/dependency directories and child symlinks (Decision99).
+   - `morrow fmt` - Format code (automatic indentation, consistency)
+   - Rust frontend: `morrow-rs fmt <source.mr|directory>` validates all selected sources before staging replacements. `morrow-rs fmt --check <source.mr|directory>` checks canonical formatting without writing; exit0 means clean, exit1 means drift or an input error. Directory discovery skips hidden/build/dependency directories and child symlinks (Decision99).
    - Style guide enforced automatically
 
 3. **LSP** (v0.3)
-   - `fern lsp` - Language server for editors
+   - `morrow lsp` - Language server for editors
    - Provides autocomplete, go-to-definition, hover info, etc.
    - Works with VSCode, Zed, Neovim, etc.
 
 4. **Linter** (v0.3)
-   - `fern lint` - Static analysis
+   - `morrow lint` - Static analysis
    - Catches common mistakes, suggests improvements
    - Integrated into LSP
 
 5. **Doc Generator** (v0.4)
-   - `fern doc` - Generate documentation from `@moduledoc`/`@doc` comments
+   - `morrow doc` - Generate documentation from `@moduledoc`/`@doc` comments
    - Outputs Markdown, one standalone HTML page, or a multi-page site
      (`--site`) with guides, sidebar navigation, local search and
      cross-references, like HexDocs
    - Examples extracted and tested
 
 6. **REPL** (v0.5)
-   - `fern repl` - Interactive environment
+   - `morrow repl` - Interactive environment
    - Explore APIs, test expressions
 
 **Rationale:**
@@ -3325,7 +3325,7 @@ illustrative examples above remain design proposals.
 
 ### Compiler Error Messages ✅ Decided
 
-Fern prioritizes **helpful, friendly error messages** that guide users toward solutions.
+Morrow prioritizes **helpful, friendly error messages** that guide users toward solutions.
 
 **Design Philosophy:**
 
@@ -3354,7 +3354,7 @@ Error: [What went wrong]
 **1. Unhandled Result:**
 ```
 Error: Result value must be handled
-  ┌─ src/main.fn:5:17
+  ┌─ src/main.mr:5:17
   │
 5 │     let data = read_file("config.txt")
   │                ^^^^^^^^^^^^^^^^^^^^^^^ this returns Result(String, IoError)
@@ -3364,13 +3364,13 @@ Error: Result value must be handled
       1. Propagate with ?: let data = read_file("config.txt")?
       2. Match on Result: match read_file(...): Ok(d) -> ..., Err(e) -> ...
       3. Use combinator: read_file(...) |> unwrap_or(default)
-  = note: See error handling guide: https://fern-lang.org/errors
+  = note: See error handling guide: https://morrow-lang.org/errors
 ```
 
 **2. Type Mismatch:**
 ```
 Error: Type mismatch
-  ┌─ src/math.fn:12:12
+  ┌─ src/math.mr:12:12
    │
 12 │     return "not a number"
    │            ^^^^^^^^^^^^^^ expected Int, found String
@@ -3385,7 +3385,7 @@ Error: Type mismatch
 **3. Missing Pattern:**
 ```
 Error: Non-exhaustive patterns
-  ┌─ src/handler.fn:8:5
+  ┌─ src/handler.mr:8:5
   │
 8 │     match status:
   │     ^^^^^^^^^^^^^ missing pattern: Pending(_)
@@ -3404,7 +3404,7 @@ Error: Non-exhaustive patterns
 **4. Unused Variable:**
 ```
 Warning: Unused variable
-  ┌─ src/process.fn:15:9
+  ┌─ src/process.mr:15:9
    │
 15 │     let result = compute()
    │         ^^^^^^ this variable is never used
@@ -3419,7 +3419,7 @@ Warning: Unused variable
 **5. Function Clause Separation:**
 ```
 Error: Function clauses must be adjacent
-  ┌─ src/math.fn:8:1
+  ┌─ src/math.mr:8:1
   │
 3 │ fn factorial(0) -> 1
   │    --------- first clause defined here
@@ -3430,34 +3430,34 @@ Error: Function clauses must be adjacent
 8 │ fn factorial(n) -> n * factorial(n - 1)
   │    ^^^^^^^^^ clause must be adjacent to first clause
   │
-  = Fern requires all clauses of a function to be grouped together
+  = Morrow requires all clauses of a function to be grouped together
   = help: Move this clause next to line 3, or rename the function
 ```
 
 **6. Circular Dependency:**
 ```
 Error: Circular module dependency detected
-  ┌─ src/a.fn:3:8
+  ┌─ src/a.mr:3:8
   │
 3 │ import b
   │        ^ importing b
   │
-  ┌─ src/b.fn:3:8
+  ┌─ src/b.mr:3:8
   │
 3 │ import a
   │        ^ which imports a
   │
   = Dependency cycle: a → b → a
   = help: Extract shared code into a new module:
-      1. Create src/shared.fn with common types
-      2. Have both a.fn and b.fn import shared
-  = note: See module organization guide: https://fern-lang.org/modules
+      1. Create src/shared.mr with common types
+      2. Have both a.mr and b.mr import shared
+  = note: See module organization guide: https://morrow-lang.org/modules
 ```
 
 **7. Null Pointer (FFI Boundary):**
 ```
 Error: Potential null pointer
-  ┌─ stdlib/db/sql.fn:42:5
+  ┌─ stdlib/db/sql.mr:42:5
    │
 42 │     Ok(Database(db_ptr))
    │        ^^^^^^^^^^^^^^^^^ db_ptr might be null
@@ -3472,7 +3472,7 @@ Error: Potential null pointer
 **8. Actor Type Mismatch:**
 ```
 Error: Type mismatch in message send
-  ┌─ src/cache.fn:24:10
+  ┌─ src/cache.mr:24:10
    │
 24 │     send(cache, "invalid")
    │                 ^^^^^^^^^ expected CacheMsg(String, User), found String
@@ -3502,13 +3502,13 @@ Error: Type mismatch in message send
 
 ```bash
 # Show full error with examples
-fern check --explain E0001
+morrow check --explain E0001
 
 # JSON output for editor integration
-fern check --format=json
+morrow check --format=json
 
 # Show only errors (no warnings)
-fern check --errors-only
+morrow check --errors-only
 ```
 
 **Error Codes:**
@@ -3525,20 +3525,20 @@ All errors have codes for documentation lookup:
 Each error code links to detailed documentation:
 ```
 = note: For more information, see error code E0002
-        https://fern-lang.org/errors/E0002
+        https://morrow-lang.org/errors/E0002
 ```
 
 **Comparison with Other Languages:**
 
 ```
-# Fern ✅ Friendly and actionable
+# Morrow ✅ Friendly and actionable
 Error: Result value must be handled
   = help: Propagate with ?: let data = read_file(...)?
 
 # Typical C/C++ ❌ Cryptic
 error: invalid conversion from 'const char*' to 'int'
 
-# Fern ✅ Shows context
+# Morrow ✅ Shows context
   5 │     let data = read_file("config.txt")
     │                ^^^^^^^^^^^^^^^^^^^^^^^ returns Result
 
@@ -3554,7 +3554,7 @@ Exception in thread "main" java.lang.NullPointerException
 **Decision**: Support labeled arguments for clarity
 
 **Syntax:**
-```fern
+```morrow
 fn connect(host: String, port: Int, timeout: Int):
     # ...
 
@@ -3580,11 +3580,11 @@ connect("localhost", port: 8080, timeout: 5000)
 **Decision**: Examples in `@doc` comments are automatically tested
 
 **Syntax:**
-```fern
+```morrow
 @doc """
 # Examples
 
-```fern
+```morrow
 divide(10, 2)  # => Ok(5)
 divide(10, 0)  # => Err(_)
 ```
@@ -3593,7 +3593,7 @@ pub fn divide(a: Int, b: Int) -> Result(Int, DivideError):
     # ...
 ```
 
-**Run with:** `fern test --doc` or `fern test` (includes doc tests)
+**Run with:** `morrow test --doc` or `morrow test` (includes doc tests)
 
 **Rationale:**
 - Examples always work (tested automatically)
@@ -3603,7 +3603,7 @@ pub fn divide(a: Int, b: Int) -> Result(Int, DivideError):
 
 ### Package Management ✅ Decided
 
-**Package file**: `fern.toml`
+**Package file**: `morrow.toml`
 
 ```toml
 [package]
@@ -3620,10 +3620,10 @@ json = "0.5.2"
 
 **CLI commands:**
 ```bash
-fern new myapp           # Create new project
-fern add http            # Add dependency
-fern install             # Install dependencies
-fern publish             # Publish to registry
+morrow new myapp           # Create new project
+morrow add http            # Add dependency
+morrow install             # Install dependencies
+morrow publish             # Publish to registry
 ```
 
 **Versioning**: Semantic versioning (semver)
@@ -3644,7 +3644,7 @@ Native foreign declarations are implemented with explicit C scalar widths and
 sealed `Ptr(a)` handles. See [the FFI contract](docs/FFI.md) for supported syntax,
 checked conversions, ownership obligations, linker behavior and acceptance tests.
 
-```fern
+```morrow
 foreign "C" fn absolute(value: Int) -> Int as "llabs"
 foreign "C" fn cosine(value: Float) -> Float as "cos" from "m"
 
@@ -3664,22 +3664,22 @@ foreign-owned allocation and destruction remain the wrapper author's contract.
 ### Performance Escape Hatch
 
 Runtime internals may use mutation in Rust behind the checked native ABI. A
-standard-library optimization must preserve Fern's immutable aliases, checked
+standard-library optimization must preserve Morrow's immutable aliases, checked
 errors and collector roots. It needs an independent output/ABI regression and
-measurement showing the improvement. Fern-owned C implementations are retired;
+measurement showing the improvement. Morrow-owned C implementations are retired;
 third-party native libraries may still be accessed through Rust wrappers.
 
 ---
 
 ## Conditionals and Pattern Matching
 
-Fern uses `if/else` for simple conditionals and `match` for pattern matching and complex conditions.
+Morrow uses `if/else` for simple conditionals and `match` for pattern matching and complex conditions.
 
 ### if/else (Simple Conditionals)
 
 For simple true/false branches:
 
-```fern
+```morrow
 # Basic if/else
 let category = if age < 18:
     "minor"
@@ -3708,7 +3708,7 @@ else:
 
 For complex conditions (3+ branches):
 
-```fern
+```morrow
 # Better than long if/else-if chains
 let category = match:
     age < 13 -> "child"
@@ -3733,7 +3733,7 @@ match:
 
 For destructuring and type matching:
 
-```fern
+```morrow
 # Pattern matching on types
 match result:
     Ok(value) -> process(value)
@@ -3770,7 +3770,7 @@ match (method, path):
 
 Destructuring in bindings:
 
-```fern
+```morrow
 # Tuple destructuring
 let (x, y) = get_point()
 
@@ -3789,7 +3789,7 @@ let Some(value) = optional else:
 
 ## Function Definitions
 
-Fern supports two styles: **multiple clauses** (preferred) and **single function with match**.
+Morrow supports two styles: **multiple clauses** (preferred) and **single function with match**.
 
 ### Multiple Clauses (Preferred, Idiomatic)
 
@@ -3800,9 +3800,9 @@ The current Rust checkpoint infers private parameter types when clause patterns
 or supplied annotations provide complete evidence. Fully unconstrained private
 signature generalization in some examples below remains migration work.
 
-**The Fern way** - clean, readable, Elixir-inspired:
+**The Morrow way** - clean, readable, Elixir-inspired:
 
-```fern
+```morrow
 # Simple pattern matching
 fn length([]) -> 0
 fn length([_, ..rest]) -> 1 + length(rest)
@@ -3826,7 +3826,7 @@ fn classify(_) -> Zero
 
 Clauses must be adjacent - compiler error if separated:
 
-```fern
+```morrow
 # ✅ OK: Clauses together
 fn factorial(0) -> 1
 fn factorial(n) -> n * factorial(n - 1)
@@ -3846,7 +3846,7 @@ fn factorial(n) -> n * factorial(n - 1)  # Compiler error!
 **Error message:**
 ```
 Error: Function clauses must be adjacent
-  ┌─ example.fn:5:1
+  ┌─ example.mr:5:1
   │
 1 │ fn factorial(0) -> 1
   │    --------- first clause defined here
@@ -3865,7 +3865,7 @@ Error: Function clauses must be adjacent
 **Use when:**
 
 1. **Need parameter name:**
-```fern
+```morrow
 fn process(request: Request):
     log("Processing: {request.path}")
     match request.method:
@@ -3875,7 +3875,7 @@ fn process(request: Request):
 ```
 
 2. **Complex multi-argument patterns:**
-```fern
+```morrow
 fn handle(method: Method, path: String, body: String):
     match (method, path):
         (Get, "/users") -> list_users()
@@ -3886,7 +3886,7 @@ fn handle(method: Method, path: String, body: String):
 ```
 
 3. **Guards on multiple parameters:**
-```fern
+```morrow
 fn compare(x: Int, y: Int):
     match (x, y):
         (a, b) if a > b -> Greater
@@ -3908,13 +3908,13 @@ fn compare(x: Int, y: Int):
 
 ## Immutability and Mutation
 
-Fern is **immutable by default** with no `mut` keyword in v1.
+Morrow is **immutable by default** with no `mut` keyword in v1.
 
 ### Rebinding (Shadowing)
 
 Create new bindings with the same name:
 
-```fern
+```morrow
 let x = 1
 let x = x + 1  # New binding, shadows old x
 let x = x * 2  # Another new binding
@@ -3926,7 +3926,7 @@ print(x)       # 4
 ### Alternatives to Mutation
 
 **1. Recursion with accumulators:**
-```fern
+```morrow
 fn sum_list(items: List(Int)) -> Int:
     sum_loop(items, 0)
 
@@ -3935,7 +3935,7 @@ fn sum_loop([x, ..xs], acc) -> sum_loop(xs, acc + x)
 ```
 
 **2. Fold/reduce (most idiomatic):**
-```fern
+```morrow
 fn sum_list(items: List(Int)) -> Int:
     items |> list.fold(0, (acc, x) -> acc + x)
 ```
@@ -3944,7 +3944,7 @@ fn sum_list(items: List(Int)) -> Int:
 
 Standard-library performance work belongs in Rust runtime helpers with explicit
 ABI, ownership and error contracts. Internal mutation must preserve immutable
-Fern semantics. Measure a real workload before adding a specialized helper;
+Morrow semantics. Measure a real workload before adding a specialized helper;
 third-party native code remains permitted through Rust wrappers.
 
 ### Why No `mut`, `while`, or `loop` in v1
@@ -3965,7 +3965,7 @@ third-party native code remains permitted through Rust wrappers.
 
 ## Standard Library
 
-Fern provides a comprehensive standard library with a **two-tier structure**: Core modules (always included) and Standard Library modules (tree-shaken based on imports).
+Morrow provides a comprehensive standard library with a **two-tier structure**: Core modules (always included) and Standard Library modules (tree-shaken based on imports).
 
 ### Design Philosophy
 
@@ -3983,15 +3983,15 @@ Language primitives that are always present:
 
 ```
 core/
-  ├─ list.fn           # List operations (map, filter, fold, etc.)
-  ├─ map.fn            # Map/dictionary operations
-  ├─ set.fn            # Set operations
-  ├─ option.fn         # Option(a) type and operations
-  ├─ result.fn         # Result(ok, err) type and operations
-  ├─ string.fn         # String manipulation
-  ├─ int.fn            # Integer operations
-  ├─ float.fn          # Float operations
-  └─ bool.fn           # Boolean operations
+  ├─ list.mr           # List operations (map, filter, fold, etc.)
+  ├─ map.mr            # Map/dictionary operations
+  ├─ set.mr            # Set operations
+  ├─ option.mr         # Option(a) type and operations
+  ├─ result.mr         # Result(ok, err) type and operations
+  ├─ string.mr         # String manipulation
+  ├─ int.mr            # Integer operations
+  ├─ float.mr          # Float operations
+  └─ bool.mr           # Boolean operations
 ```
 
 #### **Tier 2: Standard Library (Tree-Shaken)**
@@ -4001,101 +4001,101 @@ Import to include. These modules are automatically linked only if imported.
 **I/O & System (~100-300 KB total):**
 ```
 io/
-  ├─ file.fn           # read, write, append, exists, delete
-  ├─ path.fn           # join, dirname, basename, extension
-  ├─ dir.fn            # list, create, remove, walk
-  ├─ env.fn            # Environment variables, command-line args
-  └─ process.fn        # Spawn processes, exec, pipes, exit codes
+  ├─ file.mr           # read, write, append, exists, delete
+  ├─ path.mr           # join, dirname, basename, extension
+  ├─ dir.mr            # list, create, remove, walk
+  ├─ env.mr            # Environment variables, command-line args
+  └─ process.mr        # Spawn processes, exec, pipes, exit codes
 
-os.fn                  # Platform detection, home_dir, temp_dir
+os.mr                  # Platform detection, home_dir, temp_dir
 ```
 
 **Data Formats (~50-150 KB each):**
 ```
-json.fn                # JSON parse/stringify, encoding/decoding
-csv.fn                 # CSV read/write with headers
-toml.fn                # TOML parsing (config files)
-yaml.fn                # YAML parsing (common in DevOps)
-xml.fn                 # XML parsing (APIs, feeds, legacy systems)
+json.mr                # JSON parse/stringify, encoding/decoding
+csv.mr                 # CSV read/write with headers
+toml.mr                # TOML parsing (config files)
+yaml.mr                # YAML parsing (common in DevOps)
+xml.mr                 # XML parsing (APIs, feeds, legacy systems)
 ```
 
 **Text Processing (~50-200 KB each):**
 ```
-regex.fn               # Regular expressions
+regex.mr               # Regular expressions
 string/
-  ├─ format.fn         # sprintf-style formatting
-  ├─ template.fn       # Simple {{ var }} templating
-  └─ unicode.fn        # Unicode normalization, grapheme clusters
+  ├─ format.mr         # sprintf-style formatting
+  ├─ template.mr       # Simple {{ var }} templating
+  └─ unicode.mr        # Unicode normalization, grapheme clusters
 ```
 
 **CLI Utilities (~30-100 KB each):**
 ```
 cli/
-  ├─ args.fn           # Argument parsing (flags, options, positional)
-  ├─ colors.fn         # Terminal colors (red, green, bold, etc.)
-  ├─ table.fn          # ASCII table formatting
-  ├─ progress.fn       # Progress bars
-  └─ prompt.fn         # Interactive prompts (readline-like)
+  ├─ args.mr           # Argument parsing (flags, options, positional)
+  ├─ colors.mr         # Terminal colors (red, green, bold, etc.)
+  ├─ table.mr          # ASCII table formatting
+  ├─ progress.mr       # Progress bars
+  └─ prompt.mr         # Interactive prompts (readline-like)
 ```
 
 **Testing Framework (~100 KB total):**
 ```
 test/
-  ├─ assert.fn         # assert_eq, assert_ok, assert_true, etc.
-  ├─ mock.fn           # Mocking functions and actors
-  └─ bench.fn          # Benchmarking utilities
+  ├─ assert.mr         # assert_eq, assert_ok, assert_true, etc.
+  ├─ mock.mr           # Mocking functions and actors
+  └─ bench.mr          # Benchmarking utilities
 ```
 
 **Utilities (~50-150 KB each):**
 ```
-datetime.fn            # Date/time parsing, formatting, arithmetic
-random.fn              # Random numbers, UUIDs
-hash.fn                # MD5, SHA1, SHA256 hashing
-base64.fn              # Base64 encoding/decoding
-url.fn                 # URL parsing and building
-log.fn                 # Structured logging (debug, info, warn, error)
-math.fn                # Math functions (sin, cos, sqrt, pow, etc.)
+datetime.mr            # Date/time parsing, formatting, arithmetic
+random.mr              # Random numbers, UUIDs
+hash.mr                # MD5, SHA1, SHA256 hashing
+base64.mr              # Base64 encoding/decoding
+url.mr                 # URL parsing and building
+log.mr                 # Structured logging (debug, info, warn, error)
+math.mr                # Math functions (sin, cos, sqrt, pow, etc.)
 ```
 
 **HTTP (~200-400 KB total):**
 ```
 http/
-  ├─ client.fn         # HTTP client (GET, POST, PUT, DELETE)
-  ├─ server.fn         # HTTP server
-  ├─ router.fn         # Request routing
-  └─ websocket.fn      # WebSockets (future addition)
+  ├─ client.mr         # HTTP client (GET, POST, PUT, DELETE)
+  ├─ server.mr         # HTTP server
+  ├─ router.mr         # Request routing
+  └─ websocket.mr      # WebSockets (future addition)
 ```
 
 **Database (~2 MB):**
 ```
 db/
-  └─ sql.fn            # libSQL (SQLite-compatible) wrapper
+  └─ sql.mr            # libSQL (SQLite-compatible) wrapper
 ```
 
 **Concurrency (~400 KB for runtime + actors):**
 ```
 concurrent/
-  ├─ cache.fn          # In-memory cache actor
-  ├─ queue.fn          # Job queue actor
-  ├─ pubsub.fn         # Pub/sub actor
-  └─ pool.fn           # Connection pool
+  ├─ cache.mr          # In-memory cache actor
+  ├─ queue.mr          # Job queue actor
+  ├─ pubsub.mr         # Pub/sub actor
+  └─ pool.mr           # Connection pool
 ```
 
 **Security (~200-500 KB):**
 ```
 crypto/
-  ├─ hash.fn           # Cryptographic hashing (SHA256, etc.)
-  ├─ aes.fn            # AES encryption
-  ├─ rsa.fn            # RSA encryption
-  └─ random.fn         # Cryptographically secure random
+  ├─ hash.mr           # Cryptographic hashing (SHA256, etc.)
+  ├─ aes.mr            # AES encryption
+  ├─ rsa.mr            # RSA encryption
+  └─ random.mr         # Cryptographically secure random
 ```
 
 **Compression (~200-400 KB):**
 ```
 compress/
-  ├─ gzip.fn           # Gzip compression
-  ├─ zlib.fn           # Zlib compression
-  └─ tar.fn            # Tar archives
+  ├─ gzip.mr           # Gzip compression
+  ├─ zlib.mr           # Zlib compression
+  └─ tar.mr            # Tar archives
 ```
 
 ### Complete Module List
@@ -4259,7 +4259,7 @@ fn main() -> Result((), Error):
     
     log.info("Compiling sources...")
     for src in config.get("sources"):
-        io.process.exec("fern", ["build", src])?
+        io.process.exec("morrow", ["build", src])?
         print(cli.colors.green("✓ Compiled {src}"))
     
     log.info("Build complete!")
@@ -4271,29 +4271,29 @@ fn main() -> Result((), Error):
 
 ### Testing Framework
 
-Built-in test runner with `fern test`:
+Built-in test runner with `morrow test`:
 
 ```bash
 # Run all tests
-fern test
+morrow test
 
 # Run specific test file
-fern test tests/parser_test.fn
+morrow test tests/parser_test.mr
 
 # Run with coverage
-fern test --coverage
+morrow test --coverage
 
 # Run benchmarks
-fern test --bench
+morrow test --bench
 
 # Watch mode (rerun on changes)
-fern test --watch
+morrow test --watch
 ```
 
 **Example test file:**
 
 ```
-# tests/list_test.fn
+# tests/list_test.mr
 import test.assert
 import list
 
@@ -4318,7 +4318,7 @@ fn bench_map_large():
 **Test output:**
 
 ```
-$ fern test
+$ morrow test
 Running tests...
 ✓ test_map (0.2ms)
 ✓ test_filter (0.1ms)
@@ -4356,7 +4356,7 @@ framework first-party; the other specialized integrations remain ecosystem work.
 For features beyond stdlib, use the package manager:
 
 ```toml
-# fern.toml
+# morrow.toml
 [package]
 name = "my-web-app"
 version = "0.1.0"
@@ -4373,21 +4373,21 @@ The stdlib provides the foundation, packages provide specialization.
 
 ## Implementation
 
-Fern is implemented as a Rust Cargo workspace. The compiler owns lexical analysis,
+Morrow is implemented as a Rust Cargo workspace. The compiler owns lexical analysis,
 parsing, module resolution, type/Result checking, formatting, documentation, REPL,
 LSP and typed machine lowering. Cranelift emits native objects; the platform linker
 combines them with the Rust runtime archive. No external IR compiler is needed.
 
 ```text
-Fern source → typed Rust frontend → machine IR → Cranelift object → host linker
+Morrow source → typed Rust frontend → machine IR → Cranelift object → host linker
                                                                     ↑
                                                            Rust runtime archive
 ```
 
-The workspace separates `fern`, `fern-json`, `fern-runtime`,
-`fern-runtime-native`, `fern-test-supervisor` and `xtask`, with optional
-`fern-web-protocol`, `fern-web-app`, `fern-web`, `fern-browser` and
-`fern-browser-worker` packages.
+The workspace separates `morrow`, `morrow-json`, `morrow-runtime`,
+`morrow-runtime-native`, `morrow-test-supervisor` and `xtask`, with optional
+`morrow-web-protocol`, `morrow-web-app`, `morrow-web`, `morrow-browser` and
+`morrow-browser-worker` packages.
 Native startup is isolated
 from the runtime core so Rust tests can link its ABI without a duplicate main.
 The shared JSON crate implements bounded parsing, exact numbers and immutable
@@ -4404,10 +4404,10 @@ inferred borrowing and reuse remain implementation
 work. See [runtime memory](docs/MEMORY_MANAGEMENT.md) and
 the [full-stack target architecture](docs/FULL_STACK_ARCHITECTURE.md).
 
-Fern-authored code and development tooling are Rust. Mature third-party native
+Morrow-authored code and development tooling are Rust. Mature third-party native
 libraries may be used through Rust wrappers: SQLite uses rusqlite; HTTP uses
 ureq/rustls and Rust-wrapped crypto. Prefer native Rust dependencies when they
-preserve the required behavior. Editor integration is the Rust LSP (`fern lsp`);
+preserve the required behavior. Editor integration is the Rust LSP (`morrow lsp`);
 Tree-sitter and the related grammar package are removed.
 
 The implementation targets macOS and Linux on ARM64 and x86-64, with acceptance
@@ -4415,7 +4415,7 @@ reported per tested platform. `cargo xtask check` verifies formatting, Clippy,
 workspace tests, native outputs, compatibility, examples and fuzz invariants.
 `cargo xtask package` validates the complete compiler/helper/runtime bundle.
 
-Read [FERN_STYLE.md](FERN_STYLE.md), [CLAUDE.md](CLAUDE.md) and
+Read [MORROW_STYLE.md](MORROW_STYLE.md), [CLAUDE.md](CLAUDE.md) and
 [ROADMAP.md](ROADMAP.md) for development and current evidence. Earlier architecture
 proposals are retained in the [historical implementation plan](docs/history/IMPLEMENTATION_PLAN.md).
 
@@ -4428,8 +4428,8 @@ claim; consult [release readiness](docs/RELEASE_READINESS.md).
 | Feature | Syntax/Approach |
 |---------|----------------|
 | **Language** | |
-| Name | Fern |
-| CLI / Extension | `fern` / `.fn` |
+| Name | Morrow |
+| CLI / Extension | `morrow` / `.mr` |
 | Syntax | Indentation-based (Python-style) |
 | Philosophy | Functional-first, immutable, pragmatic |
 | **Type System** | |

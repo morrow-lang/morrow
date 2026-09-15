@@ -1,8 +1,8 @@
 # Writing and publishing documentation
 
-Fern documents code the way Elixir does with `@doc` and HexDocs: documentation
+Morrow documents code the way Elixir does with `@doc` and HexDocs: documentation
 lives next to declarations as literal Markdown, examples inside it are
-executable tests, and `fern doc` renders everything into a browsable site with
+executable tests, and `morrow doc` renders everything into a browsable site with
 navigation, search and cross-references. The same generator documents this
 repository: `cargo xtask docs` builds the guides you are reading, the examples
 and the Rust API reference into one site.
@@ -12,10 +12,10 @@ and the Rust API reference into one site.
 `@moduledoc` describes a whole source file. It appears once, after the optional
 `module` line and before the first declaration. `@doc` precedes one function
 clause group, type, newtype, constant or trait. Both take a triple-quoted
-literal string; escapes are not interpolated, so Markdown and Fern code inside
+literal string; escapes are not interpolated, so Markdown and Morrow code inside
 stay exactly as written.
 
-```fern
+```morrow
 module geometry.shapes
 
 @moduledoc """
@@ -37,7 +37,7 @@ Compute the area of a `Shape`.
 
 # Examples
 
-```fern
+```morrow
 area(Square(3))  # => 9
 ```
 
@@ -51,8 +51,8 @@ pub fn area(shape: Shape) -> Int:
         Square(side) -> side * side
 ```
 
-`fern fmt` preserves both attributes and places `@moduledoc` directly below the
-module line. Hover in an editor connected to `fern lsp` shows `@doc` text.
+`morrow fmt` preserves both attributes and places `@moduledoc` directly below the
+module line. Hover in an editor connected to `morrow lsp` shows `@doc` text.
 
 ### Markdown in documentation
 
@@ -62,7 +62,7 @@ Documentation is rendered with a bounded CommonMark/GFM subset:
 | --- | --- |
 | Headings `#`…`######` | Shifted below the page or declaration heading; IDs are generated for linking. |
 | Paragraphs, emphasis, `code` | `*em*`, `_em_`, `**strong**`, code spans with any backtick run. |
-| Fenced code | ```` ```fern ```` blocks are highlighted and, when they contain `# =>` expectations, executed by `fern test --doc`. Other languages render verbatim. |
+| Fenced code | ```` ```morrow ```` blocks are highlighted and, when they contain `# =>` expectations, executed by `morrow test --doc`. Other languages render verbatim. |
 | Lists, block quotes, rules | Nested lists by indentation; tight items render without paragraphs. |
 | Pipe tables | Header, delimiter row with optional `:` alignment, body rows. |
 | Links | `[text](url "title")`, `<https://…>` and bare `https://` URLs. Only `http`, `https`, `mailto`, `#fragment` and relative destinations become links; other schemes render as text. |
@@ -76,7 +76,7 @@ Inline code that names a declaration becomes a link:
 - `` `area` `` links to a declaration in the same module.
 - `` `geometry.shapes.area` `` links to a declaration in another module of the
   same site. Modules are addressed by their declared `module` name or, for
-  files without one, by their path with `/` replaced by `.` (`lib/math.fn` is
+  files without one, by their path with `/` replaced by `.` (`lib/math.mr` is
   `lib.math`).
 - `` `geometry.shapes` `` links to a module page.
 - Types and values keep separate anchors (`#t:Shape` and `#area`), so a type
@@ -87,24 +87,24 @@ is rewritten to the generated page when `GUIDE.md` is part of the site.
 
 ### Executable examples
 
-Every ```` ```fern ```` block in `@moduledoc` or `@doc` is a documentation test.
+Every ```` ```morrow ```` block in `@moduledoc` or `@doc` is a documentation test.
 Lines ending in `# => value` are checked with ordinary pattern matching; see the
-[test runner](TEST_RUNNER.md). Run them with `fern test --doc <source|directory>`.
+[test runner](TEST_RUNNER.md). Run them with `morrow test --doc <source|directory>`.
 
 ## Generating documentation
 
 | Command | Output |
 | --- | --- |
-| `fern doc lib.fn` | Markdown for one file on stdout. |
-| `fern doc lib.fn --html -o docs.html` | One standalone, script-free HTML page. |
-| `fern doc src --html -o docs.html` | One page for a directory with module navigation. |
-| `fern doc src --inferred …` | Adds signatures resolved by the checker. |
-| `fern doc src --site docs-site …` | A multi-page site: one page per module and guide, a sidebar, local search and a JSON search index. |
+| `morrow doc lib.mr` | Markdown for one file on stdout. |
+| `morrow doc lib.mr --html -o docs.html` | One standalone, script-free HTML page. |
+| `morrow doc src --html -o docs.html` | One page for a directory with module navigation. |
+| `morrow doc src --inferred …` | Adds signatures resolved by the checker. |
+| `morrow doc src --site docs-site …` | A multi-page site: one page per module and guide, a sidebar, local search and a JSON search index. |
 
 ### Sites
 
 ```sh
-fern doc src --site docs-site \
+morrow doc src --site docs-site \
     --title "Geometry" --version 1.2.0 \
     --extras README.md --extras docs \
     --link "Source=https://example.com/geometry" \
@@ -129,25 +129,25 @@ fern doc src --site docs-site \
 
 Every generated file sits in one flat directory, so the site works from disk
 without a server: `index.html`, one `<name>.html` per module and guide,
-`fern-docs.css`, `fern-docs.js` and `fern-search.js`. The script only filters the
+`morrow-docs.css`, `morrow-docs.js` and `morrow-search.js`. The script only filters the
 bundled search index, toggles the sidebar on small screens and remembers the
 light/dark theme; it never fetches or evaluates data. Press `/` to search.
 
 Limits keep generation bounded: 256 modules and 256 guides, 1 MiB per guide,
 8 MiB of source, 16 MiB per page and 64 MiB per site. Page names that collide
-(a module `guide.fn` next to `GUIDE.md`) are reported before anything is written.
+(a module `guide.mr` next to `GUIDE.md`) are reported before anything is written.
 
-## Documenting Fern itself
+## Documenting Morrow itself
 
 `cargo xtask docs [output] [--no-rust]` builds the staged compiler and then runs
-`fern doc examples --inferred --site <output>` with this repository's README,
+`morrow doc examples --inferred --site <output>` with this repository's README,
 `docs/`, design, roadmap, decision record, build guide and style guide as extras.
 Unless `--no-rust` is given it also runs `cargo doc --workspace --no-deps` and
 copies the Rust API reference to `<output>/rust/`, linked from the sidebar. The
 default output is `dist/docs`, which is ignored by git.
 
 The Rust sources keep rustdoc comments (`//!`, `///`) for the compiler, runtime
-and tooling internals; the Fern-facing language and library documentation lives
+and tooling internals; the Morrow-facing language and library documentation lives
 in `docs/` and in `@moduledoc`/`@doc` attributes.
 
 ## Current limitations

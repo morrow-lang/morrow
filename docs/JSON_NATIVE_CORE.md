@@ -2,21 +2,21 @@
 
 This document defines the native parser/accessor foundation. J2 adds immutable
 builders and collection adapters, exposed by the [Rust native API](JSON_RUST_API.md).
-The legacy `fern_json_parse` and `fern_json_stringify` string-copy entry points
+The legacy `morrow_json_parse` and `morrow_json_stringify` string-copy entry points
 were removed during the Rust workspace migration. The Rust REPL implements the same dynamic
 profile with additional interactive aggregate/retention limits; typed codecs remain
 separate. See [the Rust API](JSON_RUST_API.md).
 
 ## ABI and ownership
 
-`crates/fern-runtime/src/json.rs` exports opaque value/error pointers through
-the native ABI. Handles are owned by Fern's Rust collector; finalized handles
+`crates/morrow-runtime/src/json.rs` exports opaque value/error pointers through
+the native ABI. Handles are owned by Morrow's Rust collector; finalized handles
 release their shared Rust JSON storage. Callers must not free them individually.
 Values are immutable.
 The C API requires valid, non-NULL opaque pointers returned by this API. It does
 not validate forged C pointers or provide mutable access to internal fields.
 
-All functions below use the `fern_json_value_` prefix:
+All functions below use the `morrow_json_value_` prefix:
 
 | Suffix | Parameters | Result |
 | --- | --- | --- |
@@ -37,8 +37,8 @@ All functions below use the `fern_json_value_` prefix:
 | `error_path` | `const Error*` | immutable JSON Pointer `const char*` |
 
 Every Result is the existing full-width heap Result returned as `int64_t`.
-Success/failure tags are read with `fern_result_is_ok`; the full-width payload is
-read with `fern_result_unwrap`. Pointer payloads convert through `intptr_t`.
+Success/failure tags are read with `morrow_result_is_ok`; the full-width payload is
+read with `morrow_result_unwrap`. Pointer payloads convert through `intptr_t`.
 Float success payloads are binary64 bit patterns, not integer numeric
 conversions. These are ordinary Result failures, and normal source Result
 handling applies.
@@ -63,7 +63,7 @@ indices before reading array storage. `length` never treats a String as an array
 
 Decoded JSON strings and names retain lengths and can contain escaped NUL.
 Stringification re-escapes NUL as `\u0000`; `as_string` returns code10 if exposing
-the string through Fern's current NUL-terminated String ABI would truncate it.
+the string through Morrow's current NUL-terminated String ABI would truncate it.
 C input parameters are NUL-terminated; embedded input bytes after the terminator
 are outside that ABI. `get` therefore cannot address a NUL-containing key; such
 keys remain preserved by parse/stringify, through the lossless `json.members` adapter as JSON String values.
@@ -139,31 +139,31 @@ tests exercise those ceilings directly without exposing a public limit override.
 Builders enforce cached depth, expanded-node and encoded-byte metadata when
 sealing; the parser also enforces depth/nodes during descent/allocation.
 
-The shared `fern-json` crate implements parsing, indexing, conversion and
+The shared `morrow-json` crate implements parsing, indexing, conversion and
 encoding for both native execution and the REPL. Runtime integration tests
 exercise opaque ownership, malformed byte input and the full-width Result ABI.
 The Rust collector has separate root, pressure, cycle and finalizer tests.
 
 ```sh
-cargo test -p fern-json
-cargo test -p fern-runtime --test json_values
-cargo test -p fern-runtime --release
+cargo test -p morrow-json
+cargo test -p morrow-runtime --test json_values
+cargo test -p morrow-runtime --release
 cargo xtask native json
 ```
 
 ## J2 builders and collection ABI
 
-All added entry points retain the `fern_json_value_` prefix. `null`, `from_bool`
+All added entry points retain the `morrow_json_value_` prefix. `null`, `from_bool`
 and `from_int` return a raw opaque Value pointer. `from_float(double)`,
-`from_string`, `from_number_text`, `from_array(const FernList*)` and
-`from_object(const FernList* keys, const FernList* values)` return heap Results.
+`from_string`, `from_number_text`, `from_array(const MorrowList*)` and
+`from_object(const MorrowList* keys, const MorrowList* values)` return heap Results.
 The native object builder receives parallel String-pointer/Value-pointer lists.
 It copies key bytes, validates Unicode, retains immutable child values, seals
 expanded metadata and rejects duplicate decoded names. All builder errors have
 offset-1. Every input list dimension is checked before reading its data.
 
 `elements` returns Result(List(Value*), Error*). `members` returns
-Result(List(FernJsonMember*), Error*); each member record has exactly two64-bit
+Result(List(MorrowJsonMember*), Error*); each member record has exactly two64-bit
 fields, `key` at offset0 and `value` at offset8. Rust ABI tests and compiler adapter tests check this
 layout. The Rust emitter converts successful member results to tagged three-word
 source tuples; it preserves Err pointers without reading them as lists.

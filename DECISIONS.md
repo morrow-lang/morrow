@@ -1,6 +1,6 @@
-# Fern Language - Decision Log
+# Morrow Language - Decision Log
 
-This document tracks major architectural and technical decisions made during the development of the Fern programming language and compiler.
+This document tracks major architectural and technical decisions made during the development of the Morrow programming language and compiler.
 
 ## Project Decision Log
 

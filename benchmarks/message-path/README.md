@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Compiled Fern application over a loopback WebSocket
 
 This standalone experiment changes only the network encoding around the actual

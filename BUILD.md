@@ -1,6 +1,6 @@
-# Build and develop Fern
+# Build and develop Morrow
 
-Fern is a Cargo workspace. The Rust compiler uses Cranelift for native code,
+Morrow is a Cargo workspace. The Rust compiler uses Cranelift for native code,
 and links generated objects with the Rust runtime archive using the host linker.
 
 ## Prerequisites
@@ -24,14 +24,14 @@ version check, not a promise of support for an untested stable compiler.
 
 ```sh
 cargo xtask build
-./bin/fern run examples/tiny_cli.fn
-./bin/fern build examples/tiny_cli.fn -o hello
+./bin/morrow run examples/tiny_cli.mr
+./bin/morrow build examples/tiny_cli.mr -o hello
 ./hello
 cargo xtask build --release
 ```
 
-The staged `bin/` directory contains `fern`, `fern-test-supervisor`,
-`libfern_runtime.a` and `fern-package.json`. The archive includes native startup
+The staged `bin/` directory contains `morrow`, `morrow-test-supervisor`,
+`libmorrow_runtime.a` and `morrow-package.json`. The archive includes native startup
 and the Rust runtime. Cargo's separate core runtime archive is for ABI/collector
 probes and is not a substitute for the staged startup archive.
 
@@ -45,8 +45,8 @@ probes and is not a substitute for the staged startup archive.
 | `cargo xtask examples` | Typecheck public examples using staged binaries |
 | `cargo xtask fmt` | Format the Rust workspace |
 | `cargo xtask lint` | Check formatting and deny Clippy warnings |
-| `cargo test -p fern --lib` | Focused compiler library tests |
-| `cargo test -p fern-runtime` | Runtime unit tests |
+| `cargo test -p morrow --lib` | Focused compiler library tests |
+| `cargo test -p morrow-runtime` | Runtime unit tests |
 
 Build before running `native` or `examples` directly. The combined `check` and
 `test` commands prepare their own binaries and Rust supervisor fixtures. Run
@@ -66,7 +66,7 @@ cargo xtask uninstall "$HOME/.local"
 
 Installation builds release components. Executables, the startup archive and
 marker live under `<prefix>/bin`; license notices and the optional README live
-under `<prefix>/share/fern`. Uninstall removes only these known component names.
+under `<prefix>/share/morrow`. Uninstall removes only these known component names.
 Literal spaces, quotes and Unicode are supported. Installation preflights every
 destination, prepares complete private copies, and atomically replaces each file.
 It rejects symlink components in the destination path; use the actual directory
@@ -74,8 +74,8 @@ path when a system alias such as macOS `/tmp` resolves through a symlink.
 
 The compiler locates native components beside its actual executable, including
 when invoked through `PATH` or a symlink. An installed package marker prevents
-fallback to a development checkout. `FERN_RUNTIME_LIB` and
-`FERN_TEST_SUPERVISOR` are explicit component overrides; `CC` selects one linker
+fallback to a development checkout. `MORROW_RUNTIME_LIB` and
+`MORROW_TEST_SUPERVISOR` are explicit component overrides; `CC` selects one linker
 driver executable and does not accept a shell command.
 
 ## Release archives
@@ -83,7 +83,7 @@ driver executable and does not accept a shell command.
 ```sh
 cargo xtask package
 cargo xtask package /absolute/output/directory
-cargo xtask verify dist/fern-0.1.0-linux-arm64.tar.gz dist/fern-0.1.0-linux-arm64.tar.gz.sha256
+cargo xtask verify dist/morrow-0.1.0-linux-arm64.tar.gz dist/morrow-0.1.0-linux-arm64.tar.gz.sha256
 ```
 
 Archive names include the workspace version and actual host OS/architecture.
@@ -94,14 +94,14 @@ programs still depend on platform system libraries; bundles are platform-specifi
 
 ## Workspace layout
 
-- `crates/fern`: compiler, formatter, REPL, docs, LSP and language tests.
-- `crates/fern-runtime`: allocation, native value ABI and services.
-- `crates/fern-runtime-native`: compiled-program startup archive.
-- `crates/fern-json`: shared bounded JSON implementation.
-- `crates/fern-test-supervisor`: retained-child native test capture and protocol.
+- `crates/morrow`: compiler, formatter, REPL, docs, LSP and language tests.
+- `crates/morrow-runtime`: allocation, native value ABI and services.
+- `crates/morrow-runtime-native`: compiled-program startup archive.
+- `crates/morrow-json`: shared bounded JSON implementation.
+- `crates/morrow-test-supervisor`: retained-child native test capture and protocol.
 - `xtask`: build, acceptance, distribution and installation commands.
 - `examples` and `docs`: language examples and reference material.
 
-See [CLAUDE.md](CLAUDE.md), [FERN_STYLE.md](FERN_STYLE.md) and
+See [CLAUDE.md](CLAUDE.md), [MORROW_STYLE.md](MORROW_STYLE.md) and
 [ROADMAP.md](ROADMAP.md) before making changes. Dated reports describe their
 original implementation and must not be relabeled as measurements of a new build.

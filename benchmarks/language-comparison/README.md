@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Fern, Rust and TypeScript/Bun experiments
 
 These are reproducible experiments on current implementations, not a language

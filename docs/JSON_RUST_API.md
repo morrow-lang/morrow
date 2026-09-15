@@ -1,7 +1,7 @@
 # Rust native JSON API
 
 The Rust frontend now checks and compiles immutable JSON values through the
-validating Rust runtime. The native runtime and REPL share the safe `fern-json`
+validating Rust runtime. The native runtime and REPL share the safe `morrow-json`
 engine and its format/error profile. Values and closures persist across successful entries;
 failed evaluations do not commit new bindings.
 
@@ -12,7 +12,7 @@ Opaque values work in generic functions, records, collections and closures; they
 cannot be constructed as records, inspected through fields, compared, used as
 Map keys, printed or interpolated implicitly. Print encoded text or error details.
 
-```fern
+```morrow
 json.parse(String) -> Result(json.Value, json.Error)
 json.stringify(json.Value) -> Result(String, json.Error)
 json.is_null(json.Value) -> Bool
@@ -77,12 +77,12 @@ a promise that every encoded value can be parsed again under the input cap.
 
 The native boundary uses full-width opaque pointers and heap Results. Float builder
 arguments use native `f64`. Member records use two native pointer fields;
-the compiler checks Result success before converting them into tagged Fern tuples.
+the compiler checks Result success before converting them into tagged Morrow tuples.
 The Map argument is evaluated once, then copied in one bounded pass to parallel
-native lists. No C object is reinterpreted as an unrelated Fern tuple or Map.
+native lists. No C object is reinterpreted as an unrelated Morrow tuple or Map.
 Adapter storage is included in the documented per-operation allocation reservation:
-objects reserve `16 * max(count,1) + 2*sizeof(FernList)` bytes; members reserve at
-most `56 * max(count,1) + 2*sizeof(FernList)` bytes, including tuple conversion.
+objects reserve `16 * max(count,1) + 2*sizeof(MorrowList)` bytes; members reserve at
+most `56 * max(count,1) + 2*sizeof(MorrowList)` bytes, including tuple conversion.
 
 The native gate runs ten exact-output programs and twelve semantic rejection
 cases, including direct/first-class calls, NUL members, signed 64-bit Int/Float values,
@@ -128,8 +128,8 @@ retained as independent test data; evaluation uses no external generator.
 Typed codecs are implemented within their [documented bounds](JSON_TYPED_CODECS.md).
 
 ```sh
-cargo test -p fern-json
-cargo test -p fern-runtime --test json_values
+cargo test -p morrow-json
+cargo test -p morrow-runtime --test json_values
 cargo xtask native json
 cargo xtask check
 ```

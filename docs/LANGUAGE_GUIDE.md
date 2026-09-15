@@ -1,33 +1,33 @@
-# Start writing Fern
+# Start writing Morrow
 
-Fern is a pre-1.0 language for native programs with immutable values, inferred
+Morrow is a pre-1.0 language for native programs with immutable values, inferred
 local types, and explicit errors. This guide uses the working compiler surface.
 [DESIGN.md](../DESIGN.md) also describes features still planned; consult
-[release readiness](RELEASE_READINESS.md) before choosing Fern for a project.
+[release readiness](RELEASE_READINESS.md) before choosing Morrow for a project.
 
 ## Build and say hello
 
 Follow [BUILD.md](../BUILD.md) to install the build dependencies, then run
-`cargo xtask build` in the checkout. Save this program as `hello.fn`:
+`cargo xtask build` in the checkout. Save this program as `hello.mr`:
 
-```fern
+```morrow
 fn main():
-    println("Hello, Fern!")
+    println("Hello, Morrow!")
 ```
 ```output
-Hello, Fern!
+Hello, Morrow!
 ```
 
-Run it with `./bin/fern run hello.fn`. To make an executable, use
-`./bin/fern build hello.fn -o hello`, then `./hello`.
+Run it with `./bin/morrow run hello.mr`. To make an executable, use
+`./bin/morrow build hello.mr -o hello`, then `./hello`.
 `print` writes without a newline; `println` adds one.
 The four-space indentation introduces the function body. A `main` without a
 return annotation finishes with exit code zero. Use `fn main() -> Int` when you
 need to choose a process exit code.
 
 For a local installation, run `cargo xtask install "$HOME/.local"`, then add
-`$HOME/.local/bin` to `PATH`. Keep `fern`, `fern-test-supervisor`,
-`libfern_runtime.a` and `fern-package.json` together when moving an installation.
+`$HOME/.local/bin` to `PATH`. Keep `morrow`, `morrow-test-supervisor`,
+`libmorrow_runtime.a` and `morrow-package.json` together when moving an installation.
 Compilation still needs the host linker and SDK described in the build guide.
 
 ## Values and functions
@@ -35,18 +35,18 @@ Compilation still needs the host linker and SDK described in the build guide.
 `let` binds an immutable value. The compiler infers local types; function
 signatures make interfaces explicit. The last expression is the return value.
 
-```fern
+```morrow
 fn greet(name: String) -> String:
     String.concat("Hello, ", name)
 
 fn main():
-    let language = "Fern"
+    let language = "Morrow"
     println(greet(language))
     let score = 6 * 7
     println(score)
 ```
 ```output
-Hello, Fern
+Hello, Morrow
 42
 ```
 
@@ -60,7 +60,7 @@ An `if` is an expression. Both branches produce a value. Lists have one element
 type, and list operations return new values. Prefer bounded input sizes while
 exploring recursive programs.
 
-```fern
+```morrow
 fn sum(values: List(Int)) -> Int:
     if List.is_empty(values):
         0
@@ -92,7 +92,7 @@ itself returns a compatible `Result`.
 This example uses an invalid URL so its output is deterministic and it requires
 no network access:
 
-```fern
+```morrow
 fn main():
     match http.get("invalid://example"):
         Ok(body) -> println(body)
@@ -109,26 +109,26 @@ See the [stdlib reference](STDLIB_API_REFERENCE.md) for the current signatures.
 
 ## Iterate with the tools
 
-- `fern check hello.fn` checks syntax and types without linking.
-- `fern fmt hello.fn` formats the source in place.
-- `fern run hello.fn` compiles in a private temporary directory and executes it.
-- `fern build hello.fn -o hello` retains the executable.
-- `fern repl` opens the interactive REPL.
-- `fern lsp` starts the language server for an editor.
+- `morrow check hello.mr` checks syntax and types without linking.
+- `morrow fmt hello.mr` formats the source in place.
+- `morrow run hello.mr` compiles in a private temporary directory and executes it.
+- `morrow build hello.mr -o hello` retains the executable.
+- `morrow repl` opens the interactive REPL.
+- `morrow lsp` starts the language server for an editor.
 
-Use `fern --help` for the current command list. Diagnostics include source
+Use `morrow --help` for the current command list. Diagnostics include source
 locations and hints; fix the earliest error first, then check again. Use
 `--color=never` for plain output and `--verbose` to inspect compilation stages.
 
 ## Explore working examples
 
-- [Language tour](../examples/language_tour.fn): traits, compile-time constants,
+- [Language tour](../examples/language_tour.mr): traits, compile-time constants,
   Sets, JSON round trips and cleanup in one tested program.
-- [Tiny CLI](../examples/tiny_cli.fn): command dispatch and string output.
-- [Actor mailboxes](../examples/actor_app.fn): enqueue and explicitly receive messages.
-- [HTTP errors](../examples/http_api.fn): deterministic client error handling.
-- [Terminal project view](../examples/tui_project.fn): tree and log formatting.
-- [File operations](../examples/file_io.fn): reads, writes, and Result matching.
+- [Tiny CLI](../examples/tiny_cli.mr): command dispatch and string output.
+- [Actor mailboxes](../examples/actor_app.mr): enqueue and explicitly receive messages.
+- [HTTP errors](../examples/http_api.mr): deterministic client error handling.
+- [Terminal project view](../examples/tui_project.mr): tree and log formatting.
+- [File operations](../examples/file_io.mr): reads, writes, and Result matching.
 
 `cargo xtask check` typechecks all examples and runs independent native execution
 fixtures, including a native and interactive output oracle for the language tour.

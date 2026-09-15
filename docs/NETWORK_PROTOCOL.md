@@ -1,4 +1,6 @@
-# Fern network protocol: decision and measurements
+# Morrow network protocol: decision and measurements
+
+> Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
 
 Date: 2026-09-14. Decision: adopt a bounded, explicitly negotiated **protobuf**
 profile for live browser/WASM/server messages. Keep **WebSocket** for browsers
@@ -9,9 +11,9 @@ application, rather than timings of every subsequent production change.
 
 The [adopted standard](WIRE_STANDARD_PROPOSAL.md) explains compatibility and
 rollout. The [application contract](../protocol/README.md) and
-[peer contract](../crates/fern-cluster/protocol/README.md) define the actual fields,
+[peer contract](../crates/morrow-cluster/protocol/README.md) define the actual fields,
 limits and parser policies. This is the checklist application's shared message
-contract; generation of codecs for arbitrary Fern application types remains work.
+contract; generation of codecs for arbitrary Morrow application types remains work.
 
 ## Why JSON was kept, and why the decision changed
 
@@ -22,7 +24,7 @@ or compiled-application measurements. Keeping it then avoided claiming a benefit
 we had not measured. It did not establish that JSON was free or optimal.
 
 The new experiments measure native codec work, real browser/WASM transfers, and
-a loopback WebSocket carrying commands through the real Hub and compiled Fern
+a loopback WebSocket carrying commands through the real Hub and compiled Morrow
 domain actor. JSON does cost measurable encoding, decoding and conversion work.
 Binary encoding saves substantial traffic in the tested model; protobuf also
 decodes faster in the tested browser adapters. These observations, plus explicit
@@ -125,9 +127,9 @@ and socket traffic, but is not a complete production-server capacity benchmark.
 
 | Boundary | Standard |
 | --- | --- |
-| Browser/WASM live connection | Binary WebSocket, `fern.live.protobuf.v1` |
-| Explicit legacy browser compatibility | Text JSON, `fern.live.v1` |
-| Server forwarding | Bounded length-prefixed protobuf over mutual TLS; ALPN `fern.peer.protobuf.v1`, handshake version 2 |
+| Browser/WASM live connection | Binary WebSocket, `morrow.live.protobuf.v1` |
+| Explicit legacy browser compatibility | Text JSON, `morrow.live.v1` |
+| Server forwarding | Bounded length-prefixed protobuf over mutual TLS; ALPN `morrow.peer.protobuf.v1`, handshake version 2 |
 | HTTP, admin JSON, node configuration, offline records and checkpoints | Their existing independently versioned JSON formats |
 
 The application's logical version remains 1. Native `i64` values use protobuf
@@ -138,10 +140,10 @@ range, and ProtoJSON also represents 64-bit integers as strings.
 [JSON numeric interoperability](https://www.rfc-editor.org/rfc/rfc8259.html#section-6),
 [ProtoJSON](https://protobuf.dev/programming-guides/json/).
 
-Fern's profile is deliberately closed. It rejects unknown fields, duplicate
+Morrow's profile is deliberately closed. It rejects unknown fields, duplicate
 singular fields, absent required values and irrelevant variant fields. Generic
 protobuf normally offers different unknown-field and merging behavior. The schema
-and structural budget validator are both part of Fern's contract. Stable field
+and structural budget validator are both part of Morrow's contract. Stable field
 numbers do not by themselves provide rolling-upgrade compatibility.
 [Protobuf encoding](https://protobuf.dev/programming-guides/encoding/),
 [presence](https://protobuf.dev/programming-guides/field_presence/).
@@ -177,13 +179,13 @@ authorization or durable acknowledgement.
 
 Phoenix's serializer uses compact JSON arrays for ordinary messages and a binary
 path for ArrayBuffer; LiveView uses Phoenix Socket. That is useful architectural
-inspiration, not evidence that JSON is the best representation for Fern's WASM
-host. Fern's browser-owned model/update/view is a different rendering design.
+inspiration, not evidence that JSON is the best representation for Morrow's WASM
+host. Morrow's browser-owned model/update/view is a different rendering design.
 [Phoenix serializer](https://raw.githubusercontent.com/phoenixframework/phoenix/main/assets/js/phoenix/serializer.js),
 [LiveView socket](https://raw.githubusercontent.com/phoenixframework/phoenix_live_view/main/assets/js/phoenix_live_view/live_socket.ts).
 
 Erlang distribution informs node identity, handshakes, framing and failure
-semantics. Its default cookie exchange is not encrypted transport. Fern's peers
+semantics. Its default cookie exchange is not encrypted transport. Morrow's peers
 authenticate and encrypt their configured connections; changing JSON to protobuf
 does not add remote language PIDs, replicated failover or exactly-once effects.
 [Erlang distribution](https://www.erlang.org/doc/apps/erts/erl_dist_protocol.html),
@@ -206,8 +208,8 @@ each change independently. [FlatBuffers](https://flatbuffers.dev/white_paper/) o
 mostly-read buffers. Their buffer-oriented access does not by itself remove the
 current browser/WASM transfer boundary or application validation.
 
-The [Fern/Rust/TypeScript comparison](../benchmarks/language-comparison/README.md)
-also identifies immutable collection/model work as a significant current Fern
+The [Morrow/Rust/TypeScript comparison](../benchmarks/language-comparison/README.md)
+also identifies immutable collection/model work as a significant current Morrow
 weakness, alongside low process memory and fast small-source builds. It is
 another reason to profile the complete application rather than focus exclusively
 on wire parsing.

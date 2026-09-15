@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Native optimization, 2026-09-14
 
 These are the list-optimization measurements. The later

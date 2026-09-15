@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 | Updates | Before | After | Rust | Speedup |
 | --- | ---: | ---: | ---: | ---: |
 | 10000 | 72.66 ms | 29.01 ms | 3.78 ms | 2.50× |

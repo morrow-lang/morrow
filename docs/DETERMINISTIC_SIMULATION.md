@@ -1,6 +1,8 @@
-# Deterministic simulation and a Fern demo
+# Deterministic simulation and a Morrow demo
 
-Fern's simulation tools run the real native actor scheduler and compiled Fern
+> Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
+
+Morrow's simulation tools run the real native actor scheduler and compiled Morrow
 application under seeded event schedules and virtual time. They exercise
 implementation behavior, with independent expected-state checks. They do not
 turn simulated days into a claim of production maturity or complete coverage.
@@ -15,7 +17,7 @@ cargo xtask simulate --actors --seed 42 --steps 5000
 ```
 
 The application scenario runs the production command protocol, client state
-machine and native Fern room actors. It delays, drops and duplicates wire
+machine and native Morrow room actors. It delays, drops and duplicates wire
 messages, disconnects clients, expires namespaces and restarts the server.
 Durable mode uses actual private room checkpoints. Each session receives virtual
 time before native calls; no simulated timer needs a wall-clock sleep.
@@ -33,7 +35,7 @@ cargo xtask simulate --replay scenario.json
 ```
 
 Actor reports support the same JSON/replay workflow. Reports keep their seed,
-configuration, simulator version and deterministic results. Preserve the Fern
+configuration, simulator version and deterministic results. Preserve the Morrow
 source commit alongside a report: replay checks results against the current
 implementation, and a later implementation can intentionally change behavior.
 Wall-clock measurements and native addresses are excluded from replay identity.
@@ -41,7 +43,7 @@ Use `cargo xtask simulate --help` for fault probabilities and resource bounds.
 
 ## What the application checker establishes
 
-An independent map-based state model checks each compiled Fern transition and
+An independent map-based state model checks each compiled Morrow transition and
 restored room. Additional invariants check that one command cannot commit twice
 in its namespace, rejected/duplicate commands cannot change state, revisions
 advance correctly, stale snapshots cannot move clients backwards, and network
@@ -96,23 +98,23 @@ examples of bugs found and protected, rather than an inference from a replay has
 
 ## Demo the language in three parts
 
-1. Run `cargo xtask build`, then `./bin/fern run examples/supervised_workers.fn`.
+1. Run `cargo xtask build`, then `./bin/morrow run examples/supervised_workers.mr`.
    This intentionally faults one supervised native worker, runs its cleanup on
    each attempt and lets a sibling finish. There are two restarts, then that
    lineage stops. The source uses typed PIDs and automatic memory; ordinary
    recoverable application errors should use `Result`.
-2. Follow the [web build guide](WEB_PREVIEW.md), set `FERN_WEB_DATA_DIR` to retain
+2. Follow the [web build guide](WEB_PREVIEW.md), set `MORROW_WEB_DATA_DIR` to retain
    room state, and open two browser windows. Type into the local preview, submit
    a task and observe server confirmation in both windows. Disconnect one
    browser using its developer tools: draft preview, byte accounting and filters
-   keep executing in Fern WASM. Reload after the application has cached, then
+   keep executing in Morrow WASM. Reload after the application has cached, then
    reconnect. Shared mutations require a connection.
 3. Run and replay the seeded scenarios above. Change the seed, workload and fault
    settings; inspect the event counters and trace digest. This demonstrates a
    reproducible development method alongside the executable language.
 
-The [shared Fern application](../examples/web/checklist.fn) owns model/update/view
-and domain behavior. The [server adapter](../examples/web/server.fn) owns typed
+The [shared Morrow application](../examples/web/checklist.mr) owns model/update/view
+and domain behavior. The [server adapter](../examples/web/server.mr) owns typed
 room actors. Rust supplies generic DOM operations, host capabilities and
 transport. Application-independent framework packaging, general preemption,
 complete precise native layouts and distributed ownership remain open.
@@ -185,10 +187,10 @@ historical record with its own source and artifact hashes.
 [TigerBeetle's VOPR documentation](https://github.com/tigerbeetle/tigerbeetle/blob/47aeb2212a255273dda508288412e537d11e4b7c/docs/internals/vopr.md)
 and [architecture](https://github.com/tigerbeetle/tigerbeetle/blob/47aeb2212a255273dda508288412e537d11e4b7c/docs/ARCHITECTURE.md)
 informed the fixed-seed event generator, controlled boundaries, independent
-checker and healthy recovery phase. This is Fern's implementation; no TigerBeetle
-code was copied, and Fern does not claim its consensus/storage coverage.
+checker and healthy recovery phase. This is Morrow's implementation; no TigerBeetle
+code was copied, and Morrow does not claim its consensus/storage coverage.
 
 The [LiveView source study](LIVEVIEW_STUDY.md) informed scoped pending feedback
 and preservation of local input. The Erlang/OTP source study in the actor
 simulation contract distinguishes scheduling reductions and rolling restart
-intensity from Fern's current callback budgets and lifetime restart limits.
+intensity from Morrow's current callback budgets and lifetime restart limits.

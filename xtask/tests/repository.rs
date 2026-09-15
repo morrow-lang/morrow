@@ -178,7 +178,7 @@ fn standalone_measurements_are_excluded_from_the_production_workspace() {
 }
 #[test]
 fn primary_guides_describe_only_supported_cargo_commands_and_components() {
-    for path in ["README.md", "BUILD.md", "CLAUDE.md", "FERN_STYLE.md"] {
+    for path in ["README.md", "BUILD.md", "CLAUDE.md", "MORROW_STYLE.md"] {
         let source = read(path);
         assert!(source.contains("cargo xtask"), "{path}");
         for retired in [

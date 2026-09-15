@@ -1,12 +1,12 @@
-# Fern language guide
+# Morrow language guide
 
-Fern is a statically typed, expression-oriented language with immutable values,
+Morrow is a statically typed, expression-oriented language with immutable values,
 explicit errors and supervised actors. It compiles to native executables, runs
 interactively in a REPL and targets WebAssembly for browser clients.
 
-```fern
+```morrow
 fn main():
-    println("Hello, Fern!")
+    println("Hello, Morrow!")
 ```
 
 The chapters in this guide describe the implemented language. Each example is

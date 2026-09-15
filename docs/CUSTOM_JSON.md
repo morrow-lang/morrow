@@ -1,9 +1,9 @@
 # Custom JSON codecs
 
-A nominal type can implement Fern's built-in `Json(a)` trait to choose its wire
+A nominal type can implement Morrow's built-in `Json(a)` trait to choose its wire
 representation. Both methods return explicit JSON errors:
 
-```fern
+```morrow
 newtype UserId = UserId(Int)
 
 impl Json(UserId):
@@ -22,12 +22,12 @@ type Envelope derive(Json):
 `json.encode(Envelope([UserId(42)]))` returns `Ok` containing
 `{"ids":["user-42"]}`. Decoding the same text reconstructs the nominal values.
 Custom methods execute inside derived records, tagged sums, tuples, maps and lists;
-they are ordinary statically specialized Fern functions. An authored implementation
+they are ordinary statically specialized Morrow functions. An authored implementation
 takes precedence over structural derivation for its nominal type.
 
 Generic wrappers can require `Json(a)` and call `to_json`/`from_json` directly:
 
-```fern
+```morrow
 newtype Box(a) = Box(a)
 
 impl Json(Box(a)) where Json(a):
@@ -76,9 +76,9 @@ bridges preserve full-width payloads and distinguish managed roots from scalar
 bits; interpreter callbacks retain safe Rust values. Plan traversal preserves the
 existing finite-shape and conservative union proofs.
 
-`cargo test -p fern --test custom_json` exercises nested records/lists, generic
+`cargo test -p morrow --test custom_json` exercises nested records/lists, generic
 bounds, error paths, callback faults and cleanup, caught quota failures, bounded
 recursive callbacks, and 64 deterministic full-width round trips against independent
-integer oracles. `custom_json_native/values.fn` supplies a separate native stdout
+integer oracles. `custom_json_native/values.mr` supplies a separate native stdout
 oracle. Custom JSON execution is available on native and REPL targets; the current
 WASM subset does not implement the JSON runtime APIs.

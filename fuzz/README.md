@@ -1,7 +1,7 @@
 # Deterministic compiler fuzzing
 
 Run `cargo xtask fuzz 512 0xC0FFEE`. The first seven cases use the retained
-`corpus/*.fn` seeds; subsequent cases use the Rust grammar generator. Each case
+`corpus/*.mr` seeds; subsequent cases use the Rust grammar generator. Each case
 must parse, format twice without changing, and parse again. Every subprocess
 runs through the bounded Rust test supervisor. Failures print the seed, index,
 stage and original source for reproduction.

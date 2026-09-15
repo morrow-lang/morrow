@@ -38,7 +38,7 @@ contracts. Source/REPL suites cover callbacks, effects, faults and work budgets.
 The retired table-generation script is not part of the build.
 
 ```sh
-cargo test -p fern --lib decimal::tests
-cargo test -p fern-runtime --test core_values
+cargo test -p morrow --lib decimal::tests
+cargo test -p morrow-runtime --test core_values
 cargo xtask compatibility
 ```

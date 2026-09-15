@@ -1,6 +1,6 @@
-# Fern Rust style and safety
+# Morrow Rust style and safety
 
-Fern-owned implementation and development tools use Rust. Cargo dependencies may
+Morrow-owned implementation and development tools use Rust. Cargo dependencies may
 wrap third-party native libraries. Apply these rules to the compiler, runtime,
 supervisor, JSON implementation and `xtask`.
 

@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 | Workload | Repeats/process | Fern ms/workload | Rust | Elixir tuples | Elixir structs |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | scalar 0 | 1 | 3.030 | 2.577 | 120.160 | 117.852 |

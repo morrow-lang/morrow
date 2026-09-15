@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Compiler phase benchmarks
 
 This separate, unpublished workspace measures the actual Rust frontend with

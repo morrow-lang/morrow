@@ -22,7 +22,7 @@ does not prevent older cleanup from running. The original body fault wins; if
 there was no earlier fault, the first cleanup fault wins. Supervision observes
 the final preserved fault only after cleanup finishes.
 
-Explicit native host cancellation (`fern_managed_close`/`fern_managed_stop`)
+Explicit native host cancellation (`morrow_managed_close`/`morrow_managed_stop`)
 marks the session stopped, drains all admitted actor cleanup, and then retires
 actor roots. Queued source work and suspended receive bodies do not resume.
 Cancellation does not restart actors. A pre-existing invocation fault retains
@@ -42,9 +42,9 @@ synchronous cleanup execution; they are not independently scheduled actor
 bodies. Existing restrictions on receiving/deferred actor effects still apply.
 No native caller stack is retained while the actor is suspended.
 
-Acceptance is in `crates/fern/tests/cranelift_backend.rs`,
-`crates/fern/tests/repl_actors.rs`, and
-`crates/fern-runtime/src/managed/cleanup.rs`. Native oracles cover receive and tail
+Acceptance is in `crates/morrow/tests/cranelift_backend.rs`,
+`crates/morrow/tests/repl_actors.rs`, and
+`crates/morrow-runtime/src/managed/cleanup.rs`. Native oracles cover receive and tail
 lifetimes, dynamic loop snapshots, Unicode return roots, nested cleanup failures,
 cancellation, and admission limits. The runtime simulation compares 64 seeded
 256-operation scope histories with an independent LIFO model, forces precise

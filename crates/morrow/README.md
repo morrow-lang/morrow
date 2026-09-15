@@ -1,16 +1,16 @@
-# Fern compiler
+# Morrow compiler
 
-The `fern` Cargo package provides the compiler binary and the `fern_compiler`
+The `morrow` Cargo package provides the compiler binary and the `morrow_compiler`
 library. It uses safe Rust for lexing, parsing, checking, lowering, formatting,
 documentation, the REPL and LSP. Cranelift is the native backend. The checked
-machine IR also has a textual inspection format exposed by `fern emit`.
+machine IR also has a textual inspection format exposed by `morrow emit`.
 
 Build the complete workspace from the repository root:
 
 ```sh
 cargo xtask build
-./bin/fern check examples/tiny_cli.fn
-./bin/fern run examples/tiny_cli.fn
+./bin/morrow check examples/tiny_cli.mr
+./bin/morrow run examples/tiny_cli.mr
 cargo xtask check
 ```
 
@@ -19,24 +19,24 @@ installation and release packaging. Root `Cargo.lock` fixes compiler dependencie
 
 ## Commands
 
-- `fern check source.fn`: parse and check an executable module graph.
-- `fern build source.fn -o program`: produce a native executable atomically.
-- `fern run source.fn -- args`: compile in a private directory and forward literal arguments.
-- `fern fmt source.fn`: format source; `--check` reports differences without rewriting.
-- `fern lex source.fn` and `fern parse source.fn`: inspect tokens or source AST.
-- `fern emit source.fn`: print validated textual machine IR without invoking native tools.
-- `fern repl`: evaluate expressions with persistent bindings and terminal editing.
-- `fern doc source.fn --html`: generate documentation; `--open` opens retained HTML.
-- `fern doc src --site docs-site [--extras docs] [--inferred]`: publish a multi-page
+- `morrow check source.mr`: parse and check an executable module graph.
+- `morrow build source.mr -o program`: produce a native executable atomically.
+- `morrow run source.mr -- args`: compile in a private directory and forward literal arguments.
+- `morrow fmt source.mr`: format source; `--check` reports differences without rewriting.
+- `morrow lex source.mr` and `morrow parse source.mr`: inspect tokens or source AST.
+- `morrow emit source.mr`: print validated textual machine IR without invoking native tools.
+- `morrow repl`: evaluate expressions with persistent bindings and terminal editing.
+- `morrow doc source.mr --html`: generate documentation; `--open` opens retained HTML.
+- `morrow doc src --site docs-site [--extras docs] [--inferred]`: publish a multi-page
   site with guides, navigation, search and cross-references
   ([guide](../../docs/DOCUMENTATION.md)).
-- `fern test source.fn`: execute zero-argument `test_` functions and documentation examples.
-- `fern lsp`: serve the language-server protocol over standard input/output.
+- `morrow test source.mr`: execute zero-argument `test_` functions and documentation examples.
+- `morrow lsp`: serve the language-server protocol over standard input/output.
 
 Global `--quiet`, `--verbose` and `--color=auto|always|never` controls preserve
 program and protocol output. `run` arguments after `--` remain literal. Help and
 version remain visible in quiet mode. Missing commands and invalid options fail.
-Use `fern --help` for the actual accepted CLI surface.
+Use `morrow --help` for the actual accepted CLI surface.
 
 ## Language and tooling contracts
 
@@ -51,7 +51,7 @@ bindings, pattern matching and explicit errors. Detailed contracts cover
 LSP includes diagnostics, completion, hover, signatures, navigation, symbols,
 formatting, semantic tokens, folding, selection ranges, inlay hints, rename and
 code actions. The server uses the compiler's parser and checked module graph.
-Configure the executable command `fern lsp` in a compatible editor; no separately
+Configure the executable command `morrow lsp` in a compatible editor; no separately
 built editor grammar is distributed.
 
 ## Native pipeline and ownership
@@ -64,13 +64,13 @@ UTF-8 modules → lexer/parser → checked typed IR → machine IR
 Resolved identities keep source names separate from generated symbols. Semantic
 types remain distinct even when their native register widths agree. Native
 runtime imports use an audited fixed ABI; the runtime owns allocation, collection
-and services. A generated `fern_main` wrapper preserves the startup calling
+and services. A generated `morrow_main` wrapper preserves the startup calling
 convention supplied by the Rust native-entry archive.
 
 `build` checks source/output aliases and publishes only completed artifacts.
 Installed compilers resolve the runtime and supervisor beside the actual executable;
 the package marker prevents fallback into a development checkout. Explicit
-`FERN_RUNTIME_LIB` and `FERN_TEST_SUPERVISOR` overrides remain available.
+`MORROW_RUNTIME_LIB` and `MORROW_TEST_SUPERVISOR` overrides remain available.
 
 Source tests execute through the Rust retained-child supervisor. Each stream is
 limited to 256 KiB, deadlines are positive and at most 60 seconds, and capture
@@ -84,8 +84,8 @@ process groups are outside containment and cannot hold capture beyond its deadli
 Run focused tests before broad acceptance:
 
 ```sh
-cargo test -p fern --lib
-cargo test -p fern --test lowering_closures
+cargo test -p morrow --lib
+cargo test -p morrow --test lowering_closures
 cargo xtask test
 cargo xtask check
 ```
@@ -93,6 +93,6 @@ cargo xtask check
 The combined checks build the Rust helper fixtures before compiler integration
 tests. Independent native oracles pin output, failures, full-width values and ABI
 behavior. Follow [CLAUDE.md](../../CLAUDE.md) and
-[FERN_STYLE.md](../../FERN_STYLE.md). The [roadmap](../../ROADMAP.md) distinguishes
+[MORROW_STYLE.md](../../MORROW_STYLE.md). The [roadmap](../../ROADMAP.md) distinguishes
 completed acceptance from planned features. Dated migration/backend reports refer
 to their original implementation and do not validate subsequent runtime changes.

@@ -1,9 +1,9 @@
 # Web actor workers
 
-`fern-web` routes each room to one pinned OS thread. `FERN_WEB_WORKERS`
+`morrow-web` routes each room to one pinned OS thread. `MORROW_WEB_WORKERS`
 accepts 1 through 32; the default is available CPU parallelism capped at four.
-Each worker constructs, runs and drops its own compiled Fern actor runtime and
-heaps. Native Fern pointers and actor IDs never cross threads. The network
+Each worker constructs, runs and drops its own compiled Morrow actor runtime and
+heaps. Native Morrow pointers and actor IDs never cross threads. The network
 executor exchanges bounded Rust messages with the workers.
 
 Room placement is FNV-1a over the room name modulo the configured worker count.
@@ -16,7 +16,7 @@ or work stealing.
 
 Authentication is one separate asynchronous owner. Each admitted session carries
 a revocable, expiring capability checked by the worker before each join or
-command. Logout revokes it immediately without waiting for Fern execution. A
+command. Logout revokes it immediately without waiting for Morrow execution. A
 command already executing may finish; queued commands are rejected after
 revocation. This is an admission boundary, not cancellation of an in-flight
 application effect.
@@ -29,7 +29,7 @@ destruction release those leases. Authentication sessions, HTTP requests, TCP
 connections and WebSocket admissions also retain their existing process-wide
 limits. Per-room task, dedupe and subscriber limits remain unchanged.
 
-With `FERN_WEB_DATA_DIR`, workers share a Rust checkpoint writer and its exclusive
+With `MORROW_WEB_DATA_DIR`, workers share a Rust checkpoint writer and its exclusive
 filesystem lock. Only owned Rust records and file handles are shared. The writer
 serializes durable commits; a slow filesystem may therefore delay commits on
 other workers, while authentication and the network executor stay responsive.

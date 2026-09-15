@@ -9,7 +9,7 @@ error exits.
 References alone do not handle errors. Reading a list's length, inspecting Option
 metadata, or passing a Result to a borrowing helper leaves its duty pending:
 
-```fern
+```morrow
 fn count(values: List(Result(Int, String))) -> Int: List.len(values)
 
 fn main():

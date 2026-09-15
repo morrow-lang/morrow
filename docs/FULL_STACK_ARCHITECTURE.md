@@ -1,4 +1,4 @@
-# Full-stack Fern: actors and a reactive WebAssembly client
+# Full-stack Morrow: actors and a reactive WebAssembly client
 
 Date: 2026-09-12. Decision124 adopts this direction; Decision125 records the first
 implemented foundations. This document is the full architecture and acceptance
@@ -8,26 +8,26 @@ plan. The [web preview guide](WEB_PREVIEW.md) describes what runs today; the ear
 ## Product direction
 
 Build a coherent alternative for applications that would otherwise use
-Elixir/Phoenix: native Fern actors own server state, Fern compiled to WebAssembly
+Elixir/Phoenix: native Morrow actors own server state, Morrow compiled to WebAssembly
 owns browser interaction and rendering, and typed messages connect the two over
 WebSocket. Keep the small native CLI use case supported.
 
-The application author writes Fern and shares suitable data types and pure
+The application author writes Morrow and shares suitable data types and pure
 functions between targets. Compiler, runtime, browser host, renderer and build
 tooling remain Rust-authored. A first-party web/UI framework owns routing,
 components and application conventions; these do not become special cases in
 the language type checker or mandatory dependencies of every CLI executable.
 
 Phoenix LiveView retains state on the server and updates the browser through its
-rendering protocol. Fern's selected starting model puts a reactive UI program in
+rendering protocol. Morrow's selected starting model puts a reactive UI program in
 the browser, exchanging application data with the server. This is a different
 rendering architecture with a similar goal of one coherent development experience.
 See [LiveView's lifecycle](https://hexdocs.pm/phoenix_live_view/Phoenix.LiveView.html).
 
 ```mermaid
 flowchart LR
-    Shared[Shared Fern types and pure functions] --> Native[Native server build]
-    Shared --> Browser[Fern WebAssembly build]
+    Shared[Shared Morrow types and pure functions] --> Native[Native server build]
+    Shared --> Browser[Morrow WebAssembly build]
     Native --> Actors[Supervised domain actors]
     Actors <--> Session[Authenticated session gateway]
     Session <-->|Versioned commands and snapshots| Browser
@@ -44,8 +44,8 @@ ownership and delivery contracts.
 ## Implemented preview boundary
 
 The collaborative checklist runs its complete typed domain, local model,
-event update and keyed view in compiled Fern. A generic Rust browser host supplies
-DOM, storage and transport capabilities. On the server, a native compiled Fern
+event update and keyed view in compiled Morrow. A generic Rust browser host supplies
+DOM, storage and transport capabilities. On the server, a native compiled Morrow
 actor owns each room, reached through explicitly rooted host sessions and typed
 reply ports on pinned owner threads. Stable room placement shares global
 admission and resource limits across configurable workers; a separate
@@ -72,7 +72,7 @@ HTTP-200 asset update while retaining the prior offline cache. Fresh macOS nativ
 quality checks and equivalent Linux coverage across resumed runs also passed;
 the [verification record](WEB_PREVIEW.md#verification) gives their exact scope.
 
-Separately, native Fern actors now own payload heaps and copy message/capture
+Separately, native Morrow actors now own payload heaps and copy message/capture
 graphs. Compiler root frames and scoped runtime roots are explicit, while ordinary
 native collection still conservatively scans stack/register state and heap words.
 The WASM backend branches from semantic IR and supports bounded records, tagged
@@ -87,7 +87,7 @@ packaging remain open. See [memory management](MEMORY_MANAGEMENT.md).
 ### Automatic memory with explicit ownership inside the runtime
 
 Do not introduce mandatory borrow checking, move syntax or lifetime annotations
-into ordinary Fern application code. For this actor-oriented workload, prioritize
+into ordinary Morrow application code. For this actor-oriented workload, prioritize
 isolation and bounded scheduling over replacing all collection with reference
 counting. Inferred ownership, borrowing and allocation reuse remain internal
 optimizations, subject to semantic and performance tests.
@@ -128,7 +128,7 @@ be valid at every allocation, yield and callback boundary.
 Readiness-driven network IO wakes actors through an external event loop. A server
 waiting for registered external events is idle, not deadlocked. Unavoidable
 blocking file, database and process work runs in a bounded worker facility. Such
-jobs exchange Rust-owned requests/results, never borrowed Fern heap pointers.
+jobs exchange Rust-owned requests/results, never borrowed Morrow heap pointers.
 Cancellation and late completion must respect actor identity generations.
 
 Prove isolation and fairness on one scheduler worker first. Then pin actors to
@@ -139,7 +139,7 @@ or hold a global runtime lock across IO as a shortcut to parallelism.
 
 ### Typed supervision and durable state are separate contracts
 
-Supervision must wrap the actors that actually execute typed Fern functions.
+Supervision must wrap the actors that actually execute typed Morrow functions.
 Define child startup, failure, cancellation, restart policy, restart intensity,
 subtree shutdown and fresh identity explicitly. Recoverable actor failures do not
 stop unrelated actors. Ordinary recoverable native-runtime faults must propagate
@@ -153,7 +153,7 @@ Restart reconstructs state from a declared initializer or durable store. It does
 not resurrect the previous heap or make effects exactly once. Durable mutation,
 acknowledgement and deduplication need an application transaction boundary.
 [Elixir supervision](https://hexdocs.pm/elixir/Supervisor.html) is a behavioral
-reference, not evidence that those guarantees exist in Fern today.
+reference, not evidence that those guarantees exist in Morrow today.
 
 ### A browser target with its own ABI
 
@@ -182,7 +182,7 @@ across targets even when collectors differ.
 [WebAssembly feature status](https://webassembly.org/features/) and
 [WebAssembly 3.0](https://webassembly.org/news/2025-09-17-wasm-3.0/).
 
-Prove how generated Fern code calls the Rust browser runtime early: a versioned
+Prove how generated Morrow code calls the Rust browser runtime early: a versioned
 module import/export boundary may precede single-module packaging. There must be
 one explicit memory/allocator owner, nonoverlapping static-data regions and tested
 initialization order. A general WebAssembly linker is not a prerequisite for the
@@ -191,7 +191,7 @@ first UI. The native static archive is not a browser runtime artifact.
 Browser APIs require host imports. A Rust-authored browser host and generated
 bindings provide DOM, events, timers, networking and asset loading. Generated
 JavaScript loading/interop glue is a build artifact; handwritten JavaScript is
-not part of Fern's implementation or application-author workflow. This does not
+not part of Morrow's implementation or application-author workflow. This does not
 restore the removed Tree-sitter integration. WASI is not a substitute for browser
 DOM integration. [WebAssembly browser embedding](https://webassembly.org/docs/web/).
 
@@ -303,7 +303,7 @@ latency and throughput under slow clients, reconnects and a saturated actor.
 Compare with Phoenix using the same application behavior and resource limits;
 native code or WebAssembly alone is not evidence of a faster user experience.
 
-## Current gaps and complete Fern application delivery
+## Current gaps and complete Morrow application delivery
 
 Actor-owned payload heaps and copied messages are implemented. Native callbacks
 still run cooperatively. Eligible recursive Unit-tail paths yield through rooted
@@ -316,7 +316,7 @@ blocking-service scheduling remain open. See
 [current actor contracts](RUST_ACTORS.md).
 
 The **two-browser collaborative checklist** now executes its compiled domain
-actor and complete Fern model/update/view. Pinned worker threads own independent
+actor and complete Morrow model/update/view. Pinned worker threads own independent
 room runtimes behind authorized gateways. The process shares admission and
 resource limits, and optionally commits room checkpoints before acknowledgement.
 Server or domain-actor restart creates a fresh incarnation; configured durable
@@ -330,7 +330,7 @@ server foundations can progress independently after shared type/layout contracts
 Independent room-worker progress does not establish general actor preemption,
 work stealing or distributed execution. Sustained scaling retains its own gate.
 
-The complete Fern demo is accepted only when real browser tests demonstrate
+The complete Morrow demo is accepted only when real browser tests demonstrate
 all of the following. The current preview covers part of this list; protocol unit
 tests do not replace real typed-actor failure or aggregate browser ABI acceptance:
 
@@ -349,7 +349,7 @@ tests do not replace real typed-actor failure or aggregate browser ABI acceptanc
    and respect restart budgets. Browser unmount/reload releases subscriptions.
 6. Target ABI and wire tests preserve i64 extremes, Unicode, tagged values and
    nested collections; GC under pressure preserves suspended and shared values.
-7. Browser output is compiled Fern WebAssembly, with Rust-authored host support,
+7. Browser output is compiled Morrow WebAssembly, with Rust-authored host support,
    reproducible generated glue and execution tests of the generated module.
 
 Later release gates add sustained multi-worker churn, fair progress during CPU

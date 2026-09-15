@@ -1,9 +1,9 @@
-# Fern contributor and agent guide
+# Morrow contributor and agent guide
 
 The repository owns a Rust compiler, Cranelift backend, Rust runtime, language
 server, native test supervisor and Cargo-based development tooling. Read
 [DESIGN.md](DESIGN.md), [ROADMAP.md](ROADMAP.md), [DECISIONS.md](DECISIONS.md) and
-[FERN_STYLE.md](FERN_STYLE.md) before changing behavior. The design includes planned
+[MORROW_STYLE.md](MORROW_STYLE.md) before changing behavior. The design includes planned
 features; the roadmap records implementation and acceptance evidence.
 
 ## Work test first
@@ -27,8 +27,8 @@ between implementations sharing the same lowering.
 
 ```sh
 cargo xtask build
-cargo test -p fern --lib
-cargo test -p fern-runtime
+cargo test -p morrow --lib
+cargo test -p morrow-runtime
 cargo xtask test
 cargo xtask check
 cargo xtask build --release
@@ -45,7 +45,7 @@ components. Root `rust-toolchain.toml` and `Cargo.lock` define the supported bui
 - Prefer safe Rust ownership, enums, `Result`, slices and standard collections.
 - Keep `unsafe` in narrow, documented ABI/OS boundaries. State pointer validity,
   layout, lifetime, thread and ownership requirements for each unsafe operation.
-- Fern code generation uses validated typed machine IR and Cranelift objects.
+- Morrow code generation uses validated typed machine IR and Cranelift objects.
   Textual IR output is for inspection; native builds require no external IR compiler.
 - Native values use the Rust runtime's fixed ABI and collector. Preserve full-width
   payloads, callback signatures and allocation roots across safepoints.
@@ -55,7 +55,7 @@ components. Root `rust-toolchain.toml` and `Cargo.lock` define the supported bui
   publish completed files atomically and never traverse foreign replacement links.
 - Supervised child identity remains retained until group cleanup and reaping.
   Do not send signals to a PID after surrendering ownership of that identity.
-- Do not add Fern-authored setup implementations in another programming language.
+- Do not add Morrow-authored setup implementations in another programming language.
   Cargo dependencies may wrap third-party native libraries when needed.
 
 ## Scope and verification
@@ -69,6 +69,6 @@ Document current limitations honestly. Preserve dates, original component names
 and measurement context in historical reports. A new backend/runtime needs new
 acceptance evidence; old reports remain historical evidence.
 
-The compiler provides editor support through `fern lsp`. Its own parser is the
+The compiler provides editor support through `morrow lsp`. Its own parser is the
 language source of truth. Do not introduce a separate generated editor grammar
 or another parser toolchain as part of a routine compiler change.

@@ -1,6 +1,6 @@
 # SQL connection lifecycle
 
-Fern exposes `sql.open(path)`, `sql.execute(handle, query)`, and
+Morrow exposes `sql.open(path)`, `sql.execute(handle, query)`, and
 `sql.close(handle)`. Each returns `Result(Int, Int)`. Connections are backed by
 local SQLite through rusqlite; remote libSQL connections and row-query APIs remain planned.
 
@@ -24,7 +24,7 @@ returns `Err(4)` rather than overflowing or reusing an ID. Invalid paths return
 `Err(3)` and consume no slot. These bounds cover handles, not SQLite database size,
 query execution time, or memory allocated internally by SQLite.
 
-```fern
+```morrow
 fn report(result: Result(Int, Int)) -> Int:
     match result:
         Ok(value) -> value
@@ -51,7 +51,7 @@ the 256/257 live boundary, capacity recovery and monotonic handle identities.
 Native source fixtures exercise the public calls and full-width Result transport.
 
 ```sh
-cargo test -p fern-runtime services::sql
-cargo test -p fern-runtime --release services::sql
+cargo test -p morrow-runtime services::sql
+cargo test -p morrow-runtime --release services::sql
 cargo xtask native sql
 ```

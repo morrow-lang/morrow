@@ -1,8 +1,8 @@
 # Actor runtime status and contracts
 
-Fern executes typed native actors with the Rust runtime in
-`crates/fern-runtime/src/managed`. The older string mailbox API in
-`crates/fern-runtime/src/actors` remains a separate compatibility interface.
+Morrow executes typed native actors with the Rust runtime in
+`crates/morrow-runtime/src/managed`. The older string mailbox API in
+`crates/morrow-runtime/src/actors` remains a separate compatibility interface.
 Its lifecycle events and strategies do not implicitly apply to typed actors.
 The broader target language is recorded in [DESIGN.md](../DESIGN.md).
 
@@ -64,13 +64,13 @@ single child are still future work.
 
 ## Native application hosts
 
-Managed native libraries export descriptor-aware `fern_library_open(fault)` and
-`fern_library_string_port(exec)` helpers. The opened invocation is explicitly
-rooted until `fern_managed_close(exec)`. The host's writable fault cell must remain
+Managed native libraries export descriptor-aware `morrow_library_open(fault)` and
+`morrow_library_string_port(exec)` helpers. The opened invocation is explicitly
+rooted until `morrow_managed_close(exec)`. The host's writable fault cell must remain
 at its original address until close, and all operations run on the opening thread.
 Other retained native values need registered host root slots across calls.
 
-`fern_managed_poll(exec, max_steps)` accepts 1–65,536 continuation callbacks and
+`morrow_managed_poll(exec, max_steps)` accepts 1–65,536 continuation callbacks and
 returns 0 for completion, 1 for external-input idle, 2 for a reached callback
 budget, or 3 for invocation failure. An idle persistent server is not a deadlock.
 This count does not bound the synchronous work within a helper. String ports are
@@ -104,14 +104,14 @@ budget guarantee.
 `actors.post(pid, message)` and `send(pid, message)` copy a string into its FIFO mailbox
 and return the runtime Result directly (`Ok(0)` or an error);
 `actors.next(pid)` removes the oldest string. An empty mailbox returns
-`Err(FERN_ERR_IO)` immediately. The C ABI also exposes round-robin scheduler
+`Err(MORROW_ERR_IO)` immediately. The C ABI also exposes round-robin scheduler
 tickets: each successful send supplies one ticket, and requesting a ticket does
 not itself execute code or consume the message.
 
 The runtime C ABI has explicit current-actor context, lifecycle transitions,
 virtual clock controls, and exit injection for integration and simulation tests.
 `spawn_link` requires a live current actor to have been set with
-`fern_actor_set_current`; creating an actor record alone does not set that context.
+`morrow_actor_set_current`; creating an actor record alone does not set that context.
 `actors.monitor`, `actors.demonitor`, `actors.restart`, `actors.supervise`,
 `actors.supervise_one_for_all`, and `actors.supervise_rest_for_one` have checker,
 codegen, and runtime implementations.
@@ -160,7 +160,7 @@ codegen, and runtime implementations.
 Typed runtime tests cover initializer isolation, independent heap reclamation,
 atomic copying, stale PID rejection, fresh restart identity, bounded host reads,
 repeated port reuse and independently rooted host sessions. Native executable
-oracles compile real Fern programs and prove that supervised collection, Regex
+oracles compile real Morrow programs and prove that supervised collection, Regex
 and terminal-layout failures preserve sibling progress and execute active cleanup.
 A native host oracle proves that a recursive Unit helper returns to the host
 before completing and allows a sibling reply within four callbacks. Mutual tail
@@ -175,8 +175,8 @@ control collection and slot reuse, reclaim controls after payload sweep/retireme
 and exercise the final `u64` generation without wrapping.
 
 ```sh
-cargo test -p fern-runtime --lib
-cargo test -p fern --test checker_actors --test lowering_actors --test cranelift_backend
+cargo test -p morrow-runtime --lib
+cargo test -p morrow --test checker_actors --test lowering_actors --test cranelift_backend
 ```
 
 Rust runtime tests exercise FIFO messages and round-robin tickets, forest
@@ -185,12 +185,12 @@ zero-time restart windows, both sibling restart strategies, and descendant
 notification order. They call the actual runtime implementation.
 
 ```sh
-cargo test -p fern-runtime actors::tests
-cargo test -p fern-runtime --release actors::tests
+cargo test -p morrow-runtime actors::tests
+cargo test -p morrow-runtime --release actors::tests
 cargo xtask native actors/
 ```
 
-The retired C/FernSim harness and sanitizer totals describe earlier
+The retired C/MorrowSim harness and sanitizer totals describe earlier
 implementation evidence. The [workspace acceptance](RUST_WORKSPACE.md) records
 verification of the Rust runtime; those earlier totals are not silently reused.
 
@@ -199,7 +199,7 @@ verification of the Rust runtime; those earlier totals are not silently reused.
 The compatibility mailbox scheduler does not execute actor functions or
 suspend/resume them. The typed native scheduler executes real actor functions
 with isolated heaps, composable suspension and bounded single-child supervision.
-The REPL and FernSim now execute checked source continuations under virtual time.
+The REPL and MorrowSim now execute checked source continuations under virtual time.
 Typed supervisor trees, a standard synchronous request/reply API and complete
 external-event/instruction fairness remain open. Compatibility supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.

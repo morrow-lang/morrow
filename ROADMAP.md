@@ -1,4 +1,6 @@
-# Fern Roadmap
+# Morrow Roadmap
+
+> Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
 
 Last updated: 2026-09-15
 
@@ -10,13 +12,13 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 
 - [x] Rename all 12 workspace packages, component paths, CLI, runtime symbols and Cargo tooling. macOS ARM64 `cargo xtask check` passes: 2,249 Rust tests, 316 native-output fixtures, 20 examples, 63 dynamic programs, 295 atomic rejections and 64+192+231 fuzz cases; dependency versions and persisted cluster identities remain unchanged.
 - [x] Rename all 455 source files to `.mr` and update discovery, module imports, formatter, LSP requests and test/documentation fixtures. An independent discovery test fails before and passes after migration. The full macOS ARM64 `cargo xtask check` passes; all three standalone benchmark workspaces also pass tests, formatting and Clippy.
-- [ ] Update active documentation, public introductions, canonical URLs and `MORROW_STYLE.md`; preserve historical evidence and verify the full repository gate.
+- [x] Update active documentation, public introductions, canonical URLs, editor settings and `MORROW_STYLE.md`. The full macOS ARM64 `cargo xtask check` and generated documentation site build pass. Forty-five historical Markdown records gain only a rename note; preserved data and earlier decision entries remain byte-for-byte unchanged.
 - [ ] Replace old logo usage with a Morrow text mark and update browser/preview branding; verify web output and the full repository gate.
 - [ ] Transfer and rename the GitHub repository to `morrow-lang/morrow`, update metadata and origin, and create `morrow-lang/morrow-lang.github.io` for the docs site.
 - Owner follow-ups: register both domains, configure the `.dev` → `.org` redirect, complete the EUIPO/DPMA classes 9/42 check, and supply a new logo.
 
-- Fern-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.
-- Active product direction: supervised native actors and a reactive Fern WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate aggregate WASM backend, typed Fern browser model/update/view and compiled native room actors are implemented. Optional durable room checkpoints pass native restart and real WebSocket acceptance. General framework packaging and scalable actor execution remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.
+- Morrow-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.
+- Active product direction: supervised native actors and a reactive Morrow WebAssembly client, connected through typed WebSocket messages (Decision124). Actor payload heaps and copied messages, explicit compiler roots, a separate aggregate WASM backend, typed Morrow browser model/update/view and compiled native room actors are implemented. Optional durable room checkpoints pass native restart and real WebSocket acceptance. General framework packaging and scalable actor execution remain open; [preview scope](docs/WEB_PREVIEW.md) and Decision125 distinguish them from the completed Rust migration.
 - System observability: an authenticated, read-only [dashboard](docs/ADMIN_DASHBOARD.md) and JSON endpoint expose host/build information, current/peak process memory, admission use and bounded per-worker observations without queuing behind native callbacks (Decision131). The preview shares its application access policy; separate operator roles, CPU utilization and individual actor/GC breakdowns remain open.
 
 ### Full-stack Actor and Browser Milestones
@@ -61,7 +63,7 @@ below describe bounded foundations, not completion of the larger acceptance plan
 - [x] Pin rooms to configurable independent workers while sharing global ingress, room, namespace and connection limits. Prove other-worker and authentication progress while one domain callback is blocked, reject revoked queued commands, and preserve cross-worker reconnect at capacity. Share a durable writer with stale-owner rejection and independent concurrent-room recovery tests (Decision128).
 - [x] Pass the integrated 2026-09-13 worker/lifecycle macOS ARM64 `cargo xtask check`: formatting, dependency notices, workspace Clippy, 1,890 Rust tests, 305 native fixtures, 18 examples, 63 dynamic compatibility programs, 295 atomic rejections and 64+192 fuzz cases. Includes canceled login/join/disconnect cleanup, partial worker startup and active ingress-permit ownership.
 - [x] Rebuild final macOS/ARM64-musl/x86-64-musl web artifacts at `f80f55a`. Pass macOS browser acceptance and 98 focused optimized tests on actual ARM64 Linux, including six native compiler-tail oracles, plus the full browser suite against the checksum-matched static ARM64 server. Record [artifact sizes and exact scope](docs/WEB_APPLICATION_ACCEPTANCE.md); x86-64 remains statically validated without execution.
-- [ ] Pass the full architecture acceptance cases with actual Fern domain actors, actor failure/reset and independent aggregate ABI/GC oracles. Room sharding establishes independent-worker progress; arbitrary-helper scheduler fairness and live actor migration remain open.
+- [ ] Pass the full architecture acceptance cases with actual Morrow domain actors, actor failure/reset and independent aggregate ABI/GC oracles. Room sharding establishes independent-worker progress; arbitrary-helper scheduler fairness and live actor migration remain open.
 - [x] Connect fixed room owners across configured servers with mutual TLS, certificate-bound identities, bounded forwarding streams, fresh-namespace uncertainty and checkpoint placement guards. Pass independent routing/lease simulation, hostile framing/authentication tests and a three-process 10,024-durable-mutation campaign across 32 clients; preserve state through partitions and owner restart. See [cluster contract and measurements](docs/CLUSTER.md).
 - [x] Establish the initial Decision144 JSON baseline using primary Erlang, Phoenix, WebSocket, WebTransport and codec sources and 46 measured message fixtures with isolated CBOR/protobuf adapters and malformed-input oracles. Binary dependencies stayed outside production during that initial experiment; Decision145 below supersedes the default after browser and application measurements.
 - [x] Extend the isolated codec comparison to real Chromium/WASM string and byte-array boundaries, with independent wire/value/malformed-input checks, 138 raw fixture rows and recorded artifact sizes. Run 7,650 loopback WebSocket mutations through the actual Hub, compiled Fern actor and optional durable checkpoint path. All exact transition and durable reopen checks pass. Binary messages reduce traffic and browser decode work; the larger application cases show essentially unchanged latency. Stage wall-time fractions do not establish CPU shares. See [measurements](docs/NETWORK_PROTOCOL.md).
@@ -111,7 +113,7 @@ below describe bounded foundations, not completion of the larger acceptance plan
 - Build guide: [`BUILD.md`](BUILD.md)
 - Design spec: [`DESIGN.md`](DESIGN.md)
 - Decision log: [`DECISIONS.md`](DECISIONS.md)
-- Coding standards: [`FERN_STYLE.md`](FERN_STYLE.md)
+- Coding standards: [`MORROW_STYLE.md`](MORROW_STYLE.md)
 - Compatibility policy: [`docs/COMPATIBILITY_POLICY.md`](docs/COMPATIBILITY_POLICY.md)
 - Documentation index: [`docs/README.md`](docs/README.md)
 - Writing and publishing documentation: [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md); `cargo xtask docs` builds the repository site
@@ -312,7 +314,7 @@ Status: Active
 - [x] Preserve runtime `send` Result values through native codegen (success and invalid-PID execution regressions)
 - [x] Stop owned descendants before fallible exit notifications, reject restarts under dead owners, and prepare name/monitor storage before publishing actors (ten subtree/failure groups plus all six prior scenarios in debug/release/sanitizers on macOS/Linux arm64).
 - [ ] Close remaining supervision/runtime behavior gaps not yet modeled end-to-end
-- [ ] Expand deterministic FernSim scenarios for supervision trees and failure policies
+- [ ] Expand deterministic MorrowSim scenarios for supervision trees and failure policies
 - [x] Add stronger actor runtime invariants to regression suites (seeded native-runtime scenarios)
 
 Exit criteria:
@@ -422,7 +424,7 @@ Do not interpret the historical Gate A–D labels as language completion.
 - [x] Remove newly written executable races from native capture tests; preserve timeout/stream/descendant coverage and add 160 concurrent per-run output/status assertions.
 - [x] Retain direct-child ownership through native unit/doc test cleanup and validate the framed safe-Rust adapter (Decision102).
 - [x] Verify default-command migration to Rust on macOS/Linux, retaining `fern-c` as the explicit bootstrap/reference and documenting its legacy JSON contract (Decision96; docs/RUST_DEFAULT_MIGRATION.md).
-- [ ] Expose HTTP serving to compiled Fern applications beyond the Rust preview server, and implement the broader SQL query/resource APIs described in the design.
+- [ ] Expose HTTP serving to compiled Morrow applications beyond the Rust preview server, and implement the broader SQL query/resource APIs described in the design.
 - [x] Implement coherent static traits, defaults and parent bounds, explicit where requirements, generic implementations and structural Show/Eq/Ord/Clone derivation. Native, REPL, WASM and deterministic semantic oracles pass (Decision132; [traits](docs/TRAITS.md)).
 - [ ] Complete the remaining syntax audit and ergonomic inference refinements beyond the documented traits, function, alias/newtype and union contracts.
 - [x] Implement nominal immutable Sets with 13 APIs, membership syntax, generic/alias/first-class support, native/REPL model-based simulations and forced precise-GC collection at map helper boundaries; see [Sets](docs/SETS.md).
@@ -446,6 +448,6 @@ using the Rust runtime and Cranelift through `cargo xtask check`; historical
 compiler-default evidence does not validate new runtime or browser features.
 
 1. Complete native root/layout coverage and resumable actor continuations; establish independent fairness, actor failure and resource-cleanup oracles before adding workers. Preserve full-width values and bounded lifecycle contracts.
-2. Extend the aggregate WASM backend beyond the tested application surface; derive shared wire schemas and add application-independent framework packaging. Preserve actual Fern model/update/view and native actor acceptance.
+2. Extend the aggregate WASM backend beyond the tested application surface; derive shared wire schemas and add application-independent framework packaging. Preserve actual Morrow model/update/view and native actor acceptance.
 3. Preserve the working static/offline application, fixed-owner clusters and durable room recovery while extending measured progress and transactional external-effect recovery. Treat dynamic membership and replicated failover as separate milestones.
 4. Close supporting language/stdlib gaps in [release readiness](docs/RELEASE_READINESS.md), maintain the Rust LSP, and collect fresh native/browser correctness and performance evidence. Tree-sitter remains removed.

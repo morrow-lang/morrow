@@ -17,7 +17,7 @@ pub const EXTRAS: &[&str] = &[
     "ROADMAP.md",
     "DECISIONS.md",
     "BUILD.md",
-    "FERN_STYLE.md",
+    "MORROW_STYLE.md",
 ];
 const REPOSITORY: &str = "https://github.com/morrow-lang/morrow";
 const MAX_COPIED_FILES: usize = 50_000;

@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Native integer arithmetic optimization
 
 Measured 2026-09-14 on Apple M4 / 24 GiB / macOS 26.5.1 ARM64. The baseline

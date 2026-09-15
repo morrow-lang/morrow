@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Rust workspace acceptance
 
 Date: 2026-09-12. Accepted on macOS ARM64 and Linux ARM64. Fern-owned

@@ -26,3 +26,10 @@ compiler is part of the development environment.
 The host linker and SDK remain necessary for native executables and Rust-wrapped
 third-party SQLite/crypto dependencies. See [BUILD.md](../BUILD.md) for supported
 platforms, installation and troubleshooting.
+
+## Editor integration
+
+Configure your editor's LSP client with language ID `morrow`, source file pattern
+`**/*.mr`, and server command `morrow lsp` (or `./bin/morrow lsp` for a local
+build). The compiler's own parser provides language support; no separate editor
+grammar or parser toolchain is required by the server.

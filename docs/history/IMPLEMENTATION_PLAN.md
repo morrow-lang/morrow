@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 > Historical C/QBE implementation plan, superseded by Decision122. Use [the current design](../../DESIGN.md) and [build guide](../../BUILD.md).
 
 ## Implementation

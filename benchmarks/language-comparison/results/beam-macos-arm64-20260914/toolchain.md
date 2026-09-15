@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Private BEAM comparison toolchain
 
 Prepared 2026-09-14 on macOS 26.5.1 ARM64. No Homebrew install/link command or global mise configuration was changed. `brew fetch --force-bottle erlang elixir` downloaded the bottles, then `tar -xzf` extracted them under this directory. No extracted file was patched.

@@ -1,9 +1,9 @@
 # Compile-time constants
 
-Fern evaluates `const` initializers while checking a program, using the same
-integer, string, collection and function semantics as ordinary Fern code.
+Morrow evaluates `const` initializers while checking a program, using the same
+integer, string, collection and function semantics as ordinary Morrow code.
 
-```fern
+```morrow
 fn factorial(n: Int) -> Int:
     if n <= 1: 1
     else: n * factorial(n - 1)
@@ -11,7 +11,7 @@ fn factorial(n: Int) -> Int:
 const capacity: Int = comptime: factorial(6)
 
 pub const greeting: String = comptime:
-    "Hello, 🌿 Fern"
+    "Hello, 🌿 Morrow"
 
 fn main():
     println(capacity)
@@ -27,7 +27,7 @@ empty collection or `None` requires an annotation, such as `const empty:
 List(Int) = comptime: []`. Constants always have concrete types and are evaluated
 even when the application never references them.
 
-An initializer can call ordinary Fern functions, recurse, use local bindings,
+An initializer can call ordinary Morrow functions, recurse, use local bindings,
 match values, and construct lists, maps, sets, tuples, records, sums, newtypes,
 Options, Results and captured functions. Result-handling rules still apply.
 The compiler embeds the resulting typed data; it does not rerun the initializer

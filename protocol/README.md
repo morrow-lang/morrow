@@ -1,10 +1,10 @@
-# Fern live protobuf v1
+# Morrow live protobuf v1
 
 The first-party live application negotiates WebSocket subprotocol
-`fern.live.protobuf.v1` and transfers one binary protobuf Envelope per WebSocket
+`morrow.live.protobuf.v1` and transfers one binary protobuf Envelope per WebSocket
 message. The logical application `version` remains 1. The
-[schema](fern_wire_v1.proto) defines field numbers and protobuf scalar types; the
-Rust `fern-web-protocol::binary` implementation enforces this additional closed
+[schema](morrow_wire_v1.proto) defines field numbers and protobuf scalar types; the
+Rust `morrow-web-protocol::binary` implementation enforces this additional closed
 profile. Generated general-purpose protobuf decoders alone do not enforce it.
 
 ## Closed profile

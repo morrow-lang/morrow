@@ -2,7 +2,7 @@
 
 Newtypes give values a separate identity without allocating a wrapper:
 
-```fern
+```morrow
 newtype UserId = UserId(Int)
 newtype ProductId = ProductId(Int)
 
@@ -14,7 +14,7 @@ A ProductId cannot be passed where UserId is required. Construct explicitly and
 unwrap with `.0` or a constructor pattern. Other fields and implicit conversion
 are rejected. Generic payloads may use a different constructor name:
 
-```fern
+```morrow
 newtype Wrapper(a) = Packed(a)
 fn unwrap(Packed(value): Wrapper(a)) -> a: value
 ```
@@ -48,5 +48,5 @@ capability expansion use depth 128, 4096-node type limits and an aggregate 400,0
 work limit. The backend validates concrete layout shape and references before
 selecting widths or emitting code, including caller-created IR.
 
-This feature is available in the default Rust compiler, `fern`. The explicit
+This feature is available in the default Rust compiler, `morrow`. The explicit
 C reference compiler was removed during the Rust-only migration.

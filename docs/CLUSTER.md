@@ -1,14 +1,16 @@
-# Connected Fern servers
+# Connected Morrow servers
 
-Fern's web server can route a browser's messages through one gateway to a room
+> Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
+
+Morrow's web server can route a browser's messages through one gateway to a room
 actor on another server. Every node runs the same Rust executable. Peer links use
 mutual TLS, configured node identities and bounded, length-prefixed protobuf
-messages. The selected peer standard is `fern.peer.protobuf.v1`, handshake
+messages. The selected peer standard is `morrow.peer.protobuf.v1`, handshake
 version 2; its migration acceptance is tracked in the [roadmap](../ROADMAP.md).
 No broker, Erlang installation, discovery daemon or external certificate tool is
 required for the local demo.
 
-This is fixed room ownership across servers. Fern language `Pid` values remain
+This is fixed room ownership across servers. Morrow language `Pid` values remain
 local: remote spawn, links/monitors, dynamic membership, replicated failover and
 distributed transactions are separate work. A disconnected owner stays the owner.
 
@@ -18,7 +20,7 @@ Build the embedded application with `cargo xtask web-build`, then initialize a
 new private directory under a parent you own:
 
 ```sh
-./dist/fern-web --cluster-init ./fern-cluster-demo demo \
+./dist/morrow-web --cluster-init ./morrow-cluster-demo demo \
   a=127.0.0.1:4400 b=127.0.0.1:4401 c=127.0.0.1:4402
 ```
 
@@ -31,21 +33,21 @@ are sorted by ID; these three settings files are `node-0/node.json` through
 Run each command in a separate terminal:
 
 ```sh
-FERN_WEB_CLUSTER=./fern-cluster-demo/node-0/node.json \
-FERN_WEB_BIND=127.0.0.1:4100 FERN_WEB_DATA_DIR=./fern-data-a \
-FERN_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/fern-web
+MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-0/node.json \
+MORROW_WEB_BIND=127.0.0.1:4100 MORROW_WEB_DATA_DIR=./morrow-data-a \
+MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
 ```
 
 ```sh
-FERN_WEB_CLUSTER=./fern-cluster-demo/node-1/node.json \
-FERN_WEB_BIND=127.0.0.1:4101 FERN_WEB_DATA_DIR=./fern-data-b \
-FERN_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/fern-web
+MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-1/node.json \
+MORROW_WEB_BIND=127.0.0.1:4101 MORROW_WEB_DATA_DIR=./morrow-data-b \
+MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
 ```
 
 ```sh
-FERN_WEB_CLUSTER=./fern-cluster-demo/node-2/node.json \
-FERN_WEB_BIND=127.0.0.1:4102 FERN_WEB_DATA_DIR=./fern-data-c \
-FERN_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/fern-web
+MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-2/node.json \
+MORROW_WEB_BIND=127.0.0.1:4102 MORROW_WEB_DATA_DIR=./morrow-data-c \
+MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
 ```
 
 Open two gateway addresses, sign in, and edit the shared checklist. The browser
@@ -58,12 +60,14 @@ streams. Zero connected peers can simply mean no remote rooms are open.
 
 For separate machines, initialize reachable private IP addresses, distribute only
 the appropriate node bundle to each machine, and use a separate data directory
-per node. Set each node's exact public `FERN_WEB_ORIGIN` when binding its browser
+per node. Set each node's exact public `MORROW_WEB_ORIGIN` when binding its browser
 HTTP listener outside loopback. Browser HTTPS/WSS still uses a TLS terminator;
 peer TLS is built in. Cluster members are trusted gateways under the preview's
 shared-key authorization model, not isolated tenants.
 
 ## Ownership and delivery
+
+The persisted identity labels `fern-room-owner-v1`, `fern-routing-v1`, `fern-room-placement-v1` and `fern-cluster-placement-v1` retain their original bytes. Morrow preserves these internal format identities so the rename does not change room ownership or invalidate existing checkpoints.
 
 All nodes agree on one bounded manifest with 1–16 members. A versioned rendezvous
 hash over the room and sorted node IDs chooses its owner. Health does not change
@@ -72,8 +76,8 @@ and the configured certificate fingerprint. The handshake then checks protocol,
 cluster, full manifest and node identity. A different boot of a node cannot
 replace another boot while its existing streams remain live.
 
-The [peer registry](../crates/fern-cluster/protocol/README.md) defines the closed
-protobuf fields. Old JSON peer ALPN `fern.peer.v1` is unsupported: upgrade nodes
+The [peer registry](../crates/morrow-cluster/protocol/README.md) defines the closed
+protobuf fields. Old JSON peer ALPN `morrow.peer.v1` is unsupported: upgrade nodes
 in a coordinated deployment. There is no encoding sniffing or JSON parser
 fallback. The application message contract is shared with the browser, while
 peer handshake version, node configuration and checkpoint placement are separate.
@@ -139,10 +143,10 @@ are observations of a process, not a globally atomic cluster measurement.
 ## Reproduce the checks
 
 ```sh
-cargo test -p fern-cluster
-cargo test -p fern-web --test cluster_stress -- --nocapture
-cargo test -p fern-web --test cluster_adversarial
-cargo test -p fern-web --test cluster_cli
+cargo test -p morrow-cluster
+cargo test -p morrow-web --test cluster_stress -- --nocapture
+cargo test -p morrow-web --test cluster_adversarial
+cargo test -p morrow-web --test cluster_cli
 cargo xtask check
 ```
 

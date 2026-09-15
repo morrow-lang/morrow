@@ -1,4 +1,4 @@
-# Fern Standard Library API Reference (Gate C)
+# Morrow Standard Library API Reference (Gate C)
 
 Last updated: 2026-09-14
 
@@ -29,7 +29,7 @@ Canonical naming in new code/docs:
 
 Current runtime-facing APIs use `Int` for error codes.
 
-1. Fern generic type syntax is `Result(T, E)` (parentheses, not brackets).
+1. Morrow generic type syntax is `Result(T, E)` (parentheses, not brackets).
 2. `Result(T, Int)` means `Err(Int)` where integer values map to runtime error constants.
 
 ## Module Signatures
@@ -46,7 +46,7 @@ the runtime's POSIX extended regular expression syntax.
 
 ### `String` decimal predicate
 
-```fern
+```morrow
 String.is_decimal(text: String) -> Bool
 ```
 
@@ -57,7 +57,7 @@ limit, generated data provenance and interactive work budgets.
 
 ### Portable string helpers and Sets
 
-```fern
+```morrow
 String.compare(left: String, right: String) -> Int
 String.join(parts: List(String), separator: String) -> String
 ```
@@ -70,7 +70,7 @@ string and resource limits. The built-in value traits use these portable helpers
 
 ### Non-faulting positional access and integer parsing
 
-```fern
+```morrow
 List.at(items: List(a), index: Int) -> Option(a)
 List.first(items: List(a)) -> Option(a)
 List.last(items: List(a)) -> Option(a)
@@ -92,7 +92,7 @@ these contracts.
 
 ### List utilities
 
-```fern
+```morrow
 List.sort(items: List(a)) -> List(a)
 List.sort_by(items: List(a), compare: (a, a) -> Ordering) -> List(a)
 List.zip(left: List(a), right: List(b)) -> List((a, b))
@@ -109,7 +109,7 @@ checker names the missing implementation otherwise. Tuples, options and lists us
 the derived lexicographic order; `Ord(Float)` compares NaN as `Equal`.
 `List.sort_by` orders by any comparator returning `Ordering` and both sorts are
 stable: elements that compare `Equal` keep their input order. Comparisons run as
-ordinary Fern calls; the runtime only schedules which positions to compare, so a
+ordinary Morrow calls; the runtime only schedules which positions to compare, so a
 comparator may allocate, fault or handle Results like any function. Sorting is
 unavailable in the browser target when it needs a comparator. `List.zip` pairs positionally and
 stops at the shorter list. `List.range` is half-open: `List.range(0, 3)` is
@@ -119,7 +119,7 @@ above 16,777,216 elements fault with the list size limit.
 
 ### Checked integer arithmetic
 
-```fern
+```morrow
 Int.checked_add(left: Int, right: Int) -> Option(Int)
 Int.checked_sub(left: Int, right: Int) -> Option(Int)
 Int.checked_mul(left: Int, right: Int) -> Option(Int)
@@ -141,7 +141,7 @@ explicit `show(...)` call, and a generic parameter prints through `Show` of the
 caller's type. A type without `Show` is rejected at check time with a hint to
 derive it. `Unit` and function values remain rejected.
 
-`show(text)` and strings nested in structured values render as Fern literals:
+`show(text)` and strings nested in structured values render as Morrow literals:
 `println(["a", ""])` prints `["a", ""]`, and `"`, `\`, newline, carriage return
 and tab are escaped as `\" \\ \n \r \t`. `println(text)` of a plain string still
 prints the raw text. `String.quote(text) -> String` exposes the same spelling.
@@ -152,7 +152,7 @@ types and complexity guarantees follow the documented Set contract.
 
 ### `fs`
 
-```fern
+```morrow
 fs.read(path: String) -> Result(String, Int)
 fs.write(path: String, content: String) -> Result(Int, Int)
 fs.append(path: String, content: String) -> Result(Int, Int)
@@ -173,21 +173,21 @@ The default Rust compiler uses opaque values/errors and immutable builders.
 `Json` and `json` identify the same operations and types. The full dynamic API,
 resource limits and typed codecs are documented in [the JSON API](JSON_RUST_API.md).
 
-```fern
+```morrow
 json.parse(text: String) -> Result(json.Value, json.Error)
 json.stringify(value: json.Value) -> Result(String, json.Error)
 ```
 
 ### `http`
 
-```fern
+```morrow
 http.get(url: String) -> Result(String, Int)
 http.post(url: String, body: String) -> Result(String, Int)
 ```
 
 ### `sql`
 
-```fern
+```morrow
 sql.open(path: String) -> Result(Int, Int)
 sql.execute(handle: Int, query: String) -> Result(Int, Int)
 sql.close(handle: Int) -> Result(Int, Int)
@@ -201,7 +201,7 @@ quota immediately and never makes an old handle valid again. See
 
 ### `actors`
 
-```fern
+```morrow
 actors.start(name: String) -> Int
 actors.post(actor_id: Int, message: String) -> Result(Int, Int)
 actors.next(actor_id: Int) -> Result(String, Int)
@@ -216,7 +216,7 @@ actors.next(actor_id: Int) -> Result(String, Int)
 
 ### `File` compatibility alias
 
-```fern
+```morrow
 File.read(path: String) -> Result(String, Int)
 File.write(path: String, content: String) -> Result(Int, Int)
 File.append(path: String, content: String) -> Result(Int, Int)

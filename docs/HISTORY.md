@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Fern History
 
 This file is a curated, non-actionable history summary. For active work, use [`../ROADMAP.md`](../ROADMAP.md).

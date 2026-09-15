@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Fern network codec measurements
 
 This excluded Cargo workspace compares the current JSON codec with experimental

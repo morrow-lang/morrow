@@ -1,11 +1,11 @@
 # Traits and explicit structural derivation
 
-Fern traits describe statically dispatched behavior. A trait has one type parameter;
+Morrow traits describe statically dispatched behavior. A trait has one type parameter;
 implementation selection happens during checking and specialization. Executables
 contain ordinary Rust-backend compiled functions, with no trait object or runtime
 method lookup.
 
-```fern
+```morrow
 trait Label(a):
     fn label(value: a) -> String
 
@@ -36,7 +36,7 @@ every clause must satisfy the trait signature and ordinary coverage rules. Named
 
 ## Built-in value traits
 
-```fern
+```morrow
 type Point derive(Show, Eq, Ord, Clone):
     x: Int
     y: Int
@@ -63,10 +63,10 @@ multi-parameter traits or dynamic trait objects in this implementation.
 
 ## Verification
 
-`cargo test -p fern --test traits --test wasm_traits --test language_tour` covers
+`cargo test -p morrow --test traits --test wasm_traits --test language_tour` covers
 custom/default dispatch, generic and recursive derivation, module exports,
 coherence and missing bounds, Result handling, formatting and combined features.
 A deterministic 64-seed test checks derived order and clone/equality against
-independent Rust integer/tuple oracles. The native `traits/values.fn` fixture
+independent Rust integer/tuple oracles. The native `traits/values.mr` fixture
 includes signed 64-bit extrema, recursive values and Unicode. WASM tests exercise
 portable string ordering/join and derived values without host imports.

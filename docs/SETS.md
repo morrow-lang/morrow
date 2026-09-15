@@ -5,8 +5,8 @@ insertion order for iteration through `Set.to_list`; reinserting an existing
 value keeps its position, while deleting and reinserting moves it to the end.
 Equality through `Set.equal` compares membership and ignores insertion order.
 
-```fern
-let languages = Set.from_list(["Fern", "Gleam", "Fern"])
+```morrow
+let languages = Set.from_list(["Morrow", "Gleam", "Morrow"])
 let expanded = Set.insert(languages, "Elixir")
 println(Set.len(languages))  # 2; the original remains unchanged
 println(Set.contains(expanded, "Elixir"))  # true

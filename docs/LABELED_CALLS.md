@@ -3,7 +3,7 @@
 The Rust frontend accepts labels on direct source function calls. Labels name
 parameter positions; expressions still execute once, in the order written.
 
-```fern
+```morrow
 fn subtract(left: Int, right: Int) -> Int:
     left - right
 
@@ -39,7 +39,7 @@ arguments. Imported functions and reexports retain their original interfaces.
 
 Labels erase when a function becomes a structural function value. Those values,
 lambdas, runtime/compiler builtins and constructors use positional calls and reject
-labels. These source interfaces are checked by Fern's Rust frontend.
+labels. These source interfaces are checked by Morrow's Rust frontend.
 
 Formatting roundtrips labels, external pattern names and labeled pipe holes.
 LSP definition requests on labels select the original parameter interface, independently

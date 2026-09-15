@@ -1,10 +1,10 @@
-# LiveView source study and Fern's local preview
+# LiveView source study and Morrow's local preview
 
 Inspected upstream `phoenixframework/phoenix_live_view` at commit
 `7f06d34002983f30f44ef24827362a32360a736c` (2026-09-11, “Update assets”).
 The shallow checkout is retained at
-`/tmp/fern-liveview-study-rhME9z/source` on the development machine; it is not
-part of Fern's repository or build. No upstream implementation was copied.
+`/tmp/morrow-liveview-study-rhME9z/source` on the development machine; it is not
+part of Morrow's repository or build. No upstream implementation was copied.
 LiveView's source retains its upstream MIT license.
 
 ## What the source does
@@ -28,14 +28,14 @@ LiveView's source retains its upstream MIT license.
   loss of entered values. It checks matching change bindings and guards against
   repeated failed recovery. See [form recovery implementation](https://github.com/phoenixframework/phoenix_live_view/blob/7f06d34002983f30f44ef24827362a32360a736c/assets/js/phoenix_live_view/view.ts#L810).
 
-These are useful interaction contracts, not a claim that Fern matches LiveView's
+These are useful interaction contracts, not a claim that Morrow matches LiveView's
 framework, ecosystem, diff engine or operational maturity. LiveView supports
 client hooks and JavaScript commands; its clients are not devoid of local state.
 
-## The Fern improvement
+## The Morrow improvement
 
 The checklist now visibly separates a local draft preview from server-confirmed
-tasks. Its typed Fern `view` computes the preview and UTF-8 byte budget; the
+tasks. Its typed Morrow `view` computes the preview and UTF-8 byte budget; the
 compiled WebAssembly app keeps updating both without a socket. Filters also
 remain local. The server's typed actor still owns confirmed tasks.
 
@@ -44,7 +44,7 @@ command resolves. It leaves the draft input editable. Only successful transport
 admission clears the submitted draft, and subsequent acknowledgements do not
 erase the next local draft. A rejected submission retains its text. This applies
 LiveView's useful principle of tying feedback to real completion while retaining
-Fern's existing local WASM execution and bounded offline storage.
+Morrow's existing local WASM execution and bounded offline storage.
 
 This does not add optimistic server mutations, a durable offline command queue,
 conflict merging, arbitrary form recovery or LiveView compatibility. Existing

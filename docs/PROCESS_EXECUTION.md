@@ -2,7 +2,7 @@
 
 Use literal arguments and explicit limits when running a child tool:
 
-```fern
+```morrow
 fn main():
     match System.exec_args_bounded(["git", "status", "--short"], 5000, 1048576):
         Ok((status, stdout, stderr)) ->
@@ -94,7 +94,7 @@ masks are untouched. REPL native IO remains explicitly unsupported.
 
 Handle a diagnostic write failure while preserving the original command failure:
 
-```fern
+```morrow
 fn main() -> Int:
     match System.write_stderr("invalid arguments\n"):
         Ok(()) -> 2

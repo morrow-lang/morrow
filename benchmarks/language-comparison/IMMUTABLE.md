@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Immutable callback optimization, 2026-09-14
 
 This records the GC-frame improvement at `7f53818`. The subsequent

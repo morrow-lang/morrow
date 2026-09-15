@@ -9,11 +9,11 @@ supervisor trees, instruction preemption and distributed execution remain open.
 
 ## Try the native example
 
-Build the default compiler and run the [two-message example](../crates/fern/tests/actors/receive_continues.fn):
+Build the default compiler and run the [two-message example](../crates/morrow/tests/actors/receive_continues.mr):
 
 ```sh
 cargo xtask build
-./bin/fern run crates/fern/tests/actors/receive_continues.fn
+./bin/morrow run crates/morrow/tests/actors/receive_continues.mr
 ```
 
 It prints `one`, then `two`. The worker keeps its local state while waiting for the
@@ -54,7 +54,7 @@ native services, arbitrary instruction preemption and first-class actor-effect
 helpers remain separate boundaries.
 
 The [REPL scheduler](REPL_ACTORS.md) retains actors between entries, runs virtual
-timeouts and exposes bounded source replay through FernSim. The old string-mailbox
+timeouts and exposes bounded source replay through MorrowSim. The old string-mailbox
 API and its supervision policies remain a separate compatibility interface.
 
 ## Execution ABI and provenance
@@ -87,7 +87,7 @@ scheduling; work outside supported continuation boundaries has no preemption or
 instruction budget.
 
 Native application hosts can instead retain an explicitly rooted invocation
-between calls. `fern_managed_poll` advances a bounded number of continuation
+between calls. `morrow_managed_poll` advances a bounded number of continuation
 callbacks and reports external-input idle without treating it as deadlock.
 The host roots retained PID/value slots and keeps the borrowed fault cell stable
 until close. Bounded String reply ports copy actor messages into host-owned
@@ -103,7 +103,7 @@ matching messages remain eligible. Promotion evaluates only validated pure
 selectors and prepares continuations; it does not execute source actor bodies.
 Later zero-duration receives cannot overtake an older promoted frame. Retiring the
 cached earliest timer recomputes the minimum without an extra clock read.
-Deterministic FernSim arrival traces exercise these rules through
+Deterministic MorrowSim arrival traces exercise these rules through
 the native scheduler, including timely unmatched messages and late arrivals.
 This timer coverage does not establish generalized actor, supervision, or REPL
 simulation parity.
@@ -138,7 +138,7 @@ Fault 13: `regex replacement exceeds 16 MiB`.
 Fault 14: `terminal rendering exceeds 16 MiB`.
 
 Existing fault codes 1..7 and their first-failure behavior remain unchanged.
-Unhandled invocation failures use the ordinary `fern: runtime error: ...`
+Unhandled invocation failures use the ordinary `morrow: runtime error: ...`
 diagnostic and exit 1 in native CLI programs. Supervised checked failures are
 handled by the child's restart policy; no source Result type is silently
 rewritten to encode execution faults. Allocation exhaustion, process aborts and
@@ -158,7 +158,7 @@ The native actor fixtures include 100,000 direct tail-continuation transitions
 under one actor identity and collection pressure while a receiver retains live
 values. Atomic rejection tests retain existing output files for unsupported
 actor programs. Current runners are Rust and use the retained-identity supervisor
-for bounded subprocess cleanup. The former C/FernSim/sanitizer totals remain
+for bounded subprocess cleanup. The former C/MorrowSim/sanitizer totals remain
 historical evidence; [workspace acceptance](RUST_WORKSPACE.md) identifies the
 actual debug and optimized Rust checks.
 
@@ -172,12 +172,12 @@ types even in inactive code before private continuation conversion.
 The ownership work adds independent cross-actor copy, root and heap-retirement
 oracles. Supervision tests prove pristine initializer replay, fresh identities,
 stale-send rejection and sibling progress after checked failures. Real compiled
-Fern tests cover active cleanup and collection, Regex and terminal-rendering
+Morrow tests cover active cleanup and collection, Regex and terminal-rendering
 faults; persistent host tests cover independent session roots and repeated port
 use. These results do not repurpose the historical migration totals.
 
 The [web application](WEB_PREVIEW.md) now keeps each checklist room's state in a
-compiled native Fern actor through `fern-web-app`; the Rust gateway receives
+compiled native Morrow actor through `morrow-web-app`; the Rust gateway receives
 checked snapshot copies through a bounded reply port. Browser application logic
-is compiled Fern WebAssembly. This application evidence does not establish
+is compiled Morrow WebAssembly. This application evidence does not establish
 generalized native actor fairness, typed supervisor trees or multicore scaling.

@@ -1,6 +1,6 @@
 # Runtime memory
 
-Fern keeps ordinary application memory management automatic. Native values use
+Morrow keeps ordinary application memory management automatic. Native values use
 a nonmoving tracing collector implemented in Rust. The browser backend has its
 own representation and a bounded precise aggregate heap. Neither target requires
 application borrow checking, move syntax or lifetime annotations.
@@ -20,7 +20,7 @@ precede publication. Rejected sends do not expose a partial payload. These bound
 do not make host allocator exhaustion recoverable; an allocator failure can
 still terminate the process.
 
-The native ABI remains in `crates/fern-runtime/src/abi.rs`. PIDs identify
+The native ABI remains in `crates/morrow-runtime/src/abi.rs`. PIDs identify
 invocation-owned actors; copying a PID does not transfer actor-control storage.
 Reusable actor-table slots are separate from immutable u64 generations. A copied
 PID carries an explicit edge to its exact invocation control record. Control
@@ -37,7 +37,7 @@ synchronous helpers can still occupy their worker. See
 ## Roots and collection
 
 The compiler emits explicit root frames for managed values. Runtime root guards
-also protect Fern pointers held only in Rust temporary buffers while allocations
+also protect Morrow pointers held only in Rust temporary buffers while allocations
 or callbacks can collect. Roots remember their owning heap and cannot move
 between threads. Actor control and suspended state retain their payload roots
 through the registered ownership boundary.
@@ -54,7 +54,7 @@ including compiler helpers, callbacks, suspended state and precise heap layouts.
 Rust-owned JSON graphs use finalizers and capacity-aware retained-byte accounting.
 Cross-actor copies own independent JSON graphs. A finalizer runs once on
 reclamation or heap shutdown; it must not panic or reenter the collector.
-Native startup remains isolated in `fern-runtime-native`, so Rust tests can link
+Native startup remains isolated in `morrow-runtime-native`, so Rust tests can link
 the core runtime without a second program entry point.
 
 Reference-count metadata remains part of the ownership bookkeeping ABI.
@@ -64,7 +64,7 @@ remain logical resource limits separate from collector accounting.
 
 Platform stack/register code covers macOS/Linux on ARM64 and x86-64. The recorded
 native migration acceptance ran on ARM64. Static x86-64 web-server validation
-does not validate the native Fern collector or compiler on that architecture.
+does not validate the native Morrow collector or compiler on that architecture.
 
 ## WebAssembly ownership
 
@@ -78,10 +78,10 @@ Browser collection never depends on native stack/register scanning. Captured
 closures, maps and actors remain unsupported by this backend and reject before
 an output module is published.
 
-The checklist keeps its complete Fern model and view in that heap. Its Rust WASM
+The checklist keeps its complete Morrow model and view in that heap. Its Rust WASM
 host owns type-checked positive i64/BigInt handles, with 55-bit nonwrapping
 generations and explicit release. Bounded UTF-8 scratch transfer copies strings;
-raw Fern pointers never cross into host code. The modules do not share a heap.
+raw Morrow pointers never cross into host code. The modules do not share a heap.
 Host listeners, timers and socket callbacks have explicit cleanup, and unmount
 releases model handles and subscriptions. The Rust service worker owns the offline
 asset cache. See the [web preview guide](WEB_PREVIEW.md).
@@ -101,7 +101,7 @@ cancellation remain acceptance gates. The browser ABI has independent nested-val
 execution tests; broader capabilities and a WasmGC comparison remain open before
 stabilization.
 
-Run `cargo test -p fern-runtime` for runtime checks and `cargo xtask test` for
+Run `cargo test -p morrow-runtime` for runtime checks and `cargo xtask test` for
 native integration. WASM execution tests live in the compiler crate. See the
 [full-stack architecture](FULL_STACK_ARCHITECTURE.md), [roadmap](../ROADMAP.md)
 and [historical memory plan](history/MEMORY_MANAGEMENT_PLAN.md) for scope and history.

@@ -1,6 +1,6 @@
 # Executable language status
 
-Fern is a pre-1.0 language with a Rust compiler, runtime and language server.
+Morrow is a pre-1.0 language with a Rust compiler, runtime and language server.
 The [design](../DESIGN.md) includes future proposals. This page describes the
 implemented language and links to its execution contracts.
 
@@ -39,8 +39,8 @@ existing WebSocket protocol.
 
 ```sh
 cargo xtask build
-bin/fern run examples/language_tour.fn
-bin/fern repl
+bin/morrow run examples/language_tour.mr
+bin/morrow repl
 ```
 
 The tour combines a custom trait, structural derivation, a compile-time reduction,
@@ -55,7 +55,7 @@ native stdout fixtures, examples, process/tooling checks and bounded fuzzing:
 ```sh
 cargo xtask check
 cargo xtask fuzz 512 0xC0FFEE
-cargo test -p fern-sim --test language_actors
+cargo test -p morrow-sim --test language_actors
 cargo xtask simulate --actors --seed 0xc0ffee --steps 5000 --json
 cargo xtask simulate --seed 0xc0ffee --steps 3000 --days 30 --json
 ```

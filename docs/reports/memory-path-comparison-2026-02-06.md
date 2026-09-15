@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 # Milestone 7.7 Step D Memory Path Comparison (2026-02-06)
 
 ## Scope

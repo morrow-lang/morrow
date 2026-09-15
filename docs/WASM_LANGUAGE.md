@@ -1,6 +1,6 @@
-# Portable Fern language execution
+# Portable Morrow language execution
 
-The browser backend compiles checked Fern IR directly to core WebAssembly. It
+The browser backend compiles checked Morrow IR directly to core WebAssembly. It
 needs no WASI, native runtime, linker, JavaScript implementation of the language,
 or imported host functions. Browser I/O remains the responsibility of the Rust
 host. Native actors, databases, filesystem/network APIs, foreign calls, runtime
@@ -36,7 +36,7 @@ and captured fields. Invocation dispatches only to matching checked signatures.
 Captured implementation functions have no public raw-environment export. Multiple
 specializations sharing one source name export as
 `name::specialization::<checked-function-id>`; unique names retain their existing
-exports. Managed signatures retain the `fern::` prefix and generational i64
+exports. Managed signatures retain the `morrow::` prefix and generational i64
 handle ABI. Handles may represent closures, maps, sets, ranges and unions as well
 as the previously supported values.
 
@@ -51,7 +51,7 @@ the host entry traps. A failing cleanup does not prevent later callbacks from
 running. A subsequent host entry starts with fresh transient roots and fault
 state. External termination, such as host fuel exhaustion or WebAssembly call
 stack exhaustion, is an immediate engine trap and cannot promise cleanup. It is
-not a catchable Fern Result.
+not a catchable Morrow Result.
 
 ## Bounds and acceptance
 
@@ -63,7 +63,7 @@ values. Map lookup is linear and repeated immutable insertion can be quadratic.
 Compiler bounds also apply to function counts, generated locals, expression/type
 complexity and final module bytes.
 
-`cargo test -p fern --test wasm` exercises independent Wasmi expected values and
+`cargo test -p morrow --test wasm` exercises independent Wasmi expected values and
 existing full-width/UTF-8/handle/GC oracles. The added deterministic campaign uses
 seed `0x4645524e`, eight runs of 128 map edits, an independent Rust ordered-map
 model, all key/value positions and wrapping sums after each edit. Another test

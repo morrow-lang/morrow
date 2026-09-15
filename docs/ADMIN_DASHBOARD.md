@@ -1,6 +1,8 @@
 # System dashboard
 
-Open `/admin` on the running Fern web server, or follow **System dashboard** in
+> Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
+
+Open `/admin` on the running Morrow web server, or follow **System dashboard** in
 the application footer. Sign in to the application first; the dashboard reuses
 that session automatically. **Refresh snapshot** obtains a new observation;
 **JSON status** exposes the same data at `/admin/status` (schema version 1).
@@ -11,13 +13,13 @@ Its navigation link is included in the browser asset bundle.
 
 ## What it shows
 
-- Server uptime, Fern package version, operating system, architecture, process
+- Server uptime, Morrow package version, operating system, architecture, process
   ID and available CPU parallelism.
 - Executable size and embedded browser asset bytes; these are file/asset sizes,
   not process memory usage.
 - Current resident process memory (RSS) and peak resident memory, displayed in MiB
   and exposed as byte counts in JSON. These include the whole server process,
-  not just Fern-managed heaps; browser memory belongs to a separate process.
+  not just Morrow-managed heaps; browser memory belongs to a separate process.
 - Open WebSocket admission slots, including sockets that have not joined a room,
   and their configured limit.
 - Each pinned actor worker’s activity and last observed rooms, namespaces,
@@ -27,7 +29,7 @@ Its navigation link is included in the browser asset bundle.
 - Ephemeral or checkpointed room storage. Filesystem paths are not disclosed.
 
 Workers publish small snapshots outside domain callbacks. Reading them does not
-enqueue work behind a busy Fern actor. `Busy` means the owner is handling a request
+enqueue work behind a busy Morrow actor. `Busy` means the owner is handling a request
 or expiration pass; it does not indicate CPU utilization. Its counts remain those
 of its last completed observation until the work returns. `Stopped` records worker
 termination. Authentication expires retained sessions on its normal periodic tick.

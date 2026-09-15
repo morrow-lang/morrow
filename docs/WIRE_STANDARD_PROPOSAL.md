@@ -1,4 +1,4 @@
-# Adopted Fern live wire standard
+# Adopted Morrow live wire standard
 
 Date: 2026-09-14. Status: **protobuf selected**, superseding the preliminary CBOR
 recommendation and Decision144's JSON baseline. Implementation and migration
@@ -10,19 +10,19 @@ is retained so earlier proposal links continue to work.
 Use one bounded, explicitly versioned protobuf message contract between the
 browser's Rust/WASM host and the server, and inside authenticated server
 forwarding. The first-party browser uses binary WebSocket subprotocol
-**`fern.live.protobuf.v1`**. An explicitly negotiated legacy text path retains
-**`fern.live.v1`**. Peer links use **`fern.peer.protobuf.v1`** ALPN with peer
+**`morrow.live.protobuf.v1`**. An explicitly negotiated legacy text path retains
+**`morrow.live.v1`**. Peer links use **`morrow.peer.protobuf.v1`** ALPN with peer
 handshake version **2**, preserving their four-byte big-endian frame prefix.
 
 Protobuf is the live encoding; WebSocket and mutual TLS/TCP are the transports.
 No gRPC service, intermediary proxy or extra runtime process is required.
 Configuration, HTTP/admin APIs, browser offline records and durable checkpoints
-keep their existing JSON formats and versions. The native Fern domain's JSON
+keep their existing JSON formats and versions. The native Morrow domain's JSON
 request/reply bridge is also a separate boundary and remains unchanged.
 
 The [application schema and closed profile](../protocol/README.md),
-[application .proto](../protocol/fern_wire_v1.proto) and
-[peer field registry](../crates/fern-cluster/protocol/README.md) are the contract.
+[application .proto](../protocol/morrow_wire_v1.proto) and
+[peer field registry](../crates/morrow-cluster/protocol/README.md) are the contract.
 They supersede the provisional CBOR mapping previously described here.
 
 ## Why protobuf
@@ -41,9 +41,9 @@ supports protobuf after comparing all three implemented candidates:
   These are benchmark modules, not production codec-size deltas; the application
   retains JSON for other responsibilities.
 - Protobuf supplies an explicit field-number schema and established generated
-  client conventions. Fern still must provide strict validation, stable mappings
+  client conventions. Morrow still must provide strict validation, stable mappings
   and a deliberate compatibility policy. The schema does not generate arbitrary
-  Fern application codecs today.
+  Morrow application codecs today.
 
 The [measurement report](NETWORK_PROTOCOL.md) links raw native, browser and real
 compiled-application results. In the 100-task loopback application, switching
@@ -90,17 +90,17 @@ negotiation of a supported new schema. Generic protobuf unknown-field convention
 do not provide rolling compatibility for this closed profile.
 
 No pointers, native heap addresses, closures, local handles or language PIDs are
-serialized. General serializable Fern types and generated codecs are future work;
+serialized. General serializable Morrow types and generated codecs are future work;
 the preview protocol must not be advertised as an arbitrary remote actor ABI.
 
 ## Negotiation and migration
 
-The new browser offers and verifies `fern.live.protobuf.v1`; the server may
-explicitly select `fern.live.v1` only for a client requesting legacy JSON.
+The new browser offers and verifies `morrow.live.protobuf.v1`; the server may
+explicitly select `morrow.live.v1` only for a client requesting legacy JSON.
 The selected codec determines text versus binary messages for that connection.
 There is no format sniffing or retry through another parser after a failure.
 
-Old peers using `fern.peer.v1` do not connect to the protobuf peer ALPN. Upgrade
+Old peers using `morrow.peer.v1` do not connect to the protobuf peer ALPN. Upgrade
 cluster nodes in a coordinated deployment. Peer mismatches fail before commands
 are admitted; a transport update does not authorize a different room owner.
 Node configuration, placement digests and checkpoint bindings remain independent
@@ -131,5 +131,5 @@ must pass before claiming the migration fully verified.
 The integrated macOS repository gate and real-browser acceptance now pass these
 migration checks, including explicit mixed JSON/protobuf gateways and a real
 remote owner. The [roadmap](../ROADMAP.md) records the exact verified scope.
-This validates the bounded preview contract, not arbitrary distributed Fern
+This validates the bounded preview contract, not arbitrary distributed Morrow
 programs or production performance guarantees.

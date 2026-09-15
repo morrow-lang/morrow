@@ -3,7 +3,7 @@
 A union accepts any of its ordinary member types. Narrow it before using a
 member-specific operation:
 
-```fern
+```morrow
 type Value = Int | String
 fn describe(value: Value) -> String:
     match value:
@@ -11,7 +11,7 @@ fn describe(value: Value) -> String:
         s: String -> "text: {s}"
 fn main():
     println(describe(4294967296))
-    println(describe("fern"))
+    println(describe("morrow"))
 ```
 
 Unions flatten, deduplicate and canonicalize after alias expansion and generic
@@ -58,4 +58,4 @@ Constructor refinements such as `Ok(data) | Err(msg)`, variance, implicit union
 joins and lifted capabilities remain separate work. The formatter, module loader,
 documentation and semantic language server support this checkpoint; full editor
 parser parity is tracked separately. This feature uses the default Rust compiler,
-`fern`. The explicit C reference compiler was removed during the Rust-only migration.
+`morrow`. The explicit C reference compiler was removed during the Rust-only migration.

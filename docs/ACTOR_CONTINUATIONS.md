@@ -1,6 +1,6 @@
 # Actor continuations
 
-Fern's native scheduler runs FIFO callbacks. The compiler emits separate actor
+Morrow's native scheduler runs FIFO callbacks. The compiler emits separate actor
 copies of eligible functions, keeping their ordinary native ABI and synchronous
 behavior when called outside an actor. This is cooperative source-level
 suspension, not instruction-level or operating-system preemption.
@@ -75,7 +75,7 @@ has a constant execution cost.
 
 ## Acceptance
 
-`crates/fern/tests/cranelift_backend.rs` contains native tests with independent
+`crates/morrow/tests/cranelift_backend.rs` contains native tests with independent
 expected output and real runtime scheduling:
 
 - a host polls a long loop one callback at a time and observes a sibling before

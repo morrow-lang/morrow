@@ -7,7 +7,7 @@ are aliases. The existing dynamic JSON API is unchanged.
 
 Records opt in explicitly:
 
-```fern
+```morrow
 type User derive(Json):
     age: Int
     name: Option(String)
@@ -128,7 +128,7 @@ though it adds no native allocation. Result-bearing payloads remain unsupported.
 Source wrappers retain conditional codec requirements through inference, explicit
 generic signatures, recursive calls and function values:
 
-```fern
+```morrow
 fn write(value): json.encode(value)
 fn read(text: String) -> Result(a, json.Error): json.decode(text, a)
 ```

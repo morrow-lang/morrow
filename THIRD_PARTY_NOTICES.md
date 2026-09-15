@@ -1,13 +1,13 @@
 # Third-party notices
 
-Fern-owned compiler, runtime, language server, supervisor, browser host, web
+Morrow-owned compiler, runtime, language server, supervisor, browser host, web
 transport and repository tooling are Rust and use the repository [MIT license](LICENSE).
-Native distributions contain `fern`, `fern-test-supervisor` and `libfern_runtime.a`;
-the optional `fern-web` executable embeds browser WebAssembly and generated bindings.
+Native distributions contain `morrow`, `morrow-test-supervisor` and `libmorrow_runtime.a`;
+the optional `morrow-web` executable embeds browser WebAssembly and generated bindings.
 
 This inventory covers the normal, build and development dependency closures of
 the Cargo workspace for macOS and Linux (GNU and musl) on ARM64 and x86-64, plus the
-`fern-browser` and `fern-browser-worker` closures for `wasm32-unknown-unknown`,
+`morrow-browser` and `morrow-browser-worker` closures for `wasm32-unknown-unknown`,
 at versions in `Cargo.lock`. Inclusion does not mean every dependency is linked
 into every executable or browser artifact. Windows-only dependencies, unsupported
 native-runtime builds for WASM and the separate benchmark workspace are outside
@@ -25,7 +25,7 @@ wasm-bindgen package notices; its separately installed CLI remains a build tool.
 SQLite 3.53.2 is bundled by `libsqlite3-sys`, behind `rusqlite`. HTTPS uses Rust
 `ureq` and `rustls`, with `ring` cryptographic primitives containing third-party
 native code and assembly. These dependencies are permitted Rust wrappers;
-Fern owns no C implementation. Standard OS libraries and the Rust standard
+Morrow owns no C implementation. Standard OS libraries and the Rust standard
 library remain toolchain/platform components under their own licenses.
 
 ## Dependency inventory

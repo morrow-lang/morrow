@@ -1,10 +1,10 @@
 # Interactive actors and source simulation
 
-Fern's Rust interpreter runs the same checked actor continuations used by native
+Morrow's Rust interpreter runs the same checked actor continuations used by native
 compilation. You can define a worker, keep its typed Pid between REPL entries,
 and send messages without rebuilding a native executable:
 
-```fern
+```morrow
 fn worker():
     receive:
         message -> println(message)
@@ -60,7 +60,7 @@ remain covered by the collector-independent Rust value graph budget.
 `:stop` cancels actors while preserving ordinary REPL bindings. `:quit`, EOF and
 `:reset` also cancel pending actors and run cleanup. Rust embedders call
 `Session::stop_actors()` explicitly before discarding a session when user cleanup
-must execute; dropping Rust values alone releases memory without running Fern
+must execute; dropping Rust values alone releases memory without running Morrow
 code.
 
 The source checker and continuation preflight run before entry effects. A
@@ -81,24 +81,24 @@ interpreter's 100,000-step budget and a separate bounded cleanup budget. These
 limits apply to actors collectively, including restarts and selective scans.
 
 Rust embedders can inspect `Session::actor_report()` without executing work.
-`fern_compiler::repl::simulate_actors(entries)` runs a reproducible transcript
+`morrow_compiler::repl::simulate_actors(entries)` runs a reproducible transcript
 with filesystem, network, real-clock and foreign effects prohibited. Pure
 language operations, captured output, typed JSON operations and virtual actors
 remain available. Inputs are bounded to 4,096 entries / 8 MiB; captured
 transcripts are bounded to 8 MiB. Failed entry outcomes remain in the report. A `":stop"` transcript entry records
 explicit cancellation and its cleanup output.
 
-`fern_sim::language::run(entries)` exposes the same source simulator through
-FernSim. `language::replay(entries, expected)` compares every outcome and final
+`morrow_sim::language::run(entries)` exposes the same source simulator through
+MorrowSim. `language::replay(entries, expected)` compares every outcome and final
 scheduler counter, rejecting changed or corrupted reports. The existing
-FernSim native-actor and web/protocol fault campaigns remain separate tools.
+MorrowSim native-actor and web/protocol fault campaigns remain separate tools.
 
 Acceptance includes an independent Rust FIFO/round-robin model for 240
 full-width messages over three seeds, exact replay, selective mailbox retention,
 virtual deadline fairness, supervised cleanup and sibling progress, suspended logical scopes, cleanup
 fault precedence, explicit/terminal cancellation, quota
 recovery without Pid reuse, cross-entry mailbox caps, Result obligations and
-binding rollback after executed effects. The FernSim integration verifies its
+binding rollback after executed effects. The MorrowSim integration verifies its
 own expected Unicode/full-width transcript and rejects a corrupted report.
 
 Result sequencing additionally has a three-seed, 54-case independent Rust model

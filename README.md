@@ -5,23 +5,25 @@
   </picture>
 </p>
 
-<h1 align="center">Fern</h1>
+<h1 align="center">Morrow</h1>
 
 <p align="center"><strong>Readable code. Native programs.</strong><br>
-A statically typed, functional language with Python-like syntax.</p>
+Explore the Morrow programming language: statically typed, functional, with Python-like syntax.</p>
 
-Fern brings immutable values, pattern matching and explicit errors to readable,
-indentation-based code. Write Fern, check it before execution, and compile it to a
+[Project home](https://morrow-lang.org) · [Documentation](docs/README.md)
+
+Morrow brings immutable values, pattern matching and explicit errors to readable,
+indentation-based code. Write Morrow, check it before execution, and compile it to a
 native executable with a Rust compiler and runtime.
 The same typed application can run as native server actors and as a reactive
 WebAssembly browser client, with WebSocket updates and offline continuity.
 
-```fern
+```morrow
 fn greet(name: String) -> String:
     "Hello, {name}!"
 
 fn main():
-    println(greet("Fern"))
+    println(greet("Morrow"))
 ```
 
 **Early preview, with a working Rust implementation.** The compiler, runtime,
@@ -31,7 +33,7 @@ are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
 [what remains](docs/RELEASE_READINESS.md), or compare the
 [implemented language across targets](docs/LANGUAGE_STATUS.md).
 
-## Why Fern?
+## Why Morrow?
 
 - **Code that reads clearly.** Significant indentation, inferred types, immutable
   bindings and expressions that return values keep everyday programs direct.
@@ -41,8 +43,8 @@ are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
   generator and language server ship with the compiler.
 - **Native programs.** Cranelift generates machine code and the Rust runtime
   supplies memory management and services. Running a compiled program does not
-  require the Fern compiler; platform system libraries still apply.
-- **A growing full-stack path.** Compile Fern functions to WebAssembly and try
+  require the Morrow compiler; platform system libraries still apply.
+- **A growing full-stack path.** Compile Morrow functions to WebAssembly and try
   a collaborative checklist with local browser interaction, WebSocket updates
   and cached offline viewing. Its Rust server can ship as one static Linux binary.
 
@@ -50,7 +52,7 @@ The direction is a practical language for command-line tools and applications:
 readable code, predictable behavior and a useful standard library. The
 [design](DESIGN.md) describes that larger vision; the [roadmap](ROADMAP.md)
 tracks its implementation. The full-stack direction combines supervised native
-actors with a reactive Fern WebAssembly client over typed WebSocket connections.
+actors with a reactive Morrow WebAssembly client over typed WebSocket connections.
 The [working web preview](docs/WEB_PREVIEW.md) proves the first integration;
 the [architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the remaining
 language, supervision and scaling work.
@@ -61,18 +63,18 @@ You need **rustup** and a **host compiler/linker**: Xcode command-line tools on
 macOS, or GCC/Clang with the platform development libraries on Linux.
 
 ```sh
-git clone https://github.com/niklas-heer/fern.git
-cd fern
+git clone https://github.com/morrow-lang/morrow.git
+cd morrow
 cargo xtask build --release
-./bin/fern run examples/tiny_cli.fn
-./bin/fern build examples/tiny_cli.fn -o hello
+./bin/morrow run examples/tiny_cli.mr
+./bin/morrow build examples/tiny_cli.mr -o hello
 ./hello
-./bin/fern run examples/language_tour.fn
+./bin/morrow run examples/language_tour.mr
 ```
 
-The example prints `hello, fern`. `run` compiles and executes in one step;
+The example prints `hello, morrow`. `run` compiles and executes in one step;
 `build` leaves an executable you can run directly.
-The [language tour](examples/language_tour.fn) combines traits, compile-time
+The [language tour](examples/language_tour.mr) combines traits, compile-time
 constants, immutable sets, typed JSON and deferred cleanup in one small program.
 
 The repository selects its pinned Rust nightly automatically through
@@ -87,7 +89,7 @@ With the Rust prerequisites above, install the browser build tools once:
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 cargo xtask web-build
-FERN_WEB_ACCESS_KEY='replace-with-a-long-random-secret' ./dist/fern-web
+MORROW_WEB_ACCESS_KEY='replace-with-a-long-random-secret' ./dist/morrow-web
 ```
 
 Open **http://127.0.0.1:3000**, sign in with your chosen key and try two browser
@@ -96,24 +98,24 @@ visit has cached the application, offline reload preserves the last confirmed
 list and your draft. Shared changes require a connection.
 
 The binary embeds the HTML, CSS, browser WASM, generated bindings and Rust service
-worker. [The shared Fern application](examples/web/checklist.fn) owns the domain
-model, local model, event updates and keyed view. Its [native room actor](examples/web/server.fn)
+worker. [The shared Morrow application](examples/web/checklist.mr) owns the domain
+model, local model, event updates and keyed view. Its [native room actor](examples/web/server.mr)
 owns authoritative state. Rust provides the DOM, storage, authenticated transport
 and a rooted native embedding boundary; the shipped server contains no compiler
 or interpreter.
 
-Set `FERN_WEB_DATA_DIR=./fern-data` to checkpoint acknowledged room changes and
+Set `MORROW_WEB_DATA_DIR=./morrow-data` to checkpoint acknowledged room changes and
 recover them after a restart. Authentication and command namespaces start fresh;
 uncertain commands are never blindly replayed into a new incarnation.
 
 Rooms run on independent actor worker threads: by default, up to four available
-CPU cores. Set `FERN_WEB_WORKERS=1` through `32` to choose the worker count.
+CPU cores. Set `MORROW_WEB_WORKERS=1` through `32` to choose the worker count.
 Authentication stays responsive while a room executes, and admission limits
 remain shared across workers. See the [worker contract](docs/WEB_WORKERS.md)
 for room placement, revocation and durable-write behavior.
 
-**Connect multiple servers:** `fern-web --cluster-init` creates private node
-bundles; `FERN_WEB_CLUSTER` enables authenticated TLS routing to fixed room
+**Connect multiple servers:** `morrow-web --cluster-init` creates private node
+bundles; `MORROW_WEB_CLUSTER` enables authenticated TLS routing to fixed room
 owners. Browsers keep their normal automatic WebSocket connection to a gateway.
 The [three-node guide](docs/CLUSTER.md) includes setup, delivery guarantees and
 the 10,000-mutation stress scenario. Membership is fixed; partitions do not
@@ -133,7 +135,7 @@ also provides authenticated JSON snapshots and configured versus connected peers
 
 ## Explore resilience
 
-Run the actual protocol and native Fern actors under reproducible faults and
+Run the actual protocol and native Morrow actors under reproducible faults and
 virtual time, then replay the result:
 
 ```sh
@@ -187,6 +189,9 @@ Native programs use Cranelift `opt_level=speed`,
 independently of the compiler's own Rust build profile. Rust remains faster on
 these workloads; broader inlining, collection layout and allocation remain work.
 
+These measurements were recorded under the name Fern before the 2026-09-15
+rename. See the [current benchmark commands](benchmarks/README.md) for new runs.
+
 The [original Fern/Rust/TypeScript comparison](benchmarks/language-comparison/README.md)
 also measures Bun 1.4.2 and TypeScript 6.0.2, retaining the earlier unoptimized
 Fern baseline. Bun was not rerun for the latest optimization. These are specific
@@ -194,51 +199,51 @@ whole-process experiments, not a universal language ranking.
 
 A fresh [Elixir/BEAM comparison](benchmarks/language-comparison/BEAM.md) uses
 Elixir 1.20.4 and OTP 29.0.6 with JIT enabled. For 100,000 immutable updates,
-Fern takes **63.29 ms** per workload in a ten-repeat process; Elixir takes
+Morrow takes **63.29 ms** per workload in a ten-repeat process; Elixir takes
 **184.27 ms** with tuples or **207.23 ms** with structs even when VM startup is
-excluded. This supports Fern's native performance direction. Actor throughput,
+excluded. This supports Morrow's native performance direction. Actor throughput,
 scheduler fairness and fault recovery against BEAM remain unmeasured.
 
 The compiler experiments show useful defaults: required Result handling,
 exhaustive matches and labels for ambiguous arguments. Rust and configured
 TypeScript provide strong alternatives. They do not establish a developer
-productivity advantage. Fern's current `List.get` still faults out of bounds;
+productivity advantage. Morrow's current `List.get` still faults out of bounds;
 typed errors do not yet cover every runtime failure. The report retains raw
 samples, first-launch outliers, configuration details and runnable sources.
 
 ## Compiler tools
 
 ```sh
-./bin/fern check source.fn
-./bin/fern fmt source.fn
-./bin/fern test source.fn
-./bin/fern doc source.fn --html
-./bin/fern doc src --site docs-site --extras README.md --open
-./bin/fern repl
-./bin/fern lsp
+./bin/morrow check source.mr
+./bin/morrow fmt source.mr
+./bin/morrow test source.mr
+./bin/morrow doc source.mr --html
+./bin/morrow doc src --site docs-site --extras README.md --open
+./bin/morrow repl
+./bin/morrow lsp
 ```
 
-Replace `source.fn` with your program. The language server provides diagnostics,
+Replace `source.mr` with your program. The language server provides diagnostics,
 completion, navigation, formatting, rename and more over standard input/output.
-Configure your editor to launch `fern lsp` using the installed executable or its
-absolute path. See the [compiler guide](crates/fern/README.md) for command details
+Configure your editor to launch `morrow lsp` using the installed executable or its
+absolute path. See the [compiler guide](crates/morrow/README.md) for command details
 and the inspection tools.
 
 Documentation is written next to the code with `@moduledoc` and `@doc`, and
-examples inside it run as tests. `fern doc --site` renders modules and Markdown
+examples inside it run as tests. `morrow doc --site` renders modules and Markdown
 guides into a searchable site with cross-references; `cargo xtask docs` builds
 this repository's own site, including the Rust API reference. See
 [writing and publishing documentation](docs/DOCUMENTATION.md).
 
 ## Our implementation stance
 
-Fern-owned implementation and development tooling stay in **Rust**, organized as
+Morrow-owned implementation and development tooling stay in **Rust**, organized as
 a Cargo workspace. We prefer safe ownership, explicit resource limits and small,
 documented unsafe boundaries where native ABI and operating-system access require
-them. A Rust-owned tracing collector manages native Fern values, with isolated
+them. A Rust-owned tracing collector manages native Morrow values, with isolated
 actor payload heaps and copied messages. Compiler root frames are explicit;
 conservative scanning remains while precise-root coverage is completed.
-Ordinary Fern code does not require borrow checking or lifetime annotations.
+Ordinary Morrow code does not require borrow checking or lifetime annotations.
 
 We prefer native Rust dependencies and permit maintained Rust wrappers around
 third-party native libraries. SQLite uses `rusqlite`; the native HTTP client uses `ureq` and
@@ -266,7 +271,7 @@ The [application and worker acceptance record](docs/WEB_APPLICATION_ACCEPTANCE.m
 adds the complete 1,890-test gate, actor lifecycle/progress checks and measured
 static servers of 2.75 MiB (ARM64) and 3.06 MiB (x86-64).
 
-Fern is ready to explore, build small programs with and contribute to. It remains
+Morrow is ready to explore, build small programs with and contribute to. It remains
 an early preview: general actor preemption, generalized supervision, work
 stealing, dynamic cluster membership, replicated failover, remote language PIDs
 and a general application packaging API remain open.
@@ -289,7 +294,7 @@ the [language roadmap](ROADMAP.md) continues.
 cargo xtask install "$HOME/.local"
 ```
 
-Add `$HOME/.local/bin` to your `PATH` to use `fern` directly. Installation builds
+Add `$HOME/.local/bin` to your `PATH` to use `morrow` directly. Installation builds
 release components. To remove them, run `cargo xtask uninstall "$HOME/.local"`.
 
 For development and packaging:
@@ -301,26 +306,26 @@ cargo xtask package
 
 `check` builds the components and runs formatting, linting, Rust tests and native
 acceptance. `package` creates a verified host archive and checksum in `dist/`.
-The release bundle includes `fern`, the Rust test supervisor, the Rust runtime
+The release bundle includes `morrow`, the Rust test supervisor, the Rust runtime
 archive, its package marker and license notices. Keep these components together
 when moving an installation.
 
 | Directory | Responsibility |
 | --- | --- |
-| [`crates/fern`](crates/fern) | Compiler, CLI, formatter, REPL, docs and LSP |
-| [`crates/fern-runtime`](crates/fern-runtime) | Native values, collector and services |
-| [`crates/fern-runtime-native`](crates/fern-runtime-native) | Compiled-program startup |
-| [`crates/fern-json`](crates/fern-json) | Shared bounded JSON implementation |
-| [`crates/fern-web-protocol`](crates/fern-web-protocol) | Authenticated command/revision contracts and application transitions |
-| [`crates/fern-web-app`](crates/fern-web-app) | Compiled Fern actor embedding and durable room checkpoints |
-| [`crates/fern-web`](crates/fern-web) | Authenticated HTTP/WebSocket preview server and embedded assets |
-| [`crates/fern-browser`](crates/fern-browser) | Rust browser host, generic keyed DOM and Fern model handles |
-| [`crates/fern-browser-worker`](crates/fern-browser-worker) | Rust service worker for cached offline loading |
-| [`crates/fern-test-supervisor`](crates/fern-test-supervisor) | Native test capture and process cleanup |
+| [`crates/morrow`](crates/morrow) | Compiler, CLI, formatter, REPL, docs and LSP |
+| [`crates/morrow-runtime`](crates/morrow-runtime) | Native values, collector and services |
+| [`crates/morrow-runtime-native`](crates/morrow-runtime-native) | Compiled-program startup |
+| [`crates/morrow-json`](crates/morrow-json) | Shared bounded JSON implementation |
+| [`crates/morrow-web-protocol`](crates/morrow-web-protocol) | Authenticated command/revision contracts and application transitions |
+| [`crates/morrow-web-app`](crates/morrow-web-app) | Compiled Morrow actor embedding and durable room checkpoints |
+| [`crates/morrow-web`](crates/morrow-web) | Authenticated HTTP/WebSocket preview server and embedded assets |
+| [`crates/morrow-browser`](crates/morrow-browser) | Rust browser host, generic keyed DOM and Morrow model handles |
+| [`crates/morrow-browser-worker`](crates/morrow-browser-worker) | Rust service worker for cached offline loading |
+| [`crates/morrow-test-supervisor`](crates/morrow-test-supervisor) | Native test capture and process cleanup |
 | [`xtask`](xtask) | Build, checks, packaging and installation |
 
 The [contribution guide](CLAUDE.md) requires tests before behavior changes.
-See [FERN_STYLE.md](FERN_STYLE.md) for Rust safety and resource-bound conventions.
+See [MORROW_STYLE.md](MORROW_STYLE.md) for Rust safety and resource-bound conventions.
 The [documentation index](docs/README.md) connects language references, contracts
 and acceptance reports.
 

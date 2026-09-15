@@ -1,7 +1,7 @@
 # Peer protobuf field registry
 
-`peer.proto` defines the wire format for ALPN `fern.peer.protobuf.v1`.
-The peer handshake version is **2**. JSON peer ALPN `fern.peer.v1` is unsupported;
+`peer.proto` defines the wire format for ALPN `morrow.peer.protobuf.v1`.
+The peer handshake version is **2**. JSON peer ALPN `morrow.peer.v1` is unsupported;
 peers reject a mismatched ALPN before parsing application data. The browser's
 application version, node configuration, placement digest and checkpoint formats
 are independent and remain unchanged.
@@ -9,7 +9,7 @@ are independent and remain unchanged.
 Messages retain the four-byte unsigned big-endian length prefix and 69,632-byte
 frame ceiling. Hello is additionally limited to 256 bytes. A frame contains one
 protobuf message; there is no parser fallback or nested JSON. Command and Event
-byte fields contain the strict shared `fern-web-protocol::binary` format, capped
+byte fields contain the strict shared `morrow-web-protocol::binary` format, capped
 at 65,536 bytes before decoding. This byte boundary permits shared bounded codecs
 without introducing an additional live-message envelope around a bare Command.
 
@@ -28,7 +28,7 @@ is zero. No other fields are permitted for a selected variant. Unknown fields,
 duplicates, unknown kinds, groups, wrong wire types, overflowing or overlong
 varints, invalid UTF-8 and truncated lengths are rejected. Record order is not
 significant. The encoder writes ascending field numbers. This strict profile
-does not promise that arbitrary protobuf tooling's defaults satisfy Fern's
+does not promise that arbitrary protobuf tooling's defaults satisfy Morrow's
 presence/unknown-field rules, nor that encoded bytes define message identity.
 
 The shortest-varint requirement applies to the **outer peer Hello and Frame**,

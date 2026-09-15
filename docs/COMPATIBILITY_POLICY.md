@@ -1,6 +1,6 @@
 # Compatibility and deprecation policy
 
-Fern compatibility covers executable language syntax, type checking, standard
+Morrow compatibility covers executable language syntax, type checking, standard
 library APIs and public CLI behavior. `DESIGN.md` includes future work; parsing
 or checking a proposed construct does not establish executable support.
 
@@ -21,7 +21,7 @@ The unreleased Rust migration is an explicit source and implementation change:
 
 - The compiler, runtime, supervisor and maintenance tools are Rust. Cranelift
   produces native objects; the C reference compiler, QBE and Tree-sitter package
-  are removed. The Rust LSP remains available through `fern lsp`.
+  are removed. The Rust LSP remains available through `morrow lsp`.
 - JSON uses opaque `json.Value` and `json.Error`. The old String-copy JSON API
   and its native entry points are removed. Parse text before stringifying a
   JSON value, or use `json.from_string` to construct a JSON string.
@@ -66,7 +66,7 @@ published deprecation policy. Function signatures are maintained in the
 
 Native ABI callers must meet documented pointer, lifetime and layout requirements.
 The Rust runtime retains required native calling conventions; a C ABI does not
-mean that Fern contains an authored C implementation. Third-party native libraries
+mean that Morrow contains an authored C implementation. Third-party native libraries
 behind Rust wrappers are permitted, with a preference for native Rust dependencies.
 
 ## Release checks

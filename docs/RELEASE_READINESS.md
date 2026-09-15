@@ -1,6 +1,6 @@
-# Fern release readiness
+# Morrow release readiness
 
-Fern is pre-1.0. The compiler, native runtime, supervisor and repository tooling
+Morrow is pre-1.0. The compiler, native runtime, supervisor and repository tooling
 are implemented in Rust. Native compilation uses Cranelift. The Rust LSP remains
 available; Tree-sitter and the old C/QBE/bootstrap setup have been removed.
 
@@ -13,17 +13,17 @@ See the [standard library reference](STDLIB_API_REFERENCE.md) and [roadmap](../R
 
 ## Remaining language work
 
-The active product direction is supervised native actors plus a reactive Fern
+The active product direction is supervised native actors plus a reactive Morrow
 WebAssembly browser application over a typed WebSocket protocol (Decision124).
 The [full-stack architecture](FULL_STACK_ARCHITECTURE.md) defines its staged
-acceptance. The current checklist runs Fern domain actors and a typed Fern browser
+acceptance. The current checklist runs Morrow domain actors and a typed Morrow browser
 model/update/view, with bounded reconnect behavior and optional local durable room
 checkpoints. Worker sharding, actor-owned heaps and [fixed-owner server clusters](CLUSTER.md)
 are implemented and have independent real-process stress/fault tests. General
 external-event liveness, complete preemption, subtree supervision, replicated
 ownership and distributed recovery still need separate acceptance. Generated
 browser interop is permitted build output; authored implementation remains Rust
-and application logic remains Fern.
+and application logic remains Morrow.
 
 The implementation does not cover every proposal in [DESIGN.md](../DESIGN.md).
 Direct actor helper recursion and loops now use typed continuation frames; see

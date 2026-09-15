@@ -1,3 +1,5 @@
+> Fern was renamed to Morrow on 2026-09-15; this historical record retains its original names, paths and measurements.
+
 | Case | Language | Samples | Median ms | Min–max ms | Median peak RSS MiB |
 | --- | --- | ---: | ---: | ---: | ---: |
 | build | fern | 5 | 37.822 | 36.486–41.718 | 53.98 |

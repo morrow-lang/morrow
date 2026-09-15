@@ -1,22 +1,22 @@
 # Deterministic native actor simulation
 
-Fern can drive its real native managed actor runtime with an invocation-local
+Morrow can drive its real native managed actor runtime with an invocation-local
 virtual clock. This is an opt-in testing capability, not a replacement scheduler
 or a claim of Erlang/OTP production maturity. It exercises the same descriptor
 validation, graph copying, actor heaps, FIFO scheduling, selective receive,
-supervision, identity reuse and host reply ports used by compiled native Fern.
+supervision, identity reuse and host reply ports used by compiled native Morrow.
 The scenario callbacks themselves are small Rust implementations of the native
 callback ABI; the separate [application simulator](DETERMINISTIC_SIMULATION.md)
-uses the compiled Fern room actor through `NativeDomain`.
+uses the compiled Morrow room actor through `NativeDomain`.
 
 ## Run and replay
 
 ```sh
 cargo xtask simulate actor-run --seed 42 --steps 10000 --json
-cargo test -p fern-runtime --no-default-features --features simulation managed::simulation
+cargo test -p morrow-runtime --no-default-features --features simulation managed::simulation
 ```
 
-The `fern-sim actor-run` command also works directly. A run records its scenario
+The `morrow-sim actor-run` command also works directly. A run records its scenario
 version, seed, step count, virtual milliseconds, scheduler turns, delivery/timeout
 counts, restarts, churn, trace hash and final heap accounting. Version 1 fixes
 SplitMix64 event generation and a little-endian FNV-1a trace hash. Neither is used
@@ -32,7 +32,7 @@ keeps scenario time far below `u64` overflow even at the maximum step count.
 Rust callers use the safe entry point:
 
 ```rust,ignore
-use fern_runtime::managed::simulation::{run, Config};
+use morrow_runtime::managed::simulation::{run, Config};
 let report = run(Config { seed: 42, steps: 10_000 })?;
 assert_eq!(report.final_heap_objects, 0);
 ```
@@ -92,14 +92,14 @@ compiled-language tests.
 The `callbacks` report field counts scheduler turns, including a ready waiting
 actor being polled. It is not a count of machine instructions, all selector calls,
 wall time, or BEAM reductions. Timer promotion can invoke selectors outside that
-counter. Resource counts describe Fern managed storage, not total process RSS.
+counter. Resource counts describe Morrow managed storage, not total process RSS.
 
 ## Host clock API
 
-Enable Cargo feature `fern-runtime/simulation` to expose
-`fern_runtime::managed::simulation`. Builds with this feature disabled contain
+Enable Cargo feature `morrow-runtime/simulation` to expose
+`morrow_runtime::managed::simulation`. Builds with this feature disabled contain
 neither these controls nor the per-session virtual clock fields. Cargo workspace feature
-unification can enable it for a shared runtime build, because `fern-sim` requests
+unification can enable it for a shared runtime build, because `morrow-sim` requests
 it; package-specific production builds do not request it by default. Runtime unit tests also
 compile the seam, while retaining their older private test-clock oracles.
 
@@ -125,7 +125,7 @@ host must keep the `Exec`, descriptor table, fault cell and referenced native
 values rooted and valid until close. The APIs are unsafe because these raw-pointer
 lifetime requirements cannot be checked by Rust's type system. They do not make
 an `Exec` transferable between threads. Drive virtual sessions with
-`fern_managed_poll` and explicit time advancement. `fern_managed_run` is the
+`morrow_managed_poll` and explicit time advancement. `morrow_managed_run` is the
 ordinary blocking driver and must not be used for virtual waits: it does not
 advance a virtual clock automatically.
 
@@ -134,33 +134,33 @@ advance a virtual clock automatically.
 The study used the official Erlang/OTP repository at tag `OTP-29.0.6`, resolved to
 commit `e07fd07837e5aa845657f5fa340637121e451d47`. Only six source/document files
 were fetched (586,454 bytes), rather than cloning the repository. No OTP
-implementation was copied into Fern.
+implementation was copied into Morrow.
 
 1. **Scheduling has to preserve resumable state.** In the pinned
    [BEAM emulator](https://github.com/erlang/otp/blob/e07fd07837e5aa845657f5fa340637121e451d47/erts/emulator/beam/emu/beam_emu.c#L358),
    the emulator computes consumed reductions, calls the scheduler and restores
    saved registers. The
    [process record](https://github.com/erlang/otp/blob/e07fd07837e5aa845657f5fa340637121e451d47/erts/emulator/beam/erl_process.h#L1062)
-   carries the remaining reduction count. The lesson for Fern is to test actual
+   carries the remaining reduction count. The lesson for Morrow is to test actual
    resumable boundaries and preserved state; a host-side counter cannot preempt
    an arbitrary synchronous helper.
 2. **Restart policy has explicit temporal semantics.** The pinned
    [supervisor implementation](https://github.com/erlang/otp/blob/e07fd07837e5aa845657f5fa340637121e451d47/lib/stdlib/src/supervisor.erl#L2260)
    tracks monotonic restart times and filters a rolling window. OTP's documented
    [intensity and period](https://www.erlang.org/docs/27/apps/stdlib/supervisor.html)
-   therefore differ from Fern's current `0..=32` lifetime restart budget. This
-   work preserves Fern's policy and tests exhaustion; it does not silently claim
+   therefore differ from Morrow's current `0..=32` lifetime restart budget. This
+   work preserves Morrow's policy and tests exhaustion; it does not silently claim
    OTP-compatible supervision.
 3. **Test observable survival and restart behavior.** The pinned
    [supervisor suite](https://github.com/erlang/otp/blob/e07fd07837e5aa845657f5fa340637121e451d47/lib/stdlib/test/supervisor_SUITE.erl#L3197)
    checks child exits and whether the supervisor remains alive across termination
-   modes. Fern's scenarios similarly check emitted values and unrelated sibling
+   modes. Morrow's scenarios similarly check emitted values and unrelated sibling
    survival, without adopting OTP's test suite or its wall-clock waits.
 4. **Replay needs an explicit algorithm and seed.** The official
    [rand documentation](https://www.erlang.org/doc/apps/stdlib/rand.html)
    distinguishes explicit PRNG state and algorithm selection for reproducibility.
    [Common Test's shuffled groups](https://www.erlang.org/docs/27/apps/common_test/write_test_chapter.html#shuffled-test-case-order)
-   record a seed so an execution order can be replayed. Fern records an explicit
+   record a seed so an execution order can be replayed. Morrow records an explicit
    integer-only algorithm version and seed; a trace hash adds a compact regression
    signal but cannot substitute for behavioral assertions.
 
