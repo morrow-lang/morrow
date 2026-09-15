@@ -365,3 +365,18 @@ fn two_domains_allocate_into_independent_heaps() {
     assert_eq!(first.with(|heap| heap.bytes), 64);
     assert_eq!(second.with(|heap| heap.bytes), 32);
 }
+
+#[test]
+fn domain_roots_register_and_unregister_in_their_own_heap() {
+    let mut domain = Domain::new();
+    let block = domain.with_mut(|heap| heap.allocate(16, false));
+    let slot = block as usize;
+    let root = domain.root(&slot as *const usize, 1);
+    assert_eq!(domain.with(|heap| heap.roots.len()), 1);
+    let (heap, id) = (root.heap, root.id);
+    // Root::drop still targets the ambient thread domain until the cursor exists,
+    // so retire this token explicitly instead of through Drop.
+    std::mem::forget(root);
+    domain.remove_root(heap, id);
+    assert_eq!(domain.with(|heap| heap.roots.len()), 0);
+}

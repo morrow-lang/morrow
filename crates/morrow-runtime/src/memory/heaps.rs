@@ -47,6 +47,24 @@ impl Domain {
             retired_collections: 0,
         }
     }
+    pub(crate) fn root(&mut self, pointer: *const usize, words: usize) -> Root {
+        let active = self.active;
+        let id = register(
+            &mut self.slots.get_mut(&active).unwrap().heap,
+            pointer,
+            words,
+        );
+        Root {
+            heap: active,
+            id,
+            _thread: PhantomData,
+        }
+    }
+    pub(crate) fn remove_root(&mut self, heap: usize, id: usize) {
+        if let Some(slot) = self.slots.get_mut(&heap) {
+            slot.heap.roots.remove(&id);
+        }
+    }
     pub(crate) fn with<R>(&self, f: impl FnOnce(&Heap) -> R) -> R {
         f(&self.slots[&self.active].heap)
     }
@@ -152,27 +170,11 @@ fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root
 }
 pub(super) fn root(pointer: *const usize, words: usize) -> Root {
-    STORE.with(|store| {
-        let mut store = store.borrow_mut();
-        let active = store.active;
-        let id = register(
-            &mut store.slots.get_mut(&active).unwrap().heap,
-            pointer,
-            words,
-        );
-        Root {
-            heap: active,
-            id,
-            _thread: PhantomData,
-        }
-    })
+    STORE.with(|store| store.borrow_mut().root(pointer, words))
 }
 pub(super) fn remove_root(heap: usize, id: usize) {
-    let _ = STORE.try_with(|store| {
-        if let Some(slot) = store.borrow_mut().slots.get_mut(&heap) {
-            slot.heap.roots.remove(&id);
-        }
-    });
+    // Root::drop can run while thread-local storage is being destroyed.
+    let _ = STORE.try_with(|store| store.borrow_mut().remove_root(heap, id));
 }
 
 /// An allocation/collection scope on this thread, restored before payload retirement.
