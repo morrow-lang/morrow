@@ -102,7 +102,9 @@ exact. A program that fails on the 64 MB ceiling today fails identically at N=8.
 
 ### `Pid` loses its pointers
 
-`{session, actor, id, mailbox}` becomes `{id, generation, mailbox}`.
+`{session, actor, id, mailbox}` becomes `{slot, generation, mailbox}`, where the
+slot is the reusable index `identities` already uses and the generation is what
+`next_id` is today.
 
 This is the change that keeps step 1's edge oracle honest. With no `*mut Actor`
 inside a PID there is no representable cross-domain pointer, so `verify_edges`
@@ -294,7 +296,7 @@ step 3. Expected, and to be recorded rather than designed around.
 
 ## Decisions to record
 
-- Heap ownership per scheduler; `Pid` becomes an opaque `{id, generation, mailbox}`
+- Heap ownership per scheduler; `Pid` becomes an opaque `{slot, generation, mailbox}`
   resolved through a shared registry; no pointer crosses a domain.
 - Cross-scheduler send transfers a detached heap fragment, adopted by the receiver
   on its own thread as a map merge.
