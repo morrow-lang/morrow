@@ -12,8 +12,11 @@ pub(super) struct Quiesce {
     in_flight: AtomicUsize,
     parked: AtomicUsize,
     /// Parks that found a message charged but not yet adopted, and any that
-    /// concluded termination anyway. The second must always be zero.
+    /// concluded termination anyway. The second must always be zero. Oracles
+    /// only: production decides termination from the counters above.
+    #[cfg(any(test, feature = "simulation"))]
     parks_with_inflight: AtomicUsize,
+    #[cfg(any(test, feature = "simulation"))]
     spurious_deadlocks: AtomicUsize,
 }
 
@@ -52,6 +55,7 @@ impl Quiesce {
             self.parked.store(0, Ordering::Release);
             return Parked::Work;
         }
+        #[cfg(any(test, feature = "simulation"))]
         if self.in_flight.load(Ordering::Acquire) != 0 {
             self.parks_with_inflight.fetch_add(1, Ordering::AcqRel);
         }
@@ -76,10 +80,12 @@ impl Quiesce {
 
     /// A park concluded termination while a message was in flight. Always a
     /// defect: the receiver was about to become runnable.
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn record_spurious_deadlock(&self) {
         self.spurious_deadlocks.fetch_add(1, Ordering::AcqRel);
     }
 
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn park_counters(&self) -> (u64, usize) {
         (
             self.parks_with_inflight.load(Ordering::Acquire) as u64,

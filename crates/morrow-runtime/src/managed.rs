@@ -19,6 +19,8 @@ mod registry;
 #[cfg(test)]
 #[path = "managed/registry_tests.rs"]
 mod registry_tests;
+#[path = "managed/threads.rs"]
+pub mod threads;
 const LIVE: usize = 1024;
 const IDS: usize = 65536;
 const MAILBOX: usize = 4096;

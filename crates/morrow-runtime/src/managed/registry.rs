@@ -41,7 +41,9 @@ pub(super) struct Registry {
     placed: Vec<usize>,
     /// Supervised children issued onto a scheduler other than their
     /// supervisor's. Any non-zero value is a cross-domain supervisor pointer.
+    #[cfg(any(test, feature = "simulation"))]
     cross_scheduler_supervision: usize,
+    #[cfg(any(test, feature = "simulation"))]
     cross_scheduler_sends: u64,
     /// Per (sender, receiver) send counter and the highest sequence delivered,
     /// so a delivery arriving behind its pair's high-water mark is visible.
@@ -64,7 +66,9 @@ impl Registry {
             next_generation: 0,
             lineages: BTreeMap::new(),
             placed: Vec::new(),
+            #[cfg(any(test, feature = "simulation"))]
             cross_scheduler_supervision: 0,
+            #[cfg(any(test, feature = "simulation"))]
             cross_scheduler_sends: 0,
             #[cfg(any(test, feature = "simulation"))]
             sequences: BTreeMap::new(),
@@ -175,26 +179,34 @@ impl Registry {
         child_scheduler: usize,
         supervisor_scheduler: usize,
     ) {
+        // Co-location is enforced at placement; this only records whether the
+        // enforcement held, so production carries no counter for it.
+        let _ = (child_scheduler, supervisor_scheduler);
+        #[cfg(any(test, feature = "simulation"))]
         if child_scheduler != supervisor_scheduler {
             self.cross_scheduler_supervision += 1;
         }
         self.lineages.insert(generation, supervisor);
     }
 
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn census(&self, schedulers: usize) -> Vec<usize> {
         let mut counts = self.placed.clone();
         counts.resize(schedulers.max(counts.len()), 0);
         counts
     }
 
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn cross_scheduler_supervision(&self) -> usize {
         self.cross_scheduler_supervision
     }
 
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn record_cross_scheduler_send(&mut self) {
         self.cross_scheduler_sends += 1;
     }
 
+    #[cfg(any(test, feature = "simulation"))]
     pub(super) fn cross_scheduler_sends(&self) -> u64 {
         self.cross_scheduler_sends
     }

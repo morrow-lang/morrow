@@ -10,6 +10,7 @@ pub mod io;
 pub mod json;
 pub mod json_codec;
 pub mod managed;
+pub use managed::threads::{RuntimeOptions, configure};
 pub mod memory;
 pub mod process;
 pub mod services;
