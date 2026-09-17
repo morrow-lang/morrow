@@ -374,7 +374,14 @@ unsafe fn adopt_inbox(s: *mut Session, a: *mut Actor) {
         let Some(inbox) = registry(s).inbox((*a).slot, (*a).generation) else {
             return;
         };
-        for delivery in inbox.take_all() {
+        // Only the reorder hook below mutates this, and only in test builds.
+        #[allow(unused_mut)]
+        let mut deliveries = inbox.take_all();
+        #[cfg(test)]
+        simulation::forced_reorder_for_test(&mut deliveries);
+        for delivery in deliveries {
+            #[cfg(any(test, feature = "simulation"))]
+            registry(s).record_delivery(delivery.sender, (*a).slot, delivery.sequence);
             memory::adopt((*a).heap, delivery.fragment);
             let message = {
                 let _scope = memory::enter_heap((*a).heap);

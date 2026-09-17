@@ -43,6 +43,18 @@ pub(super) struct Registry {
     /// supervisor's. Any non-zero value is a cross-domain supervisor pointer.
     cross_scheduler_supervision: usize,
     cross_scheduler_sends: u64,
+    /// Per (sender, receiver) send counter and the highest sequence delivered,
+    /// so a delivery arriving behind its pair's high-water mark is visible.
+    #[cfg(any(test, feature = "simulation"))]
+    sequences: BTreeMap<(usize, usize), u64>,
+    #[cfg(any(test, feature = "simulation"))]
+    delivered_high_water: BTreeMap<(usize, usize), u64>,
+    #[cfg(any(test, feature = "simulation"))]
+    ordering_violations: usize,
+    #[cfg(any(test, feature = "simulation"))]
+    sent: u64,
+    #[cfg(any(test, feature = "simulation"))]
+    adopted: u64,
 }
 
 impl Registry {
@@ -54,6 +66,16 @@ impl Registry {
             placed: Vec::new(),
             cross_scheduler_supervision: 0,
             cross_scheduler_sends: 0,
+            #[cfg(any(test, feature = "simulation"))]
+            sequences: BTreeMap::new(),
+            #[cfg(any(test, feature = "simulation"))]
+            delivered_high_water: BTreeMap::new(),
+            #[cfg(any(test, feature = "simulation"))]
+            ordering_violations: 0,
+            #[cfg(any(test, feature = "simulation"))]
+            sent: 0,
+            #[cfg(any(test, feature = "simulation"))]
+            adopted: 0,
         }
     }
 
@@ -177,6 +199,35 @@ impl Registry {
         self.cross_scheduler_sends
     }
 
+    /// Stamp a send with its sequence to this receiver.
+    #[cfg(any(test, feature = "simulation"))]
+    pub(super) fn next_sequence(&mut self, sender: usize, receiver: usize) -> u64 {
+        self.sent += 1;
+        let counter = self.sequences.entry((sender, receiver)).or_insert(0);
+        *counter += 1;
+        *counter
+    }
+
+    /// Record a delivery and report whether it arrived behind its pair.
+    #[cfg(any(test, feature = "simulation"))]
+    pub(super) fn record_delivery(&mut self, sender: usize, receiver: usize, sequence: u64) {
+        self.adopted += 1;
+        let high = self
+            .delivered_high_water
+            .entry((sender, receiver))
+            .or_insert(0);
+        if sequence <= *high {
+            self.ordering_violations += 1;
+        } else {
+            *high = sequence;
+        }
+    }
+
+    #[cfg(any(test, feature = "simulation"))]
+    pub(super) fn delivery_counters(&self) -> (usize, u64, u64) {
+        (self.ordering_violations, self.sent, self.adopted)
+    }
+
     pub(super) fn lineage(&self, generation: u64) -> Option<*mut Supervisor> {
         self.lineages.get(&generation).copied()
     }
@@ -284,4 +335,11 @@ pub(super) struct Delivery {
     pub value: i64,
     pub cost: usize,
     pub enqueued: u64,
+    /// Which sender, and its sequence to this receiver. Replay proves a seed
+    /// reproduces; it does not prove the result is correct, and per-pair order
+    /// is the property most easily broken by an interleaving.
+    #[cfg(any(test, feature = "simulation"))]
+    pub sender: usize,
+    #[cfg(any(test, feature = "simulation"))]
+    pub sequence: u64,
 }

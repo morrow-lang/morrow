@@ -209,6 +209,10 @@ unsafe fn idle(s: *mut Session) -> bool {
             // external input to wait for, this is the deadlock the invocation
             // has always reported rather than a clean finish.
             quiesce::Parked::Terminated if earliest_deadline(s) == u64::MAX => {
+                #[cfg(any(test, feature = "simulation"))]
+                if quiesce(s).outstanding_in_flight() != 0 {
+                    quiesce(s).record_spurious_deadlock();
+                }
                 fail(&raw mut (*s).root, 10);
                 return false;
             }

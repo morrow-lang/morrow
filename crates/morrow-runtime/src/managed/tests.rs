@@ -1229,3 +1229,136 @@ fn the_single_scheduler_trace_hash_is_unchanged_by_the_driver() {
         "one scheduler must behave exactly as step 1's runtime did"
     );
 }
+
+#[test]
+fn every_invariant_holds_across_a_seed_sweep_at_every_scheduler_count() {
+    // Replay proves a seed reproduces. It does not prove the result is correct.
+    // These are the properties that must hold under every interleaving.
+    for seed in 0..16u64 {
+        for schedulers in [1usize, 2, 4, 8] {
+            let report = simulation::run(simulation::Config {
+                seed: 0x5eed_0100 + seed,
+                steps: 96,
+                schedulers,
+            })
+            .unwrap_or_else(|e| panic!("seed {seed} at {schedulers} schedulers: {e}"));
+
+            assert!(
+                report.sent > 0,
+                "seed {seed}/{schedulers}: nothing was sent"
+            );
+            assert_eq!(
+                report.ordering_violations, 0,
+                "seed {seed}/{schedulers}: messages between one pair must arrive in send order"
+            );
+            assert_eq!(
+                report.lost, 0,
+                "seed {seed}/{schedulers}: a message was lost"
+            );
+            assert_eq!(
+                report.duplicated, 0,
+                "seed {seed}/{schedulers}: a message was delivered twice"
+            );
+            assert_eq!(
+                report.fragments_outstanding, 0,
+                "seed {seed}/{schedulers}: a fragment outlived adoption"
+            );
+            assert_eq!(
+                report.spurious_deadlocks, 0,
+                "seed {seed}/{schedulers}: deadlock declared with a message in flight"
+            );
+            assert_eq!(
+                report.cross_scheduler_supervision, 0,
+                "seed {seed}/{schedulers}: a supervision lineage was split across domains"
+            );
+            assert_eq!(
+                report.final_messages, 0,
+                "seed {seed}/{schedulers}: message accounting did not return to zero"
+            );
+            assert_eq!(
+                report.final_heap_bytes, 0,
+                "seed {seed}/{schedulers}: retained bytes did not return to zero"
+            );
+            assert_eq!(
+                report.final_live, 0,
+                "seed {seed}/{schedulers}: an actor leaked"
+            );
+        }
+    }
+}
+
+#[test]
+fn messages_from_one_sender_arrive_in_order_and_the_ordering_oracle_can_fail() {
+    // The seed sweep asserts ordering_violations == 0, but the scenario's
+    // sender/receiver pairs are nearly all singletons, so that assertion alone
+    // is close to vacuous. This drives a pair that actually has an order, then
+    // breaks it on purpose: an oracle that cannot fail proves nothing.
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let session = (*exec).session;
+        let receiver = f.spawn(exec, 1);
+        let a = actor_of(session, receiver);
+        for value in 1..=4 {
+            let sent = morrow_managed_send(exec, receiver.cast(), value, &*f.scalar)
+                as *const abi::ResultValue;
+            assert_eq!((*sent).tag, 0);
+        }
+        adopt_inbox(session, a);
+        let mut arrived = Vec::new();
+        let mut message = (*a).first;
+        while !message.is_null() {
+            arrived.push((*message).value);
+            message = (*message).next;
+        }
+        assert_eq!(arrived, vec![1, 2, 3, 4], "one sender's order is preserved");
+        assert_eq!(
+            registry(session).delivery_counters().0,
+            0,
+            "an in-order batch reports no violation"
+        );
+
+        simulation::arm_reorder_for_test();
+        for value in 5..=6 {
+            morrow_managed_send(exec, receiver.cast(), value, &*f.scalar);
+        }
+        adopt_inbox(session, a);
+        assert!(
+            registry(session).delivery_counters().0 > 0,
+            "a deliberately reordered pair must be reported"
+        );
+        morrow_managed_stop(exec);
+    }
+}
+
+#[test]
+fn a_scheduler_parking_while_a_message_is_in_flight_neither_hangs_nor_faults() {
+    // The counters were tested in isolation when they were introduced; this
+    // drives the real scheduler into the shape that made them necessary, with a
+    // delivery charged but not yet adopted.
+    for seed in 0..8u64 {
+        let report = simulation::run_with_park_pressure_for_test(simulation::Config {
+            seed: 0x5eed_0300 + seed,
+            steps: 96,
+            schedulers: 4,
+        })
+        .unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+        assert!(
+            report.parks_with_inflight > 0,
+            "seed {seed}: the scenario never reached the shape it is meant to test"
+        );
+        assert_eq!(
+            report.spurious_deadlocks, 0,
+            "seed {seed}: a scheduler declared deadlock while a message was in flight"
+        );
+        assert_eq!(
+            report.final_live, 0,
+            "seed {seed}: the run did not terminate cleanly"
+        );
+        assert_eq!(
+            report.lost, 0,
+            "seed {seed}: an in-flight message was dropped"
+        );
+    }
+}

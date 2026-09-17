@@ -38,6 +38,17 @@ pub struct Report {
     pub cross_scheduler_sends: u64,
     /// Times the driver switched logical schedulers.
     pub switches: u64,
+    /// Deliveries that arrived behind their (sender, receiver) pair's
+    /// high-water mark. Per-pair order is what an interleaving breaks first.
+    pub ordering_violations: usize,
+    pub sent: u64,
+    pub lost: u64,
+    pub duplicated: u64,
+    /// Fragments still open at the end: one that outlived adoption is a leaked
+    /// payload heap.
+    pub fragments_outstanding: usize,
+    pub parks_with_inflight: u64,
+    pub spurious_deadlocks: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -63,7 +74,24 @@ pub fn run(config: Config) -> Result<Report, Failure> {
     run_with_oracle(config, |output| output)
 }
 
+/// Park a scheduler inside the window between a send's charge and its
+/// adoption. On one thread a sender always leaves its receiver runnable, so
+/// that window is never entered by chance and has to be forced.
+#[cfg(test)]
+pub fn run_with_park_pressure_for_test(config: Config) -> Result<Report, Failure> {
+    run_with_hooks(config, |output| output, true)
+}
+
 fn run_with_oracle(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report, Failure> {
+    run_with_hooks(config, expected_timer, false)
+}
+
+fn run_with_hooks(
+    config: Config,
+    expected_timer: fn(i64) -> i64,
+    park_pressure: bool,
+) -> Result<Report, Failure> {
+    let _ = park_pressure;
     if !(1..=MAX_STEPS).contains(&config.steps) {
         return Err(Failure {
             config,
@@ -83,7 +111,11 @@ fn run_with_oracle(config: Config, expected_timer: fn(i64) -> i64) -> Result<Rep
         .spawn(move || {
             // Every managed pointer and root is constructed and destroyed on this
             // thread; no caller heap can be affected by the precise-GC oracle.
+            #[cfg(test)]
+            super::set_park_pressure_for_test(park_pressure);
             let outcome = std::panic::catch_unwind(|| unsafe { drive(config, expected_timer) });
+            #[cfg(test)]
+            super::set_park_pressure_for_test(false);
             // drive's roots and invocation guard have retired on both success
             // and ordinary failure/unwind. Release remaining heap-0 controls even
             // when the deliberately corrupted oracle stops the run early.
@@ -387,6 +419,13 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         cross_scheduler_supervision: 0,
         cross_scheduler_sends: 0,
         switches: 0,
+        ordering_violations: 0,
+        sent: 0,
+        lost: 0,
+        duplicated: 0,
+        fragments_outstanding: 0,
+        parks_with_inflight: 0,
+        spurious_deadlocks: 0,
     };
     let mut random = Random(config.seed);
     unsafe {
@@ -589,6 +628,17 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         let s = (*exec).session;
         report.placement = registry(s).census(config.schedulers);
         report.cross_scheduler_supervision = registry(s).cross_scheduler_supervision();
+        let (violations, sent, adopted) = registry(s).delivery_counters();
+        report.ordering_violations = violations;
+        report.sent = sent;
+        // A message charged but never adopted is lost; one adopted twice is a
+        // duplicate. Both are derived rather than asserted, so neither can be
+        // masked by the other.
+        report.lost = sent.saturating_sub(adopted);
+        report.duplicated = adopted.saturating_sub(sent);
+        let (parks, spurious) = quiesce(s).park_counters();
+        report.parks_with_inflight = parks;
+        report.spurious_deadlocks = spurious;
         morrow_managed_stop(exec);
         let state = snapshot(exec).unwrap();
         report.switches = state.switches;
@@ -599,6 +649,7 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         drop(invocation);
         memory::morrow_gc_collect_precise();
         let stats = memory::stats();
+        report.fragments_outstanding = memory::open_fragments();
         report.final_heap_bytes = stats.bytes;
         report.final_heap_objects = stats.objects;
         verify(

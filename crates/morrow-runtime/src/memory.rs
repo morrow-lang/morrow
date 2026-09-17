@@ -10,6 +10,8 @@ mod heaps;
 mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
+#[cfg(any(test, feature = "simulation"))]
+pub(crate) use heaps::open_fragments;
 pub(crate) use heaps::{adopt, close_fragment, open_fragment};
 pub(crate) use heaps::{
     create as create_actor_heap, enter as enter_heap, owns as heap_owns, retire as retire_heap,

@@ -11,6 +11,10 @@ pub(super) struct Quiesce {
     runnable: AtomicUsize,
     in_flight: AtomicUsize,
     parked: AtomicUsize,
+    /// Parks that found a message charged but not yet adopted, and any that
+    /// concluded termination anyway. The second must always be zero.
+    parks_with_inflight: AtomicUsize,
+    spurious_deadlocks: AtomicUsize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -48,6 +52,9 @@ impl Quiesce {
             self.parked.store(0, Ordering::Release);
             return Parked::Work;
         }
+        if self.in_flight.load(Ordering::Acquire) != 0 {
+            self.parks_with_inflight.fetch_add(1, Ordering::AcqRel);
+        }
         let parked = self.parked.fetch_add(1, Ordering::AcqRel) + 1;
         if parked < schedulers {
             return Parked::Waiting;
@@ -60,6 +67,24 @@ impl Quiesce {
             return Parked::Waiting;
         }
         Parked::Terminated
+    }
+
+    #[cfg(any(test, feature = "simulation"))]
+    pub(super) fn outstanding_in_flight(&self) -> usize {
+        self.in_flight.load(Ordering::Acquire)
+    }
+
+    /// A park concluded termination while a message was in flight. Always a
+    /// defect: the receiver was about to become runnable.
+    pub(super) fn record_spurious_deadlock(&self) {
+        self.spurious_deadlocks.fetch_add(1, Ordering::AcqRel);
+    }
+
+    pub(super) fn park_counters(&self) -> (u64, usize) {
+        (
+            self.parks_with_inflight.load(Ordering::Acquire) as u64,
+            self.spurious_deadlocks.load(Ordering::Acquire),
+        )
     }
 
     /// Runnable actors and in-flight messages, for oracles that must observe

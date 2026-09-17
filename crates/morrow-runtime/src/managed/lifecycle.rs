@@ -274,11 +274,21 @@ pub unsafe extern "C" fn morrow_managed_send(
             let _fragment_scope = memory::enter_heap(fragment_id);
             copy::value(s, ty, value)
         };
+        #[cfg(any(test, feature = "simulation"))]
+        let sender = if (*exec).actor.is_null() {
+            usize::MAX
+        } else {
+            (*(*exec).actor).slot
+        };
         let delivery = registry::Delivery {
             fragment: memory::close_fragment(fragment_id),
             value: copied.value,
             cost,
             enqueued: now,
+            #[cfg(any(test, feature = "simulation"))]
+            sender,
+            #[cfg(any(test, feature = "simulation"))]
+            sequence: registry(s).next_sequence(sender, (*pid).slot),
         };
         if inbox.push(delivery).is_err() {
             // The actor died between the lookup and the push. Dropping the
@@ -294,6 +304,15 @@ pub unsafe extern "C" fn morrow_managed_send(
         // scheduler with an empty queue could call the invocation terminated
         // while a message was mid-delivery.
         quiesce(s).message_sent();
+        // Park pressure mode probes the window a real thread could park in: the
+        // message is charged, and its receiver is not yet enqueued below. A park
+        // here must never conclude termination.
+        #[cfg(test)]
+        if simulation::park_pressure_armed()
+            && quiesce(s).park((*s).scheduler_count) == quiesce::Parked::Terminated
+        {
+            quiesce(s).record_spurious_deadlock();
+        }
         // Waking the receiver still crosses into its run queue; placement moves
         // that to a remote queue in a later step.
         let a = actor_of(s, pid);

@@ -5,6 +5,8 @@ use super::*;
 
 #[path = "simulation/scenario.rs"]
 mod scenario;
+#[cfg(test)]
+pub use scenario::run_with_park_pressure_for_test;
 pub use scenario::{Config, Failure, MAX_STEPS, Report, VERSION, run};
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -21,6 +23,40 @@ pub(super) struct State {
     /// Folded into the trace hash, so a change in interleaving is visible in
     /// the hash rather than only in the outcome.
     pub switches: u64,
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Swap one pair of deliveries exactly once, so the ordering oracle is
+    /// demonstrably able to fail. The same idea as `force_control_edge`, which
+    /// guards `verify_edges` the same way.
+    static FORCE_REORDER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// Attempt a park inside the window between a send's charge and its
+    /// adoption. On one thread with atomic steps a sender always leaves its
+    /// receiver runnable, so that window is never entered by chance.
+    static PARK_PRESSURE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+#[cfg(test)]
+pub(super) fn forced_reorder_for_test<T>(deliveries: &mut [T]) {
+    if deliveries.len() >= 2 && FORCE_REORDER.with(|f| f.replace(false)) {
+        deliveries.swap(0, 1);
+    }
+}
+
+#[cfg(test)]
+pub(super) fn arm_reorder_for_test() {
+    FORCE_REORDER.with(|f| f.set(true));
+}
+
+#[cfg(test)]
+pub(super) fn park_pressure_armed() -> bool {
+    PARK_PRESSURE.with(|p| p.get())
+}
+
+#[cfg(test)]
+pub(super) fn set_park_pressure_for_test(on: bool) {
+    PARK_PRESSURE.with(|p| p.set(on));
 }
 
 /// A rejected clock operation never changes the invocation's time or fault cell.

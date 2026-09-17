@@ -226,6 +226,11 @@ impl Domain {
         id
     }
 
+    #[cfg(any(test, feature = "simulation"))]
+    pub(crate) fn open_fragments(&self) -> usize {
+        self.slots.values().filter(|slot| slot.fragment).count()
+    }
+
     pub(crate) fn close_fragment(&mut self, id: usize) -> Fragment {
         assert_ne!(
             self.active, id,
@@ -448,6 +453,12 @@ pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
     with_current(|domain| unsafe { domain.control_edge(pointer, control) });
 }
 
+/// Fragments the domain still holds. A fragment that outlived adoption is a
+/// leaked payload heap nothing will ever collect.
+#[cfg(any(test, feature = "simulation"))]
+pub(crate) fn open_fragments() -> usize {
+    with_current(|domain| domain.open_fragments())
+}
 pub(crate) fn open_fragment() -> usize {
     with_current(|domain| domain.open_fragment())
 }
