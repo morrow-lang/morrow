@@ -114,7 +114,9 @@ pub(super) unsafe fn new_with_schedulers(
         for index in 0..schedulers {
             let scheduler = (*s).schedulers.add(index);
             (*scheduler).index = index;
-            (*scheduler).next_deadline = u64::MAX;
+            (*scheduler)
+                .next_deadline
+                .store(u64::MAX, Ordering::Release);
         }
         (*s).root = Exec {
             session: s,

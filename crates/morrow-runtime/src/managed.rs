@@ -2,7 +2,7 @@
 use crate::{abi, memory};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 #[path = "managed/copy.rs"]
 mod copy;
 #[path = "managed/cost.rs"]
@@ -86,6 +86,13 @@ struct Actor {
     first: *mut Message,
     last: *mut Message,
     next: *mut Actor,
+    /// Every actor its scheduler owns, in creation order. Distinct from `next`:
+    /// an actor leaves the run queue every time it is stepped, but leaves this
+    /// list exactly once, when it dies. Timer scans and cancellation walk this
+    /// rather than the invocation-wide identity table, so a scheduler reads only
+    /// records from its own domain.
+    owned_next: *mut Actor,
+    owned_prev: *mut Actor,
     supervisor: *mut supervision::Supervisor,
     scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
@@ -113,7 +120,11 @@ struct Scheduler {
     index: usize,
     first: *mut Actor,
     last: *mut Actor,
-    next_deadline: u64,
+    owned_first: *mut Actor,
+    owned_last: *mut Actor,
+    /// Read by any scheduler deciding how long to sleep, written only by the
+    /// scheduler it belongs to.
+    next_deadline: AtomicU64,
 }
 
 #[repr(C)]
@@ -323,6 +334,15 @@ unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize, scheduler: 
         (*a).slot = handle.slot;
         (*a).scheduler = scheduler;
         *(*s).identities.add(handle.slot) = a;
+        // Tail insertion, so a scheduler walks its actors in creation order.
+        let q = scheduler_at(s, scheduler);
+        (*a).owned_prev = (*q).owned_last;
+        if (*q).owned_last.is_null() {
+            (*q).owned_first = a;
+        } else {
+            (*(*q).owned_last).owned_next = a;
+        }
+        (*q).owned_last = a;
         (*s).live.fetch_add(1, Ordering::AcqRel);
     }
 }

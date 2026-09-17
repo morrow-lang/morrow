@@ -199,7 +199,7 @@ pub unsafe extern "C" fn morrow_managed_receive(
         // against a queue somebody else owns is both wrong and, once that
         // scheduler is a thread, a write into its private state.
         let q = owner(a);
-        (*q).next_deadline = (*q).next_deadline.min(deadline);
+        (*q).next_deadline.fetch_min(deadline, Ordering::AcqRel);
         let selected = poll(a, true);
         if (*a).fault != 0 {
             3

@@ -170,11 +170,6 @@ impl Registry {
         }
     }
 
-    /// Slots ever occupied; the bound for a scan over the identity table.
-    pub(super) fn slots(&self) -> usize {
-        self.entries.len()
-    }
-
     /// Generations ever issued. Monotonic, and the only thing a PID's
     /// generation is compared against once its actor is gone.
     pub(super) fn issued(&self) -> u64 {

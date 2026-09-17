@@ -76,32 +76,54 @@ pub(super) unsafe fn deliver_posts(s: *mut Session, index: usize) {
 }
 
 /// Any scheduler with a runnable actor. One scheduler's queue being empty says
-/// nothing about the invocation once actors are placed across several.
+/// nothing about the invocation once actors are placed across several, and
+/// reading another scheduler's queue head is exactly what a thread may not do.
+/// The shared counter already tracks queue membership exactly.
 pub(super) unsafe fn any_runnable(s: *mut Session) -> bool {
-    unsafe { (0..(*s).scheduler_count).any(|i| !(*scheduler_at(s, i)).first.is_null()) }
+    unsafe { quiesce(s).any_runnable() }
 }
 
 pub(super) unsafe fn earliest_deadline(s: *mut Session) -> u64 {
     unsafe {
         (0..(*s).scheduler_count)
-            .map(|i| (*scheduler_at(s, i)).next_deadline)
+            .map(|i| (*scheduler_at(s, i)).next_deadline.load(Ordering::Acquire))
             .min()
             .unwrap_or(u64::MAX)
     }
 }
 
-unsafe fn refresh(s: *mut Session) {
+/// Recompute one scheduler's next timer from the actors it owns.
+unsafe fn refresh(s: *mut Session, index: usize) {
     unsafe {
-        for index in 0..(*s).scheduler_count {
-            (*scheduler_at(s, index)).next_deadline = u64::MAX;
-        }
-        for i in 0..registry(s).slots() {
-            let a = *(*s).identities.add(i);
-            if !a.is_null() && (*a).alive && (*a).waiting {
-                let q = owner(a);
-                (*q).next_deadline = (*q).next_deadline.min((*a).deadline);
+        let q = scheduler_at(s, index);
+        let mut earliest = u64::MAX;
+        let mut a = (*q).owned_first;
+        while !a.is_null() {
+            if (*a).alive && (*a).waiting {
+                earliest = earliest.min((*a).deadline);
             }
+            a = (*a).owned_next;
         }
+        (*q).next_deadline.store(earliest, Ordering::Release);
+    }
+}
+
+/// Collect one scheduler's actors in creation order, then in slot order.
+///
+/// Retirement visits identities lowest slot first, and that order is observable
+/// in what a cancelled invocation prints. Walking the ownership list preserves
+/// which records a scheduler touches; this preserves the order it touches them.
+unsafe fn owned_by_slot(q: *mut Scheduler, into: &mut [*mut Actor; LIVE]) -> usize {
+    unsafe {
+        let mut count = 0;
+        let mut a = (*q).owned_first;
+        while !a.is_null() && count < LIVE {
+            into[count] = a;
+            count += 1;
+            a = (*a).owned_next;
+        }
+        into[..count].sort_unstable_by_key(|a| (**a).slot);
+        count
     }
 }
 pub(super) unsafe fn clear_receive(a: *mut Actor) {
@@ -115,11 +137,12 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
         let retired = (*a).deadline;
         (*a).deadline = u64::MAX;
         (*a).waiting = false;
+        let q = owner(a);
         if !(*s).stopped.load(Ordering::Acquire)
             && retired != u64::MAX
-            && retired == earliest_deadline(s)
+            && retired == (*q).next_deadline.load(Ordering::Acquire)
         {
-            refresh(s);
+            refresh(s, (*a).scheduler);
         }
     }
 }
@@ -159,6 +182,19 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame_cost = 0;
         (*s).live.fetch_sub(1, Ordering::AcqRel);
         *(*s).identities.add((*a).slot) = null_mut();
+        let q = owner(a);
+        if (*a).owned_prev.is_null() {
+            (*q).owned_first = (*a).owned_next;
+        } else {
+            (*(*a).owned_prev).owned_next = (*a).owned_next;
+        }
+        if (*a).owned_next.is_null() {
+            (*q).owned_last = (*a).owned_prev;
+        } else {
+            (*(*a).owned_next).owned_prev = (*a).owned_prev;
+        }
+        (*a).owned_next = null_mut();
+        (*a).owned_prev = null_mut();
         registry(s).retire((*a).slot);
         release(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
@@ -169,47 +205,60 @@ pub(super) unsafe fn finish(a: *mut Actor) {
 
 pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
     unsafe {
+        for index in 0..(*s).scheduler_count {
+            wake_due_on(s, index, now);
+            if *(*s).root.fault != 0 {
+                break;
+            }
+        }
+    }
+}
+
+/// Fire one scheduler's due timers. A scheduler's earliest deadline is its own
+/// actors' earliest, never the invocation's: adopting a neighbour's would wake
+/// this thread for work it cannot do and records it cannot read.
+pub(super) unsafe fn wake_due_on(s: *mut Session, index: usize, now: u64) {
+    unsafe {
+        let q = scheduler_at(s, index);
         let mut due = [null_mut::<Actor>(); LIVE];
         let mut count = 0;
         let mut earliest = u64::MAX;
-        for i in 0..registry(s).slots() {
-            let a = *(*s).identities.add(i);
-            if a.is_null() || !(*a).alive || !(*a).waiting || (*a).deadline == u64::MAX {
-                continue;
+        let mut a = (*q).owned_first;
+        while !a.is_null() && count < LIVE {
+            let next = (*a).owned_next;
+            if (*a).alive && (*a).waiting && (*a).deadline != u64::MAX {
+                if (*a).deadline <= now {
+                    due[count] = a;
+                    count += 1;
+                } else {
+                    earliest = earliest.min((*a).deadline);
+                }
             }
-            if (*a).deadline <= now {
-                due[count] = a;
-                count += 1;
-            } else {
-                earliest = earliest.min((*a).deadline);
-            }
+            a = next;
         }
         due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).generation));
-        for index in 0..(*s).scheduler_count {
-            let q = scheduler_at(s, index);
-            let mut previous: *mut Actor = null_mut();
-            let mut a = (*q).first;
-            while !a.is_null() {
-                let next = (*a).next;
-                if (*a).waiting && (*a).deadline != u64::MAX && (*a).deadline <= now {
-                    if previous.is_null() {
-                        (*q).first = next;
-                    } else {
-                        (*previous).next = next;
-                    }
-                    if (*q).last == a {
-                        (*q).last = previous;
-                    }
-                    (*a).queued = false;
-                    (*a).next = null_mut();
-                    quiesce(s).actor_dequeued();
+        let mut previous: *mut Actor = null_mut();
+        let mut a = (*q).first;
+        while !a.is_null() {
+            let next = (*a).next;
+            if (*a).waiting && (*a).deadline != u64::MAX && (*a).deadline <= now {
+                if previous.is_null() {
+                    (*q).first = next;
                 } else {
-                    previous = a;
+                    (*previous).next = next;
                 }
-                a = next;
+                if (*q).last == a {
+                    (*q).last = previous;
+                }
+                (*a).queued = false;
+                (*a).next = null_mut();
+                quiesce(s).actor_dequeued();
+            } else {
+                previous = a;
             }
-            (*q).next_deadline = earliest;
+            a = next;
         }
+        (*q).next_deadline.store(earliest, Ordering::Release);
         for &a in &due[..count] {
             if !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
@@ -219,9 +268,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 break;
             }
         }
-        for index in 0..(*s).scheduler_count {
-            (*scheduler_at(s, index)).next_deadline = earliest;
-        }
+        (*q).next_deadline.store(earliest, Ordering::Release);
     }
 }
 unsafe fn idle(s: *mut Session) -> bool {
@@ -388,16 +435,25 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
         }
         (*s).stopped.store(true, Ordering::Release);
         for index in 0..(*s).scheduler_count {
-            let q = scheduler_at(s, index);
-            (*q).first = null_mut();
-            (*q).last = null_mut();
-            (*q).next_deadline = u64::MAX;
+            stop_local(s, index);
         }
-        for i in 0..registry(s).slots() {
-            let a = *(*s).identities.add(i);
-            if a.is_null() {
-                continue;
-            }
+    }
+}
+
+/// Cancel and retire exactly one scheduler's actors.
+///
+/// Each scheduler runs this for itself: unwinding a cleanup scope executes
+/// generated code inside that actor's payload heap, and only the domain that
+/// owns the heap can enter it.
+pub(super) unsafe fn stop_local(s: *mut Session, index: usize) {
+    unsafe {
+        let q = scheduler_at(s, index);
+        (*q).first = null_mut();
+        (*q).last = null_mut();
+        (*q).next_deadline.store(u64::MAX, Ordering::Release);
+        let mut owned = [null_mut::<Actor>(); LIVE];
+        let count = owned_by_slot(q, &mut owned);
+        for &a in &owned[..count] {
             if (*a).queued {
                 quiesce(s).actor_dequeued();
             }

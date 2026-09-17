@@ -1405,3 +1405,50 @@ fn a_remote_send_resolves_and_delivers_without_reading_the_receivers_record() {
         assert_eq!((*s).live.load(Ordering::Acquire), 0);
     }
 }
+
+#[test]
+fn a_timer_scan_leaves_another_schedulers_deadline_alone() {
+    TRACE.with(|t| t.borrow_mut().clear());
+    CLOCK.with(|c| c.set(Some(Some(0))));
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = new_with_schedulers(&mut fault, f.functions.as_ptr(), 2, 2);
+        let s = (*exec).session;
+        // Round-robin: 0, 1, 0, 1.
+        let early = f.spawn(exec, 1);
+        let late = f.spawn(exec, 2);
+        let _filler = f.spawn(exec, 3);
+        let latest = f.spawn(exec, 4);
+        assert_eq!(
+            (
+                (*actor(early)).scheduler,
+                (*actor(late)).scheduler,
+                (*actor(latest)).scheduler
+            ),
+            (0, 1, 1)
+        );
+        assert_eq!(f.receive(early, 7, 11, 21, 200), 1);
+        assert_eq!(f.receive(late, 7, 12, 22, 100), 1);
+        assert_eq!(f.receive(latest, 7, 13, 23, 300), 1);
+
+        // Scheduler one's earliest timer comes due. Scheduler zero's actor is
+        // the earliest remaining in the invocation, but it is not scheduler
+        // one's, and a scheduler that adopts it would wake for somebody else's
+        // work -- on its own thread, having read somebody else's records.
+        CLOCK.with(|c| c.set(Some(Some(100))));
+        wake_due(s, 100);
+        assert_eq!(fault, 0);
+        assert_eq!(
+            (*scheduler_at(s, 0)).next_deadline.load(Ordering::Acquire),
+            200,
+            "scheduler zero keeps its own actor's deadline"
+        );
+        assert_eq!(
+            (*scheduler_at(s, 1)).next_deadline.load(Ordering::Acquire),
+            300,
+            "a timer scan must not hand one scheduler another's deadline"
+        );
+        CLOCK.with(|c| c.set(None));
+    }
+}

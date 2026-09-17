@@ -50,6 +50,12 @@ impl Quiesce {
         self.runnable.fetch_sub(1, Ordering::AcqRel);
     }
 
+    /// Whether any scheduler has a queued actor. Queue membership is already
+    /// counted here exactly, so no scheduler has to read another's queue head.
+    pub(super) fn any_runnable(&self) -> bool {
+        self.runnable.load(Ordering::Acquire) != 0
+    }
+
     pub(super) fn park(&self, schedulers: usize) -> Parked {
         if self.runnable.load(Ordering::Acquire) != 0 {
             self.parked.store(0, Ordering::Release);
