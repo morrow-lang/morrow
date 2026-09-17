@@ -183,8 +183,18 @@ pub unsafe extern "C" fn morrow_managed_send(
         if !live_pid(s, pid) || (*pid).mailbox != ty {
             return abi::result_err(3);
         }
-        let a = actor_of(s, pid);
-        if (*a).messages >= MAILBOX || (*s).messages >= MESSAGES {
+        // Everything below reaches the receiver only through its inbox. No
+        // receiver heap is entered and no actor record is written, which is what
+        // makes this path safe to run from another scheduler's thread.
+        let Some(inbox) = registry(s).inbox((*pid).slot, (*pid).generation) else {
+            return abi::result_err(3);
+        };
+        if !inbox.is_open() || inbox.mailbox() != ty {
+            // The receiver's own mailbox type, reachable without touching its
+            // storage. This replaces the old `(*a).mailbox == (*pid).mailbox`.
+            return abi::result_err(3);
+        }
+        if inbox.len() >= MAILBOX || (*s).messages >= MESSAGES {
             return abi::result_err(4);
         }
         let Some(cost) = cost::value(s, ty, value) else {
@@ -199,26 +209,31 @@ pub unsafe extern "C" fn morrow_managed_send(
             fail(exec, 12);
             return abi::result_err(4);
         };
-        {
-            let _receiver_scope = memory::enter_heap((*a).heap);
-            let copied = copy::value(s, ty, value);
-            let message = allocate::<Message>();
-            *message = Message {
-                next: null_mut(),
-                value: copied.value,
-                cost,
-                enqueued: now,
-            };
-            if (*a).last.is_null() {
-                (*a).first = message;
-            } else {
-                (*(*a).last).next = message;
-            }
-            (*a).last = message;
+        let fragment_id = memory::open_fragment();
+        let copied = {
+            let _fragment_scope = memory::enter_heap(fragment_id);
+            copy::value(s, ty, value)
+        };
+        let delivery = registry::Delivery {
+            fragment: memory::close_fragment(fragment_id),
+            value: copied.value,
+            cost,
+            enqueued: now,
+        };
+        if inbox.push(delivery).is_err() {
+            // The actor died between the lookup and the push. Dropping the
+            // delivery destroys its fragment, exactly as a send to a dead PID is
+            // refused today.
+            release(s, cost);
+            return abi::result_err(3);
         }
-        (*a).messages += 1;
+        // The global ceiling is charged at send, not at adoption, so an in-flight
+        // message counts against MESSAGES for its whole life.
         (*s).messages += 1;
-        if (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
+        // Waking the receiver still crosses into its run queue; placement moves
+        // that to a remote queue in a later step.
+        let a = actor_of(s, pid);
+        if !a.is_null() && (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
             enqueue(a);
         }
         abi::result_ok(0)
@@ -318,6 +333,8 @@ mod constructor_tests {
                 memory::morrow_gc_collect_precise();
                 assert!(!memory::heap_owns(0, source as *const c_void));
                 let actor = actor(pid.cast::<Pid>());
+                // The payload is in flight until its owning scheduler adopts it.
+                adopt_inbox((*exec).session, actor);
                 {
                     let _receiver = memory::enter_heap((*actor).heap);
                     memory::morrow_gc_collect_precise();

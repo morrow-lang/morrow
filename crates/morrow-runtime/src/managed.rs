@@ -137,6 +137,38 @@ thread_local! {
         const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
 }
 
+/// Test-only: retype an actor's mailbox everywhere it is recorded. A sender
+/// validates against the inbox, so leaving that behind would reject the send.
+#[cfg(test)]
+unsafe fn rebind_mailbox(s: *mut Session, pid: *mut Pid, ty: *const Type) {
+    unsafe {
+        (*pid).mailbox = ty;
+        let a = actor_of(s, pid);
+        if !a.is_null() {
+            (*a).mailbox = ty;
+        }
+        registry(s).rebind_mailbox_for_test(
+            (*pid).slot,
+            (*pid).generation,
+            registry::Descriptor(ty),
+        );
+    }
+}
+
+/// Test-only: resolve a PID and deliver everything in flight to it, as its
+/// owning scheduler would before stepping it. Tests that inspect a mailbox
+/// straight after a send need this; sends no longer link messages themselves.
+#[cfg(test)]
+unsafe fn delivered(pid: *const Pid) -> *mut Actor {
+    unsafe {
+        let a = actor(pid);
+        if !a.is_null() {
+            adopt_inbox((*a).exec.session, a);
+        }
+        a
+    }
+}
+
 /// Test-only resolution of a PID with no invocation handle in scope.
 /// # Safety
 /// The PID was issued by a still-live invocation on this thread.
@@ -163,7 +195,7 @@ unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
 unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
     unsafe {
         let handle = registry(s)
-            .issue(0)
+            .issue(0, registry::Descriptor((*a).mailbox))
             .expect("an identity was admitted by vacant_slot");
         assert_eq!(handle.slot, slot, "issue must take the admitted slot");
         (*a).generation = handle.generation;
@@ -215,6 +247,47 @@ unsafe fn actor_of(s: *mut Session, pid: *const Pid) -> *mut Actor {
         match registry(s).resolve((*pid).slot, (*pid).generation) {
             Some(_) => *(*s).identities.add((*pid).slot),
             None => null_mut(),
+        }
+    }
+}
+
+/// Merge every queued fragment into the actor's own heap, then link the
+/// messages. Runs only on the scheduler owning this actor, which is why it may
+/// touch actor storage and the actor's heap at all.
+/// Retire one message from the shared outstanding count as the actor takes it
+/// off its inner queue.
+unsafe fn consumed(s: *mut Session, a: *mut Actor) {
+    unsafe {
+        if let Some(inbox) = registry(s).inbox((*a).slot, (*a).generation) {
+            inbox.consume();
+        }
+    }
+}
+
+unsafe fn adopt_inbox(s: *mut Session, a: *mut Actor) {
+    unsafe {
+        let Some(inbox) = registry(s).inbox((*a).slot, (*a).generation) else {
+            return;
+        };
+        for delivery in inbox.take_all() {
+            memory::adopt((*a).heap, delivery.fragment);
+            let message = {
+                let _scope = memory::enter_heap((*a).heap);
+                allocate::<Message>()
+            };
+            *message = Message {
+                next: null_mut(),
+                value: delivery.value,
+                cost: delivery.cost,
+                enqueued: delivery.enqueued,
+            };
+            if (*a).last.is_null() {
+                (*a).first = message;
+            } else {
+                (*(*a).last).next = message;
+            }
+            (*a).last = message;
+            (*a).messages += 1;
         }
     }
 }

@@ -123,12 +123,6 @@ impl Domain {
     }
     pub(crate) fn collect_active(&mut self, roots: &[usize]) -> Stats {
         let active = self.active;
-        if self.slots[&active].fragment {
-            // A fragment has no roots by construction, so tracing it would free
-            // the payload being assembled. It is swept only after adoption, by
-            // whichever heap took it.
-            return self.stats();
-        }
         let mut controls = Vec::new();
         if active == 0 {
             // Foreign payload is never scanned. Metadata survives exactly as long
@@ -214,7 +208,6 @@ impl Domain {
         }
     }
     /// Open an allocate-only heap with no collection threshold.
-    #[allow(dead_code)] // See the re-export in memory.rs.
     pub(crate) fn open_fragment(&mut self) -> usize {
         self.next_heap = self
             .next_heap
@@ -223,13 +216,16 @@ impl Domain {
         let id = self.next_heap;
         let mut slot = Slot::invocation();
         slot.fragment = true;
-        // Nothing roots a fragment, so it must never collect.
-        slot.heap.threshold = usize::MAX;
+        // The ordinary threshold applies while a fragment is being filled: the
+        // copier roots every partial copy, so collecting under pressure mid-copy
+        // is exactly as safe here as in an actor heap, and a large payload must
+        // still be able to relieve that pressure. What makes an in-flight
+        // fragment uncollectable is `close_fragment` removing it from `slots`
+        // entirely, so no later collection can reach it.
         self.slots.insert(id, slot);
         id
     }
 
-    #[allow(dead_code)] // See the re-export in memory.rs.
     pub(crate) fn close_fragment(&mut self, id: usize) -> Fragment {
         assert_ne!(
             self.active, id,
@@ -240,10 +236,13 @@ impl Domain {
             .remove(&id)
             .expect("close_fragment on a live fragment id");
         assert!(slot.fragment, "close_fragment on an actor heap");
+        // A fragment can collect while it is being filled, and removing its slot
+        // would otherwise lose that count, exactly as heap retirement preserves
+        // it at `remove_retired`.
+        self.retired_collections += slot.heap.collections;
         Fragment { heap: slot.heap }
     }
 
-    #[allow(dead_code)] // See the re-export in memory.rs.
     pub(crate) fn adopt(&mut self, into: usize, mut fragment: Fragment) {
         let slot = self.slots.get_mut(&into).expect("adopt into a live heap");
         slot.heap.merge(&mut fragment.heap);
@@ -449,15 +448,12 @@ pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
     with_current(|domain| unsafe { domain.control_edge(pointer, control) });
 }
 
-#[allow(dead_code)] // See the re-export in memory.rs.
 pub(crate) fn open_fragment() -> usize {
     with_current(|domain| domain.open_fragment())
 }
-#[allow(dead_code)] // See the re-export in memory.rs.
 pub(crate) fn close_fragment(id: usize) -> Fragment {
     with_current(|domain| domain.close_fragment(id))
 }
-#[allow(dead_code)] // See the re-export in memory.rs.
 pub(crate) fn adopt(into: usize, fragment: Fragment) {
     with_current(|domain| domain.adopt(into, fragment));
 }

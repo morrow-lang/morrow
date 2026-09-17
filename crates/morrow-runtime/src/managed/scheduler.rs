@@ -64,6 +64,17 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         }
         (*a).alive = false;
         let s = (*a).exec.session;
+        // Refuse new senders first, then drain both queues. A closed inbox is
+        // what makes a send to a dead generation cheap: the sender is turned
+        // away instead of building a payload nobody will adopt.
+        if let Some(inbox) = registry(s).inbox((*a).slot, (*a).generation) {
+            inbox.close();
+            for delivery in inbox.take_all() {
+                release(s, delivery.cost);
+                (*s).messages -= 1;
+                inbox.consume();
+            }
+        }
         while !(*a).first.is_null() {
             let m = (*a).first;
             (*a).first = (*m).next;
@@ -73,6 +84,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             (*m).cost = 0;
             (*s).messages -= 1;
             (*a).messages -= 1;
+            consumed(s, a);
         }
         (*a).last = null_mut();
         clear_receive(a);
@@ -219,6 +231,9 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
         if (*a).host_port {
             return;
         }
+        // Everything sent to this actor since it last ran arrives here, on the
+        // one thread that owns its heap.
+        adopt_inbox(s, a);
         #[cfg(any(test, feature = "simulation"))]
         if (*s).simulation.enabled {
             let Some(callbacks) = (*s).simulation.callbacks.checked_add(1) else {

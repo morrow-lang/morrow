@@ -11,13 +11,16 @@ pub(super) struct Handle {
     pub generation: u64,
 }
 
-#[derive(Clone, Copy, Debug)]
 pub(super) struct Entry {
     pub generation: u64,
     /// Read once placement exists; recorded from the first issue so the two
     /// cannot disagree about where an identity lives.
     #[allow(dead_code)]
     pub scheduler: usize,
+    /// The only part of an actor a sender may touch. Held here rather than in
+    /// `Actor` because `Actor` is collector-allocated and never dropped, and an
+    /// `Arc` there would leak its referent.
+    pub inbox: Arc<Inbox<Delivery>>,
 }
 
 pub(super) struct Registry {
@@ -44,7 +47,7 @@ impl Registry {
     }
 
     /// Reuse vacant storage without resurrecting the identity that held it.
-    pub(super) fn issue(&mut self, scheduler: usize) -> Option<Handle> {
+    pub(super) fn issue(&mut self, scheduler: usize, mailbox: Descriptor) -> Option<Handle> {
         let generation = self.next_generation.checked_add(1)?;
         let slot = match self.entries.iter().position(Option::is_none) {
             Some(slot) => slot,
@@ -58,6 +61,7 @@ impl Registry {
         self.entries[slot] = Some(Entry {
             generation,
             scheduler,
+            inbox: Inbox::new(mailbox),
         });
         Some(Handle { slot, generation })
     }
@@ -65,6 +69,29 @@ impl Registry {
     pub(super) fn resolve(&self, slot: usize, generation: u64) -> Option<&Entry> {
         let entry = self.entries.get(slot)?.as_ref()?;
         (entry.generation == generation && generation != 0).then_some(entry)
+    }
+
+    /// The sender's whole view of a receiver: no actor storage is reachable.
+    pub(super) fn inbox(&self, slot: usize, generation: u64) -> Option<Arc<Inbox<Delivery>>> {
+        self.resolve(slot, generation)
+            .map(|entry| Arc::clone(&entry.inbox))
+    }
+
+    /// Tests stand an actor up with one mailbox type and then retype it. The
+    /// inbox descriptor is what a sender validates against, so it has to move
+    /// with the actor's.
+    #[cfg(test)]
+    pub(super) fn rebind_mailbox_for_test(
+        &mut self,
+        slot: usize,
+        generation: u64,
+        mailbox: Descriptor,
+    ) {
+        if let Some(Some(entry)) = self.entries.get_mut(slot)
+            && entry.generation == generation
+        {
+            entry.inbox = Inbox::new(mailbox);
+        }
     }
 
     pub(super) fn retire(&mut self, slot: usize) {
@@ -125,14 +152,10 @@ impl Registry {
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
-// The `allow(dead_code)` below come off when the send path is wired to these:
-// the next steps give `Inbox` its payload type and hang one off every `Entry`.
-
 /// An immutable compiler-owned type descriptor. The compiler emits these into
 /// read-only static storage and never mutates them, so sharing one across
 /// schedulers is sound; the raw pointer alone is not `Send`, hence this wrapper.
 #[derive(Clone, Copy)]
-#[allow(dead_code)]
 pub(super) struct Descriptor(pub *const super::Type);
 // SAFETY: descriptors are immutable for the whole invocation and are validated
 // by `cost::descriptor` before any actor can reference them.
@@ -142,7 +165,6 @@ unsafe impl Sync for Descriptor {}
 /// The shared half of an actor: everything a sender on another scheduler may
 /// touch. Outlives its actor so a send racing a death resolves by generation
 /// rather than by reading freed storage.
-#[allow(dead_code)]
 pub(super) struct Inbox<T> {
     mailbox: Descriptor,
     open: AtomicBool,
@@ -152,7 +174,6 @@ pub(super) struct Inbox<T> {
     outer: Mutex<Vec<T>>,
 }
 
-#[allow(dead_code)]
 impl<T> Inbox<T> {
     pub(super) fn new(mailbox: Descriptor) -> Arc<Self> {
         Arc::new(Self {
@@ -182,7 +203,10 @@ impl<T> Inbox<T> {
             return Err(message);
         }
         outer.push(message);
-        self.queued.store(outer.len(), Ordering::Release);
+        // Counts messages accepted and not yet consumed by the actor, spanning
+        // both queues. A count of just the outer queue would let an actor hold
+        // MAILBOX messages inside and accept MAILBOX more.
+        self.queued.fetch_add(1, Ordering::AcqRel);
         Ok(())
     }
 
@@ -190,9 +214,14 @@ impl<T> Inbox<T> {
     /// preserved because that sender's pushes are sequential.
     pub(super) fn take_all(&self) -> Vec<T> {
         let mut outer = self.outer.lock().unwrap_or_else(|e| e.into_inner());
-        let drained = std::mem::take(&mut *outer);
-        self.queued.store(0, Ordering::Release);
-        drained
+        // `queued` is not cleared here: these messages move to the actor's inner
+        // queue, and only consumption retires them.
+        std::mem::take(&mut *outer)
+    }
+
+    /// Retire one message the actor has taken off its inner queue.
+    pub(super) fn consume(&self) {
+        self.queued.fetch_sub(1, Ordering::AcqRel);
     }
 
     pub(super) fn close(&self) {
@@ -203,4 +232,14 @@ impl<T> Inbox<T> {
     pub(super) fn new_for_test() -> Arc<Self> {
         Self::new(Descriptor(std::ptr::null()))
     }
+}
+
+/// One in-flight message: its payload heap plus the accounting the receiver
+/// needs to link it. The fragment is owned by exactly one side at a time -- the
+/// sender until it is pushed, the receiving scheduler afterwards.
+pub(super) struct Delivery {
+    pub fragment: crate::memory::Fragment,
+    pub value: i64,
+    pub cost: usize,
+    pub enqueued: u64,
 }

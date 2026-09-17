@@ -10,13 +10,10 @@ mod heaps;
 mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
+pub(crate) use heaps::{adopt, close_fragment, open_fragment};
 pub(crate) use heaps::{
     create as create_actor_heap, enter as enter_heap, owns as heap_owns, retire as retire_heap,
 };
-// The send path starts building payloads in fragments in the next step; these
-// have no caller until it does.
-#[allow(unused_imports)]
-pub(crate) use heaps::{adopt, close_fragment, open_fragment};
 // `Pid` was the only producer of control edges: it pointed at an actor record
 // and had to keep it alive. Opaque identity removed that pointer, so nothing in
 // the runtime creates one today. The machinery and its edge class stay because
@@ -82,7 +79,6 @@ pub(crate) struct Heap {
 /// nothing collects it, so its contents cannot be freed while it has no owner.
 /// Exactly one owner holds a fragment at a time -- the sender until it is
 /// pushed, the receiving scheduler afterwards.
-#[allow(dead_code)] // See the re-export above.
 pub(crate) struct Fragment {
     heap: Heap,
 }
@@ -93,7 +89,6 @@ impl Heap {
     /// Addresses are stable allocations, so adoption is a map merge: no pointer
     /// rewriting and no second copy. `other` is left empty, so its `Drop`
     /// destroys nothing.
-    #[allow(dead_code)] // See the re-export above.
     fn merge(&mut self, other: &mut Heap) {
         self.blocks.append(&mut other.blocks);
         self.bytes = self.bytes.saturating_add(other.bytes);

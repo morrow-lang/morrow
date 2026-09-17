@@ -284,8 +284,7 @@ fn native_range_descriptor_copies_three_full_width_words_without_json_interpreta
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &range;
-        (*actor(pid)).mailbox = &range;
+        rebind_mailbox((*exec).session, pid, &range);
         assert_eq!(
             cost::value((*exec).session, &range, source.as_ptr() as i64),
             Some(24)
@@ -293,7 +292,7 @@ fn native_range_descriptor_copies_three_full_width_words_without_json_interpreta
         let result = morrow_managed_send(exec, pid.cast(), source.as_ptr() as i64, &range)
             as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let copied = (*(*actor(pid)).first).value as *const i64;
+        let copied = (*(*delivered(pid)).first).value as *const i64;
         assert_ne!(copied, source.as_ptr());
         assert_eq!(std::slice::from_raw_parts(copied, 3), source);
         morrow_managed_stop(exec);
@@ -313,12 +312,11 @@ fn actor_termination_finalizes_copied_json_even_with_stale_pointer_words() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*actor(pid)).mailbox = &ty;
+        rebind_mailbox((*exec).session, pid, &ty);
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let stale = (*(*actor(pid)).first).value;
+        let stale = (*(*delivered(pid)).first).value;
         let copied = crate::json::node(stale as *const crate::json::NativeJson);
         let weak = std::rc::Rc::downgrade(&copied);
         drop(copied);
@@ -348,8 +346,7 @@ fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
         let receiver = f.spawn(exec, 42);
         let a = actor(sender);
         let b = actor(receiver);
-        (*receiver).mailbox = &ty;
-        (*b).mailbox = &ty;
+        rebind_mailbox((*exec).session, receiver, &ty);
         assert_ne!((*a).heap, (*b).heap);
         let message;
         {
@@ -360,6 +357,7 @@ fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
                 morrow_managed_send(&raw mut (*a).exec, receiver.cast(), source as i64, &ty)
                     as *const abi::ResultValue;
             assert_eq!((*result).tag, 0);
+            adopt_inbox((*b).exec.session, b);
             message = (*(*b).first).value as *const c_void;
             assert!(memory::heap_owns((*b).heap, message));
             assert!(!memory::heap_owns((*a).heap, message));
@@ -457,12 +455,11 @@ fn send_copies_nested_graph_and_preserves_internal_sharing() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &pair;
-        (*actor(pid)).mailbox = &pair;
+        rebind_mailbox((*exec).session, pid, &pair);
         let sent = morrow_managed_send(exec, pid.cast(), source.as_ptr() as i64, &pair)
             as *const abi::ResultValue;
         assert_eq!((*sent).tag, 0);
-        let actor = actor(pid);
+        let actor = delivered(pid);
         let copied = (*(*actor).first).value as *const i64;
         assert_ne!(copied, source.as_ptr());
         assert_ne!(*copied.add(1), text.as_ptr() as i64);
@@ -503,14 +500,13 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*actor(pid)).mailbox = &ty;
+        rebind_mailbox((*exec).session, pid, &ty);
         let session = (*exec).session;
         let before = (*session).retained;
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let message = (*actor(pid)).first;
+        let message = (*delivered(pid)).first;
         let copied = crate::json::node((*message).value as *const crate::json::NativeJson);
         assert!(!Rc::ptr_eq(&original, &copied));
         let Kind::Array(children) = &copied.kind else {
@@ -540,8 +536,7 @@ fn quota_failure_does_not_copy_or_publish_message() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &string;
-        (*actor(pid)).mailbox = &string;
+        rebind_mailbox((*exec).session, pid, &string);
         let session = (*exec).session;
         let original_retained = (*session).retained;
         (*session).retained = BYTES - std::mem::size_of::<Message>();
@@ -588,14 +583,13 @@ fn copy_roots_partial_lists_across_allocation_pressure() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*actor(pid)).mailbox = &ty;
+        rebind_mailbox((*exec).session, pid, &ty);
         let collections = memory::stats().collections;
         let result = morrow_managed_send(exec, pid.cast(), &list as *const abi::List as i64, &ty)
             as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
         assert!(memory::stats().collections > collections);
-        let copied = &*((*(*actor(pid)).first).value as *const abi::List);
+        let copied = &*((*(*delivered(pid)).first).value as *const abi::List);
         assert_ne!(copied.data, list.data);
         for (i, expected) in b"ab".iter().copied().enumerate() {
             let text = std::ffi::CStr::from_ptr(*copied.data.add(i) as *const _).to_bytes();
@@ -779,7 +773,7 @@ fn late_message_loses_at_equal_deadline_and_unmatched_timely_message_remains_ord
         CLOCK.with(|c| c.set(Some(Some(5))));
         morrow_managed_send(exec, pid.cast(), 7, &*f.scalar);
         wake_due((*exec).session, 5);
-        let a = actor(pid);
+        let a = delivered(pid);
         assert_eq!((*(*a).first).value, 8);
         assert_eq!((*(*a).last).value, 7);
         morrow_managed_run(exec);
@@ -903,5 +897,81 @@ fn a_pid_from_another_invocation_is_rejected_rather_than_resolving_locally() {
         morrow_managed_run(first);
         morrow_managed_run(second);
         assert_eq!((first_fault, second_fault), (0, 0));
+    }
+}
+
+#[test]
+fn send_leaves_the_payload_outside_the_receiver_heap_until_the_owner_adopts_it() {
+    // The ownership crux: a sender must not write into a heap another scheduler
+    // collects. The payload lives in a detached fragment between the send and the
+    // owning scheduler's adoption, so the receiver's heap does not contain it yet.
+    let f = Fixture::new();
+    let string = Type {
+        kind: 1,
+        ..scalar()
+    };
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let session = (*exec).session;
+        let pid = f.spawn(exec, 5);
+        let a = actor_of(session, pid);
+        let heap = (*a).heap;
+        // A scalar payload is copied by value and allocates nothing, so the
+        // question of which heap owns it would not arise.
+        rebind_mailbox(session, pid, &string);
+
+        let sent = morrow_managed_send(exec, pid.cast(), c"payload".as_ptr() as i64, &string)
+            as *const abi::ResultValue;
+        assert_eq!((*sent).tag, 0);
+        assert!(
+            (*a).first.is_null(),
+            "the sender must not link a message into the receiver's mailbox"
+        );
+        assert_eq!(
+            registry(session)
+                .inbox((*pid).slot, (*pid).generation)
+                .expect("inbox")
+                .len(),
+            1,
+            "the message is in flight, held by the shared inbox"
+        );
+
+        adopt_inbox(session, a);
+        let message = (*a).first;
+        assert!(!message.is_null(), "adoption links the message");
+        assert!(
+            memory::heap_owns(heap, (*message).value as *const c_void),
+            "adoption moves the payload into the receiver's own heap"
+        );
+        morrow_managed_stop(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn a_send_to_a_dead_generation_is_refused_and_releases_its_charge() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let session = (*exec).session;
+        let pid = f.spawn(exec, 5);
+        morrow_managed_run(exec);
+        let retained = (*session).retained;
+        let refused =
+            morrow_managed_send(exec, pid.cast(), 7, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!(
+            ((*refused).tag, (*refused).value),
+            (1, 3),
+            "a dead generation refuses delivery"
+        );
+        assert_eq!(
+            (*session).retained,
+            retained,
+            "a refused delivery leaves no charge behind"
+        );
+        assert_eq!((*session).messages, 0);
+        assert_eq!(fault, 0);
     }
 }

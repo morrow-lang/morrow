@@ -522,30 +522,57 @@ fn an_adopted_fragment_contributes_its_blocks_and_bytes_to_the_receiver() {
 }
 
 #[test]
-fn a_fragment_is_never_collected_while_in_flight() {
+fn a_closed_fragment_is_out_of_reach_of_every_collection_until_adoption() {
+    // Nothing roots a fragment once it is closed, so it would be swept bare if
+    // any collection could reach it. It cannot: close_fragment removes the slot,
+    // and collection only ever traces a heap the domain still holds.
     let fragment_id = open_fragment();
     let survivor = {
         let _scope = enter_heap(fragment_id);
-        let block = alloc(32, false);
-        // Allocate far past the ordinary 1 MiB threshold. An actor heap would
-        // collect here; a fragment must not, because nothing roots it.
-        for _ in 0..64 {
-            alloc(64 * 1024, true);
-        }
-        // An explicit collection must not reclaim it either: the danger is a
-        // fragment being swept for lack of roots, not just the threshold path.
-        collect();
-        block
+        alloc(32, false)
     };
     let fragment = close_fragment(fragment_id);
     // SAFETY: a heap with no control object; nothing roots it externally.
     let receiver = unsafe { create_actor_heap(std::ptr::null(), 0) };
+    {
+        let _scope = enter_heap(receiver);
+        collect();
+    }
+    collect();
     adopt(receiver, fragment);
     assert!(
         heap_owns(receiver, survivor.cast()),
         "an unrooted fragment allocation must survive until adoption"
     );
+    // SAFETY: the block survived; addresses are stable across the merge.
+    assert_eq!(unsafe { survivor.cast::<u64>().read() }, 0);
     retire_heap(receiver);
+}
+
+#[test]
+fn a_fragment_under_pressure_collects_with_the_copier_roots_in_place() {
+    // A large payload must still be able to relieve memory pressure while it is
+    // being built, exactly as a copy into an actor heap does. Rooted partial
+    // graphs survive; unrooted scratch does not.
+    let fragment_id = open_fragment();
+    let collections = stats().collections;
+    {
+        let _scope = enter_heap(fragment_id);
+        let kept = alloc(32, false);
+        let _root = unsafe { root_range(std::ptr::addr_of!(kept).cast(), 1) };
+        for _ in 0..64 {
+            alloc(64 * 1024, true);
+        }
+        assert!(
+            stats().collections > collections,
+            "a fragment must collect under the ordinary threshold"
+        );
+        assert!(
+            heap_owns(fragment_id, kept.cast()),
+            "rooted partials survive"
+        );
+    }
+    drop(close_fragment(fragment_id));
 }
 
 #[test]

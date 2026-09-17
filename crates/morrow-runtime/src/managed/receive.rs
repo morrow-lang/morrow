@@ -36,6 +36,10 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
     unsafe {
         let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
+        // Reading the mailbox means reading everything delivered so far,
+        // including a message this actor sent itself earlier in this same step.
+        // Adopting only at dispatch would hide those until the next one.
+        adopt_inbox(s, a);
         let selector = function(s, (*a).selector);
         let mut previous: *mut Message = null_mut();
         let mut message = (*a).first;
@@ -71,6 +75,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 (*message).cost = 0;
                 (*s).messages -= 1;
                 (*a).messages -= 1;
+                consumed(s, a);
                 return true;
             }
             previous = message;

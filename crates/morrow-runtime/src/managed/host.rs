@@ -168,7 +168,12 @@ unsafe fn port_actor(exec: *mut Exec, port: *mut c_void) -> Option<*mut Actor> {
             return None;
         }
         let a = actor_of(s, pid);
-        ((*a).alive && (*a).host_port).then_some(a)
+        if a.is_null() || !(*a).alive || !(*a).host_port {
+            return None;
+        }
+        // A port actor is never stepped, so this is its only adoption point.
+        adopt_inbox(s, a);
+        Some(a)
     }
 }
 
@@ -227,6 +232,7 @@ pub unsafe extern "C" fn morrow_managed_port_read(
         release(s, (*message).cost);
         (*s).messages -= 1;
         (*a).messages -= 1;
+        consumed(s, a);
         (*message).next = null_mut();
         (*message).value = 0;
         (*message).cost = 0;
