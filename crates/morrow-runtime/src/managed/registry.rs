@@ -13,9 +13,8 @@ pub(super) struct Handle {
 
 pub(super) struct Entry {
     pub generation: u64,
-    /// Read once placement exists; recorded from the first issue so the two
-    /// cannot disagree about where an identity lives.
-    #[allow(dead_code)]
+    /// Recorded from the first issue, so placement and routing cannot disagree
+    /// about where an identity lives.
     pub scheduler: usize,
     /// The only part of an actor a sender may touch. Held here rather than in
     /// `Actor` because `Actor` is collector-allocated and never dropped, and an
@@ -116,6 +115,16 @@ impl Registry {
     pub(super) fn inbox(&self, slot: usize, generation: u64) -> Option<Arc<Inbox<Delivery>>> {
         self.resolve(slot, generation)
             .map(|entry| Arc::clone(&entry.inbox))
+    }
+
+    /// Where to put a payload, and which scheduler has to be told about it.
+    pub(super) fn route(
+        &self,
+        slot: usize,
+        generation: u64,
+    ) -> Option<(Arc<Inbox<Delivery>>, usize)> {
+        self.resolve(slot, generation)
+            .map(|entry| (Arc::clone(&entry.inbox), entry.scheduler))
     }
 
     /// Tests stand an actor up with one mailbox type and then retype it. The

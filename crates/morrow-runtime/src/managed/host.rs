@@ -116,6 +116,7 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             let mut a = null_mut();
             for offset in 0..(*s).scheduler_count {
                 let index = (start + offset) % (*s).scheduler_count;
+                scheduler::deliver_posts(s, index);
                 a = scheduler::dequeue_from(s, scheduler_at(s, index));
                 if !a.is_null() {
                     break;

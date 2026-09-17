@@ -95,6 +95,7 @@ pub(super) unsafe fn new_with_schedulers(
             Shared {
                 registry: registry::Registry::new(),
                 quiesce: quiesce::Quiesce::default(),
+                posts: (0..schedulers).map(|_| post::Post::default()).collect(),
             },
             0,
         )
@@ -240,13 +241,17 @@ pub unsafe extern "C" fn morrow_managed_send(
         }
         let s = (*exec).session;
         let pid = identity.cast::<Pid>();
-        if !live_pid(s, pid) || (*pid).mailbox != ty {
+        // Validation names no actor storage. Liveness used to mean "the record
+        // behind this PID says alive"; it now means "this identity's own inbox is
+        // still open", which a sender can ask without owning the receiver's
+        // domain. `finish` closes the inbox, so the two agree.
+        if !valid_pid(s, pid) || (*s).stopped.load(Ordering::Acquire) || (*pid).mailbox != ty {
             return abi::result_err(3);
         }
         // Everything below reaches the receiver only through its inbox. No
         // receiver heap is entered and no actor record is written, which is what
         // makes this path safe to run from another scheduler's thread.
-        let Some(inbox) = registry(s).inbox((*pid).slot, (*pid).generation) else {
+        let Some((inbox, target)) = registry(s).route((*pid).slot, (*pid).generation) else {
             return abi::result_err(3);
         };
         if !inbox.is_open() || inbox.mailbox() != ty {
@@ -313,22 +318,28 @@ pub unsafe extern "C" fn morrow_managed_send(
         {
             quiesce(s).record_spurious_deadlock();
         }
-        // Waking the receiver still crosses into its run queue; placement moves
-        // that to a remote queue in a later step.
-        let a = actor_of(s, pid);
+        // A message in an inbox wakes nobody by itself: an actor blocked in
+        // `receive` is off every run queue and has to be put back on one.
+        let home = current_scheduler(exec);
         #[cfg(any(test, feature = "simulation"))]
-        if (*s).simulation.enabled && !a.is_null() {
-            let from = if (*exec).actor.is_null() {
-                0
-            } else {
-                (*(*exec).actor).scheduler
-            };
-            if from != (*a).scheduler {
-                registry(s).record_cross_scheduler_send();
-            }
+        if (*s).simulation.enabled && home != target {
+            registry(s).record_cross_scheduler_send();
         }
-        if !a.is_null() && (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
-            enqueue(a);
+        if home == target {
+            // Same scheduler, so same thread and same domain: this record is
+            // ours to read, exactly as it was before placement existed.
+            let a = actor_of(s, pid);
+            if !a.is_null() && (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
+                enqueue(a);
+            }
+        } else {
+            // Somebody else's domain. Hand over the name and let the scheduler
+            // that owns the record resolve it on its own thread.
+            post_box(s, target).send(post::Request::Wake {
+                slot: (*pid).slot,
+                generation: (*pid).generation,
+                at: now,
+            });
         }
         abi::result_ok(0)
     }

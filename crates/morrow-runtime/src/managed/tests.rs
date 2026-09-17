@@ -1362,3 +1362,46 @@ fn a_scheduler_parking_while_a_message_is_in_flight_neither_hangs_nor_faults() {
         );
     }
 }
+
+#[test]
+fn a_remote_send_resolves_and_delivers_without_reading_the_receivers_record() {
+    TRACE.with(|t| t.borrow_mut().clear());
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = new_with_schedulers(&mut fault, f.functions.as_ptr(), 2, 2);
+        let s = (*exec).session;
+        // Round-robin places the first spawn on scheduler 0 and the second on 1.
+        assert!(!f.spawn(exec, 1).is_null());
+        let remote = f.spawn(exec, 2);
+        assert_eq!((*actor(remote)).scheduler, 1, "the receiver is not local");
+        assert_eq!(f.receive(remote, 7, 42, 0, -1), 1, "the receiver blocks");
+
+        // A scheduler owns a domain, and the record behind a foreign PID lives in
+        // somebody else's. Hiding it here is what a foreign domain looks like from
+        // the sender's side: the send must resolve through the registry alone.
+        let slot = (*remote).slot;
+        let hidden = *(*s).identities.add(slot);
+        *(*s).identities.add(slot) = null_mut();
+        let sent =
+            morrow_managed_send(exec, remote.cast(), 7, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!(
+            (*sent).tag,
+            0,
+            "a send to another scheduler must not need the receiver's storage"
+        );
+        *(*s).identities.add(slot) = hidden;
+
+        morrow_managed_run(exec);
+        assert_eq!(fault, 0);
+        TRACE.with(|t| {
+            assert!(
+                t.borrow().contains(&42),
+                "the remote receiver never woke: {:?}",
+                t.borrow()
+            )
+        });
+        assert_eq!((*s).messages.load(Ordering::Acquire), 0);
+        assert_eq!((*s).live.load(Ordering::Acquire), 0);
+    }
+}

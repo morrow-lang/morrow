@@ -195,7 +195,11 @@ pub unsafe extern "C" fn morrow_managed_receive(
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
         (*a).deadline = deadline;
-        (*home(s)).next_deadline = (*home(s)).next_deadline.min(deadline);
+        // This actor's own scheduler, not scheduler zero: a deadline recorded
+        // against a queue somebody else owns is both wrong and, once that
+        // scheduler is a thread, a write into its private state.
+        let q = owner(a);
+        (*q).next_deadline = (*q).next_deadline.min(deadline);
         let selected = poll(a, true);
         if (*a).fault != 0 {
             3

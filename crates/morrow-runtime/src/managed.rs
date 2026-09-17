@@ -9,6 +9,8 @@ mod copy;
 mod cost;
 #[path = "managed/placement.rs"]
 mod placement;
+#[path = "managed/post.rs"]
+mod post;
 #[path = "managed/quiesce.rs"]
 mod quiesce;
 #[cfg(test)]
@@ -213,6 +215,8 @@ unsafe fn actor(pid: *const Pid) -> *mut Actor {
 struct Shared {
     registry: registry::Registry,
     quiesce: quiesce::Quiesce,
+    /// One post box per scheduler, indexed by scheduler number.
+    posts: Vec<post::Post>,
 }
 
 /// # Safety
@@ -225,6 +229,23 @@ unsafe fn quiesce<'a>(s: *mut Session) -> &'a quiesce::Quiesce {
 
 unsafe fn registry<'a>(s: *mut Session) -> &'a mut registry::Registry {
     unsafe { &mut (*(*s).shared.cast::<Shared>()).registry }
+}
+
+/// Where another scheduler leaves work for scheduler `index`.
+unsafe fn post_box<'a>(s: *mut Session, index: usize) -> &'a post::Post {
+    unsafe { &(&(*(*s).shared.cast::<Shared>()).posts)[index] }
+}
+
+/// The scheduler whose thread is running this context. The root exec belongs to
+/// scheduler zero: it is the thread that called `morrow_managed_run`.
+unsafe fn current_scheduler(exec: *mut Exec) -> usize {
+    unsafe {
+        if (*exec).actor.is_null() {
+            0
+        } else {
+            (*(*exec).actor).scheduler
+        }
+    }
 }
 
 /// Choose which logical scheduler advances next.
@@ -254,12 +275,6 @@ unsafe fn next_scheduler(s: *mut Session) -> usize {
 #[cfg(not(any(test, feature = "simulation")))]
 unsafe fn next_scheduler(_s: *mut Session) -> usize {
     0
-}
-
-/// The scheduler that owns an actor's run queue. Placement makes this a real
-/// choice; until then every actor belongs to scheduler zero.
-unsafe fn home(s: *mut Session) -> *mut Scheduler {
-    unsafe { (*s).schedulers }
 }
 
 /// The run queue an actor belongs to. Chosen at spawn and never revisited:
@@ -350,9 +365,16 @@ unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
 /// Turn identity into storage. Sound only on the scheduler owning that actor;
 /// a later step removes the last cross-scheduler caller.
 unsafe fn actor_of(s: *mut Session, pid: *const Pid) -> *mut Actor {
+    unsafe { actor_at(s, (*pid).slot, (*pid).generation) }
+}
+
+/// As `actor_of`, for a request that carries identity without a PID. The
+/// registry decides, not the table: a request may name an actor that has since
+/// died and whose slot now belongs to somebody else.
+unsafe fn actor_at(s: *mut Session, slot: usize, generation: u64) -> *mut Actor {
     unsafe {
-        match registry(s).resolve((*pid).slot, (*pid).generation) {
-            Some(_) => *(*s).identities.add((*pid).slot),
+        match registry(s).resolve(slot, generation) {
+            Some(_) => *(*s).identities.add(slot),
             None => null_mut(),
         }
     }

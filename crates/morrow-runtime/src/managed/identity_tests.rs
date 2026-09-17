@@ -79,7 +79,7 @@ fn foreign_pid_keeps_dead_identity_and_supervision_lineage_while_retaining_no_st
         assert_eq!(dequeue(session), old);
         (*old).fault = 1;
         assert!(supervision::recover(old));
-        let current = (*home(session)).first;
+        let current = (*scheduler_at(session, 0)).first;
         assert_ne!(current, old);
         assert_eq!((*current).slot, (*old).slot);
         assert_ne!((*current).generation, (*old).generation);

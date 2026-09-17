@@ -151,8 +151,10 @@ pub unsafe fn snapshot(exec: *mut Exec) -> Result<Snapshot, ClockError> {
         Ok(Snapshot {
             milliseconds: (*s).simulation.milliseconds,
             callbacks: (*s).simulation.callbacks,
-            next_deadline: ((*home(s)).next_deadline != u64::MAX)
-                .then_some((*home(s)).next_deadline),
+            // The invocation's next deadline, not scheduler zero's: a receive
+            // records its timer against its own scheduler's queue.
+            next_deadline: (scheduler::earliest_deadline(s) != u64::MAX)
+                .then_some(scheduler::earliest_deadline(s)),
             live: (*s).live.load(Ordering::Acquire),
             messages: (*s).messages.load(Ordering::Acquire),
             retained: (*s).retained.load(Ordering::Acquire),

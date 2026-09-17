@@ -23,7 +23,7 @@ pub(super) unsafe fn enqueue(a: *mut Actor) {
 /// Test-only: production always names the scheduler it is draining.
 #[cfg(test)]
 pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
-    unsafe { dequeue_from(s, home(s)) }
+    unsafe { dequeue_from(s, scheduler_at(s, 0)) }
 }
 pub(super) unsafe fn dequeue_from(s: *mut Session, q: *mut Scheduler) -> *mut Actor {
     unsafe {
@@ -40,6 +40,41 @@ pub(super) unsafe fn dequeue_from(s: *mut Session, q: *mut Scheduler) -> *mut Ac
         a
     }
 }
+/// Turn requests other schedulers posted for `index` into local work.
+///
+/// Only the scheduler that owns these actors calls this, which is what makes
+/// their records safe to read here and unsafe to read at the posting end.
+pub(super) unsafe fn deliver_posts(s: *mut Session, index: usize) {
+    unsafe {
+        let posts = post_box(s, index);
+        if posts.is_empty() {
+            return;
+        }
+        for request in posts.take() {
+            match request {
+                post::Request::Wake {
+                    slot,
+                    generation,
+                    at,
+                } => {
+                    let a = actor_at(s, slot, generation);
+                    // A wake is advisory: the actor may have died, or already
+                    // adopted this message on its way past `receive`. Its
+                    // payload is in the inbox either way, so nothing is lost by
+                    // declining to enqueue.
+                    if !a.is_null()
+                        && (*a).alive
+                        && (*a).waiting
+                        && ((*a).deadline == u64::MAX || at < (*a).deadline)
+                    {
+                        enqueue(a);
+                    }
+                }
+            }
+        }
+    }
+}
+
 /// Any scheduler with a runnable actor. One scheduler's queue being empty says
 /// nothing about the invocation once actors are placed across several.
 pub(super) unsafe fn any_runnable(s: *mut Session) -> bool {
@@ -267,6 +302,7 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             // later; until then this is what makes a placed actor actually run.
             let mut ran = false;
             for index in 0..(*s).scheduler_count {
+                deliver_posts(s, index);
                 let a = dequeue_from(s, scheduler_at(s, index));
                 if a.is_null() {
                     continue;
