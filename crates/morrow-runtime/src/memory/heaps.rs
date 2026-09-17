@@ -5,6 +5,9 @@ use std::ptr::null_mut;
 
 struct Slot {
     heap: Heap,
+    // Allocate-only and unrooted until adopted, so it is never swept and never
+    // examined by the cross-heap edge oracle.
+    fragment: bool,
     // The control word roots an invocation-owned Actor while this heap exists.
     _control: Option<Box<usize>>,
     control_root: Option<usize>,
@@ -15,6 +18,7 @@ impl Slot {
     fn invocation() -> Self {
         Self {
             heap: Heap::new(),
+            fragment: false,
             _control: None,
             control_root: None,
             scopes: 0,
@@ -59,7 +63,7 @@ impl Domain {
     pub(crate) fn verify_edges(&self) -> Result<(), EdgeViolation> {
         let invocation = &self.slots[&0].heap.blocks;
         for (&id, slot) in &self.slots {
-            if id == 0 {
+            if id == 0 || slot.fragment {
                 continue;
             }
             for (&block, metadata) in &slot.heap.blocks {
@@ -119,6 +123,12 @@ impl Domain {
     }
     pub(crate) fn collect_active(&mut self, roots: &[usize]) -> Stats {
         let active = self.active;
+        if self.slots[&active].fragment {
+            // A fragment has no roots by construction, so tracing it would free
+            // the payload being assembled. It is swept only after adoption, by
+            // whichever heap took it.
+            return self.stats();
+        }
         let mut controls = Vec::new();
         if active == 0 {
             // Foreign payload is never scanned. Metadata survives exactly as long
@@ -203,6 +213,42 @@ impl Domain {
                 .control = control as usize;
         }
     }
+    /// Open an allocate-only heap with no collection threshold.
+    #[allow(dead_code)] // See the re-export in memory.rs.
+    pub(crate) fn open_fragment(&mut self) -> usize {
+        self.next_heap = self
+            .next_heap
+            .checked_add(1)
+            .unwrap_or_else(|| std::process::abort());
+        let id = self.next_heap;
+        let mut slot = Slot::invocation();
+        slot.fragment = true;
+        // Nothing roots a fragment, so it must never collect.
+        slot.heap.threshold = usize::MAX;
+        self.slots.insert(id, slot);
+        id
+    }
+
+    #[allow(dead_code)] // See the re-export in memory.rs.
+    pub(crate) fn close_fragment(&mut self, id: usize) -> Fragment {
+        assert_ne!(
+            self.active, id,
+            "close_fragment while the fragment is active"
+        );
+        let slot = self
+            .slots
+            .remove(&id)
+            .expect("close_fragment on a live fragment id");
+        assert!(slot.fragment, "close_fragment on an actor heap");
+        Fragment { heap: slot.heap }
+    }
+
+    #[allow(dead_code)] // See the re-export in memory.rs.
+    pub(crate) fn adopt(&mut self, into: usize, mut fragment: Fragment) {
+        let slot = self.slots.get_mut(&into).expect("adopt into a live heap");
+        slot.heap.merge(&mut fragment.heap);
+    }
+
     /// Create a payload heap whose external roots are the invocation-owned actor words.
     /// # Safety
     /// The control object must be an invocation-heap allocation, readable for `words`
@@ -225,6 +271,7 @@ impl Domain {
             id,
             Slot {
                 heap,
+                fragment: false,
                 _control: Some(control_word),
                 control_root: Some(control_root),
                 scopes: 0,
@@ -400,6 +447,19 @@ pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
 #[allow(dead_code)] // See the re-export in memory.rs.
 pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
     with_current(|domain| unsafe { domain.control_edge(pointer, control) });
+}
+
+#[allow(dead_code)] // See the re-export in memory.rs.
+pub(crate) fn open_fragment() -> usize {
+    with_current(|domain| domain.open_fragment())
+}
+#[allow(dead_code)] // See the re-export in memory.rs.
+pub(crate) fn close_fragment(id: usize) -> Fragment {
+    with_current(|domain| domain.close_fragment(id))
+}
+#[allow(dead_code)] // See the re-export in memory.rs.
+pub(crate) fn adopt(into: usize, fragment: Fragment) {
+    with_current(|domain| domain.adopt(into, fragment));
 }
 
 pub(super) fn collect(roots: &[usize]) -> Stats {

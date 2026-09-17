@@ -484,3 +484,90 @@ fn only_control_edges_leave_an_actor_payload_heap() {
     domain.force_control_edge(id, pid, control as usize);
     domain.retire_heap(id);
 }
+
+#[test]
+fn an_adopted_fragment_contributes_its_blocks_and_bytes_to_the_receiver() {
+    // SAFETY: a heap with no control object; nothing roots it externally.
+    let receiver = unsafe { create_actor_heap(std::ptr::null(), 0) };
+    let before = stats().bytes;
+
+    let fragment_id = open_fragment();
+    let written = {
+        let _scope = enter_heap(fragment_id);
+        let block = alloc(64, false);
+        // SAFETY: freshly allocated, zeroed, 64 bytes, exclusively owned here.
+        unsafe { block.cast::<u64>().write(0xfeed_beef) };
+        block
+    };
+    let fragment = close_fragment(fragment_id);
+    adopt(receiver, fragment);
+
+    assert!(
+        heap_owns(receiver, written.cast()),
+        "the adopted block belongs to the receiver's heap"
+    );
+    // SAFETY: the block survived adoption; addresses are stable across the merge.
+    assert_eq!(unsafe { written.cast::<u64>().read() }, 0xfeed_beef);
+    assert!(
+        stats().bytes > before,
+        "the adopted payload is still accounted"
+    );
+    // Domain-wide bytes are unchanged by a merge, so the only way to show the
+    // fragment's bytes became the receiver's is to destroy the receiver.
+    retire_heap(receiver);
+    assert!(
+        stats().bytes <= before,
+        "retiring the receiver must release the bytes it adopted"
+    );
+}
+
+#[test]
+fn a_fragment_is_never_collected_while_in_flight() {
+    let fragment_id = open_fragment();
+    let survivor = {
+        let _scope = enter_heap(fragment_id);
+        let block = alloc(32, false);
+        // Allocate far past the ordinary 1 MiB threshold. An actor heap would
+        // collect here; a fragment must not, because nothing roots it.
+        for _ in 0..64 {
+            alloc(64 * 1024, true);
+        }
+        // An explicit collection must not reclaim it either: the danger is a
+        // fragment being swept for lack of roots, not just the threshold path.
+        collect();
+        block
+    };
+    let fragment = close_fragment(fragment_id);
+    // SAFETY: a heap with no control object; nothing roots it externally.
+    let receiver = unsafe { create_actor_heap(std::ptr::null(), 0) };
+    adopt(receiver, fragment);
+    assert!(
+        heap_owns(receiver, survivor.cast()),
+        "an unrooted fragment allocation must survive until adoption"
+    );
+    retire_heap(receiver);
+}
+
+#[test]
+fn adoption_leaves_the_cross_heap_edge_oracle_satisfied() {
+    // SAFETY: a heap with no control object; nothing roots it externally.
+    let receiver = unsafe { create_actor_heap(std::ptr::null(), 0) };
+    let fragment_id = open_fragment();
+    {
+        let _scope = enter_heap(fragment_id);
+        alloc(48, false);
+    }
+    adopt(receiver, close_fragment(fragment_id));
+    assert_eq!(
+        verify_heap_edges(),
+        Ok(()),
+        "adopted payload carries no edge out of its new heap"
+    );
+    retire_heap(receiver);
+}
+
+#[test]
+fn fragments_are_send_so_they_can_cross_schedulers() {
+    fn assert_send<T: Send>() {}
+    assert_send::<Fragment>();
+}
