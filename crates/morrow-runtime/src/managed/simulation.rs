@@ -14,6 +14,13 @@ pub(super) struct State {
     pub fail_next: bool,
     pub milliseconds: u64,
     pub callbacks: u64,
+    /// Drives which logical scheduler advances next. The seed alone determines
+    /// the whole interleaving, so a report is reproducible from Config and
+    /// nothing else.
+    pub cursor: u64,
+    /// Folded into the trace hash, so a change in interleaving is visible in
+    /// the hash rather than only in the outcome.
+    pub switches: u64,
 }
 
 /// A rejected clock operation never changes the invocation's time or fault cell.
@@ -51,6 +58,7 @@ pub unsafe fn enable_clock(exec: *mut Exec, milliseconds: u64) -> Result<(), Clo
         (*s).simulation = State {
             enabled: true,
             milliseconds,
+            cursor: milliseconds | 1,
             ..State::default()
         };
         Ok(())
@@ -94,6 +102,8 @@ pub struct Snapshot {
     pub messages: usize,
     pub retained: usize,
     pub identities: u64,
+    pub switches: u64,
+    pub cross_scheduler_sends: u64,
 }
 
 /// Read deterministic runtime state without advancing it.
@@ -111,6 +121,8 @@ pub unsafe fn snapshot(exec: *mut Exec) -> Result<Snapshot, ClockError> {
             messages: (*s).messages.load(Ordering::Acquire),
             retained: (*s).retained.load(Ordering::Acquire),
             identities: registry(s).issued(),
+            switches: (*s).simulation.switches,
+            cross_scheduler_sends: registry(s).cross_scheduler_sends(),
         })
     }
 }

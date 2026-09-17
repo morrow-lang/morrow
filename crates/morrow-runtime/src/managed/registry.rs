@@ -35,6 +35,14 @@ pub(super) struct Registry {
     /// `LIVE * (MAX_RESTARTS + 1)` because `retire_lineage` drops every
     /// generation of a supervisor that has exhausted its budget.
     lineages: BTreeMap<u64, *mut Supervisor>,
+    /// Actors placed per scheduler over the whole run, so round-robin placement
+    /// is observable rather than assumed. Live counts would only ever show the
+    /// handful of actors alive at the end.
+    placed: Vec<usize>,
+    /// Supervised children issued onto a scheduler other than their
+    /// supervisor's. Any non-zero value is a cross-domain supervisor pointer.
+    cross_scheduler_supervision: usize,
+    cross_scheduler_sends: u64,
 }
 
 impl Registry {
@@ -43,6 +51,9 @@ impl Registry {
             entries: Vec::new(),
             next_generation: 0,
             lineages: BTreeMap::new(),
+            placed: Vec::new(),
+            cross_scheduler_supervision: 0,
+            cross_scheduler_sends: 0,
         }
     }
 
@@ -58,6 +69,10 @@ impl Registry {
             None => return None,
         };
         self.next_generation = generation;
+        if self.placed.len() <= scheduler {
+            self.placed.resize(scheduler + 1, 0);
+        }
+        self.placed[scheduler] += 1;
         self.entries[slot] = Some(Entry {
             generation,
             scheduler,
@@ -131,8 +146,35 @@ impl Registry {
         self.next_generation
     }
 
-    pub(super) fn bind_lineage(&mut self, generation: u64, supervisor: *mut Supervisor) {
+    pub(super) fn bind_lineage(
+        &mut self,
+        generation: u64,
+        supervisor: *mut Supervisor,
+        child_scheduler: usize,
+        supervisor_scheduler: usize,
+    ) {
+        if child_scheduler != supervisor_scheduler {
+            self.cross_scheduler_supervision += 1;
+        }
         self.lineages.insert(generation, supervisor);
+    }
+
+    pub(super) fn census(&self, schedulers: usize) -> Vec<usize> {
+        let mut counts = self.placed.clone();
+        counts.resize(schedulers.max(counts.len()), 0);
+        counts
+    }
+
+    pub(super) fn cross_scheduler_supervision(&self) -> usize {
+        self.cross_scheduler_supervision
+    }
+
+    pub(super) fn record_cross_scheduler_send(&mut self) {
+        self.cross_scheduler_sends += 1;
+    }
+
+    pub(super) fn cross_scheduler_sends(&self) -> u64 {
+        self.cross_scheduler_sends
     }
 
     pub(super) fn lineage(&self, generation: u64) -> Option<*mut Supervisor> {

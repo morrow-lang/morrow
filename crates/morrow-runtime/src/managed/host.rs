@@ -20,9 +20,25 @@ pub unsafe extern "C" fn morrow_managed_open(
     functions: *const *const Function,
     count: i64,
 ) -> *mut Exec {
+    unsafe { open_with_schedulers(fault, functions, count, 1) }
+}
+
+/// Open a host invocation with an explicit logical scheduler count.
+///
+/// Host mode never spawns a thread: poll drives every scheduler from the
+/// caller's thread, and port actors stay on scheduler zero. The count is how
+/// the deterministic driver models N schedulers, not a threading decision.
+/// # Safety
+/// As `morrow_managed_open`. `schedulers` must be at least one.
+pub(super) unsafe fn open_with_schedulers(
+    fault: *mut i64,
+    functions: *const *const Function,
+    count: i64,
+    schedulers: usize,
+) -> *mut Exec {
     unsafe {
         let _control = memory::enter_heap(0);
-        let exec = morrow_managed_new(fault, functions, count);
+        let exec = lifecycle::new_with_schedulers(fault, functions, count, schedulers);
         if exec.is_null() {
             return null_mut();
         }
@@ -79,13 +95,13 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             if (*s).stopped.load(Ordering::Acquire) || (*s).live.load(Ordering::Acquire) == 0 {
                 return 0;
             }
-            if (*home(s)).next_deadline != u64::MAX {
+            if scheduler::earliest_deadline(s) != u64::MAX {
                 let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     morrow_managed_stop(exec);
                     return 3;
                 };
-                if now >= (*home(s)).next_deadline {
+                if now >= scheduler::earliest_deadline(s) {
                     scheduler::wake_due(s, now);
                 }
                 if *(*s).root.fault != 0 {
@@ -93,7 +109,18 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
                     return 3;
                 }
             }
-            let a = scheduler::dequeue(s);
+            // Where real threads would interleave. Start from the seeded choice
+            // and fall through the rest, so a scheduler is never starved by an
+            // unlucky draw.
+            let start = next_scheduler(s);
+            let mut a = null_mut();
+            for offset in 0..(*s).scheduler_count {
+                let index = (start + offset) % (*s).scheduler_count;
+                a = scheduler::dequeue_from(s, scheduler_at(s, index));
+                if !a.is_null() {
+                    break;
+                }
+            }
             if a.is_null() {
                 return if (*s).live.load(Ordering::Acquire) == 0 {
                     0
@@ -110,7 +137,7 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             3
         } else if (*s).live.load(Ordering::Acquire) == 0 || (*s).stopped.load(Ordering::Acquire) {
             0
-        } else if (*home(s)).first.is_null() {
+        } else if !scheduler::any_runnable(s) {
             1
         } else {
             2

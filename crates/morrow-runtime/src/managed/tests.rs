@@ -1124,3 +1124,108 @@ fn supervised_children_are_placed_on_their_supervisors_scheduler() {
         assert_eq!(fault, 0);
     }
 }
+
+#[test]
+fn a_seed_replays_identically_at_every_scheduler_count() {
+    for schedulers in [1usize, 2, 4, 8] {
+        let config = simulation::Config {
+            seed: 0x5eed_000a,
+            steps: 256,
+            schedulers,
+        };
+        let first = simulation::run(config).expect("scenario completes");
+        let second = simulation::run(config).expect("scenario completes");
+        assert_eq!(
+            first, second,
+            "seed {:#x} at {schedulers} schedulers must replay exactly",
+            config.seed
+        );
+    }
+}
+
+#[test]
+fn scheduler_count_changes_the_interleaving_rather_than_being_ignored() {
+    let one = simulation::run(simulation::Config {
+        seed: 0x5eed_000a,
+        steps: 256,
+        schedulers: 1,
+    })
+    .expect("scenario completes");
+    let eight = simulation::run(simulation::Config {
+        seed: 0x5eed_000a,
+        steps: 256,
+        schedulers: 8,
+    })
+    .expect("scenario completes");
+    assert_ne!(
+        one.trace_hash, eight.trace_hash,
+        "if the hash is identical the driver is not actually interleaving schedulers"
+    );
+    assert!(
+        eight.cross_scheduler_sends > 0,
+        "eight schedulers must produce real cross-scheduler traffic"
+    );
+    assert!(
+        eight.switches > 0 && one.switches == 0,
+        "one scheduler has nothing to switch between"
+    );
+    // Both must still be correct runs, not merely different ones.
+    assert_eq!((one.final_live, eight.final_live), (0, 0));
+    assert_eq!((one.final_messages, eight.final_messages), (0, 0));
+    assert_eq!(
+        one.delivered, eight.delivered,
+        "no message is lost by interleaving"
+    );
+    assert_eq!(
+        one.timeouts, eight.timeouts,
+        "and no delivery silently becomes a timeout"
+    );
+}
+
+#[test]
+fn placement_reaches_every_scheduler_and_never_splits_a_supervision_lineage() {
+    let report = simulation::run(simulation::Config {
+        seed: 0x5eed_0008,
+        steps: 256,
+        schedulers: 4,
+    })
+    .expect("scenario completes");
+    assert_eq!(
+        report.placement.len(),
+        4,
+        "every scheduler is reported, including empty ones"
+    );
+    assert!(
+        report.placement.iter().all(|&count| count > 0),
+        "round-robin placement must reach every scheduler, got {:?}",
+        report.placement
+    );
+    assert!(
+        report.restarts > 0,
+        "the scenario must restart supervised children"
+    );
+    assert_eq!(
+        report.cross_scheduler_supervision, 0,
+        "a supervised child on another scheduler would be a cross-domain supervisor pointer"
+    );
+}
+
+#[test]
+fn the_single_scheduler_trace_hash_is_unchanged_by_the_driver() {
+    let report = simulation::run(simulation::Config {
+        seed: 0x0046_524e,
+        steps: 64,
+        schedulers: 1,
+    })
+    .expect("scenario completes");
+    // Two builds, two constants. `cfg(test)` enables this crate's own unit-test
+    // hooks, which shift collection and identity counts, so the test build has
+    // always hashed differently from the `simulation` feature build that
+    // morrow-sim and the gate use. Both were measured before and after the
+    // driver landed and neither moved; the feature build's value is
+    // 663424a90ffcfa20.
+    assert_eq!(
+        report.trace_hash, 0xff00_6f38_e00e_69af,
+        "one scheduler must behave exactly as step 1's runtime did"
+    );
+}

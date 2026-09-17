@@ -20,6 +20,8 @@ pub(super) unsafe fn enqueue(a: *mut Actor) {
         (*q).last = a;
     }
 }
+/// Test-only: production always names the scheduler it is draining.
+#[cfg(test)]
 pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
     unsafe { dequeue_from(s, home(s)) }
 }

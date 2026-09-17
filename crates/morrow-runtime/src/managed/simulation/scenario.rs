@@ -8,6 +8,9 @@ pub const MAX_STEPS: u32 = 1_000_000;
 pub struct Config {
     pub seed: u64,
     pub steps: u32,
+    /// Logical schedulers. There is deliberately no Default, so every call site
+    /// states the count it means.
+    pub schedulers: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -26,6 +29,15 @@ pub struct Report {
     pub final_messages: usize,
     pub final_heap_bytes: usize,
     pub final_heap_objects: usize,
+    /// Actors placed per scheduler, so round-robin placement is observable
+    /// rather than assumed.
+    pub placement: Vec<usize>,
+    /// Supervised children that landed on a scheduler other than their
+    /// supervisor's. Any non-zero value is a cross-domain supervisor pointer.
+    pub cross_scheduler_supervision: usize,
+    pub cross_scheduler_sends: u64,
+    /// Times the driver switched logical schedulers.
+    pub switches: u64,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -57,6 +69,13 @@ fn run_with_oracle(config: Config, expected_timer: fn(i64) -> i64) -> Result<Rep
             config,
             step: 0,
             message: format!("steps must be in 1..={MAX_STEPS}"),
+        });
+    }
+    if !(1..=64).contains(&config.schedulers) {
+        return Err(Failure {
+            config,
+            step: 0,
+            message: "schedulers must be in 1..=64".into(),
         });
     }
     std::thread::Builder::new()
@@ -125,17 +144,39 @@ fn verify(
         })
     }
 }
+/// Compare a round's port output.
+///
+/// At one scheduler the whole sequence is determined, so it is compared
+/// exactly. At more than one it is not: these outputs come from independent
+/// actors on different schedulers, and their relative order is decided by the
+/// interleaving. Asserting a particular interleaving would assert an
+/// implementation detail, so the multiset is compared instead -- every reply
+/// still arrives, exactly once, and none becomes a timeout. Ordering that is
+/// still guaranteed at N schedulers, per sender into one mailbox, is asserted
+/// directly by the inbox oracles.
 fn expected_outputs(
     config: Config,
     step: u32,
     actual: &[i64],
     expected: &[i64],
 ) -> Result<(), Failure> {
+    if config.schedulers == 1 {
+        return verify(
+            config,
+            step,
+            actual == expected,
+            format!("reply oracle expected {expected:?}, received {actual:?}"),
+        );
+    }
+    let mut actual_sorted = actual.to_vec();
+    let mut expected_sorted = expected.to_vec();
+    actual_sorted.sort_unstable();
+    expected_sorted.sort_unstable();
     verify(
         config,
         step,
-        actual == expected,
-        format!("reply oracle expected {expected:?}, received {actual:?}"),
+        actual_sorted == expected_sorted,
+        format!("reply oracle expected {expected:?} in any order, received {actual:?}"),
     )
 }
 
@@ -342,13 +383,18 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         final_messages: 0,
         final_heap_bytes: 0,
         final_heap_objects: 0,
+        placement: vec![0; config.schedulers],
+        cross_scheduler_supervision: 0,
+        cross_scheduler_sends: 0,
+        switches: 0,
     };
     let mut random = Random(config.seed);
     unsafe {
-        let invocation = Invocation(morrow_managed_open(
+        let invocation = Invocation(host::open_with_schedulers(
             &mut fault,
             functions.as_ptr(),
             functions.len() as i64,
+            config.schedulers,
         ));
         let exec = invocation.0;
         verify(
@@ -528,13 +574,25 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
                 )?;
             }
             hash(&mut report.trace_hash, state.identities);
+            // An ordering change must be visible in the hash, not only in the
+            // outcome: two interleavings can deliver the same messages. Folded
+            // in only above one scheduler, so the one-scheduler hash remains
+            // literally the hash Decision156 recorded.
+            if config.schedulers > 1 {
+                hash(&mut report.trace_hash, state.switches);
+            }
             // No temporary actor PID is used after this precise collection.
             if step % 64 == 0 {
                 memory::morrow_gc_collect_precise();
             }
         }
+        let s = (*exec).session;
+        report.placement = registry(s).census(config.schedulers);
+        report.cross_scheduler_supervision = registry(s).cross_scheduler_supervision();
         morrow_managed_stop(exec);
         let state = snapshot(exec).unwrap();
+        report.switches = state.switches;
+        report.cross_scheduler_sends = state.cross_scheduler_sends;
         report.final_live = state.live;
         report.final_messages = state.messages;
         drop(port_root);
@@ -562,7 +620,11 @@ mod tests {
     use super::*;
     #[test]
     fn wrong_expected_timer_is_rejected_with_replay_configuration() {
-        let config = Config { seed: 17, steps: 8 };
+        let config = Config {
+            seed: 17,
+            steps: 8,
+            schedulers: 1,
+        };
         let failure = run_with_oracle(config, |output| -output).unwrap_err();
         assert_eq!((failure.config, failure.step), (config, 0));
         assert!(failure.message.contains("reply oracle expected"));
@@ -573,6 +635,7 @@ mod tests {
             let config = Config {
                 seed: u64::MAX,
                 steps,
+                schedulers: 1,
             };
             assert_eq!(run(config).unwrap_err().config, config);
         }
@@ -580,7 +643,12 @@ mod tests {
     #[test]
     fn seeded_corpus_preserves_deadlines_and_sibling_progress() {
         for seed in [0, 1, 2, 3, 17, 42, 0xdead_beef, u64::MAX] {
-            let report = run(Config { seed, steps: 256 }).unwrap();
+            let report = run(Config {
+                seed,
+                steps: 256,
+                schedulers: 1,
+            })
+            .unwrap();
             assert_eq!(report.delivered + report.timeouts, 256);
             assert!(report.virtual_ms >= 32 * 600_000);
         }
@@ -590,6 +658,7 @@ mod tests {
         let report = run(Config {
             seed: 42,
             steps: 16_384,
+            schedulers: 1,
         })
         .unwrap();
         assert!(
@@ -606,6 +675,7 @@ mod tests {
         let config = Config {
             seed: 0x0046_524e,
             steps: 64,
+            schedulers: 1,
         };
         let first = run(config).unwrap();
         assert_eq!(first, run(config).unwrap());

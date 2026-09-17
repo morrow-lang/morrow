@@ -297,6 +297,17 @@ pub unsafe extern "C" fn morrow_managed_send(
         // Waking the receiver still crosses into its run queue; placement moves
         // that to a remote queue in a later step.
         let a = actor_of(s, pid);
+        #[cfg(any(test, feature = "simulation"))]
+        if (*s).simulation.enabled && !a.is_null() {
+            let from = if (*exec).actor.is_null() {
+                0
+            } else {
+                (*(*exec).actor).scheduler
+            };
+            if from != (*a).scheduler {
+                registry(s).record_cross_scheduler_send();
+            }
+        }
         if !a.is_null() && (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
             enqueue(a);
         }

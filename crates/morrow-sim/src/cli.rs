@@ -185,6 +185,7 @@ fn actor_run(config: ActorConfig) -> Result<ActorReport, String> {
     let report = actors::run(actors::Config {
         seed: config.seed,
         steps: config.steps,
+        schedulers: 1,
     })
     .map_err(|failure| {
         format!(

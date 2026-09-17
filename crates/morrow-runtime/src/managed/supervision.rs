@@ -82,7 +82,12 @@ pub unsafe extern "C" fn morrow_managed_supervise(
         let a = actor_of(s, pid);
         (*a).supervisor = supervisor;
         (*supervisor).current = a;
-        registry(s).bind_lineage((*pid).generation, supervisor);
+        registry(s).bind_lineage(
+            (*pid).generation,
+            supervisor,
+            (*a).scheduler,
+            (*supervisor).scheduler,
+        );
         pid.cast()
     }
 }
@@ -155,7 +160,12 @@ pub(super) unsafe fn recover(a: *mut Actor) -> bool {
             let a = actor_of(s, pid);
             (*a).supervisor = supervisor;
             (*supervisor).current = a;
-            registry(s).bind_lineage((*pid).generation, supervisor);
+            registry(s).bind_lineage(
+                (*pid).generation,
+                supervisor,
+                (*a).scheduler,
+                (*supervisor).scheduler,
+            );
         }
         true
     }

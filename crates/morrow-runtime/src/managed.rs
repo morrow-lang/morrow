@@ -225,6 +225,35 @@ unsafe fn registry<'a>(s: *mut Session) -> &'a mut registry::Registry {
     unsafe { &mut (*(*s).shared.cast::<Shared>()).registry }
 }
 
+/// Choose which logical scheduler advances next.
+///
+/// Determinism is a property of the driver, not of the runtime: under the
+/// simulation feature the N schedulers are cooperative state machines on one
+/// thread, and this seeded cursor is where real threads would interleave. A
+/// step is atomic here, so this is the only point at which they can.
+#[cfg(any(test, feature = "simulation"))]
+unsafe fn next_scheduler(s: *mut Session) -> usize {
+    unsafe {
+        let count = (*s).scheduler_count;
+        if count == 1 || !(*s).simulation.enabled {
+            return 0;
+        }
+        // xorshift64, matching the generator the scenario already uses.
+        let mut cursor = (*s).simulation.cursor;
+        cursor ^= cursor << 13;
+        cursor ^= cursor >> 7;
+        cursor ^= cursor << 17;
+        (*s).simulation.cursor = cursor;
+        (*s).simulation.switches = (*s).simulation.switches.wrapping_add(1);
+        (cursor % count as u64) as usize
+    }
+}
+
+#[cfg(not(any(test, feature = "simulation")))]
+unsafe fn next_scheduler(_s: *mut Session) -> usize {
+    0
+}
+
 /// The scheduler that owns an actor's run queue. Placement makes this a real
 /// choice; until then every actor belongs to scheduler zero.
 unsafe fn home(s: *mut Session) -> *mut Scheduler {
