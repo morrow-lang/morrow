@@ -121,3 +121,86 @@ impl Registry {
         self.next_generation = generation;
     }
 }
+
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
+
+// The `allow(dead_code)` below come off when the send path is wired to these:
+// the next steps give `Inbox` its payload type and hang one off every `Entry`.
+
+/// An immutable compiler-owned type descriptor. The compiler emits these into
+/// read-only static storage and never mutates them, so sharing one across
+/// schedulers is sound; the raw pointer alone is not `Send`, hence this wrapper.
+#[derive(Clone, Copy)]
+#[allow(dead_code)]
+pub(super) struct Descriptor(pub *const super::Type);
+// SAFETY: descriptors are immutable for the whole invocation and are validated
+// by `cost::descriptor` before any actor can reference them.
+unsafe impl Send for Descriptor {}
+unsafe impl Sync for Descriptor {}
+
+/// The shared half of an actor: everything a sender on another scheduler may
+/// touch. Outlives its actor so a send racing a death resolves by generation
+/// rather than by reading freed storage.
+#[allow(dead_code)]
+pub(super) struct Inbox<T> {
+    mailbox: Descriptor,
+    open: AtomicBool,
+    queued: AtomicUsize,
+    // Senders hold this only long enough to push. The owner swaps the whole
+    // vector out and then works without synchronization.
+    outer: Mutex<Vec<T>>,
+}
+
+#[allow(dead_code)]
+impl<T> Inbox<T> {
+    pub(super) fn new(mailbox: Descriptor) -> Arc<Self> {
+        Arc::new(Self {
+            mailbox,
+            open: AtomicBool::new(true),
+            queued: AtomicUsize::new(0),
+            outer: Mutex::new(Vec::new()),
+        })
+    }
+
+    pub(super) fn mailbox(&self) -> *const super::Type {
+        self.mailbox.0
+    }
+
+    pub(super) fn is_open(&self) -> bool {
+        self.open.load(Ordering::Acquire)
+    }
+
+    pub(super) fn len(&self) -> usize {
+        self.queued.load(Ordering::Acquire)
+    }
+
+    /// Hand back the payload on refusal so the sender can release its charge.
+    pub(super) fn push(&self, message: T) -> Result<(), T> {
+        let mut outer = self.outer.lock().unwrap_or_else(|e| e.into_inner());
+        if !self.open.load(Ordering::Acquire) {
+            return Err(message);
+        }
+        outer.push(message);
+        self.queued.store(outer.len(), Ordering::Release);
+        Ok(())
+    }
+
+    /// Swap the outer queue out in one operation. Order within one sender is
+    /// preserved because that sender's pushes are sequential.
+    pub(super) fn take_all(&self) -> Vec<T> {
+        let mut outer = self.outer.lock().unwrap_or_else(|e| e.into_inner());
+        let drained = std::mem::take(&mut *outer);
+        self.queued.store(0, Ordering::Release);
+        drained
+    }
+
+    pub(super) fn close(&self) {
+        self.open.store(false, Ordering::Release);
+    }
+
+    #[cfg(test)]
+    pub(super) fn new_for_test() -> Arc<Self> {
+        Self::new(Descriptor(std::ptr::null()))
+    }
+}
