@@ -6,6 +6,11 @@ use std::ptr::{null, null_mut};
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+#[path = "managed/quiesce.rs"]
+mod quiesce;
+#[cfg(test)]
+#[path = "managed/quiesce_tests.rs"]
+mod quiesce_tests;
 #[path = "managed/registry.rs"]
 mod registry;
 #[cfg(test)]
@@ -100,6 +105,9 @@ struct Session {
     function_count: usize,
     live: usize,
     token: u64,
+    /// Opaque handle to the outstanding-work counters, for the same reason as
+    /// `registry` below.
+    quiesce: *mut c_void,
     /// Opaque handle to the identity registry. `Session` reaches generated code
     /// only as a pointer inside `Exec`, but it must stay FFI-declarable, and the
     /// registry owns Rust collections with no C layout. Nothing outside
@@ -183,6 +191,12 @@ unsafe fn actor(pid: *const Pid) -> *mut Actor {
 
 /// # Safety
 /// `s` is a live invocation whose registry was published by `morrow_managed_new`.
+/// # Safety
+/// `s` is a live invocation whose counters were published by `morrow_managed_new`.
+unsafe fn quiesce<'a>(s: *mut Session) -> &'a quiesce::Quiesce {
+    unsafe { &*(*s).quiesce.cast::<quiesce::Quiesce>() }
+}
+
 unsafe fn registry<'a>(s: *mut Session) -> &'a mut registry::Registry {
     unsafe { &mut *(*s).registry.cast::<registry::Registry>() }
 }
@@ -288,6 +302,7 @@ unsafe fn adopt_inbox(s: *mut Session, a: *mut Actor) {
             }
             (*a).last = message;
             (*a).messages += 1;
+            quiesce(s).message_adopted();
         }
     }
 }

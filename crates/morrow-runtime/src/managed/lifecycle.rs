@@ -71,6 +71,8 @@ pub unsafe extern "C" fn morrow_managed_new(
         // and reenters no collector. It lives beside the Session in the control
         // heap and the Session's scanned pointer keeps it reachable.
         (*s).registry = memory::managed(registry::Registry::new(), 0).cast();
+        // SAFETY: plain atomics; its Drop touches nothing managed.
+        (*s).quiesce = memory::managed(quiesce::Quiesce::default(), 0).cast();
         (*s).token = next_token();
         #[cfg(test)]
         SESSIONS.with(|open| open.borrow_mut().insert((*s).token, s as usize));
@@ -230,6 +232,10 @@ pub unsafe extern "C" fn morrow_managed_send(
         // The global ceiling is charged at send, not at adoption, so an in-flight
         // message counts against MESSAGES for its whole life.
         (*s).messages += 1;
+        // Outstanding until the receiving scheduler adopts it. Without this a
+        // scheduler with an empty queue could call the invocation terminated
+        // while a message was mid-delivery.
+        quiesce(s).message_sent();
         // Waking the receiver still crosses into its run queue; placement moves
         // that to a remote queue in a later step.
         let a = actor_of(s, pid);

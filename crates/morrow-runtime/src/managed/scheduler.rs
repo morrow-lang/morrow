@@ -8,6 +8,7 @@ pub(super) unsafe fn enqueue(a: *mut Actor) {
         let s = (*a).exec.session;
         (*a).queued = true;
         (*a).next = null_mut();
+        quiesce(s).actor_runnable();
         if (*s).last.is_null() {
             (*s).first = a;
         } else {
@@ -26,6 +27,7 @@ pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
             }
             (*a).next = null_mut();
             (*a).queued = false;
+            quiesce(s).actor_dequeued();
         }
         a
     }
@@ -134,6 +136,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 }
                 (*a).queued = false;
                 (*a).next = null_mut();
+                quiesce(s).actor_dequeued();
             } else {
                 previous = a;
             }
@@ -165,9 +168,21 @@ unsafe fn idle(s: *mut Session) -> bool {
         if !(*s).first.is_null() {
             return true;
         }
-        if (*s).next_deadline == u64::MAX {
-            fail(&raw mut (*s).root, 10);
-            return false;
+        match quiesce(s).park(1) {
+            // Work appeared between the queue check and here.
+            quiesce::Parked::Work => return true,
+            // Nothing outstanding anywhere and no timer pending: with no
+            // external input to wait for, this is the deadlock the invocation
+            // has always reported rather than a clean finish.
+            quiesce::Parked::Terminated if (*s).next_deadline == u64::MAX => {
+                fail(&raw mut (*s).root, 10);
+                return false;
+            }
+            quiesce::Parked::Terminated => {}
+            // A message is charged but not yet adopted, so its receiver is about
+            // to become runnable. Do not call this deadlock.
+            quiesce::Parked::Waiting if (*s).next_deadline == u64::MAX => return true,
+            quiesce::Parked::Waiting => {}
         }
         let delay = (*s).next_deadline.saturating_sub(now);
         let sleep = libc::timespec {
@@ -293,6 +308,9 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             let a = *(*s).identities.add(i);
             if a.is_null() {
                 continue;
+            }
+            if (*a).queued {
+                quiesce(s).actor_dequeued();
             }
             (*a).queued = false;
             (*a).next = null_mut();

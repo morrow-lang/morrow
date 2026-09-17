@@ -975,3 +975,38 @@ fn a_send_to_a_dead_generation_is_refused_and_releases_its_charge() {
         assert_eq!(fault, 0);
     }
 }
+
+#[test]
+fn outstanding_work_counters_return_to_zero_once_the_invocation_finishes() {
+    // Termination is decided from these counters rather than from an empty
+    // queue, so a single missed decrement would either hang the runtime or
+    // report deadlock. Nothing else in the suite would notice the drift.
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let session = (*exec).session;
+        let mut pids = Vec::new();
+        for output in 0..8 {
+            let pid = f.spawn(exec, output);
+            let sent = morrow_managed_send(exec, pid.cast(), output, &*f.scalar)
+                as *const abi::ResultValue;
+            assert_eq!((*sent).tag, 0);
+            pids.push(pid);
+        }
+        assert_eq!(
+            quiesce(session).outstanding().1,
+            8,
+            "every charged message is outstanding until adopted"
+        );
+        morrow_managed_run(exec);
+        assert_eq!(fault, 0);
+        assert_eq!(
+            quiesce(session).outstanding(),
+            (0, 0),
+            "every runnable and in-flight increment must be matched"
+        );
+        assert_eq!((*session).live, 0);
+        assert_eq!((*session).messages, 0);
+    }
+}
