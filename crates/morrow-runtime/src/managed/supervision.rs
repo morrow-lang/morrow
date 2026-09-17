@@ -39,7 +39,7 @@ pub unsafe extern "C" fn morrow_managed_supervise(
         }
         let cost = cost::frame(s, initializer);
         if !(0..=MAX_RESTARTS).contains(&max_restarts)
-            || (*s).stopped
+            || (*s).stopped.load(Ordering::Acquire)
             || cost.is_none()
             || !charge(s, cost.unwrap_or(0) + std::mem::size_of::<Supervisor>())
         {
@@ -99,7 +99,7 @@ pub(super) unsafe fn completed(a: *mut Actor) {
         let supervisor = (*a).supervisor;
         if !supervisor.is_null()
             && (*supervisor).current == a
-            && ((*a).fault == 0 || (*(*a).exec.session).stopped)
+            && ((*a).fault == 0 || (*(*a).exec.session).stopped.load(Ordering::Acquire))
         {
             retire((*a).exec.session, supervisor);
         }
@@ -115,7 +115,7 @@ pub(super) unsafe fn recover(a: *mut Actor) -> bool {
         }
         let s = (*a).exec.session;
         scheduler::finish(a);
-        if (*supervisor).remaining == 0 || (*s).stopped {
+        if (*supervisor).remaining == 0 || (*s).stopped.load(Ordering::Acquire) {
             retire(s, supervisor);
             return true;
         }
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn morrow_managed_supervised_current(
         }
         let s = (*exec).session;
         let pid = original.cast::<Pid>();
-        if !valid_pid(s, pid) || (*s).stopped {
+        if !valid_pid(s, pid) || (*s).stopped.load(Ordering::Acquire) {
             return abi::result_err(3);
         }
         let Some(supervisor) = registry(s).lineage((*pid).generation) else {
@@ -224,7 +224,7 @@ mod tests {
             morrow_managed_run(exec);
             assert_eq!(fault, 0, "child failure must not poison the invocation");
             TRACE.with(|trace| assert_eq!(*trace.borrow(), [7, 42, 7, 7]));
-            assert_eq!((*(*exec).session).live, 0);
+            assert_eq!((*(*exec).session).live.load(Ordering::Acquire), 0);
         }
     }
 }

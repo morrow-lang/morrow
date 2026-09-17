@@ -38,9 +38,9 @@ pub unsafe fn enable_clock(exec: *mut Exec, milliseconds: u64) -> Result<(), Clo
             return Err(ClockError::AlreadyEnabled);
         }
         if registry(s).issued() != 0
-            || (*s).live != 0
-            || (*s).messages != 0
-            || (*s).stopped
+            || (*s).live.load(Ordering::Acquire) != 0
+            || (*s).messages.load(Ordering::Acquire) != 0
+            || (*s).stopped.load(Ordering::Acquire)
             || *(*s).root.fault != 0
         {
             return Err(ClockError::AlreadyStarted);
@@ -105,10 +105,11 @@ pub unsafe fn snapshot(exec: *mut Exec) -> Result<Snapshot, ClockError> {
         Ok(Snapshot {
             milliseconds: (*s).simulation.milliseconds,
             callbacks: (*s).simulation.callbacks,
-            next_deadline: ((*s).next_deadline != u64::MAX).then_some((*s).next_deadline),
-            live: (*s).live,
-            messages: (*s).messages,
-            retained: (*s).retained,
+            next_deadline: ((*home(s)).next_deadline != u64::MAX)
+                .then_some((*home(s)).next_deadline),
+            live: (*s).live.load(Ordering::Acquire),
+            messages: (*s).messages.load(Ordering::Acquire),
+            retained: (*s).retained.load(Ordering::Acquire),
             identities: registry(s).issued(),
         })
     }

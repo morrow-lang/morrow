@@ -66,20 +66,41 @@ pub unsafe extern "C" fn morrow_managed_new(
             }
         }
         (*s).identities = memory::alloc(IDS * std::mem::size_of::<*mut Actor>(), false).cast();
-        // SAFETY: Registry holds only generations, scheduler indices and
-        // non-owning supervisor pointers, so its Drop touches no managed value
-        // and reenters no collector. It lives beside the Session in the control
-        // heap and the Session's scanned pointer keeps it reachable.
-        (*s).registry = memory::managed(registry::Registry::new(), 0).cast();
-        // SAFETY: plain atomics; its Drop touches nothing managed.
-        (*s).quiesce = memory::managed(quiesce::Quiesce::default(), 0).cast();
+        // Run queues live in collector-scanned storage: a queued actor that has
+        // already finished is out of `identities`, and this list is then the only
+        // thing rooting its control record.
+        let schedulers = 1;
+        (*s).schedulers =
+            memory::alloc(schedulers * std::mem::size_of::<Scheduler>(), false).cast();
+        (*s).scheduler_count = schedulers;
+        // SAFETY: Shared holds generations, scheduler indices, non-owning
+        // supervisor pointers and plain atomics, so its Drop touches no managed
+        // value and reenters no collector. It lives beside the Session in the
+        // control heap and the Session's scanned pointer keeps it reachable.
+        (*s).shared = memory::managed(
+            Shared {
+                registry: registry::Registry::new(),
+                quiesce: quiesce::Quiesce::default(),
+            },
+            0,
+        )
+        .cast();
         (*s).token = next_token();
         #[cfg(test)]
         SESSIONS.with(|open| open.borrow_mut().insert((*s).token, s as usize));
-        (*s).retained = std::mem::size_of::<Session>() + IDS * std::mem::size_of::<*mut Actor>();
+        (*s).retained.store(
+            std::mem::size_of::<Session>()
+                + IDS * std::mem::size_of::<*mut Actor>()
+                + schedulers * std::mem::size_of::<Scheduler>(),
+            Ordering::Release,
+        );
         (*s).functions = functions;
         (*s).function_count = count as usize;
-        (*s).next_deadline = u64::MAX;
+        for index in 0..schedulers {
+            let scheduler = (*s).schedulers.add(index);
+            (*scheduler).index = index;
+            (*scheduler).next_deadline = u64::MAX;
+        }
         (*s).root = Exec {
             session: s,
             actor: null_mut(),
@@ -128,7 +149,11 @@ pub unsafe extern "C" fn morrow_managed_spawn(
         }
         let cost = cost::frame(s, closure);
         let slot = vacant_slot(s);
-        if (*s).stopped || (*s).live >= LIVE || slot.is_none() || cost.is_none() {
+        if (*s).stopped.load(Ordering::Acquire)
+            || (*s).live.load(Ordering::Acquire) >= LIVE
+            || slot.is_none()
+            || cost.is_none()
+        {
             fail(exec, 9);
             return null_mut();
         }
@@ -196,7 +221,7 @@ pub unsafe extern "C" fn morrow_managed_send(
             // storage. This replaces the old `(*a).mailbox == (*pid).mailbox`.
             return abi::result_err(3);
         }
-        if inbox.len() >= MAILBOX || (*s).messages >= MESSAGES {
+        if inbox.len() >= MAILBOX || (*s).messages.load(Ordering::Acquire) >= MESSAGES {
             return abi::result_err(4);
         }
         let Some(cost) = cost::value(s, ty, value) else {
@@ -231,7 +256,7 @@ pub unsafe extern "C" fn morrow_managed_send(
         }
         // The global ceiling is charged at send, not at adoption, so an in-flight
         // message counts against MESSAGES for its whole life.
-        (*s).messages += 1;
+        (*s).messages.fetch_add(1, Ordering::AcqRel);
         // Outstanding until the receiving scheduler adopts it. Without this a
         // scheduler with an empty queue could call the invocation terminated
         // while a message was mid-delivery.

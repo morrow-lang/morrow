@@ -9,21 +9,21 @@ pub(super) unsafe fn enqueue(a: *mut Actor) {
         (*a).queued = true;
         (*a).next = null_mut();
         quiesce(s).actor_runnable();
-        if (*s).last.is_null() {
-            (*s).first = a;
+        if (*home(s)).last.is_null() {
+            (*home(s)).first = a;
         } else {
-            (*(*s).last).next = a;
+            (*(*home(s)).last).next = a;
         }
-        (*s).last = a;
+        (*home(s)).last = a;
     }
 }
 pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
     unsafe {
-        let a = (*s).first;
+        let a = (*home(s)).first;
         if !a.is_null() {
-            (*s).first = (*a).next;
-            if (*s).first.is_null() {
-                (*s).last = null_mut();
+            (*home(s)).first = (*a).next;
+            if (*home(s)).first.is_null() {
+                (*home(s)).last = null_mut();
             }
             (*a).next = null_mut();
             (*a).queued = false;
@@ -34,11 +34,11 @@ pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
 }
 unsafe fn refresh(s: *mut Session) {
     unsafe {
-        (*s).next_deadline = u64::MAX;
+        (*home(s)).next_deadline = u64::MAX;
         for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if !a.is_null() && (*a).alive && (*a).waiting {
-                (*s).next_deadline = (*s).next_deadline.min((*a).deadline);
+                (*home(s)).next_deadline = (*home(s)).next_deadline.min((*a).deadline);
             }
         }
     }
@@ -54,7 +54,10 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
         let retired = (*a).deadline;
         (*a).deadline = u64::MAX;
         (*a).waiting = false;
-        if !(*s).stopped && retired != u64::MAX && retired == (*s).next_deadline {
+        if !(*s).stopped.load(Ordering::Acquire)
+            && retired != u64::MAX
+            && retired == (*home(s)).next_deadline
+        {
             refresh(s);
         }
     }
@@ -73,7 +76,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             inbox.close();
             for delivery in inbox.take_all() {
                 release(s, delivery.cost);
-                (*s).messages -= 1;
+                (*s).messages.fetch_sub(1, Ordering::AcqRel);
                 inbox.consume();
             }
         }
@@ -84,7 +87,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             (*m).next = null_mut();
             (*m).value = 0;
             (*m).cost = 0;
-            (*s).messages -= 1;
+            (*s).messages.fetch_sub(1, Ordering::AcqRel);
             (*a).messages -= 1;
             consumed(s, a);
         }
@@ -93,7 +96,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         release(s, (*a).frame_cost);
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
-        (*s).live -= 1;
+        (*s).live.fetch_sub(1, Ordering::AcqRel);
         *(*s).identities.add((*a).slot) = null_mut();
         registry(s).retire((*a).slot);
         release(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>());
@@ -122,17 +125,17 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
         }
         due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).generation));
         let mut previous: *mut Actor = null_mut();
-        let mut a = (*s).first;
+        let mut a = (*home(s)).first;
         while !a.is_null() {
             let next = (*a).next;
             if (*a).waiting && (*a).deadline != u64::MAX && (*a).deadline <= now {
                 if previous.is_null() {
-                    (*s).first = next;
+                    (*home(s)).first = next;
                 } else {
                     (*previous).next = next;
                 }
-                if (*s).last == a {
-                    (*s).last = previous;
+                if (*home(s)).last == a {
+                    (*home(s)).last = previous;
                 }
                 (*a).queued = false;
                 (*a).next = null_mut();
@@ -142,7 +145,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
             }
             a = next;
         }
-        (*s).next_deadline = earliest;
+        (*home(s)).next_deadline = earliest;
         for &a in &due[..count] {
             if !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
@@ -152,7 +155,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 break;
             }
         }
-        (*s).next_deadline = earliest;
+        (*home(s)).next_deadline = earliest;
     }
 }
 unsafe fn idle(s: *mut Session) -> bool {
@@ -165,7 +168,7 @@ unsafe fn idle(s: *mut Session) -> bool {
         if *(*s).root.fault != 0 {
             return false;
         }
-        if !(*s).first.is_null() {
+        if !(*home(s)).first.is_null() {
             return true;
         }
         match quiesce(s).park(1) {
@@ -174,17 +177,17 @@ unsafe fn idle(s: *mut Session) -> bool {
             // Nothing outstanding anywhere and no timer pending: with no
             // external input to wait for, this is the deadlock the invocation
             // has always reported rather than a clean finish.
-            quiesce::Parked::Terminated if (*s).next_deadline == u64::MAX => {
+            quiesce::Parked::Terminated if (*home(s)).next_deadline == u64::MAX => {
                 fail(&raw mut (*s).root, 10);
                 return false;
             }
             quiesce::Parked::Terminated => {}
             // A message is charged but not yet adopted, so its receiver is about
             // to become runnable. Do not call this deadlock.
-            quiesce::Parked::Waiting if (*s).next_deadline == u64::MAX => return true,
+            quiesce::Parked::Waiting if (*home(s)).next_deadline == u64::MAX => return true,
             quiesce::Parked::Waiting => {}
         }
-        let delay = (*s).next_deadline.saturating_sub(now);
+        let delay = (*home(s)).next_deadline.saturating_sub(now);
         let sleep = libc::timespec {
             tv_sec: (delay / 1000) as _,
             tv_nsec: ((delay % 1000) * 1000000) as _,
@@ -209,13 +212,16 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             return;
         }
         let s = (*exec).session;
-        while (*s).live != 0 && *(*s).root.fault == 0 && !(*s).stopped {
-            if (*s).next_deadline != u64::MAX {
+        while (*s).live.load(Ordering::Acquire) != 0
+            && *(*s).root.fault == 0
+            && !(*s).stopped.load(Ordering::Acquire)
+        {
+            if (*home(s)).next_deadline != u64::MAX {
                 let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     break;
                 };
-                if now >= (*s).next_deadline {
+                if now >= (*home(s)).next_deadline {
                     wake_due(s, now);
                 }
                 if *(*s).root.fault != 0 {
@@ -297,13 +303,13 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             return;
         }
         let s = (*exec).session;
-        if (*s).stopped {
+        if (*s).stopped.load(Ordering::Acquire) {
             return;
         }
-        (*s).stopped = true;
-        (*s).first = null_mut();
-        (*s).last = null_mut();
-        (*s).next_deadline = u64::MAX;
+        (*s).stopped.store(true, Ordering::Release);
+        (*home(s)).first = null_mut();
+        (*home(s)).last = null_mut();
+        (*home(s)).next_deadline = u64::MAX;
         for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if a.is_null() {

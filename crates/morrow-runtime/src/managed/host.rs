@@ -76,16 +76,16 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
                 morrow_managed_stop(exec);
                 return 3;
             }
-            if (*s).stopped || (*s).live == 0 {
+            if (*s).stopped.load(Ordering::Acquire) || (*s).live.load(Ordering::Acquire) == 0 {
                 return 0;
             }
-            if (*s).next_deadline != u64::MAX {
+            if (*home(s)).next_deadline != u64::MAX {
                 let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     morrow_managed_stop(exec);
                     return 3;
                 };
-                if now >= (*s).next_deadline {
+                if now >= (*home(s)).next_deadline {
                     scheduler::wake_due(s, now);
                 }
                 if *(*s).root.fault != 0 {
@@ -95,7 +95,11 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             }
             let a = scheduler::dequeue(s);
             if a.is_null() {
-                return if (*s).live == 0 { 0 } else { 1 };
+                return if (*s).live.load(Ordering::Acquire) == 0 {
+                    0
+                } else {
+                    1
+                };
             }
             if (*a).alive {
                 scheduler::step(s, a);
@@ -104,9 +108,9 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
         if *(*s).root.fault != 0 {
             morrow_managed_stop(exec);
             3
-        } else if (*s).live == 0 || (*s).stopped {
+        } else if (*s).live.load(Ordering::Acquire) == 0 || (*s).stopped.load(Ordering::Acquire) {
             0
-        } else if (*s).first.is_null() {
+        } else if (*home(s)).first.is_null() {
             1
         } else {
             2
@@ -129,8 +133,8 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
         }
         let s = (*exec).session;
         let slot = vacant_slot(s);
-        if (*s).stopped
-            || (*s).live >= LIVE
+        if (*s).stopped.load(Ordering::Acquire)
+            || (*s).live.load(Ordering::Acquire) >= LIVE
             || slot.is_none()
             || !charge(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>())
         {
@@ -230,7 +234,7 @@ pub unsafe extern "C" fn morrow_managed_port_read(
         }
         let s = (*exec).session;
         release(s, (*message).cost);
-        (*s).messages -= 1;
+        (*s).messages.fetch_sub(1, Ordering::AcqRel);
         (*a).messages -= 1;
         consumed(s, a);
         (*message).next = null_mut();

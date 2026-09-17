@@ -119,7 +119,7 @@ fn host_reply_port_copies_utf8_atomically_and_never_executes_a_callback() {
             morrow_managed_port_read(exec, port, output.as_mut_ptr(), output.len()),
             -1
         );
-        assert_eq!((*(*exec).session).messages, 0);
+        assert_eq!((*(*exec).session).messages.load(Ordering::Acquire), 0);
         morrow_managed_close(exec);
         assert_eq!(fault, 0);
     }
@@ -161,7 +161,7 @@ fn host_reply_churn_reuses_identity_and_close_preserves_other_rooted_sessions() 
             assert_eq!(&output, b"reply");
         }
         assert_eq!(registry((*second).session).issued(), identities);
-        assert_eq!((*(*second).session).messages, 0);
+        assert_eq!((*(*second).session).messages.load(Ordering::Acquire), 0);
         morrow_managed_close(first);
         memory::morrow_gc_collect_precise();
         assert_eq!(morrow_managed_poll(second, 1), 1);
@@ -227,7 +227,7 @@ fn invalid_supervision_budget_publishes_no_actor_or_initializer_heap() {
                     .is_null()
             );
             assert_eq!(memory::stats().bytes, before);
-            assert_eq!((*(*exec).session).live, 0);
+            assert_eq!((*(*exec).session).live.load(Ordering::Acquire), 0);
             assert_eq!(fault, 9);
             morrow_managed_stop(exec);
         }
@@ -474,7 +474,7 @@ fn send_copies_nested_graph_and_preserves_internal_sharing() {
         );
         morrow_managed_stop(exec);
         assert!((*actor).first.is_null());
-        assert_eq!((*(*exec).session).messages, 0);
+        assert_eq!((*(*exec).session).messages.load(Ordering::Acquire), 0);
     }
 }
 
@@ -502,7 +502,7 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
         let pid = f.spawn(exec, 0);
         rebind_mailbox((*exec).session, pid, &ty);
         let session = (*exec).session;
-        let before = (*session).retained;
+        let before = (*session).retained.load(Ordering::Acquire);
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
@@ -516,7 +516,7 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
         assert!(!Rc::ptr_eq(&leaf, &children[0]));
         assert!(matches!(&children[0].kind, Kind::String(text) if text == "shared"));
         assert_eq!(
-            (*session).retained - before,
+            (*session).retained.load(Ordering::Acquire) - before,
             std::mem::size_of::<Message>()
                 + std::mem::size_of::<crate::json::NativeJson>()
                 + morrow_json::retained_bytes(&original)
@@ -538,19 +538,26 @@ fn quota_failure_does_not_copy_or_publish_message() {
         let pid = f.spawn(exec, 0);
         rebind_mailbox((*exec).session, pid, &string);
         let session = (*exec).session;
-        let original_retained = (*session).retained;
-        (*session).retained = BYTES - std::mem::size_of::<Message>();
+        let original_retained = (*session).retained.load(Ordering::Acquire);
+        (*session)
+            .retained
+            .store(BYTES - std::mem::size_of::<Message>(), Ordering::Release);
         let objects = memory::stats().objects;
         let result = morrow_managed_send(exec, pid.cast(), c"hello".as_ptr() as i64, &string)
             as *const abi::ResultValue;
         assert_eq!(((*result).tag, (*result).value), (1, 4));
-        assert_eq!((*session).retained, BYTES - std::mem::size_of::<Message>());
+        assert_eq!(
+            (*session).retained.load(Ordering::Acquire),
+            BYTES - std::mem::size_of::<Message>()
+        );
         // Only the Result allocation is allowed on a rejected transfer.
         assert_eq!(memory::stats().objects, objects + 1);
         assert!((*actor(pid)).first.is_null());
-        assert_eq!((*session).messages, 0);
+        assert_eq!((*session).messages.load(Ordering::Acquire), 0);
         assert_eq!(fault, 0);
-        (*session).retained = original_retained;
+        (*session)
+            .retained
+            .store(original_retained, Ordering::Release);
         morrow_managed_stop(exec);
     }
 }
@@ -728,7 +735,7 @@ fn receive_prefers_existing_match_before_zero_timeout_and_retires_roots() {
                 && (*a).timeout_frame.is_null()
                 && (*a).first.is_null()
         );
-        assert_eq!((*(*exec).session).messages, 0);
+        assert_eq!((*(*exec).session).messages.load(Ordering::Acquire), 0);
     }
     CLOCK.with(|c| c.set(None));
 }
@@ -796,13 +803,16 @@ fn clock_failure_rolls_back_send_and_foreign_pid_has_no_effect() {
         let foreign =
             morrow_managed_send(second, pid.cast(), 8, &*f.scalar) as *const abi::ResultValue;
         assert_eq!(((*foreign).tag, (*foreign).value), (1, 3));
-        let retained = (*(*first).session).retained;
+        let retained = (*(*first).session).retained.load(Ordering::Acquire);
         CLOCK.with(|c| c.set(Some(None)));
         let failed =
             morrow_managed_send(first, pid.cast(), 8, &*f.scalar) as *const abi::ResultValue;
         assert_eq!(((*failed).tag, (*failed).value), (1, 4));
         assert_eq!(first_fault, 12);
-        assert_eq!((*(*first).session).retained, retained);
+        assert_eq!(
+            (*(*first).session).retained.load(Ordering::Acquire),
+            retained
+        );
         assert_eq!((*actor(pid)).messages, 0);
         morrow_managed_run(first);
         // The actor's storage is gone once it finishes; identity outlives it, so
@@ -958,7 +968,7 @@ fn a_send_to_a_dead_generation_is_refused_and_releases_its_charge() {
         let session = (*exec).session;
         let pid = f.spawn(exec, 5);
         morrow_managed_run(exec);
-        let retained = (*session).retained;
+        let retained = (*session).retained.load(Ordering::Acquire);
         let refused =
             morrow_managed_send(exec, pid.cast(), 7, &*f.scalar) as *const abi::ResultValue;
         assert_eq!(
@@ -967,11 +977,11 @@ fn a_send_to_a_dead_generation_is_refused_and_releases_its_charge() {
             "a dead generation refuses delivery"
         );
         assert_eq!(
-            (*session).retained,
+            (*session).retained.load(Ordering::Acquire),
             retained,
             "a refused delivery leaves no charge behind"
         );
-        assert_eq!((*session).messages, 0);
+        assert_eq!((*session).messages.load(Ordering::Acquire), 0);
         assert_eq!(fault, 0);
     }
 }
@@ -1006,7 +1016,43 @@ fn outstanding_work_counters_return_to_zero_once_the_invocation_finishes() {
             (0, 0),
             "every runnable and in-flight increment must be matched"
         );
-        assert_eq!((*session).live, 0);
-        assert_eq!((*session).messages, 0);
+        assert_eq!((*session).live.load(Ordering::Acquire), 0);
+        assert_eq!((*session).messages.load(Ordering::Acquire), 0);
     }
+}
+
+#[test]
+fn the_byte_ceiling_stays_exact_under_concurrent_charges() {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    // charge/release must behave as one global budget, not N per-scheduler ones.
+    // Over-admitting by even one allocation changes observable failure.
+    let retained = Arc::new(AtomicUsize::new(0));
+    let admitted = Arc::new(AtomicUsize::new(0));
+    let ceiling = 1024;
+    let workers: Vec<_> = (0..8)
+        .map(|_| {
+            let retained = Arc::clone(&retained);
+            let admitted = Arc::clone(&admitted);
+            std::thread::spawn(move || {
+                for _ in 0..1024 {
+                    if charge_atomic(&retained, ceiling, 16) {
+                        admitted.fetch_add(16, Ordering::AcqRel);
+                    }
+                }
+            })
+        })
+        .collect();
+    for worker in workers {
+        worker.join().expect("worker");
+    }
+    assert_eq!(
+        admitted.load(Ordering::Acquire),
+        retained.load(Ordering::Acquire),
+        "every admitted charge is accounted exactly once"
+    );
+    assert!(
+        retained.load(Ordering::Acquire) <= ceiling,
+        "the ceiling is never exceeded, even transiently"
+    );
 }

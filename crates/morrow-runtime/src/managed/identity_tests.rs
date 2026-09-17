@@ -22,7 +22,7 @@ fn sequential_actor_churn_reuses_slots_beyond_the_old_lifetime_limit() {
         let exec = morrow_managed_open(&mut fault, functions.as_ptr(), 1);
         memory::morrow_gc_collect_precise();
         let baseline = memory::stats().bytes;
-        let retained = (*(*exec).session).retained;
+        let retained = (*(*exec).session).retained.load(Ordering::Acquire);
         for iteration in 0..(IDS + 1000) {
             let pid = morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &mailbox);
             assert!(
@@ -35,7 +35,10 @@ fn sequential_actor_churn_reuses_slots_beyond_the_old_lifetime_limit() {
             }
         }
         memory::morrow_gc_collect_precise();
-        assert_eq!((*(*exec).session).retained, retained);
+        assert_eq!(
+            (*(*exec).session).retained.load(Ordering::Acquire),
+            retained
+        );
         assert!(memory::stats().bytes <= baseline);
         morrow_managed_close(exec);
         assert_eq!(fault, 0);
@@ -76,7 +79,7 @@ fn foreign_pid_keeps_dead_identity_and_supervision_lineage_while_retaining_no_st
         assert_eq!(dequeue(session), old);
         (*old).fault = 1;
         assert!(supervision::recover(old));
-        let current = (*session).first;
+        let current = (*home(session)).first;
         assert_ne!(current, old);
         assert_eq!((*current).slot, (*old).slot);
         assert_ne!((*current).generation, (*old).generation);
@@ -145,7 +148,7 @@ fn foreign_pid_keeps_dead_identity_and_supervision_lineage_while_retaining_no_st
         );
         scheduler::finish(holder_actor);
         memory::morrow_gc_collect_precise();
-        assert_eq!((*session).live, 0);
+        assert_eq!((*session).live.load(Ordering::Acquire), 0);
         morrow_managed_close(exec);
         assert_eq!(fault, 0);
     }
@@ -163,12 +166,12 @@ fn final_actor_generation_is_admitted_once_and_never_wraps() {
         assert_eq!((*last).generation, u64::MAX);
         let actor = dequeue(session);
         scheduler::finish(actor);
-        let retained = (*session).retained;
+        let retained = (*session).retained.load(Ordering::Acquire);
         let mut frame = [complete as *const () as i64, 2];
         assert!(morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &*f.scalar).is_null());
         assert_eq!(registry(session).issued(), u64::MAX);
-        assert_eq!((*session).retained, retained);
-        assert_eq!((*session).live, 0);
+        assert_eq!((*session).retained.load(Ordering::Acquire), retained);
+        assert_eq!((*session).live.load(Ordering::Acquire), 0);
         assert_eq!(fault, 9);
         morrow_managed_close(exec);
     }

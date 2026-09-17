@@ -73,7 +73,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 (*message).next = null_mut();
                 (*message).value = 0;
                 (*message).cost = 0;
-                (*s).messages -= 1;
+                (*s).messages.fetch_sub(1, Ordering::AcqRel);
                 (*a).messages -= 1;
                 consumed(s, a);
                 return true;
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn morrow_managed_receive(
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
         (*a).deadline = deadline;
-        (*s).next_deadline = (*s).next_deadline.min(deadline);
+        (*home(s)).next_deadline = (*home(s)).next_deadline.min(deadline);
         let selected = poll(a, true);
         if (*a).fault != 0 {
             3

@@ -2,6 +2,7 @@
 use crate::{abi, memory};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 #[path = "managed/copy.rs"]
 mod copy;
 #[path = "managed/cost.rs"]
@@ -96,6 +97,18 @@ struct Pid {
     token: u64,
     mailbox: *const Type,
 }
+/// One scheduler's private run queue and timer. Held in collector-scanned
+/// storage rather than a Rust `Vec`: a queued actor that has already finished
+/// is no longer in `identities`, so this list is the only thing rooting its
+/// control record until the queue is drained.
+#[repr(C)]
+struct Scheduler {
+    index: usize,
+    first: *mut Actor,
+    last: *mut Actor,
+    next_deadline: u64,
+}
+
 #[repr(C)]
 struct Session {
     #[cfg(any(test, feature = "simulation"))]
@@ -103,23 +116,23 @@ struct Session {
     root: Exec,
     functions: *const *const Function,
     function_count: usize,
-    live: usize,
     token: u64,
-    /// Opaque handle to the outstanding-work counters, for the same reason as
-    /// `registry` below.
-    quiesce: *mut c_void,
-    /// Opaque handle to the identity registry. `Session` reaches generated code
-    /// only as a pointer inside `Exec`, but it must stay FFI-declarable, and the
-    /// registry owns Rust collections with no C layout. Nothing outside
-    /// `registry()` interprets this word.
-    registry: *mut c_void,
-    messages: usize,
-    retained: usize,
-    stopped: bool,
-    next_deadline: u64,
+    /// Opaque handle to the shared Rust-side invocation state: identity registry
+    /// and outstanding-work counters. `Session` reaches generated code only as a
+    /// pointer inside `Exec`, but it must stay FFI-declarable, and those own Rust
+    /// collections with no C layout. Nothing outside `shared()` reads this word.
+    shared: *mut c_void,
+    /// One global budget per invocation, not one per scheduler: a program that
+    /// fails on the 64 MiB ceiling at one scheduler must fail identically at N.
+    live: AtomicUsize,
+    messages: AtomicUsize,
+    retained: AtomicUsize,
+    stopped: AtomicBool,
+    /// Read once placement exists.
+    next_placement: AtomicUsize,
     identities: *mut *mut Actor,
-    first: *mut Actor,
-    last: *mut Actor,
+    schedulers: *mut Scheduler,
+    scheduler_count: usize,
 }
 #[cfg(test)]
 #[path = "managed/tests.rs"]
@@ -191,14 +204,49 @@ unsafe fn actor(pid: *const Pid) -> *mut Actor {
 
 /// # Safety
 /// `s` is a live invocation whose registry was published by `morrow_managed_new`.
+/// The shared Rust-side half of an invocation.
+struct Shared {
+    registry: registry::Registry,
+    quiesce: quiesce::Quiesce,
+}
+
 /// # Safety
-/// `s` is a live invocation whose counters were published by `morrow_managed_new`.
+/// `s` is a live invocation whose shared state was published by
+/// `morrow_managed_new`. Each accessor's borrow must not outlive the statement
+/// that takes it, so two never overlap.
 unsafe fn quiesce<'a>(s: *mut Session) -> &'a quiesce::Quiesce {
-    unsafe { &*(*s).quiesce.cast::<quiesce::Quiesce>() }
+    unsafe { &(*(*s).shared.cast::<Shared>()).quiesce }
 }
 
 unsafe fn registry<'a>(s: *mut Session) -> &'a mut registry::Registry {
-    unsafe { &mut *(*s).registry.cast::<registry::Registry>() }
+    unsafe { &mut (*(*s).shared.cast::<Shared>()).registry }
+}
+
+/// The scheduler that owns an actor's run queue. Placement makes this a real
+/// choice; until then every actor belongs to scheduler zero.
+unsafe fn home(s: *mut Session) -> *mut Scheduler {
+    unsafe { (*s).schedulers }
+}
+
+/// One global budget shared by every scheduler. A compare-exchange loop keeps
+/// the ceiling exact: `fetch_add` followed by a check would admit transiently
+/// and change observable failure.
+fn charge_atomic(retained: &AtomicUsize, ceiling: usize, cost: usize) -> bool {
+    let mut current = retained.load(Ordering::Acquire);
+    loop {
+        if cost > ceiling - current {
+            return false;
+        }
+        match retained.compare_exchange_weak(
+            current,
+            current + cost,
+            Ordering::AcqRel,
+            Ordering::Acquire,
+        ) {
+            Ok(_) => return true,
+            Err(observed) => current = observed,
+        }
+    }
 }
 
 /// Find reusable storage without changing immutable actor generations.
@@ -215,7 +263,7 @@ unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
         (*a).generation = handle.generation;
         (*a).slot = handle.slot;
         *(*s).identities.add(handle.slot) = a;
-        (*s).live += 1;
+        (*s).live.fetch_add(1, Ordering::AcqRel);
     }
 }
 
@@ -247,7 +295,7 @@ unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
 
 unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
     unsafe {
-        valid_pid(s, pid) && !(*s).stopped && {
+        valid_pid(s, pid) && !(*s).stopped.load(Ordering::Acquire) && {
             let a = actor_of(s, pid);
             !a.is_null() && (*a).alive && (*a).mailbox == (*pid).mailbox
         }
@@ -317,19 +365,26 @@ unsafe fn fail(exec: *mut Exec, code: i64) {
     }
 }
 unsafe fn charge(s: *mut Session, cost: usize) -> bool {
-    unsafe {
-        if cost > BYTES - (*s).retained {
-            false
-        } else {
-            (*s).retained += cost;
-            true
-        }
-    }
+    unsafe { charge_atomic(&(*s).retained, BYTES, cost) }
 }
 unsafe fn release(s: *mut Session, cost: usize) {
     unsafe {
-        assert!(cost <= (*s).retained);
-        (*s).retained -= cost;
+        let mut current = (*s).retained.load(Ordering::Acquire);
+        loop {
+            debug_assert!(cost <= current, "released more than was charged");
+            // Saturate inside the exchange rather than correcting afterwards: a
+            // wrapped budget, even briefly visible, would admit every later
+            // charge on another scheduler.
+            match (*s).retained.compare_exchange_weak(
+                current,
+                current.saturating_sub(cost),
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => break,
+                Err(observed) => current = observed,
+            }
+        }
     }
 }
 unsafe fn function_work(
