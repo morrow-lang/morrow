@@ -6,6 +6,11 @@ use std::ptr::{null, null_mut};
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+#[path = "managed/registry.rs"]
+mod registry;
+#[cfg(test)]
+#[path = "managed/registry_tests.rs"]
+mod registry_tests;
 const LIVE: usize = 1024;
 const IDS: usize = 65536;
 const MAILBOX: usize = 4096;
