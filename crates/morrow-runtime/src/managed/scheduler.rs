@@ -6,24 +6,30 @@ pub(super) unsafe fn enqueue(a: *mut Actor) {
             return;
         }
         let s = (*a).exec.session;
+        // The actor's own run queue, which is not necessarily that of the
+        // scheduler doing the enqueueing.
+        let q = owner(a);
         (*a).queued = true;
         (*a).next = null_mut();
         quiesce(s).actor_runnable();
-        if (*home(s)).last.is_null() {
-            (*home(s)).first = a;
+        if (*q).last.is_null() {
+            (*q).first = a;
         } else {
-            (*(*home(s)).last).next = a;
+            (*(*q).last).next = a;
         }
-        (*home(s)).last = a;
+        (*q).last = a;
     }
 }
 pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
+    unsafe { dequeue_from(s, home(s)) }
+}
+pub(super) unsafe fn dequeue_from(s: *mut Session, q: *mut Scheduler) -> *mut Actor {
     unsafe {
-        let a = (*home(s)).first;
+        let a = (*q).first;
         if !a.is_null() {
-            (*home(s)).first = (*a).next;
-            if (*home(s)).first.is_null() {
-                (*home(s)).last = null_mut();
+            (*q).first = (*a).next;
+            if (*q).first.is_null() {
+                (*q).last = null_mut();
             }
             (*a).next = null_mut();
             (*a).queued = false;
@@ -32,13 +38,31 @@ pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
         a
     }
 }
+/// Any scheduler with a runnable actor. One scheduler's queue being empty says
+/// nothing about the invocation once actors are placed across several.
+pub(super) unsafe fn any_runnable(s: *mut Session) -> bool {
+    unsafe { (0..(*s).scheduler_count).any(|i| !(*scheduler_at(s, i)).first.is_null()) }
+}
+
+pub(super) unsafe fn earliest_deadline(s: *mut Session) -> u64 {
+    unsafe {
+        (0..(*s).scheduler_count)
+            .map(|i| (*scheduler_at(s, i)).next_deadline)
+            .min()
+            .unwrap_or(u64::MAX)
+    }
+}
+
 unsafe fn refresh(s: *mut Session) {
     unsafe {
-        (*home(s)).next_deadline = u64::MAX;
+        for index in 0..(*s).scheduler_count {
+            (*scheduler_at(s, index)).next_deadline = u64::MAX;
+        }
         for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if !a.is_null() && (*a).alive && (*a).waiting {
-                (*home(s)).next_deadline = (*home(s)).next_deadline.min((*a).deadline);
+                let q = owner(a);
+                (*q).next_deadline = (*q).next_deadline.min((*a).deadline);
             }
         }
     }
@@ -56,7 +80,7 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
         (*a).waiting = false;
         if !(*s).stopped.load(Ordering::Acquire)
             && retired != u64::MAX
-            && retired == (*home(s)).next_deadline
+            && retired == earliest_deadline(s)
         {
             refresh(s);
         }
@@ -124,28 +148,31 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
             }
         }
         due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).generation));
-        let mut previous: *mut Actor = null_mut();
-        let mut a = (*home(s)).first;
-        while !a.is_null() {
-            let next = (*a).next;
-            if (*a).waiting && (*a).deadline != u64::MAX && (*a).deadline <= now {
-                if previous.is_null() {
-                    (*home(s)).first = next;
+        for index in 0..(*s).scheduler_count {
+            let q = scheduler_at(s, index);
+            let mut previous: *mut Actor = null_mut();
+            let mut a = (*q).first;
+            while !a.is_null() {
+                let next = (*a).next;
+                if (*a).waiting && (*a).deadline != u64::MAX && (*a).deadline <= now {
+                    if previous.is_null() {
+                        (*q).first = next;
+                    } else {
+                        (*previous).next = next;
+                    }
+                    if (*q).last == a {
+                        (*q).last = previous;
+                    }
+                    (*a).queued = false;
+                    (*a).next = null_mut();
+                    quiesce(s).actor_dequeued();
                 } else {
-                    (*previous).next = next;
+                    previous = a;
                 }
-                if (*home(s)).last == a {
-                    (*home(s)).last = previous;
-                }
-                (*a).queued = false;
-                (*a).next = null_mut();
-                quiesce(s).actor_dequeued();
-            } else {
-                previous = a;
+                a = next;
             }
-            a = next;
+            (*q).next_deadline = earliest;
         }
-        (*home(s)).next_deadline = earliest;
         for &a in &due[..count] {
             if !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
@@ -155,7 +182,9 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 break;
             }
         }
-        (*home(s)).next_deadline = earliest;
+        for index in 0..(*s).scheduler_count {
+            (*scheduler_at(s, index)).next_deadline = earliest;
+        }
     }
 }
 unsafe fn idle(s: *mut Session) -> bool {
@@ -168,7 +197,7 @@ unsafe fn idle(s: *mut Session) -> bool {
         if *(*s).root.fault != 0 {
             return false;
         }
-        if !(*home(s)).first.is_null() {
+        if any_runnable(s) {
             return true;
         }
         match quiesce(s).park(1) {
@@ -177,17 +206,17 @@ unsafe fn idle(s: *mut Session) -> bool {
             // Nothing outstanding anywhere and no timer pending: with no
             // external input to wait for, this is the deadlock the invocation
             // has always reported rather than a clean finish.
-            quiesce::Parked::Terminated if (*home(s)).next_deadline == u64::MAX => {
+            quiesce::Parked::Terminated if earliest_deadline(s) == u64::MAX => {
                 fail(&raw mut (*s).root, 10);
                 return false;
             }
             quiesce::Parked::Terminated => {}
             // A message is charged but not yet adopted, so its receiver is about
             // to become runnable. Do not call this deadlock.
-            quiesce::Parked::Waiting if (*home(s)).next_deadline == u64::MAX => return true,
+            quiesce::Parked::Waiting if earliest_deadline(s) == u64::MAX => return true,
             quiesce::Parked::Waiting => {}
         }
-        let delay = (*home(s)).next_deadline.saturating_sub(now);
+        let delay = earliest_deadline(s).saturating_sub(now);
         let sleep = libc::timespec {
             tv_sec: (delay / 1000) as _,
             tv_nsec: ((delay % 1000) * 1000000) as _,
@@ -216,29 +245,38 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             && *(*s).root.fault == 0
             && !(*s).stopped.load(Ordering::Acquire)
         {
-            if (*home(s)).next_deadline != u64::MAX {
+            if earliest_deadline(s) != u64::MAX {
                 let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
                     break;
                 };
-                if now >= (*home(s)).next_deadline {
+                if now >= earliest_deadline(s) {
                     wake_due(s, now);
                 }
                 if *(*s).root.fault != 0 {
                     break;
                 }
             }
-            let a = dequeue(s);
-            if a.is_null() {
-                if !idle(s) {
+            // One thread visiting every scheduler in turn. Real threads arrive
+            // later; until then this is what makes a placed actor actually run.
+            let mut ran = false;
+            for index in 0..(*s).scheduler_count {
+                let a = dequeue_from(s, scheduler_at(s, index));
+                if a.is_null() {
+                    continue;
+                }
+                ran = true;
+                if !(*a).alive {
+                    continue;
+                }
+                step(s, a);
+                if *(*s).root.fault != 0 || (*s).stopped.load(Ordering::Acquire) {
                     break;
                 }
-                continue;
             }
-            if !(*a).alive {
-                continue;
+            if !ran && !idle(s) {
+                break;
             }
-            step(s, a);
         }
         if *(*s).root.fault != 0 {
             morrow_managed_stop(exec);
@@ -307,9 +345,12 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             return;
         }
         (*s).stopped.store(true, Ordering::Release);
-        (*home(s)).first = null_mut();
-        (*home(s)).last = null_mut();
-        (*home(s)).next_deadline = u64::MAX;
+        for index in 0..(*s).scheduler_count {
+            let q = scheduler_at(s, index);
+            (*q).first = null_mut();
+            (*q).last = null_mut();
+            (*q).next_deadline = u64::MAX;
+        }
         for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if a.is_null() {

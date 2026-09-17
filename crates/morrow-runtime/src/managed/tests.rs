@@ -1056,3 +1056,71 @@ fn the_byte_ceiling_stays_exact_under_concurrent_charges() {
         "the ceiling is never exceeded, even transiently"
     );
 }
+
+#[test]
+fn unsupervised_spawns_are_placed_round_robin_and_pinned_for_life() {
+    // Pinning alone yields no parallelism: programs spawn from main, so every
+    // actor would land on scheduler zero. Placement and pinning are separate.
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = new_with_schedulers(&mut fault, f.functions.as_ptr(), 2, 4);
+        let session = (*exec).session;
+        let mut placed = Vec::new();
+        for output in 0..8 {
+            let pid = f.spawn(exec, output);
+            placed.push(
+                registry(session)
+                    .resolve((*pid).slot, (*pid).generation)
+                    .expect("issued")
+                    .scheduler,
+            );
+        }
+        assert_eq!(
+            placed,
+            vec![0, 1, 2, 3, 0, 1, 2, 3],
+            "placement cycles across every scheduler"
+        );
+        morrow_managed_run(exec);
+        assert_eq!(fault, 0);
+        assert_eq!(
+            (*session).live.load(Ordering::Acquire),
+            0,
+            "all schedulers ran"
+        );
+    }
+}
+
+#[test]
+fn supervised_children_are_placed_on_their_supervisors_scheduler() {
+    // A child elsewhere would hold a Supervisor pointer into another domain,
+    // which is exactly the cross-domain edge verify_edges forbids.
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut initializer = [complete as *const () as i64, 41];
+    unsafe {
+        let exec = new_with_schedulers(&mut fault, f.functions.as_ptr(), 2, 4);
+        let session = (*exec).session;
+        // Advance the round-robin cursor so co-location is not trivially zero.
+        for output in 0..3 {
+            f.spawn(exec, output);
+        }
+        let pid = morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
+            .cast::<Pid>();
+        assert!(!pid.is_null());
+        let a = actor_of(session, pid);
+        let supervisor = (*a).supervisor;
+        assert!(!supervisor.is_null());
+        assert_eq!(
+            registry(session)
+                .resolve((*pid).slot, (*pid).generation)
+                .expect("issued")
+                .scheduler,
+            supervision::scheduler_of(supervisor),
+            "the child shares its supervisor's scheduler"
+        );
+        morrow_managed_run(exec);
+        assert_eq!(memory::verify_heap_edges(), Ok(()));
+        assert_eq!(fault, 0);
+    }
+}

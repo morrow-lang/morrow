@@ -11,6 +11,20 @@ pub unsafe extern "C" fn morrow_managed_new(
     functions: *const *const Function,
     count: i64,
 ) -> *mut Exec {
+    // The compiler's entry point never names a scheduler count: it is runtime
+    // configuration, not part of the symbol contract.
+    unsafe { new_with_schedulers(fault, functions, count, 1) }
+}
+
+/// Publish an invocation with an explicit scheduler count.
+/// # Safety
+/// As `morrow_managed_new`. `schedulers` must be at least one.
+pub(super) unsafe fn new_with_schedulers(
+    fault: *mut i64,
+    functions: *const *const Function,
+    count: i64,
+    schedulers: usize,
+) -> *mut Exec {
     unsafe {
         if fault.is_null() {
             return null_mut();
@@ -69,7 +83,7 @@ pub unsafe extern "C" fn morrow_managed_new(
         // Run queues live in collector-scanned storage: a queued actor that has
         // already finished is out of `identities`, and this list is then the only
         // thing rooting its control record.
-        let schedulers = 1;
+        let schedulers = schedulers.max(1);
         (*s).schedulers =
             memory::alloc(schedulers * std::mem::size_of::<Scheduler>(), false).cast();
         (*s).scheduler_count = schedulers;
@@ -134,6 +148,25 @@ pub unsafe extern "C" fn morrow_managed_spawn(
     mailbox: *const Type,
 ) -> *mut c_void {
     unsafe {
+        if exec.is_null() || (*exec).session.is_null() {
+            return null_mut();
+        }
+        let target = placement::next((*exec).session);
+        spawn_at(exec, closure, mailbox, target)
+    }
+}
+
+/// Spawn onto a chosen scheduler. Placement is decided once here and never
+/// revisited; the actor is pinned to `target` for its whole life.
+/// # Safety
+/// As `morrow_managed_spawn`, with `target` a live scheduler index.
+pub(super) unsafe fn spawn_at(
+    exec: *mut Exec,
+    closure: *mut c_void,
+    mailbox: *const Type,
+    target: usize,
+) -> *mut c_void {
+    unsafe {
         if exec.is_null() || (*exec).session.is_null() || *(*exec).fault != 0 {
             return null_mut();
         }
@@ -184,7 +217,7 @@ pub unsafe extern "C" fn morrow_managed_spawn(
         }
         (*a).frame_cost = cost;
         (*a).deadline = u64::MAX;
-        publish_actor(s, a, slot.unwrap());
+        publish_actor(s, a, slot.unwrap(), target);
         let pid = new_pid(a);
         enqueue(a);
         pid.cast()

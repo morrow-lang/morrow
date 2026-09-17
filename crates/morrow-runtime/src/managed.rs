@@ -7,6 +7,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+#[path = "managed/placement.rs"]
+mod placement;
 #[path = "managed/quiesce.rs"]
 mod quiesce;
 #[cfg(test)]
@@ -62,6 +64,7 @@ struct Actor {
     heap: usize,
     generation: u64,
     slot: usize,
+    scheduler: usize,
     alive: bool,
     queued: bool,
     waiting: bool,
@@ -228,6 +231,16 @@ unsafe fn home(s: *mut Session) -> *mut Scheduler {
     unsafe { (*s).schedulers }
 }
 
+/// The run queue an actor belongs to. Chosen at spawn and never revisited:
+/// migration and work stealing are a later step.
+unsafe fn owner(a: *mut Actor) -> *mut Scheduler {
+    unsafe { (*(*a).exec.session).schedulers.add((*a).scheduler) }
+}
+
+unsafe fn scheduler_at(s: *mut Session, index: usize) -> *mut Scheduler {
+    unsafe { (*s).schedulers.add(index) }
+}
+
 /// One global budget shared by every scheduler. A compare-exchange loop keeps
 /// the ceiling exact: `fetch_add` followed by a check would admit transiently
 /// and change observable failure.
@@ -254,14 +267,15 @@ unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
     unsafe { registry(s).vacancy() }
 }
 
-unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
+unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize, scheduler: usize) {
     unsafe {
         let handle = registry(s)
-            .issue(0, registry::Descriptor((*a).mailbox))
+            .issue(scheduler, registry::Descriptor((*a).mailbox))
             .expect("an identity was admitted by vacant_slot");
         assert_eq!(handle.slot, slot, "issue must take the admitted slot");
         (*a).generation = handle.generation;
         (*a).slot = handle.slot;
+        (*a).scheduler = scheduler;
         *(*s).identities.add(handle.slot) = a;
         (*s).live.fetch_add(1, Ordering::AcqRel);
     }

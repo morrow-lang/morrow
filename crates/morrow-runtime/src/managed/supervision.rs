@@ -11,6 +11,13 @@ pub(super) struct Supervisor {
     mailbox: *const Type,
     current: *mut Actor,
     remaining: usize,
+    scheduler: usize,
+}
+
+/// The domain a supervised lineage lives in. Its children must share it: the
+/// Supervisor they point at is allocated here.
+pub(super) unsafe fn scheduler_of(supervisor: *mut Supervisor) -> usize {
+    unsafe { (*supervisor).scheduler }
 }
 
 /// Queue a typed child with a bounded restart policy.
@@ -55,12 +62,19 @@ pub unsafe extern "C" fn morrow_managed_supervise(
         (*supervisor).initializer_cost = cost.unwrap();
         (*supervisor).mailbox = mailbox;
         (*supervisor).remaining = max_restarts as usize;
+        (*supervisor).scheduler = placement::next(s);
         {
             let _initializer = memory::enter_heap((*supervisor).heap);
             let copied = copy::frame(s, initializer);
             (*supervisor).initializer = copied.value as *mut c_void;
         }
-        let pid = morrow_managed_spawn(exec, (*supervisor).initializer, mailbox).cast::<Pid>();
+        let pid = lifecycle::spawn_at(
+            exec,
+            (*supervisor).initializer,
+            mailbox,
+            placement::colocated(supervisor),
+        )
+        .cast::<Pid>();
         if pid.is_null() {
             retire(s, supervisor);
             return null_mut();
@@ -128,8 +142,13 @@ pub(super) unsafe fn recover(a: *mut Actor) -> bool {
             actor: null_mut(),
             fault: &mut fault,
         };
-        let pid = morrow_managed_spawn(&mut exec, (*supervisor).initializer, (*supervisor).mailbox)
-            .cast::<Pid>();
+        let pid = lifecycle::spawn_at(
+            &mut exec,
+            (*supervisor).initializer,
+            (*supervisor).mailbox,
+            placement::colocated(supervisor),
+        )
+        .cast::<Pid>();
         if pid.is_null() {
             retire(s, supervisor);
         } else {

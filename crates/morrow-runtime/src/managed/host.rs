@@ -155,7 +155,8 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
         (*a).host_port = true;
         (*a).mailbox = string;
         (*a).deadline = u64::MAX;
-        publish_actor(s, a, slot.unwrap());
+        // Host mode runs exactly one scheduler, so a port is always local.
+        publish_actor(s, a, slot.unwrap(), 0);
         let pid = new_pid(a);
         pid.cast()
     }
