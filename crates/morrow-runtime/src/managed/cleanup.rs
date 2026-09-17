@@ -219,7 +219,7 @@ mod tests {
                 let mut initial = [record as *const () as i64, 0, 0];
                 let pid =
                     morrow_managed_spawn(exec, initial.as_mut_ptr().cast(), &scalar).cast::<Pid>();
-                let a = (*pid).actor;
+                let a = actor(pid);
                 let active = simulation::snapshot(exec).unwrap().retained;
                 assert_eq!(dequeue((*exec).session), a);
                 let mut scopes: Vec<Vec<i64>> = vec![];
@@ -309,7 +309,7 @@ mod tests {
             let empty = simulation::snapshot(exec).unwrap().retained;
             let mut frame = [record as *const () as i64, 0, 0];
             let pid = morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &scalar).cast::<Pid>();
-            let a = (*pid).actor;
+            let a = actor(pid);
             for _ in 0..ENTRIES {
                 assert_eq!(morrow_managed_scope_enter(&raw mut (*a).exec), 0);
             }

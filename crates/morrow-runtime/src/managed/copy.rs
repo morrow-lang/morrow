@@ -141,12 +141,14 @@ impl Copy {
                     target as i64
                 }
                 6 => {
-                    // PIDs retain scheduler identity, never another actor's payload graph.
+                    // A PID is pure identity, so a copy carries no edge into the
+                    // originating actor's storage and roots nothing outside this
+                    // heap. Validity survives without retention: `valid_pid` is
+                    // monotonic over issued generations.
                     let target = self
                         .allocate(std::mem::size_of::<Pid>(), false)
                         .cast::<Pid>();
                     std::ptr::copy_nonoverlapping(source as *const Pid, target, 1);
-                    memory::control_edge(target.cast(), (*target).actor.cast());
                     target as i64
                 }
                 TYPE_RANGE => {

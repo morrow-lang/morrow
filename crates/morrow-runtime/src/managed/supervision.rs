@@ -65,8 +65,10 @@ pub unsafe extern "C" fn morrow_managed_supervise(
             retire(s, supervisor);
             return null_mut();
         }
-        (*(*pid).actor).supervisor = supervisor;
-        (*supervisor).current = (*pid).actor;
+        let a = actor_of(s, pid);
+        (*a).supervisor = supervisor;
+        (*supervisor).current = a;
+        registry(s).bind_lineage((*pid).generation, supervisor);
         pid.cast()
     }
 }
@@ -78,6 +80,9 @@ unsafe fn retire(s: *mut Session, supervisor: *mut Supervisor) {
         }
         (*supervisor).current = null_mut();
         (*supervisor).initializer = null_mut();
+        // A retired lineage can no longer be resolved, so its generations stop
+        // consuming registry storage. This is what bounds the lineage map.
+        registry(s).retire_lineage(supervisor);
         release(
             s,
             (*supervisor).initializer_cost + std::mem::size_of::<Supervisor>(),
@@ -128,8 +133,10 @@ pub(super) unsafe fn recover(a: *mut Actor) -> bool {
         if pid.is_null() {
             retire(s, supervisor);
         } else {
-            (*(*pid).actor).supervisor = supervisor;
-            (*supervisor).current = (*pid).actor;
+            let a = actor_of(s, pid);
+            (*a).supervisor = supervisor;
+            (*supervisor).current = a;
+            registry(s).bind_lineage((*pid).generation, supervisor);
         }
         true
     }
@@ -153,7 +160,9 @@ pub unsafe extern "C" fn morrow_managed_supervised_current(
         if !valid_pid(s, pid) || (*s).stopped {
             return abi::result_err(3);
         }
-        let supervisor = (*(*pid).actor).supervisor;
+        let Some(supervisor) = registry(s).lineage((*pid).generation) else {
+            return abi::result_err(3);
+        };
         if supervisor.is_null() || (*supervisor).current.is_null() {
             return abi::result_err(3);
         }

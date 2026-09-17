@@ -33,7 +33,7 @@ pub(super) unsafe fn dequeue(s: *mut Session) -> *mut Actor {
 unsafe fn refresh(s: *mut Session) {
     unsafe {
         (*s).next_deadline = u64::MAX;
-        for i in 0..(*s).used_slots {
+        for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if !a.is_null() && (*a).alive && (*a).waiting {
                 (*s).next_deadline = (*s).next_deadline.min((*a).deadline);
@@ -81,6 +81,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame_cost = 0;
         (*s).live -= 1;
         *(*s).identities.add((*a).slot) = null_mut();
+        registry(s).retire((*a).slot);
         release(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
@@ -93,7 +94,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
         let mut due = [null_mut::<Actor>(); LIVE];
         let mut count = 0;
         let mut earliest = u64::MAX;
-        for i in 0..(*s).used_slots {
+        for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if a.is_null() || !(*a).alive || !(*a).waiting || (*a).deadline == u64::MAX {
                 continue;
@@ -105,7 +106,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 earliest = earliest.min((*a).deadline);
             }
         }
-        due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).id));
+        due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).generation));
         let mut previous: *mut Actor = null_mut();
         let mut a = (*s).first;
         while !a.is_null() {
@@ -273,7 +274,7 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
         (*s).first = null_mut();
         (*s).last = null_mut();
         (*s).next_deadline = u64::MAX;
-        for i in 0..(*s).used_slots {
+        for i in 0..registry(s).slots() {
             let a = *(*s).identities.add(i);
             if a.is_null() {
                 continue;

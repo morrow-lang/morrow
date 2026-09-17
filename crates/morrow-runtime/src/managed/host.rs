@@ -167,7 +167,7 @@ unsafe fn port_actor(exec: *mut Exec, port: *mut c_void) -> Option<*mut Actor> {
         if !live_pid(s, pid) {
             return None;
         }
-        let a = (*pid).actor;
+        let a = actor_of(s, pid);
         ((*a).alive && (*a).host_port).then_some(a)
     }
 }

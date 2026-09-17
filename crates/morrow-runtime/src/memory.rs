@@ -11,9 +11,14 @@ mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
 pub(crate) use heaps::{
-    control_edge, create as create_actor_heap, enter as enter_heap, owns as heap_owns,
-    retire as retire_heap,
+    create as create_actor_heap, enter as enter_heap, owns as heap_owns, retire as retire_heap,
 };
+// `Pid` was the only producer of control edges: it pointed at an actor record
+// and had to keep it alive. Opaque identity removed that pointer, so nothing in
+// the runtime creates one today. The machinery and its edge class stay because
+// `Domain::verify_edges` must still classify and reject one if it ever appears.
+#[allow(unused_imports)]
+pub(crate) use heaps::control_edge;
 pub use heaps::{morrow_gc_frame_enter, morrow_gc_frame_leave};
 pub use rc::{
     morrow_rc_alloc, morrow_rc_drop, morrow_rc_dup, morrow_rc_flags, morrow_rc_refcount,

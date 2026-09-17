@@ -188,6 +188,7 @@ impl Domain {
     /// # Safety
     /// `pointer` is an allocation base in the active heap, and `control` is a live
     /// invocation-owned Actor whose immutable identity the initialized PID retains.
+    #[allow(dead_code)] // See the re-export in memory.rs.
     pub(crate) unsafe fn control_edge(&mut self, pointer: *const u8, control: *const u8) {
         let active = self.active;
         assert!(self.slots[&0].heap.blocks.contains_key(&(control as usize)));
@@ -396,6 +397,7 @@ pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
 /// # Safety
 /// `pointer` is an allocation base in the active heap, and `control` is a live
 /// invocation-owned Actor whose immutable identity the initialized PID retains.
+#[allow(dead_code)] // See the re-export in memory.rs.
 pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
     with_current(|domain| unsafe { domain.control_edge(pointer, control) });
 }

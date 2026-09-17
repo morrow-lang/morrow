@@ -66,6 +66,14 @@ pub unsafe extern "C" fn morrow_managed_new(
             }
         }
         (*s).identities = memory::alloc(IDS * std::mem::size_of::<*mut Actor>(), false).cast();
+        // SAFETY: Registry holds only generations, scheduler indices and
+        // non-owning supervisor pointers, so its Drop touches no managed value
+        // and reenters no collector. It lives beside the Session in the control
+        // heap and the Session's scanned pointer keeps it reachable.
+        (*s).registry = memory::managed(registry::Registry::new(), 0).cast();
+        (*s).token = next_token();
+        #[cfg(test)]
+        SESSIONS.with(|open| open.borrow_mut().insert((*s).token, s as usize));
         (*s).retained = std::mem::size_of::<Session>() + IDS * std::mem::size_of::<*mut Actor>();
         (*s).functions = functions;
         (*s).function_count = count as usize;
@@ -175,7 +183,7 @@ pub unsafe extern "C" fn morrow_managed_send(
         if !live_pid(s, pid) || (*pid).mailbox != ty {
             return abi::result_err(3);
         }
-        let a = (*pid).actor;
+        let a = actor_of(s, pid);
         if (*a).messages >= MAILBOX || (*s).messages >= MESSAGES {
             return abi::result_err(4);
         }
@@ -309,7 +317,7 @@ mod constructor_tests {
                 drop(value);
                 memory::morrow_gc_collect_precise();
                 assert!(!memory::heap_owns(0, source as *const c_void));
-                let actor = (*pid.cast::<Pid>()).actor;
+                let actor = actor(pid.cast::<Pid>());
                 {
                     let _receiver = memory::enter_heap((*actor).heap);
                     memory::morrow_gc_collect_precise();

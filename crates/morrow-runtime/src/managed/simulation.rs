@@ -37,7 +37,7 @@ pub unsafe fn enable_clock(exec: *mut Exec, milliseconds: u64) -> Result<(), Clo
         if (*s).simulation.enabled {
             return Err(ClockError::AlreadyEnabled);
         }
-        if (*s).next_id != 0
+        if registry(s).issued() != 0
             || (*s).live != 0
             || (*s).messages != 0
             || (*s).stopped
@@ -109,7 +109,7 @@ pub unsafe fn snapshot(exec: *mut Exec) -> Result<Snapshot, ClockError> {
             live: (*s).live,
             messages: (*s).messages,
             retained: (*s).retained,
-            identities: (*s).next_id,
+            identities: registry(s).issued(),
         })
     }
 }

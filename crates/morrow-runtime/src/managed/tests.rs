@@ -148,7 +148,7 @@ fn host_reply_churn_reuses_identity_and_close_preserves_other_rooted_sessions() 
         let port = morrow_managed_port(second, &string);
         let roots = [port as usize];
         let root = memory::root_range(roots.as_ptr(), roots.len());
-        let identities = (*(*second).session).next_id;
+        let identities = registry((*second).session).issued();
         for _ in 0..2000 {
             let sent = morrow_managed_send(second, port, c"reply".as_ptr() as i64, &string)
                 as *const abi::ResultValue;
@@ -160,7 +160,7 @@ fn host_reply_churn_reuses_identity_and_close_preserves_other_rooted_sessions() 
             );
             assert_eq!(&output, b"reply");
         }
-        assert_eq!((*(*second).session).next_id, identities);
+        assert_eq!(registry((*second).session).issued(), identities);
         assert_eq!((*(*second).session).messages, 0);
         morrow_managed_close(first);
         memory::morrow_gc_collect_precise();
@@ -182,7 +182,7 @@ fn supervised_restart_retires_old_heap_and_requires_explicit_fresh_pid_lookup() 
         let original =
             morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
                 .cast::<Pid>();
-        let old = (*original).actor;
+        let old = actor(original);
         let old_heap = (*old).heap;
         let old_frame = (*old).frame;
         dequeue((*exec).session);
@@ -194,10 +194,10 @@ fn supervised_restart_retires_old_heap_and_requires_explicit_fresh_pid_lookup() 
             morrow_managed_supervised_current(exec, original.cast()) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
         let replacement = (*result).value as *mut Pid;
-        assert_ne!((*original).id, (*replacement).id);
-        assert_ne!((*original).actor, (*replacement).actor);
-        assert_ne!(old_heap, (*(*replacement).actor).heap);
-        assert_eq!(*(*(*replacement).actor).frame.cast::<i64>().add(1), 41);
+        assert_ne!((*original).generation, (*replacement).generation);
+        assert_ne!(actor(original), actor(replacement));
+        assert_ne!(old_heap, (*actor(replacement)).heap);
+        assert_eq!(*(*actor(replacement)).frame.cast::<i64>().add(1), 41);
         let stale =
             morrow_managed_send(exec, original.cast(), 1, &*f.scalar) as *const abi::ResultValue;
         assert_eq!(((*stale).tag, (*stale).value), (1, 3));
@@ -243,7 +243,7 @@ fn spawn_copies_capture_storage_before_publishing_actor() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &*f.scalar).cast::<Pid>();
-        assert_ne!((*(*pid).actor).frame, frame.as_mut_ptr().cast());
+        assert_ne!((*actor(pid)).frame, frame.as_mut_ptr().cast());
         frame[1] = 99;
         std::hint::black_box(&frame);
         morrow_managed_run(exec);
@@ -261,13 +261,13 @@ fn actor_termination_reclaims_its_payload_without_collecting_other_actors() {
         let first = f.spawn(exec, 41);
         let second = f.spawn(exec, 42);
         let before = memory::stats().bytes;
-        scheduler::finish((*first).actor);
+        scheduler::finish(actor(first));
         assert!(
             memory::stats().bytes < before,
             "termination must reclaim the actor's physical payload heap"
         );
-        assert_eq!(*(*(*second).actor).frame.cast::<i64>().add(1), 42);
-        assert!((*(*second).actor).alive);
+        assert_eq!(*(*actor(second)).frame.cast::<i64>().add(1), 42);
+        assert!((*actor(second)).alive);
         morrow_managed_stop(exec);
     }
 }
@@ -285,7 +285,7 @@ fn native_range_descriptor_copies_three_full_width_words_without_json_interpreta
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &range;
-        (*(*pid).actor).mailbox = &range;
+        (*actor(pid)).mailbox = &range;
         assert_eq!(
             cost::value((*exec).session, &range, source.as_ptr() as i64),
             Some(24)
@@ -293,7 +293,7 @@ fn native_range_descriptor_copies_three_full_width_words_without_json_interpreta
         let result = morrow_managed_send(exec, pid.cast(), source.as_ptr() as i64, &range)
             as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let copied = (*(*(*pid).actor).first).value as *const i64;
+        let copied = (*(*actor(pid)).first).value as *const i64;
         assert_ne!(copied, source.as_ptr());
         assert_eq!(std::slice::from_raw_parts(copied, 3), source);
         morrow_managed_stop(exec);
@@ -314,11 +314,11 @@ fn actor_termination_finalizes_copied_json_even_with_stale_pointer_words() {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
+        (*actor(pid)).mailbox = &ty;
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let stale = (*(*(*pid).actor).first).value;
+        let stale = (*(*actor(pid)).first).value;
         let copied = crate::json::node(stale as *const crate::json::NativeJson);
         let weak = std::rc::Rc::downgrade(&copied);
         drop(copied);
@@ -346,8 +346,8 @@ fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
         let exec = f.exec(&mut fault);
         let sender = f.spawn(exec, 41);
         let receiver = f.spawn(exec, 42);
-        let a = (*sender).actor;
-        let b = (*receiver).actor;
+        let a = actor(sender);
+        let b = actor(receiver);
         (*receiver).mailbox = &ty;
         (*b).mailbox = &ty;
         assert_ne!((*a).heap, (*b).heap);
@@ -390,8 +390,8 @@ fn actor_collection_does_not_retain_payload_through_another_actor_heap() {
         let exec = f.exec(&mut fault);
         let first = f.spawn(exec, 41);
         let second = f.spawn(exec, 42);
-        let a = (*first).actor;
-        let b = (*second).actor;
+        let a = actor(first);
+        let b = actor(second);
         let value = {
             let _first = memory::enter_heap((*a).heap);
             memory::alloc(128, true)
@@ -422,7 +422,7 @@ fn suspended_receive_roots_belong_to_the_actor_until_resume() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 99);
-        let actor = (*pid).actor;
+        let actor = actor(pid);
         dequeue((*exec).session);
         assert_eq!(f.receive(pid, 7, 42, 0, -1), 1);
         assert!(memory::heap_owns((*actor).heap, (*actor).selector));
@@ -458,11 +458,11 @@ fn send_copies_nested_graph_and_preserves_internal_sharing() {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &pair;
-        (*(*pid).actor).mailbox = &pair;
+        (*actor(pid)).mailbox = &pair;
         let sent = morrow_managed_send(exec, pid.cast(), source.as_ptr() as i64, &pair)
             as *const abi::ResultValue;
         assert_eq!((*sent).tag, 0);
-        let actor = (*pid).actor;
+        let actor = actor(pid);
         let copied = (*(*actor).first).value as *const i64;
         assert_ne!(copied, source.as_ptr());
         assert_ne!(*copied.add(1), text.as_ptr() as i64);
@@ -504,13 +504,13 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
+        (*actor(pid)).mailbox = &ty;
         let session = (*exec).session;
         let before = (*session).retained;
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
-        let message = (*(*pid).actor).first;
+        let message = (*actor(pid)).first;
         let copied = crate::json::node((*message).value as *const crate::json::NativeJson);
         assert!(!Rc::ptr_eq(&original, &copied));
         let Kind::Array(children) = &copied.kind else {
@@ -541,7 +541,7 @@ fn quota_failure_does_not_copy_or_publish_message() {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &string;
-        (*(*pid).actor).mailbox = &string;
+        (*actor(pid)).mailbox = &string;
         let session = (*exec).session;
         let original_retained = (*session).retained;
         (*session).retained = BYTES - std::mem::size_of::<Message>();
@@ -552,7 +552,7 @@ fn quota_failure_does_not_copy_or_publish_message() {
         assert_eq!((*session).retained, BYTES - std::mem::size_of::<Message>());
         // Only the Result allocation is allowed on a rejected transfer.
         assert_eq!(memory::stats().objects, objects + 1);
-        assert!((*(*pid).actor).first.is_null());
+        assert!((*actor(pid)).first.is_null());
         assert_eq!((*session).messages, 0);
         assert_eq!(fault, 0);
         (*session).retained = original_retained;
@@ -589,13 +589,13 @@ fn copy_roots_partial_lists_across_allocation_pressure() {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
         (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
+        (*actor(pid)).mailbox = &ty;
         let collections = memory::stats().collections;
         let result = morrow_managed_send(exec, pid.cast(), &list as *const abi::List as i64, &ty)
             as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
         assert!(memory::stats().collections > collections);
-        let copied = &*((*(*(*pid).actor).first).value as *const abi::List);
+        let copied = &*((*(*actor(pid)).first).value as *const abi::List);
         assert_ne!(copied.data, list.data);
         for (i, expected) in b"ab".iter().copied().enumerate() {
             let text = std::ffi::CStr::from_ptr(*copied.data.add(i) as *const _).to_bytes();
@@ -695,7 +695,7 @@ impl Fixture {
             selector.add(1).write(wanted);
             selector.add(2).write(success as i64);
             morrow_managed_receive(
-                &raw mut (*(*pid).actor).exec,
+                &raw mut (*actor(pid)).exec,
                 selector.cast(),
                 if duration < 0 {
                     null_mut()
@@ -721,10 +721,12 @@ fn receive_prefers_existing_match_before_zero_timeout_and_retires_roots() {
             morrow_managed_send(exec, pid.cast(), 7, &*f.scalar) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
         assert_eq!(f.receive(pid, 7, 10, 20, 0), 0);
+        // Resolve before the actor finishes: identity stops naming storage the
+        // moment the actor dies, and this oracle is about the scrubbed record.
+        let a = actor(pid);
         morrow_managed_run(exec);
         assert_eq!(fault, 0);
         TRACE.with(|t| assert_eq!(*t.borrow(), [10]));
-        let a = (*pid).actor;
         assert!(
             !(*a).alive
                 && (*a).frame.is_null()
@@ -748,11 +750,11 @@ fn promoted_older_timer_cannot_be_overtaken_by_new_zero_timeout() {
         let old = f.spawn(exec, 99);
         let new = f.spawn(exec, 99);
         // Simulate an entry that registered receive after its scheduler ticket was consumed.
-        assert_eq!(dequeue((*exec).session), (*old).actor);
+        assert_eq!(dequeue((*exec).session), actor(old));
         assert_eq!(f.receive(old, 7, 90, 0, 5), 1);
         CLOCK.with(|c| c.set(Some(Some(5))));
         wake_due((*exec).session, 5);
-        assert_eq!(dequeue((*exec).session), (*new).actor);
+        assert_eq!(dequeue((*exec).session), actor(new));
         assert_eq!(f.receive(new, 7, 91, 1, 0), 0);
         morrow_managed_run(exec);
         assert_eq!(fault, 0);
@@ -777,7 +779,7 @@ fn late_message_loses_at_equal_deadline_and_unmatched_timely_message_remains_ord
         CLOCK.with(|c| c.set(Some(Some(5))));
         morrow_managed_send(exec, pid.cast(), 7, &*f.scalar);
         wake_due((*exec).session, 5);
-        let a = (*pid).actor;
+        let a = actor(pid);
         assert_eq!((*(*a).first).value, 8);
         assert_eq!((*(*a).last).value, 7);
         morrow_managed_run(exec);
@@ -807,9 +809,11 @@ fn clock_failure_rolls_back_send_and_foreign_pid_has_no_effect() {
         assert_eq!(((*failed).tag, (*failed).value), (1, 4));
         assert_eq!(first_fault, 12);
         assert_eq!((*(*first).session).retained, retained);
-        assert_eq!((*(*pid).actor).messages, 0);
+        assert_eq!((*actor(pid)).messages, 0);
         morrow_managed_run(first);
-        assert!(!(*(*pid).actor).alive);
+        // The actor's storage is gone once it finishes; identity outlives it, so
+        // the observable is that the PID no longer resolves to a live actor.
+        assert!(!live_pid((*first).session, pid));
     }
     CLOCK.with(|c| c.set(None));
 }
@@ -839,5 +843,65 @@ fn unaccounted_and_cyclic_message_graphs_are_rejected() {
         let mut cycle = [0i64, 0];
         cycle[1] = cycle.as_ptr() as i64;
         assert!(cost::value(session, &recursive, cycle.as_ptr() as i64).is_none());
+    }
+}
+
+#[test]
+fn pid_carries_identity_only_and_never_an_actor_pointer() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let session = (*exec).session;
+        let pid = f.spawn(exec, 7);
+        let actor = actor_of(session, pid);
+        assert!(!actor.is_null());
+        let words = std::slice::from_raw_parts(
+            pid.cast::<usize>(),
+            std::mem::size_of::<Pid>() / std::mem::size_of::<usize>(),
+        );
+        assert!(
+            !words.contains(&(actor as usize)),
+            "a PID must not carry its actor's address: another scheduler would \
+             own that storage, and step 1's edge oracle would see the pointer"
+        );
+        assert!(
+            !words.contains(&(session as usize)),
+            "a PID must not carry a session pointer either"
+        );
+        morrow_managed_run(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn a_pid_from_another_invocation_is_rejected_rather_than_resolving_locally() {
+    // Identity is a slot plus a generation, and both invocations hand out slot 0
+    // generation 1. Without an invocation token the foreign PID would resolve to
+    // whichever actor happens to occupy the same slot here.
+    let f = Fixture::new();
+    let mut first_fault = 0;
+    let mut second_fault = 0;
+    unsafe {
+        let first = f.exec(&mut first_fault);
+        let second = f.exec(&mut second_fault);
+        let foreign = f.spawn(first, 1);
+        let local = f.spawn(second, 2);
+        assert_eq!((*foreign).slot, (*local).slot, "same slot in both");
+        assert_eq!(
+            (*foreign).generation,
+            (*local).generation,
+            "same generation in both"
+        );
+        let sent =
+            morrow_managed_send(second, foreign.cast(), 5, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!(
+            ((*sent).tag, (*sent).value),
+            (1, 3),
+            "a foreign PID must be rejected, not delivered to the local slot"
+        );
+        morrow_managed_run(first);
+        morrow_managed_run(second);
+        assert_eq!((first_fault, second_fault), (0, 0));
     }
 }

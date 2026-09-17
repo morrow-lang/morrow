@@ -43,7 +43,7 @@ fn sequential_actor_churn_reuses_slots_beyond_the_old_lifetime_limit() {
 }
 
 #[test]
-fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies() {
+fn foreign_pid_keeps_dead_identity_and_supervision_lineage_while_retaining_no_storage() {
     let f = Fixture::new();
     let mut fault = 0;
     let pid_children = [&*f.scalar as *const Type];
@@ -58,12 +58,12 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
         let session = (*exec).session;
         let holder = f.spawn(exec, 9);
-        let holder_actor = (*holder).actor;
+        let holder_actor = actor_of(session, holder);
         assert_eq!(dequeue(session), holder_actor);
         let original =
             morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
                 .cast::<Pid>();
-        let old = (*original).actor;
+        let old = actor_of(session, original);
         let old_heap = (*old).heap;
         let old_frame = (*old).frame;
         let stale = {
@@ -79,12 +79,17 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         let current = (*session).first;
         assert_ne!(current, old);
         assert_eq!((*current).slot, (*old).slot);
-        assert_ne!((*current).id, (*old).id);
+        assert_ne!((*current).generation, (*old).generation);
         assert!(!memory::heap_owns(old_heap, old_frame));
         memory::morrow_gc_collect_precise();
+        // A copied PID used to carry a control edge into the originating actor's
+        // record, which pinned that record for the PID's whole lifetime. Opaque
+        // identity removes the pointer, so the record is collected here and every
+        // use of the stale PID below runs against freed storage -- the strongest
+        // available statement that nothing dereferences it.
         assert!(
-            memory::heap_owns(0, old.cast()),
-            "foreign PID must retain its exact dead control record"
+            !memory::heap_owns(0, old.cast()),
+            "identity must not retain the dead actor's control record"
         );
         assert!(
             cost::value(session, &pid_type, stale as i64).is_some(),
@@ -99,7 +104,7 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
             let result =
                 morrow_managed_supervised_current(exec, stale.cast()) as *const abi::ResultValue;
             assert_eq!((*result).tag, 0);
-            assert_eq!((*((*result).value as *const Pid)).actor, current);
+            assert_eq!(actor_of(session, (*result).value as *const Pid), current);
         }
         *(*holder_actor).frame.cast::<i64>().add(1) = 0;
         {
@@ -107,27 +112,39 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
             memory::morrow_gc_collect_precise();
         }
         memory::morrow_gc_collect_precise();
-        assert!(
-            !memory::heap_owns(0, old.cast()),
-            "payload sweep must remove dead PID control edges"
-        );
         {
             let _holder = memory::enter_heap((*holder_actor).heap);
             *(*holder_actor).frame.cast::<i64>().add(1) = new_pid(current) as i64;
         }
+        let current_generation = (*current).generation;
         assert_eq!(dequeue(session), current);
         scheduler::finish(current);
         memory::morrow_gc_collect_precise();
         assert!(
-            memory::heap_owns(0, current.cast()),
-            "new PID wrappers in a foreign heap retain their dead control"
+            !memory::heap_owns(0, current.cast()),
+            "a PID wrapper in a foreign heap must not pin its actor's control record"
+        );
+        // The wrapper the holder still owns keeps working without that record.
+        assert!(
+            valid_pid(
+                session,
+                *(*holder_actor).frame.cast::<i64>().add(1) as *const Pid
+            ),
+            "identity survives its actor's collection"
+        );
+        assert!(
+            !live_pid(
+                session,
+                *(*holder_actor).frame.cast::<i64>().add(1) as *const Pid
+            ),
+            "but reports the death rather than resolving to freed storage"
+        );
+        assert!(
+            registry(session).lineage(current_generation).is_none(),
+            "a retired lineage releases its generations"
         );
         scheduler::finish(holder_actor);
         memory::morrow_gc_collect_precise();
-        assert!(
-            !memory::heap_owns(0, current.cast()),
-            "heap retirement must remove every PID control edge"
-        );
         assert_eq!((*session).live, 0);
         morrow_managed_close(exec);
         assert_eq!(fault, 0);
@@ -141,15 +158,15 @@ fn final_actor_generation_is_admitted_once_and_never_wraps() {
     unsafe {
         let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
         let session = (*exec).session;
-        (*session).next_id = u64::MAX - 1;
+        registry(session).force_generation_for_test(u64::MAX - 1);
         let last = f.spawn(exec, 1);
-        assert_eq!((*last).id, u64::MAX);
+        assert_eq!((*last).generation, u64::MAX);
         let actor = dequeue(session);
         scheduler::finish(actor);
         let retained = (*session).retained;
         let mut frame = [complete as *const () as i64, 2];
         assert!(morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &*f.scalar).is_null());
-        assert_eq!((*session).next_id, u64::MAX);
+        assert_eq!(registry(session).issued(), u64::MAX);
         assert_eq!((*session).retained, retained);
         assert_eq!((*session).live, 0);
         assert_eq!(fault, 9);

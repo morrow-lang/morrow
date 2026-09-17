@@ -54,7 +54,7 @@ struct Message {
 struct Actor {
     exec: Exec,
     heap: usize,
-    id: u64,
+    generation: u64,
     slot: usize,
     alive: bool,
     queued: bool,
@@ -78,11 +78,17 @@ struct Actor {
     cleanup_entries: usize,
     cleaning: bool,
 }
+/// Opaque identity: nothing here is a pointer into actor storage, so a PID
+/// copied to another scheduler carries no cross-domain edge and validation
+/// never dereferences a record another scheduler owns. A PID therefore roots
+/// nothing: live actors are rooted by the invocation's identity table, and a
+/// dead actor's record is simply collected.
 #[repr(C)]
 struct Pid {
-    session: *mut Session,
-    actor: *mut Actor,
-    id: u64,
+    slot: usize,
+    generation: u64,
+    /// Distinguishes invocations, which each hand out slot 0 generation 1.
+    token: u64,
     mailbox: *const Type,
 }
 #[repr(C)]
@@ -93,8 +99,12 @@ struct Session {
     functions: *const *const Function,
     function_count: usize,
     live: usize,
-    next_id: u64,
-    used_slots: usize,
+    token: u64,
+    /// Opaque handle to the identity registry. `Session` reaches generated code
+    /// only as a pointer inside `Exec`, but it must stay FFI-declarable, and the
+    /// registry owns Rust collections with no C layout. Nothing outside
+    /// `registry()` interprets this word.
+    registry: *mut c_void,
     messages: usize,
     retained: usize,
     stopped: bool,
@@ -111,31 +121,54 @@ fn allocate<T>() -> *mut T {
     memory::alloc(std::mem::size_of::<T>(), false).cast()
 }
 
+/// Invocation tokens are process-unique so a PID from one invocation cannot
+/// resolve against another's identically numbered slot and generation.
+static NEXT_TOKEN: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+fn next_token() -> u64 {
+    NEXT_TOKEN.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+#[cfg(test)]
+thread_local! {
+    /// Tests used to reach an actor through `Pid.actor`. Identity is opaque now,
+    /// so they resolve through the invocation that issued the PID instead.
+    static SESSIONS: std::cell::RefCell<std::collections::BTreeMap<u64, usize>> =
+        const { std::cell::RefCell::new(std::collections::BTreeMap::new()) };
+}
+
+/// Test-only resolution of a PID with no invocation handle in scope.
+/// # Safety
+/// The PID was issued by a still-live invocation on this thread.
+#[cfg(test)]
+unsafe fn actor(pid: *const Pid) -> *mut Actor {
+    let token = unsafe { (*pid).token };
+    match SESSIONS.with(|open| open.borrow().get(&token).copied()) {
+        Some(s) => unsafe { actor_of(s as *mut Session, pid) },
+        None => null_mut(),
+    }
+}
+
+/// # Safety
+/// `s` is a live invocation whose registry was published by `morrow_managed_new`.
+unsafe fn registry<'a>(s: *mut Session) -> &'a mut registry::Registry {
+    unsafe { &mut *(*s).registry.cast::<registry::Registry>() }
+}
+
 /// Find reusable storage without changing immutable actor generations.
 unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
-    unsafe {
-        if (*s).next_id == u64::MAX {
-            return None;
-        }
-        for slot in 0..(*s).used_slots {
-            if (*(*s).identities.add(slot)).is_null() {
-                return Some(slot);
-            }
-        }
-        ((*s).used_slots < IDS).then_some((*s).used_slots)
-    }
+    unsafe { registry(s).vacancy() }
 }
 
 unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
     unsafe {
-        (*s).next_id = (*s)
-            .next_id
-            .checked_add(1)
-            .expect("generation was admitted");
-        (*a).id = (*s).next_id;
-        (*a).slot = slot;
-        (*s).used_slots = (*s).used_slots.max(slot + 1);
-        *(*s).identities.add(slot) = a;
+        let handle = registry(s)
+            .issue(0)
+            .expect("an identity was admitted by vacant_slot");
+        assert_eq!(handle.slot, slot, "issue must take the admitted slot");
+        (*a).generation = handle.generation;
+        (*a).slot = handle.slot;
+        *(*s).identities.add(handle.slot) = a;
         (*s).live += 1;
     }
 }
@@ -144,37 +177,45 @@ unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
     unsafe {
         let pid = allocate::<Pid>();
         *pid = Pid {
-            session: (*a).exec.session,
-            actor: a,
-            id: (*a).id,
+            slot: (*a).slot,
+            generation: (*a).generation,
+            token: (*(*a).exec.session).token,
             mailbox: (*a).mailbox,
         };
-        memory::control_edge(pid.cast(), a.cast());
         pid
     }
 }
 
-/// Validate immutable identity even when its old slot now belongs to another actor.
+/// Validate immutable identity even when its old slot now belongs to another
+/// actor. Monotonic: an identity this invocation issued never becomes invalid,
+/// so a dead PID stays a legal message value and a resolvable supervision
+/// lineage. Liveness is `live_pid`'s question, not this one's.
 unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
     unsafe {
         !pid.is_null()
-            && (*pid).session == s
-            && !(*pid).actor.is_null()
-            && (*pid).id != 0
-            && (*pid).id <= (*s).next_id
-            && (*(*pid).actor).exec.session == s
-            && (*(*pid).actor).id == (*pid).id
-            && (*(*pid).actor).mailbox == (*pid).mailbox
+            && (*pid).token == (*s).token
+            && (*pid).generation != 0
+            && (*pid).generation <= registry(s).issued()
     }
 }
 
 unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
     unsafe {
-        valid_pid(s, pid)
-            && !(*s).stopped
-            && (*(*pid).actor).alive
-            && (*(*pid).actor).slot < (*s).used_slots
-            && *(*s).identities.add((*(*pid).actor).slot) == (*pid).actor
+        valid_pid(s, pid) && !(*s).stopped && {
+            let a = actor_of(s, pid);
+            !a.is_null() && (*a).alive && (*a).mailbox == (*pid).mailbox
+        }
+    }
+}
+
+/// Turn identity into storage. Sound only on the scheduler owning that actor;
+/// a later step removes the last cross-scheduler caller.
+unsafe fn actor_of(s: *mut Session, pid: *const Pid) -> *mut Actor {
+    unsafe {
+        match registry(s).resolve((*pid).slot, (*pid).generation) {
+            Some(_) => *(*s).identities.add((*pid).slot),
+            None => null_mut(),
+        }
     }
 }
 
