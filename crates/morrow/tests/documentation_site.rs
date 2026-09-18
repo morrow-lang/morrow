@@ -175,3 +175,58 @@ fn rejects_collisions_reserved_names_and_oversized_input() {
         morrow_compiler::documentation::site::render_site(&site(&invalid, &[])).unwrap_err();
     assert!(error.message.starts_with("bad.mr:"), "{}", error.message);
 }
+
+/// Every class and element the Markdown renderer emits must be styled, or a construct
+/// like an alert renders indistinguishably from the paragraph beside it.
+#[test]
+fn the_stylesheet_styles_every_construct_the_renderer_emits() {
+    let guide = "# Guide\n\n> [!WARNING]\n> Careful.\n\n- [ ] open\n- [x] done\n\n~~gone~~ and a note[^n].\n\n![Logo](logo.png)\n\n[^n]: The note.\n";
+    let extras = [Extra {
+        path: "GUIDE.md",
+        source: guide,
+    }];
+    let modules = [SourceDocument {
+        path: "lib/math.mr",
+        source: MATH,
+    }];
+    let pages =
+        morrow_compiler::documentation::site::render_site(&site(&modules, &extras)).unwrap();
+    let css = page(&pages, "morrow-docs.css");
+    let guide = page(&pages, "guide.html");
+    // The page really does carry each construct, so the selectors below are not vacuous.
+    for emitted in [
+        "class=\"alert alert-warning\"",
+        "class=\"alert-title\"",
+        "class=\"task\"",
+        "<del>",
+        "<img",
+        "class=\"footnotes\"",
+        "class=\"footnote-ref\"",
+        "class=\"footnote-backref\"",
+    ] {
+        assert!(
+            guide.contains(emitted),
+            "page is missing {emitted}: {guide}"
+        );
+    }
+    for selector in [
+        ".alert",
+        ".alert-title",
+        ".alert-note",
+        ".alert-tip",
+        ".alert-important",
+        ".alert-warning",
+        ".alert-caution",
+        "li.task",
+        "del",
+        "img",
+        ".footnotes",
+        ".footnote-ref",
+        ".footnote-backref",
+    ] {
+        assert!(
+            css.contains(selector),
+            "stylesheet does not style {selector}"
+        );
+    }
+}

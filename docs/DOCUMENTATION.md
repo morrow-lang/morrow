@@ -60,14 +60,15 @@ Documentation is rendered with a bounded CommonMark/GFM subset:
 
 | Feature | Notes |
 | --- | --- |
-| Headings `#`…`######` | Shifted below the page or declaration heading; IDs are generated for linking. |
-| Paragraphs, emphasis, `code` | `*em*`, `_em_`, `**strong**`, code spans with any backtick run. |
+| Headings `#`…`######`, setext headings | Shifted below the page or declaration heading; IDs are generated for linking. |
+| Paragraphs, emphasis, `code` | `*em*`, `_em_`, `**strong**`, `~~strikethrough~~`, code spans with any backtick run. |
 | Fenced code | ```` ```morrow ```` blocks are highlighted and, when they contain `# =>` expectations, executed by `morrow test --doc`. Other languages render verbatim. |
-| Lists, block quotes, rules | Nested lists by indentation; tight items render without paragraphs. |
+| Lists, block quotes, rules | Nested lists by indentation, task checkboxes and GitHub-style alerts; tight items render without paragraphs. |
 | Pipe tables | Header, delimiter row with optional `:` alignment, body rows. |
 | Links | `[text](url "title")`, `<https://…>` and bare `https://` URLs. Only `http`, `https`, `mailto`, `#fragment` and relative destinations become links; other schemes render as text. |
-| Images | Rendered as links to the image; no remote assets are embedded. |
-| Raw HTML | Reduced to its text content. Documentation never injects markup. |
+| Reference links and footnotes | Case-insensitive link definitions, numbered footnotes in reference order, and return links. |
+| Images | Inline and reference images render with escaped alt text and optional titles. Relative and approved URL schemes follow the link safety policy. |
+| Raw HTML | An allowlist retains structural tags and safe attributes, repairs tag balance, and strips scripts, styles, event handlers and unsafe URLs. |
 
 ### Cross-references
 
@@ -141,7 +142,9 @@ Limits keep generation bounded: 256 modules and 256 guides, 1 MiB per guide,
 
 `cargo xtask docs [output] [--no-rust]` builds the staged compiler and then runs
 `morrow doc examples --inferred --site <output>` with this repository's README,
-`docs/`, design, roadmap, decision record, build guide and style guide as extras.
+`docs/`, `docs/language/`, design, roadmap, decision record, build guide and style guide as extras.
+It copies `docs/assets/` to the same relative path in the output so repository
+images resolve when the site is opened locally or hosted.
 Unless `--no-rust` is given it also runs `cargo doc --workspace --no-deps` and
 copies the Rust API reference to `<output>/rust/`, linked from the sidebar. The
 default output is `dist/docs`, which is ignored by git.
@@ -154,9 +157,11 @@ in `docs/` and in `@moduledoc`/`@doc` attributes.
 
 - Documentation comments attach to functions, types, newtypes, constants and
   traits. Trait implementations and generated methods are not listed.
-- The Markdown subset omits footnotes, task lists, HTML passthrough, setext
-  headings and reference-style links. List items hold inline text only; nested
-  lists, code fences or paragraphs inside an item are not recognized.
+- The renderer supports a bounded Markdown dialect, not every CommonMark/GFM
+  construct. Raw HTML is sanitized rather than passed through unrestricted;
+  unsupported tags and attributes are removed. External images are referenced,
+  not downloaded or bundled by the compiler. The repository xtask separately
+  copies its local assets.
 - Source links (`View source`) are not generated; pages show the module path.
 - Search runs in the browser over the bundled index; there is no server-side
   search or versioned documentation hosting.

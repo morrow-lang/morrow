@@ -4,6 +4,8 @@ Start with the [language guide](LANGUAGE_GUIDE.md), [build guide](../BUILD.md), 
 [current roadmap](../ROADMAP.md). The implementation is a Rust workspace; the
 [design](../DESIGN.md) also records features that remain planned.
 
+- [Getting started](language/getting-started.md), [syntax and values](language/syntax-and-values.md), [types](language/types.md)
+- [Error handling](language/error-handling.md) and [traits](language/value-traits.md)
 - [Standard library](STDLIB_API_REFERENCE.md)
 - [Result handling](RESULT_HANDLING.md), [labeled calls](LABELED_CALLS.md), [newtypes](NEWTYPES.md), [unions](UNIONS.md)
 - [Native actors](RUST_ACTORS.md) and [mailbox/supervision API](ACTOR_RUNTIME.md)

@@ -13,6 +13,7 @@ use std::{
 pub const EXTRAS: &[&str] = &[
     "README.md",
     "docs",
+    "docs/language",
     "DESIGN.md",
     "ROADMAP.md",
     "DECISIONS.md",
@@ -42,6 +43,10 @@ pub fn run(root: &Path, bin: &Path, output: &Path, rust: bool) -> Result<(), Str
             .arg("Rust API (rustdoc)=rust/morrow_compiler/index.html");
     }
     execute(&mut command)?;
+    copy_tree(
+        &root.join("docs/assets"),
+        &root.join(output).join("docs/assets"),
+    )?;
     if rust {
         let mut cargo = Command::new(env::var_os("CARGO").unwrap_or_else(|| "cargo".into()));
         cargo

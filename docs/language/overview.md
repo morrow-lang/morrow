@@ -12,3 +12,11 @@ fn main():
 The chapters in this guide describe the implemented language. Each example is
 typechecked by the repository test suite; features that are still proposals are
 marked as such and live in the [design document](../../DESIGN.md).
+
+## Chapters
+
+1. [Getting started](getting-started.md)
+2. [Syntax and values](syntax-and-values.md)
+3. [Types](types.md)
+4. [Error handling](error-handling.md)
+5. [Traits](value-traits.md)

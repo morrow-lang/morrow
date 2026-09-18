@@ -19,6 +19,7 @@
   --morrow-cmt: #6f7f73;
   --morrow-result: #2f7a4b;
   --morrow-attr: #b9781c;
+  --morrow-danger: #a4352b;
   --morrow-shadow: 0 1px 2px rgba(20, 40, 28, 0.08);
   --morrow-sidebar-width: 18rem;
   --morrow-radius: 0.5rem;
@@ -44,6 +45,7 @@
   --morrow-cmt: #8a9b8f;
   --morrow-result: #8fd6ab;
   --morrow-attr: #e0a94a;
+  --morrow-danger: #f0897f;
   --morrow-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
   color-scheme: dark;
 }
@@ -68,6 +70,7 @@
     --morrow-cmt: #8a9b8f;
     --morrow-result: #8fd6ab;
     --morrow-attr: #e0a94a;
+    --morrow-danger: #f0897f;
     --morrow-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
     color-scheme: dark;
   }
@@ -119,6 +122,40 @@ blockquote {
   border-radius: 0 var(--morrow-radius) var(--morrow-radius) 0;
 }
 blockquote p:last-child { margin-bottom: 0; }
+/* GitHub-style alerts: a blockquote tinted by the accent its kind selects. */
+.alert {
+  --alert-accent: var(--morrow-accent);
+  margin: 0 0 1rem;
+  padding: 0.6rem 1rem;
+  border-left: 4px solid var(--alert-accent);
+  background: color-mix(in srgb, var(--alert-accent) 8%, var(--morrow-surface));
+  border-radius: 0 var(--morrow-radius) var(--morrow-radius) 0;
+}
+.alert > :last-child { margin-bottom: 0; }
+.alert-title { margin: 0 0 0.4rem; font-weight: 650; color: var(--alert-accent); }
+.alert-note { --alert-accent: var(--morrow-fn); }
+.alert-tip { --alert-accent: var(--morrow-accent); }
+.alert-important { --alert-accent: var(--morrow-kw); }
+.alert-warning { --alert-accent: var(--morrow-highlight); }
+.alert-caution { --alert-accent: var(--morrow-danger); }
+/* A task item's checkbox replaces its list marker. */
+li.task { list-style: none; margin-left: -1.25rem; }
+li.task input { margin-right: 0.4rem; accent-color: var(--morrow-accent); }
+del { color: var(--morrow-muted); }
+img { max-width: 100%; height: auto; }
+/* Footnotes close the page in a separated, smaller section with return links. */
+.footnotes {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--morrow-border);
+  font-size: 0.9rem;
+  color: var(--morrow-muted);
+}
+.footnotes ol { padding-left: 1.25rem; }
+.footnotes li:target { background: color-mix(in srgb, var(--morrow-accent) 14%, transparent); }
+.footnote-ref { font-size: 0.75em; line-height: 0; }
+.footnote-ref a { padding: 0 0.15em; }
+.footnote-backref { text-decoration: none; }
 hr { border: 0; border-top: 1px solid var(--morrow-border); margin: 2rem 0; }
 table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; font-size: 0.95rem; }
 th, td { border: 1px solid var(--morrow-border); padding: 0.45rem 0.7rem; text-align: left; vertical-align: top; }

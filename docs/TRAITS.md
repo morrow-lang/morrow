@@ -55,9 +55,9 @@ support these traits when their contents do. Maps support Show, Eq and Clone;
 map equality ignores insertion order, while Show preserves iteration order.
 Phantom type parameters do not acquire unnecessary bounds.
 
-Float supports Show, Eq and Clone. It has no Ord implementation because ordinary
-floating-point comparison does not provide a total order over NaN. Maps likewise
-have no inherent Ord. Language operators retain their existing intrinsic semantics;
+Float supports Show, Eq, Ord and Clone. Its `compare` implementation returns
+`Equal` when either operand is NaN; this does not define a mathematical total
+order over floating-point values. Maps have no inherent Ord. Language operators retain their existing intrinsic semantics;
 use `eq` and `compare` for these trait contracts. There are no associated types,
 multi-parameter traits or dynamic trait objects in this implementation.
 
