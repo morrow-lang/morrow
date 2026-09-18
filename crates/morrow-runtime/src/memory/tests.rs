@@ -375,8 +375,8 @@ fn domain_roots_register_and_unregister_in_their_own_heap() {
     let root = domain.root(&slot as *const usize, 1);
     assert_eq!(domain.with(|heap| heap.roots.len()), 1);
     let (heap, id) = (root.heap, root.id);
-    // Root::drop still targets the ambient thread domain until the cursor exists,
-    // so retire this token explicitly instead of through Drop.
+    // This domain was never activated, so Root::drop would reach the thread's
+    // default domain and be rejected. Retire the token explicitly instead.
     std::mem::forget(root);
     domain.remove_root(heap, id);
     assert_eq!(domain.with(|heap| heap.roots.len()), 0);
@@ -483,4 +483,66 @@ fn only_control_edges_leave_an_actor_payload_heap() {
     );
     domain.force_control_edge(id, pid, control as usize);
     domain.retire_heap(id);
+}
+
+/// Slot and root numbering restarts at the same value in every domain, so a token
+/// retired under the wrong domain removes a live registration belonging to another.
+#[test]
+#[should_panic(expected = "a root must retire under the domain that registered it")]
+fn a_root_retired_under_a_foreign_domain_is_rejected() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let word = 0usize;
+    let root = {
+        let _active = first.activate();
+        // SAFETY: word is a stable one-word stack range that outlives this token.
+        unsafe { root_range(&word, 1) }
+    };
+    let _active = second.activate();
+    drop(root);
+}
+
+/// The cursor restores `active` on scope exit, so leaving under a foreign domain
+/// would rewind an unrelated allocation target instead of this one.
+#[test]
+#[should_panic(expected = "a heap scope must leave under the domain that entered it")]
+fn a_heap_scope_left_under_a_foreign_domain_is_rejected() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let control = first.with_mut(|heap| heap.allocate(8, false));
+    // SAFETY: control is a live one-word invocation-heap allocation of this domain.
+    let id = unsafe { first.create_actor_heap(control.cast::<usize>(), 1) };
+    let scope = {
+        let _active = first.activate();
+        enter_heap(id)
+    };
+    let _active = second.activate();
+    drop(scope);
+}
+
+/// The positive half: identical numbering across domains must stay harmless.
+#[test]
+fn colliding_root_numbers_retire_in_the_domain_that_registered_them() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let word = 0usize;
+    let kept = {
+        let _active = first.activate();
+        // SAFETY: word is a stable one-word stack range that outlives this token.
+        unsafe { root_range(&word, 1) }
+    };
+    assert_eq!((kept.heap, kept.id), (0, 1));
+    {
+        let _active = second.activate();
+        // SAFETY: as above; this token registers the same numbers in second.
+        let dropped = unsafe { root_range(&word, 1) };
+        assert_eq!((dropped.heap, dropped.id), (0, 1));
+    }
+    assert_eq!(second.with(|heap| heap.roots.len()), 0);
+    assert_eq!(first.with(|heap| heap.roots.len()), 1);
+    {
+        let _active = first.activate();
+        drop(kept);
+    }
+    assert_eq!(first.with(|heap| heap.roots.len()), 0);
 }

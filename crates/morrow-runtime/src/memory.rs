@@ -208,13 +208,15 @@ impl Drop for Heap {
 
 /// Registered native words outside the managed heap. This token cannot cross threads.
 pub struct Root {
+    // The registering domain, because slot and root numbering restarts in each one.
+    domain: usize,
     heap: usize,
     id: usize,
     _thread: PhantomData<Rc<()>>,
 }
 impl Drop for Root {
     fn drop(&mut self) {
-        heaps::remove_root(self.heap, self.id);
+        heaps::remove_root(self.domain, self.heap, self.id);
     }
 }
 

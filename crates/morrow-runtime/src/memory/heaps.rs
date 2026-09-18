@@ -2,6 +2,13 @@
 use super::*;
 use std::cell::Cell;
 use std::ptr::null_mut;
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+/// Retiring a root or scope under the wrong domain is a scheduler defect, not a
+/// recoverable condition: slot and root numbering restarts in every domain, so the
+/// token would name a live registration that belongs to somebody else.
+const MISPLACED_ROOT: &str = "a root must retire under the domain that registered it";
+const MISPLACED_SCOPE: &str = "a heap scope must leave under the domain that entered it";
 
 struct Slot {
     heap: Heap,
@@ -23,6 +30,7 @@ impl Slot {
     }
 }
 pub(crate) struct Domain {
+    id: usize,
     active: usize,
     next_heap: usize,
     slots: BTreeMap<usize, Slot>,
@@ -40,7 +48,13 @@ struct Frame {
 }
 impl Domain {
     pub(crate) fn new() -> Self {
+        // Identities are handed out once and never reused, so a token can always be
+        // matched against the domain that issued it.
+        static NEXT: AtomicUsize = AtomicUsize::new(0);
+        let id = NEXT.fetch_add(1, Ordering::Relaxed);
+        assert_ne!(id, usize::MAX, "domain identity space is exhausted");
         Self {
+            id,
             active: 0,
             next_heap: 0,
             slots: BTreeMap::from([(0, Slot::invocation())]),
@@ -97,6 +111,7 @@ impl Domain {
         slot.scopes += 1;
         self.active = id;
         Scope {
+            domain: self.id,
             previous,
             entered: id,
             _thread: PhantomData,
@@ -182,7 +197,11 @@ impl Domain {
                 .iter()
                 .all(|(&id, slot)| id == 0 || slot.heap.roots.len() == 1)
         );
+        // Shutdown resets contents, not identity: tokens the native caller still
+        // holds must keep naming this domain rather than a stranger.
+        let id = self.id;
         *self = Domain::new();
+        self.id = id;
     }
     /// Attach a PID's exact control edge without rooting another actor's payload.
     /// # Safety
@@ -288,6 +307,7 @@ impl Domain {
             words,
         );
         Root {
+            domain: self.id,
             heap: active,
             id,
             _thread: PhantomData,
@@ -414,28 +434,38 @@ fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
 pub(super) fn root(pointer: *const usize, words: usize) -> Root {
     with_current(|domain| domain.root(pointer, words))
 }
-pub(super) fn remove_root(heap: usize, id: usize) {
+pub(super) fn remove_root(domain: usize, heap: usize, id: usize) {
     // Root::drop can run while thread-local storage is being destroyed.
     let current = CURRENT.try_with(|cell| cell.get()).unwrap_or(null_mut());
     if !current.is_null() {
         let _busy = Busy::acquire();
         // SAFETY: as in with_current; Activation keeps this pointer live and Busy
         // rejects a Root dropped by a finalizer inside an active collection.
-        unsafe { &mut *current }.remove_root(heap, id);
+        let current = unsafe { &mut *current };
+        assert_eq!(current.id, domain, "{MISPLACED_ROOT}");
+        current.remove_root(heap, id);
         return;
     }
-    let _ = DEFAULT.try_with(|domain| domain.borrow_mut().remove_root(heap, id));
+    let _ = DEFAULT.try_with(|default| {
+        let mut default = default.borrow_mut();
+        assert_eq!(default.id, domain, "{MISPLACED_ROOT}");
+        default.remove_root(heap, id);
+    });
 }
 
 /// An allocation/collection scope on this thread, restored before payload retirement.
 pub(crate) struct Scope {
+    domain: usize,
     previous: usize,
     entered: usize,
     _thread: PhantomData<Rc<()>>,
 }
 impl Drop for Scope {
     fn drop(&mut self) {
-        with_current(|domain| domain.leave(self.entered, self.previous));
+        with_current(|domain| {
+            assert_eq!(domain.id, self.domain, "{MISPLACED_SCOPE}");
+            domain.leave(self.entered, self.previous);
+        });
     }
 }
 pub(crate) fn enter(id: usize) -> Scope {

@@ -25,7 +25,9 @@ conservatively; this is not yet a fully precise collector.
 The scheduler executes FIFO continuation callbacks on one thread. That remains a
 property of the scheduler rather than of heap ownership: heaps are owned by an
 explicit `Domain` value that is `Send`, and the thread-local holds only a cursor to
-the domain currently executing (Decision156). Parallel schedulers are step 2 of
+the domain currently executing (Decision156). Root and scope tokens name the domain
+that issued them, so retiring one under a different domain is rejected rather than
+unregistering a stranger's root (Decision158). Parallel schedulers are step 2 of
 that work and are not implemented. Typed return
 frames let direct receiving helpers return values and suspend through recursion,
 strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
