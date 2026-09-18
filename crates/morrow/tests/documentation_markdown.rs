@@ -289,3 +289,22 @@ fn output_and_nesting_are_bounded() {
     let summary = markdown::summary("# Heading\n\nUses `code` and *emphasis*", 80);
     assert_eq!(summary, "Uses code and emphasis");
 }
+
+/// A loose task item wraps its text in a paragraph, so a checkbox emitted before that
+/// paragraph renders on a line of its own above the text it is supposed to label.
+#[test]
+fn loose_task_items_keep_their_checkbox_inside_the_first_paragraph() {
+    let html = render("- [x] done\n\n- [ ] open\n\n  more\n");
+    assert!(
+        html.contains(
+            "<li class=\"task\"><p><input type=\"checkbox\" disabled checked> done</p>\n</li>"
+        ),
+        "{html}"
+    );
+    assert!(
+        html.contains(
+            "<li class=\"task\"><p><input type=\"checkbox\" disabled> open</p>\n<p>more</p>\n</li>"
+        ),
+        "{html}"
+    );
+}

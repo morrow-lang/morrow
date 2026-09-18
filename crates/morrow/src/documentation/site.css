@@ -140,7 +140,32 @@ blockquote p:last-child { margin-bottom: 0; }
 .alert-caution { --alert-accent: var(--morrow-danger); }
 /* A task item's checkbox replaces its list marker. */
 li.task { list-style: none; margin-left: -1.25rem; }
-li.task input { margin-right: 0.4rem; accent-color: var(--morrow-accent); }
+/* A task checkbox is disabled, and browsers grey a disabled control until its checked
+   state is barely legible, so the marker is drawn from theme colours instead. */
+li.task input {
+  appearance: none;
+  -webkit-appearance: none;
+  box-sizing: border-box;
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0 0.4rem 0 0;
+  vertical-align: -0.1em;
+  border: 1px solid color-mix(in srgb, var(--morrow-muted) 70%, transparent);
+  border-radius: 3px;
+  background: var(--morrow-surface);
+  opacity: 1;
+}
+li.task input:checked { border-color: var(--morrow-accent); background: var(--morrow-accent); }
+li.task input:checked::after {
+  content: "";
+  display: block;
+  width: 0.25em;
+  height: 0.5em;
+  margin: -0.02em auto 0;
+  border: solid var(--morrow-surface);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
 del { color: var(--morrow-muted); }
 img { max-width: 100%; height: auto; }
 /* Footnotes close the page in a separated, smaller section with return links. */

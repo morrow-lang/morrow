@@ -446,6 +446,15 @@ impl Renderer<'_, '_> {
         Ok(())
     }
 
+    /// Insert into already rendered output, holding the same byte limit as `push`.
+    fn insert(&mut self, at: usize, text: &str) -> Result<(), Diagnostic> {
+        if text.len() > self.options.limit.saturating_sub(self.out.len()) {
+            return Err(limit("documentation output exceeds its byte limit"));
+        }
+        self.out.insert_str(at, text);
+        Ok(())
+    }
+
     fn text(&mut self, text: &str) -> Result<(), Diagnostic> {
         let mut escaped = String::new();
         escape(text, &mut escaped);
@@ -502,13 +511,9 @@ impl Renderer<'_, '_> {
                         let mut inner: Vec<&str> = item.iter().map(String::as_str).collect();
                         let task = inner.first().and_then(|first| task_marker(first));
                         match task {
-                            Some((checked, rest)) => {
+                            Some((_, rest)) => {
                                 inner[0] = rest;
-                                self.push(if checked {
-                                    "<li class=\"task\"><input type=\"checkbox\" disabled checked> "
-                                } else {
-                                    "<li class=\"task\"><input type=\"checkbox\" disabled> "
-                                })?;
+                                self.push("<li class=\"task\">")?;
                             }
                             None => self.push("<li>")?,
                         }
@@ -516,6 +521,22 @@ impl Renderer<'_, '_> {
                         self.blocks(&inner, depth + 1)?;
                         if !loose {
                             tighten(&mut self.out, start);
+                        }
+                        if let Some((checked, _)) = task {
+                            // A loose item wraps its text in a paragraph, and a checkbox placed
+                            // ahead of that block renders on a line above the text it labels.
+                            let at = match self.out[start..].starts_with("<p>") {
+                                true => start + "<p>".len(),
+                                false => start,
+                            };
+                            self.insert(
+                                at,
+                                if checked {
+                                    "<input type=\"checkbox\" disabled checked> "
+                                } else {
+                                    "<input type=\"checkbox\" disabled> "
+                                },
+                            )?;
                         }
                         self.push("</li>\n")?;
                     }

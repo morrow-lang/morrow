@@ -218,6 +218,7 @@ fn the_stylesheet_styles_every_construct_the_renderer_emits() {
         ".alert-warning",
         ".alert-caution",
         "li.task",
+        "li.task input:checked",
         "del",
         "img",
         ".footnotes",
