@@ -16,7 +16,7 @@ pub const EXTRAS: &[&str] = &[
     "docs/language",
     "DESIGN.md",
     "ROADMAP.md",
-    "DECISIONS.md",
+    "decisions",
     "BUILD.md",
     "MORROW_STYLE.md",
 ];

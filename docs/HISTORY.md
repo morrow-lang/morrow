@@ -13,7 +13,7 @@ This file is a curated, non-actionable history summary. For active work, use [`.
 
 ## Primary Historical Sources
 
-- Decision log: [`../DECISIONS.md`](../DECISIONS.md)
+- Decision records: [`../decisions/`](../decisions/)
 - Benchmark artifact: [`reports/benchmark-case-studies-2026-02-06.md`](reports/benchmark-case-studies-2026-02-06.md)
 - Memory comparison artifact: [`reports/memory-path-comparison-2026-02-06.md`](reports/memory-path-comparison-2026-02-06.md)
 - Frozen legacy archive pointer: [`ROADMAP_ARCHIVE_2026-02-06.md`](history/ROADMAP_ARCHIVE_2026-02-06.md)

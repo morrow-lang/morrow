@@ -146,7 +146,7 @@ below describe bounded foundations, not completion of the larger acceptance plan
 - Project overview: [`README.md`](README.md)
 - Build guide: [`BUILD.md`](BUILD.md)
 - Design spec: [`DESIGN.md`](DESIGN.md)
-- Decision log: [`DECISIONS.md`](DECISIONS.md)
+- Decision records: [`decisions/`](decisions/)
 - Coding standards: [`MORROW_STYLE.md`](MORROW_STYLE.md)
 - Compatibility policy: [`docs/COMPATIBILITY_POLICY.md`](docs/COMPATIBILITY_POLICY.md)
 - Documentation index: [`docs/README.md`](docs/README.md)

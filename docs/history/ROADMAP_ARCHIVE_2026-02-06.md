@@ -10,7 +10,7 @@ Use these sources instead:
 
 - Active plan: [`../ROADMAP.md`](../../ROADMAP.md)
 - Curated history: [`HISTORY.md`](../HISTORY.md)
-- Architecture decisions: [`../DECISIONS.md`](../../DECISIONS.md)
+- Architecture decisions: [`../../decisions/`](../../decisions/)
 
 If detailed historical diffs are needed, use git history:
 

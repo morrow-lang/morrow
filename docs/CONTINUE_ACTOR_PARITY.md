@@ -6,7 +6,7 @@ pushed. Do not claim performance parity or complete OTP supervision.
 ## Repository and branches
 
 - `main`: accepted performance checkpoints, isolated processes/monitors, and the
-  integrated links/exit stage. Read `CLAUDE.md`, `ROADMAP.md`, `DECISIONS.md` and
+  integrated links/exit stage. Read `CLAUDE.md`, `ROADMAP.md`, `decisions/` and
   `docs/PROCESS_MODEL.md` first. Every shell command must use `rtk`.
 - `task/typed-supervision`: explicitly unfinished stage3 checkpoint. Its tracked
   handoff records the exact state. **It does not compile at pause:** values.rs

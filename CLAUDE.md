@@ -2,7 +2,7 @@
 
 The repository owns a Rust compiler, Cranelift backend, Rust runtime, language
 server, native test supervisor and Cargo-based development tooling. Read
-[DESIGN.md](DESIGN.md), [ROADMAP.md](ROADMAP.md), [DECISIONS.md](DECISIONS.md) and
+[DESIGN.md](DESIGN.md), [ROADMAP.md](ROADMAP.md), [decisions/](decisions/) and
 [MORROW_STYLE.md](MORROW_STYLE.md) before changing behavior. The design includes planned
 features; the roadmap records implementation and acceptance evidence.
 

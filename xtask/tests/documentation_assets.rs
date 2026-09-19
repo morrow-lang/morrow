@@ -19,15 +19,16 @@ fn repository_site_includes_language_chapters_and_local_images() {
         "# Getting started\n\nA complete first program.\n",
     )
     .unwrap();
-    for name in [
-        "DESIGN.md",
-        "ROADMAP.md",
-        "DECISIONS.md",
-        "BUILD.md",
-        "MORROW_STYLE.md",
-    ] {
+    for name in ["DESIGN.md", "ROADMAP.md", "BUILD.md", "MORROW_STYLE.md"] {
         fs::write(root.join(name), format!("# {name}\n")).unwrap();
     }
+    // Decision records are a vrdx collection rather than a single guide file.
+    fs::create_dir_all(root.join("decisions")).unwrap();
+    fs::write(
+        root.join("decisions/2026-01-01_000000000_a-recorded-decision.md"),
+        "# A recorded decision\n\nThe reasoning is preserved.\n",
+    )
+    .unwrap();
     let image = b"\x89PNG\r\n\x1a\nfixture bytes copied without interpretation";
     fs::write(root.join("docs/assets/mark.png"), image).unwrap();
     let output = root.join("site");

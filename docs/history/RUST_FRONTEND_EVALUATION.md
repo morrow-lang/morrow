@@ -160,5 +160,5 @@ Rust is now a working migration candidate. This experiment provides no comparati
 Odin result and no reason to start a third implementation before evaluating the
 remaining Fern features in the typed pipeline.
 
-See [decision 45](../../DECISIONS.md), the [roadmap](../../ROADMAP.md), and the
+See [decision 45](../../decisions/), the [roadmap](../../ROADMAP.md), and the
 [documentation index](../README.md).
