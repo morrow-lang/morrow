@@ -195,11 +195,10 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        let offset = std::mem::offset_of!(Actor, exec) / 8;
         (*a).heap = memory::create_control_heap_at(
             a.cast(),
-            std::mem::size_of::<Actor>() / 8 - offset,
-            offset,
+            ACTOR_ROOT_WORDS,
+            ACTOR_ROOT_OFFSET,
             actor.token(),
         );
         (*a).host_port = true;

@@ -82,7 +82,8 @@ struct Message {
     value: i64,
     cost: usize,
     enqueued: u64,
-    kind: u8,
+    // Each GC-scanned word must be initialized; a byte tag would leave padding.
+    kind: u64,
     event: i64,
     // Opaque in the transitive native Exec layout; only owner-side signal code
     // interprets the retained monitor record behind this pointer.
@@ -125,18 +126,20 @@ struct Actor {
     host_port: bool,
     fault: i64,
     infrastructure_fault: bool,
+    // The payload collector scans exactly these six initialized pointer words.
+    // Keep them contiguous: scheduler flags/padding and Rust controls are not roots.
     frame: *mut c_void,
     selector: *mut c_void,
     timeout_frame: *mut c_void,
+    first: *mut Message,
+    last: *mut Message,
+    scopes: *mut cleanup::Scope,
     frame_cost: usize,
     selector_cost: usize,
     timeout_cost: usize,
     messages: usize,
     deadline: u64,
-    first: *mut Message,
-    last: *mut Message,
     next: *mut Actor,
-    scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
     cleaning: bool,
     event_type: *const Type,
@@ -148,6 +151,17 @@ struct Actor {
     _session: Option<control::Owned<Session>>,
     _supervisor: Option<control::Owned<supervision::Supervisor>>,
 }
+const ACTOR_ROOT_OFFSET: usize = std::mem::offset_of!(Actor, frame) / 8;
+const ACTOR_ROOT_WORDS: usize = 6;
+const _: () = {
+    let start = std::mem::offset_of!(Actor, frame);
+    assert!(start.is_multiple_of(8));
+    assert!(std::mem::offset_of!(Actor, selector) == start + 8);
+    assert!(std::mem::offset_of!(Actor, timeout_frame) == start + 16);
+    assert!(std::mem::offset_of!(Actor, first) == start + 24);
+    assert!(std::mem::offset_of!(Actor, last) == start + 32);
+    assert!(std::mem::offset_of!(Actor, scopes) == start + 40);
+};
 #[repr(C)]
 struct Pid {
     session: *mut Session,
@@ -199,6 +213,9 @@ const SESSION_BYTES: usize = 120;
 #[cfg(test)]
 #[path = "managed/process_tests.rs"]
 mod process_tests;
+#[cfg(test)]
+#[path = "managed/root_tests.rs"]
+mod root_tests;
 #[cfg(test)]
 #[path = "managed/tests.rs"]
 mod tests;
@@ -463,3 +480,7 @@ mod cleanup;
 pub use cleanup::{
     morrow_managed_scope_defer, morrow_managed_scope_enter, morrow_managed_scope_leave,
 };
+
+#[cfg(test)]
+#[path = "managed/message_layout_tests.rs"]
+mod message_layout_tests;

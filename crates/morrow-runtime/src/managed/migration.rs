@@ -701,7 +701,14 @@ mod tests {
                     0
                 );
             }
-            assert!(transfer(s, (*pid).actor, 1));
+            let transferred = transfer(s, (*pid).actor, 1);
+            if !transferred {
+                // The blocked callback borrows probe on this stack. Release and
+                // join it before an assertion can unwind and destroy that probe.
+                probe.release.wait();
+                morrow_managed_close(exec);
+            }
+            assert!(transferred);
             let mut producing = [
                 produce_during_transit as *const () as usize,
                 &probe as *const _ as usize,

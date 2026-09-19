@@ -279,11 +279,10 @@ unsafe fn create_actor(
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        let offset = std::mem::offset_of!(Actor, exec) / 8;
         (*a).heap = memory::create_control_heap_at(
             a.cast(),
-            std::mem::size_of::<Actor>() / 8 - offset,
-            offset,
+            ACTOR_ROOT_WORDS,
+            ACTOR_ROOT_OFFSET,
             actor.token(),
         );
         {
