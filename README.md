@@ -7,16 +7,22 @@
 
 <h1 align="center">Morrow</h1>
 
-<p align="center"><strong>Readable code. Native programs.</strong><br>
-Explore the Morrow programming language: statically typed, functional, with Python-like syntax.</p>
+<p align="center"><strong>Readable code. Native programs. Isolated actors.</strong><br>
+A statically typed, functional language with Python-like syntax.</p>
 
 [Project home](https://morrow-lang.org) · [Documentation](docs/README.md)
 
-Morrow brings immutable values, pattern matching and explicit errors to readable,
-indentation-based code. Write Morrow, check it before execution, and compile it to a
-native executable with a Rust compiler and runtime.
-The same typed application can run as native server actors and as a reactive
+Morrow is interesting because readable source, native binaries and isolated
+processes usually live in different languages. Python-like syntax, Gleam-style
+type safety and Go-style single binaries share a toolchain with Erlang-style
+isolated processes — compiled by Rust and Cranelift, not a virtual machine.
+The same typed program can run as native server actors and as a reactive
 WebAssembly browser client, with WebSocket updates and offline continuity.
+
+The actor runtime is measured against OTP/BEAM rather than advertised as a
+replacement for it. Native sequential work is already in a serious range; actor
+throughput, scheduler scaling and OTP-style supervision are the remaining hard
+problem, and the measurements say so.
 
 ```morrow
 fn greet(name: String) -> String:
@@ -28,10 +34,16 @@ fn main():
 
 **Early preview, with a working Rust implementation.** The compiler, runtime,
 language server and repository tools are Rust. Native execution and release
-installation are verified on **macOS ARM64 and Linux ARM64**. Syntax and APIs
-are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
-[what remains](docs/RELEASE_READINESS.md), or compare the
+installation are verified on **macOS ARM64 and Linux ARM64**. The native actor
+runtime already runs isolated heaps, copied messages, multiple scheduler threads,
+cooperative preemption, optional work stealing, and typed monitors and links.
+OTP-style supervisor trees and BEAM actor-throughput parity are still open.
+Syntax and APIs are still evolving; see [what is verified](docs/RUST_WORKSPACE.md)
+and [what remains](docs/RELEASE_READINESS.md), or compare the
 [implemented language across targets](docs/LANGUAGE_STATUS.md).
+The [roadmap](ROADMAP.md) is the dated implementation record; the
+[actor comparison](benchmarks/language-comparison/ACTORS.md) is the latest
+BEAM measurement.
 
 ## Why Morrow?
 
@@ -39,23 +51,27 @@ are still evolving; see [what is verified](docs/RUST_WORKSPACE.md) and
   bindings and expressions that return values keep everyday programs direct.
 - **Errors you can see.** `Option`, `Result` and exhaustive pattern matching make
   absence and failure explicit. The compiler checks that results are handled.
-- **Useful tools together.** A formatter, REPL, source tests, documentation
-  generator and language server ship with the compiler.
 - **Native programs.** Cranelift generates machine code and the Rust runtime
   supplies memory management and services. Running a compiled program does not
   require the Morrow compiler; platform system libraries still apply.
+- **Isolated actors without a VM.** Each actor owns its heap; messages are copied,
+  not shared. Several OS scheduler threads, cooperative preemption and optional
+  work stealing are implemented. Typed monitors and links are in;
+  [OTP-style supervisors are not](docs/PROCESS_MODEL.md).
+- **Useful tools together.** A formatter, REPL, source tests, documentation
+  generator and language server ship with the compiler.
 - **A growing full-stack path.** Compile Morrow functions to WebAssembly and try
   a collaborative checklist with local browser interaction, WebSocket updates
   and cached offline viewing. Its Rust server can ship as one static Linux binary.
 
 The direction is a practical language for command-line tools and applications:
-readable code, predictable behavior and a useful standard library. The
-[design](DESIGN.md) describes that larger vision; the [roadmap](ROADMAP.md)
-tracks its implementation. The full-stack direction combines supervised native
-actors with a reactive Morrow WebAssembly client over typed WebSocket connections.
-The [working web preview](docs/WEB_PREVIEW.md) proves the first integration;
-the [architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the remaining
-language, supervision and scaling work.
+readable code, predictable behavior, a useful standard library and fault-tolerant
+native concurrency. The [design](DESIGN.md) describes that larger vision; the
+[roadmap](ROADMAP.md) tracks its implementation. The full-stack direction combines
+native actors with a reactive Morrow WebAssembly client over typed WebSocket
+connections. The [working web preview](docs/WEB_PREVIEW.md) proves the first
+integration; the [architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the
+remaining language, supervision and scaling work.
 
 ## Try it
 
@@ -162,6 +178,12 @@ Simulated time measures the scenario's clock; it is not a production-uptime clai
   explicit [native foreign functions](docs/FFI.md) with checked ABI types.
 - Native services for files, processes, HTTP clients, SQLite, terminal widgets
   and bounded actor execution with [suspended cleanup](docs/ACTOR_CLEANUP.md).
+- Isolated native actors with copied messages. Default execution uses one
+  scheduler; `MORROW_SCHEDULERS`, `MORROW_REDUCTIONS` and `MORROW_WORK_STEALING=1`
+  opt into parallel workers, turn preemption and work stealing.
+- Typed [`Process`](docs/PROCESS_MODEL.md) monitors, links and exit signals.
+  Existing `spawn` / `supervise` keep their established behavior; OTP supervisor
+  strategies remain unfinished.
 - [Interactive actors and deterministic replay](docs/REPL_ACTORS.md) for testing
   mailboxes, timeouts, restarts and cancellation without real-time sleeps.
 
@@ -201,8 +223,16 @@ A fresh [Elixir/BEAM comparison](benchmarks/language-comparison/BEAM.md) uses
 Elixir 1.20.4 and OTP 29.0.6 with JIT enabled. For 100,000 immutable updates,
 Morrow takes **63.29 ms** per workload in a ten-repeat process; Elixir takes
 **184.27 ms** with tuples or **207.23 ms** with structs even when VM startup is
-excluded. This supports Morrow's native performance direction. Actor throughput,
-scheduler fairness and fault recovery against BEAM remain unmeasured.
+excluded. Fresh-process CLI startup is also much lower. This supports Morrow's
+native sequential direction; it is not an actor-system ranking.
+
+The later [actor comparison](benchmarks/language-comparison/ACTORS.md) measures
+request/reply, contention and lifecycle against the same Elixir/OTP at one, two
+and four schedulers. The latest checkpoint still passes **zero of nine** strict
+parity cells. One-scheduler contention reaches **0.785×** BEAM; one-scheduler
+request/reply is **0.304×**. Two- and four-scheduler cells remain further behind.
+Those ratios are the current public claim: native code generation is working,
+matching OTP's scheduler is not.
 
 The compiler experiments show useful defaults: required Result handling,
 exhaustive matches and labels for ambiguous arguments. Rust and configured
@@ -262,7 +292,9 @@ over 1,750 Rust tests per platform, 305 native-output fixtures, compatibility an
 fuzz checks, optimized runtime/ABI tests, and real archive relocation,
 installation and source-test execution. Formatting and Clippy are part of the
 required quality gate.
-That record predates the new actor-heap and web work. Fresh macOS ARM64 checks
+That record predates the actor-heap, web, scheduler and process-model work.
+Later macOS ARM64 gates on those features exceeded 2,400 Rust tests and 317
+native fixtures; see the [roadmap](ROADMAP.md). Fresh macOS ARM64 checks
 passed; Linux ARM64 completed equivalent coverage across resumed runs after a
 storage interruption. The [web guide](docs/WEB_PREVIEW.md#verification) records
 the exact native scope and real-browser checks, including offline worker restart,
@@ -272,9 +304,10 @@ adds the complete 1,890-test gate, actor lifecycle/progress checks and measured
 static servers of 2.75 MiB (ARM64) and 3.06 MiB (x86-64).
 
 Morrow is ready to explore, build small programs with and contribute to. It remains
-an early preview: general actor preemption, generalized supervision, work
-stealing, dynamic cluster membership, replicated failover, remote language PIDs
-and a general application packaging API remain open.
+an early preview: OTP-style supervisor trees, BEAM actor-throughput parity,
+dynamic cluster membership, replicated failover, remote language PIDs and a
+general application packaging API remain open. Cooperative preemption and
+optional work stealing are implemented and measured; they are not yet enough.
 The current checklist executes its complete typed model/update/view and native
 actor path, with optional durable room checkpoints. WASM supports bounded
 records, tagged sums, lists, tuples, Option/Result, UTF-8 strings, closures,

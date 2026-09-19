@@ -1,7 +1,10 @@
 # Actor parity handoff — 2026-09-19
 
-Paused at the user's request to conserve tokens. All work is being committed and
-pushed. Do not claim performance parity or complete OTP supervision.
+Paused at the user's request to conserve tokens. Accepted main work is committed
+and pushed. Do not claim performance parity or complete OTP supervision.
+The public [README](../README.md) now states the current runtime, the typed
+process model, and the measured BEAM gap. Unfinished supervisor work remains on
+`task/typed-supervision`; wrap-up logs are archived in that branch.
 
 ## Repository and branches
 
