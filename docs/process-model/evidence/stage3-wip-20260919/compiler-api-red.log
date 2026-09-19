@@ -1,0 +1,36 @@
+
+running 4 tests
+test contextual_closures_cannot_escape_into_actor_or_ordinary_callback ... FAILED
+test startup_terminal_helper_does_not_handle_a_prior_suspended_result ... FAILED
+test transitive_helpers_and_closures_specialize_for_root_and_each_mailbox ... FAILED
+test child_keys_preserve_mailbox_constraints_and_start_link_rejects_root ... FAILED
+
+failures:
+
+failures:
+    child_keys_preserve_mailbox_constraints_and_start_link_rejects_root
+    contextual_closures_cannot_escape_into_actor_or_ordinary_callback
+    startup_terminal_helper_does_not_handle_a_prior_suspended_result
+    transitive_helpers_and_closures_specialize_for_root_and_each_mailbox
+
+test result: FAILED. 0 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling morrow-test-supervisor v0.1.0 (/private/tmp/morrow-typed-supervision-20260919/crates/morrow-test-supervisor)
+   Compiling morrow-json v0.1.0 (/private/tmp/morrow-typed-supervision-20260919/crates/morrow-json)
+   Compiling morrow v0.1.0 (/private/tmp/morrow-typed-supervision-20260919/crates/morrow)
+    Finished `test` profile [unoptimized] target(s) in 12.44s
+     Running tests/supervisor_context.rs (/tmp/morrow-typed-process-model-target-20260919/debug/build/morrow/53c1d80b009772b8/out/supervisor_context-53c1d80b009772b8)
+
+thread 'contextual_closures_cannot_escape_into_actor_or_ordinary_callback' (6202630) panicked at crates/morrow/tests/supervisor_context.rs:26:9:
+wrong rejection: Diagnostic { span: Span { start: 10, end: 16 }, message: "unknown type 'Supervisor.Handle'" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'startup_terminal_helper_does_not_handle_a_prior_suspended_result' (6202631) panicked at crates/morrow/tests/supervisor_context.rs:34:5:
+wrong rejection: Diagnostic { span: Span { start: 57, end: 63 }, message: "unknown type 'Supervisor.Handle'" }
+
+thread 'transitive_helpers_and_closures_specialize_for_root_and_each_mailbox' (6202632) panicked at crates/morrow/tests/supervisor_context.rs:7:64:
+called `Result::unwrap()` on an `Err` value: Diagnostic { span: Span { start: 0, end: 98 }, message: "unknown type 'Supervisor.Flags'" }
+
+thread 'child_keys_preserve_mailbox_constraints_and_start_link_rejects_root' (6202629) panicked at crates/morrow/tests/supervisor_context.rs:44:9:
+wrong rejection: Diagnostic { span: Span { start: 0, end: 151 }, message: "unknown type 'Supervisor.Error'" }
+error: test failed, to rerun pass `-p morrow --test supervisor_context`

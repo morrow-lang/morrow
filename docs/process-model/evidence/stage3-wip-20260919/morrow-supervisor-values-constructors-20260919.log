@@ -1,0 +1,39 @@
+warning: unused import: `native_root_slot`
+  --> crates/morrow-runtime/src/memory.rs:18:32
+   |
+18 | pub(crate) use heaps::{Domain, native_root_slot};
+   |                                ^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: function `native_root_slot` is never used
+   --> crates/morrow-runtime/src/memory/heaps.rs:608:15
+    |
+608 | pub(crate) fn native_root_slot(heap: usize, pointer: *mut usize) -> bool {
+    |               ^^^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `morrow-runtime` (lib test) generated 2 warnings (run `cargo fix --lib -p morrow-runtime --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized] target(s) in 0.11s
+     Running unittests src/lib.rs (/tmp/morrow-typed-process-model-target-20260919/debug/build/morrow-runtime/1e00b2911219d337/out/morrow_runtime-1e00b2911219d337)
+
+running 3 tests
+
+thread 'managed::supervisor::values::tests::constructor_quota_and_options_fail_without_retaining_a_partial_key_or_template' (6343275) panicked at crates/morrow-runtime/src/managed/supervisor/value_tests.rs:195:9:
+assertion `left == right` failed
+  left: 67108819
+ right: 67108863
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test managed::supervisor::values::tests::constructor_quota_and_options_fail_without_retaining_a_partial_key_or_template ... FAILED
+test managed::supervisor::values::tests::copied_key_keeps_exact_authority_and_owns_its_name_after_source_gc ... ok
+test managed::supervisor::values::tests::worker_template_copies_wide_owned_captures_and_never_reuses_live_state ... ok
+
+failures:
+
+failures:
+    managed::supervisor::values::tests::constructor_quota_and_options_fail_without_retaining_a_partial_key_or_template
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 259 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p morrow-runtime --lib`

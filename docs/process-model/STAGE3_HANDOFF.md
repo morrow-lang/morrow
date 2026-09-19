@@ -87,6 +87,10 @@ The compiler owner identified these follow-ups before freezing:
 
 ## Actual evidence, not whole-tree acceptance
 
+The existing runtime logs and both owner contracts are archived under
+[evidence/stage3-wip-20260919](evidence/stage3-wip-20260919/README.md). This archive
+was copied at wrap-up without rerunning tests.
+
 - Native root-slot predicate: one behavioral red then one green.
   `/tmp/morrow-stage3-native-root-slot-{red,green}.log`.
 - Key/role helpers: two behavioral reds then two greens.

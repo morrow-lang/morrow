@@ -1,0 +1,43 @@
+
+running 4 tests
+test contextual_closures_cannot_escape_into_actor_or_ordinary_callback ... FAILED
+test child_keys_preserve_mailbox_constraints_and_start_link_rejects_root ... ok
+test startup_terminal_helper_does_not_handle_a_prior_suspended_result ... ok
+test transitive_helpers_and_closures_specialize_for_root_and_each_mailbox ... FAILED
+
+failures:
+
+failures:
+    contextual_closures_cannot_escape_into_actor_or_ordinary_callback
+    transitive_helpers_and_closures_specialize_for_root_and_each_mailbox
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Compiling morrow v0.1.0 (/private/tmp/morrow-typed-supervision-20260919/crates/morrow)
+warning: function `contextual` is never used
+  --> crates/morrow/src/supervisors.rs:10:15
+   |
+10 | pub(crate) fn contextual(name: &str) -> bool {
+   |               ^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: method `opcode` is never used
+  --> crates/morrow/src/supervisors.rs:24:19
+   |
+23 | impl RequestKind {
+   | ---------------- method in this implementation
+24 |     pub(crate) fn opcode(self) -> i64 { match self { Self::Start => 0, Self::StartLink => 1, Self::Current => 2, Self::Stop => 3 } }
+   |                   ^^^^^^
+
+warning: `morrow` (lib) generated 2 warnings
+    Finished `test` profile [unoptimized] target(s) in 7.12s
+     Running tests/supervisor_context.rs (/tmp/morrow-typed-process-model-target-20260919/debug/build/morrow/53c1d80b009772b8/out/supervisor_context-53c1d80b009772b8)
+
+thread 'contextual_closures_cannot_escape_into_actor_or_ordinary_callback' (6262411) panicked at crates/morrow/tests/supervisor_context.rs:26:9:
+wrong rejection: Diagnostic { span: Span { start: 94, end: 123 }, message: "first-class actor helper requires a direct spawn entry; indirect calls and deferred actor effects are unsupported in 105A" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'transitive_helpers_and_closures_specialize_for_root_and_each_mailbox' (6262413) panicked at crates/morrow/tests/supervisor_context.rs:7:64:
+called `Result::unwrap()` on an `Err` value: Diagnostic { span: Span { start: 421, end: 442 }, message: "first-class actor helper requires a direct spawn entry; indirect calls and deferred actor effects are unsupported in 105A" }
+error: test failed, to rerun pass `-p morrow --test supervisor_context`

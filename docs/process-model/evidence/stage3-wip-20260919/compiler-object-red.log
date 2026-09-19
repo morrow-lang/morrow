@@ -1,0 +1,30 @@
+
+running 1 test
+test context_specialized_requests_emit_registered_resumes_and_root_adapters ... FAILED
+
+failures:
+
+failures:
+    context_specialized_requests_emit_registered_resumes_and_root_adapters
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.03s
+
+warning: method `opcode` is never used
+  --> crates/morrow/src/supervisors.rs:24:19
+   |
+23 | impl RequestKind {
+   | ---------------- method in this implementation
+24 |     pub(crate) fn opcode(self) -> i64 { match self { Self::Start => 0, Self::StartLink => 1, Self::Current => 2, Self::Stop => 3 } }
+   |                   ^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+
+warning: `morrow` (lib) generated 1 warning
+   Compiling morrow v0.1.0 (/private/tmp/morrow-typed-supervision-20260919/crates/morrow)
+    Finished `test` profile [unoptimized] target(s) in 1.04s
+     Running tests/supervisor_context.rs (/tmp/morrow-typed-process-model-target-20260919/debug/build/morrow/53c1d80b009772b8/out/supervisor_context-53c1d80b009772b8)
+
+thread 'context_specialized_requests_emit_registered_resumes_and_root_adapters' (6312348) panicked at crates/morrow/tests/supervisor_context.rs:52:62:
+called `Result::unwrap()` on an `Err` value: Diagnostic { span: Span { start: 186, end: 215 }, message: "invalid typed IR: supervisor request lowering is unavailable" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+error: test failed, to rerun pass `-p morrow --test supervisor_context`
