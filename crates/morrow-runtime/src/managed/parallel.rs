@@ -114,7 +114,12 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
             return 3;
         }
         let s = (*exec).session;
-        if (*s).next_id != 0 || (*s).stopped || *(*exec).fault != 0 || (*s)._shared.is_some() {
+        if (*s).next_id != 0
+            || (*s).stopped
+            || *(*exec).fault != 0
+            || (*s)._shared.is_some()
+            || reasons::retained_bytes(s) != 0
+        {
             return 3;
         }
         let stealing = if simulated.is_some() {
@@ -450,6 +455,10 @@ unsafe fn quiescent_status(s: *mut Session, d: *mut Driver) -> Option<i64> {
         record_activity_lock();
         let _activity = Arc::as_ref(&(*d).shared).activity.lock().unwrap();
         let idle = (*s).first.is_null()
+            && Arc::as_ref(&(*d).shared)
+                .pending_actions
+                .load(Ordering::Acquire)
+                == 0
             && (*d).idle.iter().all(|idle| idle.load(Ordering::Acquire))
             && Arc::as_ref(&(*d).shared)
                 .endpoints

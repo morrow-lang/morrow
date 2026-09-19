@@ -279,11 +279,10 @@ unsafe fn create_actor(
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        let offset = std::mem::offset_of!(Actor, exec) / 8;
         (*a).heap = memory::create_control_heap_at(
             a.cast(),
-            std::mem::size_of::<Actor>() / 8 - offset,
-            offset,
+            ACTOR_ROOT_WORDS,
+            ACTOR_ROOT_OFFSET,
             actor.token(),
         );
         {
@@ -353,8 +352,7 @@ pub unsafe extern "C" fn morrow_managed_send(
             return abi::result_err(3);
         }
         let a = (*pid).actor;
-        let Some(cost) =
-            cost::value(s, ty, value).and_then(|c| c.checked_add(std::mem::size_of::<Message>()))
+        let Some(cost) = cost::value(s, ty, value).and_then(|c| c.checked_add(MESSAGE_BYTES))
         else {
             return abi::result_err(4);
         };

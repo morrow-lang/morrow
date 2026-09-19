@@ -14,6 +14,7 @@ pub(super) struct Budget {
     live: AtomicUsize,
     messages: AtomicUsize,
     next_generation: AtomicU64,
+    _accounting: crate::memory::ControlAllocation,
 }
 
 impl Budget {
@@ -25,6 +26,7 @@ impl Budget {
             live: AtomicUsize::new(0),
             messages: AtomicUsize::new(0),
             next_generation: AtomicU64::new(0),
+            _accounting: crate::memory::account_control(std::mem::size_of::<Self>() + 16, 1),
         })
     }
 

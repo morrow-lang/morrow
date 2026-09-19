@@ -174,6 +174,13 @@ impl Builder<'_> {
                 .clone())
             }
             ExprKind::Return(value) => self.expression(value, None, depth + 1),
+            ExprKind::Actor(ir::ActorExpr::Process(crate::processes::ProcessExpr::Exit {
+                reason,
+            })) => {
+                expect_type(expr.ty.clone(), Type::Never, expr.span)?;
+                atomic(reason)?;
+                Ok(operation(Operation::ProcessExit(reason.clone()), expr.span))
+            }
             ExprKind::Invoke { callee, args } => self.dynamic_call(expr, callee, args, next),
             ExprKind::Call {
                 target: CallTarget::Builtin(builtin),
@@ -615,6 +622,9 @@ pub(super) fn needs(expr: &Expr) -> bool {
             | ExprKind::Break
             | ExprKind::Continue
             | ExprKind::Actor(ir::ActorExpr::Receive { .. } | ir::ActorExpr::Call { .. })
+            | ExprKind::Actor(ir::ActorExpr::Process(
+                crate::processes::ProcessExpr::Exit { .. }
+            ))
     ) || ir::children(expr).into_iter().any(needs)
 }
 /// Reject suspended strict operands until a later checkpoint provides their continuation forms.

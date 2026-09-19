@@ -294,19 +294,47 @@ impl Emitter<'_> {
                 let result = self.unpack(locals, ty, raw);
                 return Ok((ty.clone(), result));
             }
-            Operation::ScopeEnter | Operation::ScopeLeave => self.assign(
-                locals,
-                Type::Int,
-                NativeOperation::Call {
-                    callee: native_operand(if matches!(op, Operation::ScopeEnter) {
-                        "$morrow_managed_scope_enter"
-                    } else {
-                        "$morrow_managed_scope_leave"
-                    }),
-                    args: vec![(Scalar::I64, native_operand("%exec"))],
-                    variadic: None,
-                },
-            ),
+            Operation::ScopeEnter | Operation::ScopeLeave => {
+                let status = self.assign(
+                    locals,
+                    Type::Int,
+                    NativeOperation::Call {
+                        callee: native_operand(if matches!(op, Operation::ScopeEnter) {
+                            "$morrow_managed_scope_enter"
+                        } else {
+                            "$morrow_managed_scope_leave"
+                        }),
+                        args: vec![(Scalar::I64, native_operand("%exec"))],
+                        variadic: None,
+                    },
+                );
+                self.guard_fault(locals);
+                if matches!(op, Operation::ScopeLeave) {
+                    // Cleanup callbacks are control safepoints. A terminal signal
+                    // must leave this physical callback before creating its successor;
+                    // checked faults above still retain their original precedence.
+                    let terminal = self.assign(
+                        locals,
+                        Type::Bool,
+                        NativeOperation::Binary(
+                            MachineBinary::Compare(Comparison::Eq, Scalar::I64),
+                            native_operand(&status),
+                            native_operand("2"),
+                        ),
+                    );
+                    let leave = locals.label();
+                    let resume = locals.label();
+                    self.output.statement(Statement::Branch {
+                        condition: native_operand(&terminal),
+                        then_label: leave.clone(),
+                        else_label: resume.clone(),
+                    });
+                    self.start_block(locals, &leave);
+                    self.save_return("2", locals);
+                    self.start_block(locals, &resume);
+                }
+                return Ok((Type::Int, status));
+            }
             Operation::ScopeDefer(closure) => {
                 let closure = self.expr(closure, locals, depth)?;
                 self.assign(
@@ -380,6 +408,21 @@ impl Emitter<'_> {
                 return Ok((item.clone(), value));
             }
             Operation::Pointer(entry) => self.expr(entry, locals, depth)?,
+            Operation::ProcessExit(reason) => {
+                let reason = self.expr(reason, locals, depth)?;
+                self.assign(
+                    locals,
+                    Type::Int,
+                    NativeOperation::Call {
+                        callee: native_operand("$morrow_process_exit"),
+                        args: vec![
+                            (Scalar::I64, native_operand("%exec")),
+                            (Scalar::I64, native_operand(&reason)),
+                        ],
+                        variadic: None,
+                    },
+                )
+            }
             Operation::Continue(entry) => {
                 let entry = self.expr(entry, locals, depth)?;
                 self.assign(

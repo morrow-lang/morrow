@@ -20,9 +20,10 @@ thread_local! {
 
 pub(super) struct Shared {
     pub processes: std::sync::OnceLock<Arc<relations::Registry>>,
-    pub budget: budget::Budget,
+    pub budget: Arc<budget::Budget>,
     pub stopped: AtomicBool,
     pub fault: AtomicI64,
+    pub pending_actions: AtomicUsize,
     pub endpoints: Vec<Endpoint>,
     pub activity: Arc<Mutex<()>>,
     pub stealing: AtomicBool,
@@ -35,9 +36,12 @@ impl Shared {
         let activity = Arc::new(Mutex::new(()));
         Arc::new(Self {
             processes: std::sync::OnceLock::new(),
-            budget: budget::Budget::new(initial_bytes).expect("validated invocation charge"),
+            budget: Arc::new(
+                budget::Budget::new(initial_bytes).expect("validated invocation charge"),
+            ),
             stopped: AtomicBool::new(false),
             fault: AtomicI64::new(0),
+            pending_actions: AtomicUsize::new(0),
             endpoints: (0..count)
                 .map(|_| Endpoint {
                     activity: Arc::clone(&activity),
@@ -163,22 +167,41 @@ pub(super) unsafe fn ingress<'a>(a: *mut Actor) -> &'a Ingress {
             .as_ptr()
     }
 }
+pub(super) enum Payload {
+    User(copy::FragmentCopy),
+    Down(signals::Down),
+    Exit(signals::Exit),
+    Install(Arc<controls::Slot>),
+    Release(Arc<controls::Slot>),
+}
 struct Envelope {
     actor: ActorRef,
-    payload: Option<copy::FragmentCopy>,
-    down: Option<signals::Down>,
+    payload: Option<Payload>,
     cost: usize,
     enqueued: u64,
     shared: Arc<Shared>,
 }
 impl Drop for Envelope {
     fn drop(&mut self) {
-        if self.payload.is_some() {
+        if matches!(self.payload, Some(Payload::User(_))) {
             // SAFETY: our retained actor makes the immutable header live.
             unsafe {
                 self.shared
                     .budget
                     .release_message(&(*self.actor.as_ptr()).identity.pending, self.cost);
+            }
+        }
+        if let Some(payload) = &self.payload {
+            let slot = match payload {
+                Payload::Exit(exit) => Some(&exit.slot),
+                Payload::Install(slot) | Payload::Release(slot) => Some(slot),
+                _ => None,
+            };
+            if let Some(slot) = slot {
+                slot.cancelled.store(true, Ordering::Release);
+                unsafe {
+                    controls::release_uninstalled(slot);
+                }
             }
         }
     }
@@ -202,8 +225,7 @@ pub(super) unsafe fn prepared_message(
         reservation.commit();
         let envelope = Envelope {
             actor: ActorRef::retain(a),
-            payload: Some(payload),
-            down: None,
+            payload: Some(Payload::User(payload)),
             cost: 8,
             enqueued: now(s).unwrap(),
             shared,
@@ -212,6 +234,24 @@ pub(super) unsafe fn prepared_message(
             let a = envelope.actor.as_ptr();
             publish(usize::MAX, a, envelope)
         }
+    }
+}
+
+#[cfg(test)]
+pub(super) unsafe fn prepared_control(
+    s: *mut Session,
+    a: *mut Actor,
+    payload: Payload,
+) -> impl FnOnce() -> bool + Send {
+    unsafe {
+        let envelope = Envelope {
+            actor: ActorRef::retain(a),
+            payload: Some(payload),
+            cost: 0,
+            enqueued: now(s).unwrap(),
+            shared: shared_arc(s),
+        };
+        move || publish(usize::MAX, envelope.actor.as_ptr(), envelope)
     }
 }
 
@@ -252,8 +292,7 @@ pub(super) unsafe fn send(
             reservation.commit();
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
-                payload: Some(payload),
-                down: None,
+                payload: Some(Payload::User(payload)),
                 cost,
                 enqueued: time,
                 shared: shared_arc(s),
@@ -284,8 +323,7 @@ pub(super) unsafe fn send_down(s: *mut Session, a: *mut Actor, down: signals::Do
         if shared(s).is_some() {
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
-                payload: None,
-                down: Some(down),
+                payload: Some(Payload::Down(down)),
                 cost: 0,
                 enqueued: time,
                 shared: shared_arc(s),
@@ -297,6 +335,90 @@ pub(super) unsafe fn send_down(s: *mut Session, a: *mut Actor, down: signals::Do
             }
         } else if !(*s).stopped {
             signals::adopt(s, a, down, time);
+        }
+    }
+}
+
+pub(super) unsafe fn send_control(s: *mut Session, a: *mut Actor, payload: Payload) -> bool {
+    unsafe {
+        let Some(time) = now(s) else {
+            fail(&raw mut (*s).root, 12);
+            let slot = match &payload {
+                Payload::Exit(exit) => Some(&exit.slot),
+                Payload::Install(slot) | Payload::Release(slot) => Some(slot),
+                _ => None,
+            };
+            if let Some(slot) = slot {
+                slot.cancelled.store(true, Ordering::Release);
+                // Uninstalled debt has no owner mirror. Installed debt remains
+                // in that owner's ledger and is reclaimed by fault shutdown.
+                controls::release_uninstalled(slot);
+            }
+            return false;
+        };
+        if shared(s).is_some() {
+            let envelope = Envelope {
+                actor: ActorRef::retain(a),
+                payload: Some(payload),
+                cost: 0,
+                enqueued: time,
+                shared: shared_arc(s),
+            };
+            let sent = publish((*s).scheduler, a, envelope);
+            if sent && (*a).identity.owner.load(Ordering::Acquire) == (*s).scheduler {
+                drain_actor(s, a);
+            }
+            sent
+        } else if !(*s).stopped && (*a).identity.alive.load(Ordering::Acquire) {
+            adopt_control(s, a, payload, time);
+            true
+        } else {
+            match payload {
+                Payload::Exit(exit) => controls::release_slot(a, &exit.slot),
+                Payload::Install(slot) | Payload::Release(slot) => controls::release_slot(a, &slot),
+                _ => {}
+            }
+            false
+        }
+    }
+}
+unsafe fn adopt_control(s: *mut Session, a: *mut Actor, payload: Payload, time: u64) {
+    unsafe {
+        match payload {
+            Payload::Down(down) => signals::adopt(s, a, down, time),
+            Payload::Exit(exit) => signals::adopt_exit(s, a, exit, time),
+            Payload::Install(slot) => controls::install(a, slot),
+            Payload::Release(slot) => {
+                if !slot.queued.load(Ordering::Acquire) {
+                    controls::release_slot(a, &slot);
+                }
+            }
+            Payload::User(_) => unreachable!("user adoption carries a message charge"),
+        }
+    }
+}
+
+/// Caller holds the shared activity gate and this actor's route. No callbacks
+/// or owner-local mirrors are touched while a foreign admission is in flight.
+pub(super) unsafe fn publish_control_locked(
+    s: *mut Session,
+    a: *mut Actor,
+    route: &mut Route,
+    group: &Arc<Shared>,
+    payload: Payload,
+    time: u64,
+) {
+    unsafe {
+        route.pending.push_back(Envelope {
+            actor: ActorRef::retain(a),
+            payload: Some(payload),
+            cost: 0,
+            enqueued: time,
+            shared: Arc::clone(group),
+        });
+        if (route.owner != (*s).scheduler || route.in_transit) && !route.notified {
+            route.notified = true;
+            group.endpoints[route.owner].push_locked(Command::Deliver(ActorRef::retain(a)));
         }
     }
 }
@@ -314,7 +436,10 @@ unsafe fn publish(sender: usize, a: *mut Actor, envelope: Envelope) -> bool {
             hook(context);
         }
         let mut route = ingress(a).route.lock().unwrap();
-        if !(*a).identity.alive.load(Ordering::Acquire) {
+        if !(*a).identity.alive.load(Ordering::Acquire)
+            || (matches!(envelope.payload, Some(Payload::User(_)))
+                && (*a).identity.exiting.load(Ordering::Acquire))
+        {
             return false;
         }
         route.pending.push_back(envelope);
@@ -329,6 +454,10 @@ unsafe fn publish(sender: usize, a: *mut Actor, envelope: Envelope) -> bool {
 /// Called only by the actor's owner. Stale notices never read mutable actor data.
 pub(super) unsafe fn drain_actor(s: *mut Session, a: *mut Actor) {
     unsafe {
+        // A single-owner invocation adopts directly and has no routed ingress.
+        if shared(s).is_none() {
+            return;
+        }
         let pending = {
             let mut route = ingress(a).route.lock().unwrap();
             if route.owner != (*s).scheduler || route.in_transit {
@@ -341,16 +470,9 @@ pub(super) unsafe fn drain_actor(s: *mut Session, a: *mut Actor) {
             if (*a).identity.alive.load(Ordering::Acquire)
                 && !envelope.shared.stopped.load(Ordering::Acquire)
             {
-                if let Some(down) = envelope.down.take() {
-                    signals::adopt(s, a, down, envelope.enqueued);
-                } else {
-                    adopt(
-                        s,
-                        a,
-                        envelope.payload.take().unwrap(),
-                        envelope.cost,
-                        envelope.enqueued,
-                    );
+                match envelope.payload.take().unwrap() {
+                    Payload::User(value) => adopt(s, a, value, envelope.cost, envelope.enqueued),
+                    control => adopt_control(s, a, control, envelope.enqueued),
                 }
             }
         }
@@ -688,8 +810,11 @@ mod tests {
                 .commit();
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
-                payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MIN)),
-                down: None,
+                payload: Some(Payload::User(copy::value_fragment(
+                    null_mut(),
+                    &scalar,
+                    i64::MIN,
+                ))),
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),
@@ -758,8 +883,11 @@ mod tests {
                 .commit();
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
-                payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MAX)),
-                down: None,
+                payload: Some(Payload::User(copy::value_fragment(
+                    null_mut(),
+                    &scalar,
+                    i64::MAX,
+                ))),
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),
@@ -811,8 +939,11 @@ mod tests {
                 .commit();
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
-                payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MIN)),
-                down: None,
+                payload: Some(Payload::User(copy::value_fragment(
+                    null_mut(),
+                    &scalar,
+                    i64::MIN,
+                ))),
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),

@@ -103,7 +103,7 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
                 morrow_managed_stop(exec);
                 return 3;
             }
-            if (*s).stopped || (*s).live == 0 {
+            if (*s).stopped || ((*s).live == 0 && !actions::pending(s)) {
                 return 0;
             }
             if (*s).next_deadline != u64::MAX {
@@ -122,6 +122,9 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             }
             let a = scheduler::dequeue(s);
             if a.is_null() {
+                if actions::drain(s) {
+                    continue;
+                }
                 return if (*s).live == 0 { 0 } else { 1 };
             }
             if (*a).identity.alive.load(Ordering::Acquire) {
@@ -131,9 +134,9 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
         if *(*s).root.fault != 0 {
             morrow_managed_stop(exec);
             3
-        } else if (*s).live == 0 || (*s).stopped {
+        } else if ((*s).live == 0 && !actions::pending(s)) || (*s).stopped {
             0
-        } else if (*s).first.is_null() {
+        } else if (*s).first.is_null() && !actions::pending(s) {
             1
         } else {
             2
@@ -195,11 +198,10 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        let offset = std::mem::offset_of!(Actor, exec) / 8;
         (*a).heap = memory::create_control_heap_at(
             a.cast(),
-            std::mem::size_of::<Actor>() / 8 - offset,
-            offset,
+            ACTOR_ROOT_WORDS,
+            ACTOR_ROOT_OFFSET,
             actor.token(),
         );
         (*a).host_port = true;

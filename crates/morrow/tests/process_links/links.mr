@@ -1,0 +1,160 @@
+type Signal:
+    Ping(Pid(Signal))
+    Pong(ProcessId)
+    Finish(Process.ExitReason)
+    Ready(ProcessId)
+    Explicit(ProcessId)
+fn handled(result: Result((), Process.Error)) -> Unit:
+    match result:
+        Ok(()) -> ()
+        Err(_) -> Process.exit(Process.Failure("operation-error"))
+fn sent(result: Result((), Int)) -> Unit:
+    match result:
+        Ok(()) -> ()
+        Err(_) -> Process.exit(Process.Failure("send-error"))
+fn reason_text(reason: Process.ExitReason) -> String:
+    match reason:
+        Process.Normal -> "normal"
+        Process.Shutdown -> "shutdown"
+        Process.ShutdownDetail(text) -> "detail:{text}"
+        Process.Fault(code) -> "fault:{code}"
+        Process.Failure(text) -> "failure:{text}"
+        Process.Kill -> "kill"
+        Process.Killed -> "killed"
+        Process.NoProcess -> "noproc"
+fn expect(reason: String, expected: String) -> Unit:
+    if reason != expected: println("wrong-reason:{reason}")
+fn waiting() -> Unit:
+    let own: Pid(Signal) = Process.self()
+    receive:
+        Ping(reply) ->
+            sent(send(reply, Pong(Process.id(own))))
+            waiting()
+        Finish(reason) -> Process.exit(reason)
+fn down(reference: MonitorRef, identity: ProcessId) -> String:
+    let own: Pid(Signal) = Process.self()
+    receive_event:
+        Process.Down(ref, process, reason) if ref == reference and process == identity -> reason_text(reason)
+fn exit_event(identity: ProcessId) -> String:
+    let own: Pid(Signal) = Process.self()
+    receive_event:
+        Process.Exit(process, reason) if process == identity -> reason_text(reason)
+fn absent_exit(identity: ProcessId) -> Unit:
+    let own: Pid(Signal) = Process.self()
+    receive_event:
+        Process.Exit(process, _) if process == identity -> println("unexpected-exit")
+        after 0 -> ()
+fn trapping(reply: Pid(Signal)) -> Unit:
+    let own: Pid(Signal) = Process.self()
+    let previous = Process.trap_exit(true)
+    sent(send(reply, Ready(Process.id(own))))
+    waiting()
+fn explicit(reply: Pid(Signal)) -> Unit:
+    let own: Pid(Signal) = Process.self()
+    let previous = Process.trap_exit(true)
+    sent(send(reply, Ready(Process.id(own))))
+    let parent = Process.id(reply)
+    receive_event:
+        Process.Exit(process, Process.Failure("explicit")) if process == parent -> sent(send(reply, Explicit(Process.id(own))))
+fn linked_kill() -> Unit:
+    let child: Result(Pid(Signal), Process.Error) = Process.spawn_link(() -> Process.exit(Process.Kill))
+    let Ok(_) = child else: Process.exit(Process.Failure("spawn-error"))
+    waiting()
+fn self_normal(reply: Pid(Signal)) -> Unit:
+    let own: Pid(Signal) = Process.self()
+    handled(Process.signal_exit(Process.id(own), Process.Normal))
+    sent(send(reply, Ready(Process.id(own))))
+fn observer() -> Unit:
+    let own: Pid(Signal) = Process.self()
+    println("trap_previous={Process.trap_exit(true)}")
+    println("trap_previous_again={Process.trap_exit(true)}")
+    let first: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(waiting)
+    let Ok((child, reference)) = first else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    handled(Process.link(identity))
+    handled(Process.link(identity))
+    sent(send(child, Finish(Process.Fault(7))))
+    let ended = down(reference, identity)
+    let linked = exit_event(identity)
+    expect(reason: linked, expected: "fault:7")
+    absent_exit(identity)
+    println("idempotent={ended}:once")
+    let atomic: Result(Pid(Signal), Process.Error) = Process.spawn_link(() -> Process.exit(Process.Normal))
+    let Ok(child) = atomic else: Process.exit(Process.Failure("spawn-error"))
+    println("atomic_spawn_link={exit_event(Process.id(child))}")
+    let normal: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(waiting)
+    let Ok((child, reference)) = normal else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    handled(Process.signal_exit(identity, Process.Normal))
+    sent(send(child, Ping(own)))
+    receive:
+        Pong(process) if process == identity -> println("untrapped_normal=ignored")
+    handled(Process.signal_exit(identity, Process.Kill))
+    expect(reason: down(reference, identity), expected: "killed")
+    let forced: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> trapping(own))
+    let Ok((child, reference)) = forced else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    receive:
+        Ready(process) if process == identity -> ()
+    handled(Process.signal_exit(identity, Process.Kill))
+    println("direct_kill={down(reference, identity)}")
+    let killed: Result(Pid(Signal), Process.Error) = Process.spawn_link(() -> Process.exit(Process.Kill))
+    let Ok(child) = killed else: Process.exit(Process.Failure("spawn-error"))
+    println("linked_kill=trapped:{exit_event(Process.id(child))}")
+    let untrapped: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(linked_kill)
+    let Ok((child, reference)) = untrapped else: Process.exit(Process.Failure("spawn-error"))
+    println("linked_kill_untrapped={down(reference, Process.id(child))}")
+    let detached: Result(Pid(Signal), Process.Error) = Process.spawn_link(waiting)
+    let Ok(child) = detached else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    let monitored = Process.monitor(identity)
+    let Ok(reference) = monitored else: Process.exit(Process.Failure("monitor-error"))
+    handled(Process.unlink(identity))
+    sent(send(child, Finish(Process.Shutdown)))
+    expect(reason: down(reference, identity), expected: "shutdown")
+    absent_exit(identity)
+    println("unlink_before_death=none")
+    let queued: Result(Pid(Signal), Process.Error) = Process.spawn_link(waiting)
+    let Ok(child) = queued else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    let monitored = Process.monitor(identity)
+    let Ok(reference) = monitored else: Process.exit(Process.Failure("monitor-error"))
+    sent(send(child, Finish(Process.Shutdown)))
+    expect(reason: down(reference, identity), expected: "shutdown")
+    handled(Process.unlink(identity))
+    let linked = exit_event(identity)
+    expect(reason: linked, expected: "shutdown")
+    println("unlink_queued_exit=preserved")
+    let explicit_child: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> explicit(own))
+    let Ok((child, reference)) = explicit_child else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    receive:
+        Ready(process) if process == identity -> ()
+    handled(Process.unlink(identity))
+    handled(Process.signal_exit(identity, Process.Failure("explicit")))
+    receive:
+        Explicit(process) if process == identity -> println("unlink_explicit_exit=preserved")
+    expect(reason: down(reference, identity), expected: "normal")
+    let dead: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> ())
+    let Ok((child, reference)) = dead else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    expect(reason: down(reference, identity), expected: "normal")
+    handled(Process.link(identity))
+    println("dead_link={exit_event(identity)}")
+    handled(Process.signal_exit(identity, Process.Kill))
+    println("dead_signal=ok")
+    handled(Process.link(Process.id(own)))
+    handled(Process.unlink(Process.id(own)))
+    println("self_link=noop")
+    let signalled: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> self_normal(own))
+    let Ok((child, reference)) = signalled else: Process.exit(Process.Failure("spawn-error"))
+    let identity = Process.id(child)
+    receive:
+        Ready(process) if process == identity -> println("self_normal_signal=ignored")
+    expect(reason: down(reference, identity), expected: "normal")
+    ()
+fn main():
+    let started: Result(Pid(Signal), Process.Error) = Process.spawn(observer)
+    match started:
+        Ok(_) -> ()
+        Err(_) -> println("observer-error")

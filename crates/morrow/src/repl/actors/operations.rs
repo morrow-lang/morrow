@@ -94,6 +94,9 @@ impl Machine {
             }
 
             Operation::Pointer(value) => self.expression(value),
+            Operation::ProcessExit(_) => {
+                Err(fault("typed Process operations require the native backend"))
+            }
             Operation::Continue(value) => {
                 let value = self.expression(value)?;
                 let actor = self

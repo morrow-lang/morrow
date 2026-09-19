@@ -4,7 +4,90 @@ use super::*;
 pub(super) struct Down {
     pub monitor: Arc<relations::Monitor>,
     pub target: transport::ActorRef,
-    pub reason: (i64, i64),
+    pub reason: reasons::Reason,
+}
+
+pub(super) struct Exit {
+    pub source: transport::ActorRef,
+    pub reason: reasons::Reason,
+    pub slot: Arc<controls::Slot>,
+    pub linked: bool,
+    pub _epoch: Option<Arc<links::Edge>>,
+}
+
+/// Owner-only interpretation. A terminal signal schedules retirement; it never
+/// recursively runs another actor's callback or cleanup from the sender.
+pub(super) unsafe fn adopt_exit(s: *mut Session, a: *mut Actor, exit: Exit, time: u64) {
+    unsafe {
+        if exit.slot.cancelled.load(Ordering::Acquire)
+            || !(*a).identity.alive.load(Ordering::Acquire)
+        {
+            controls::release_slot(a, &exit.slot);
+            return;
+        }
+        controls::install(a, Arc::clone(&exit.slot));
+        if !controls::claim_signal(&exit.slot) {
+            controls::release_slot(a, &exit.slot);
+            return;
+        }
+        let forced = !exit.linked && exit.reason.tag() == 5;
+        if forced || (!(*a).trap_exit && exit.reason.tag() != 0) {
+            process::commit_terminal(
+                a,
+                if forced {
+                    reasons::Reason::Builtin(6, 0)
+                } else {
+                    exit.reason
+                },
+                forced,
+            );
+            controls::release_slot(a, &exit.slot);
+            enqueue(a);
+            return;
+        }
+        if !(*a).trap_exit || (*a).terminal.is_some() {
+            controls::release_slot(a, &exit.slot);
+            return;
+        }
+        let _heap = memory::enter_heap((*a).heap);
+        let mut roots = Box::new([0_usize; 4]);
+        let _roots = memory::root_range(roots.as_ptr(), roots.len());
+        let message = allocate::<Message>();
+        roots[0] = message as usize;
+        process::construction_safepoint();
+        let source = process::identity(s, exit.source.as_ptr());
+        roots[1] = source as usize;
+        process::construction_safepoint();
+        let reason = reasons::materialize(&exit.reason);
+        roots[2] = reason as usize;
+        process::construction_safepoint();
+        let event = memory::alloc(24, false).cast::<i64>();
+        roots[3] = event as usize;
+        *event = 2;
+        *event.add(1) = source as i64;
+        *event.add(2) = reason;
+        process::construction_safepoint();
+        *message = Message {
+            next: null_mut(),
+            value: event as i64,
+            cost: 0,
+            enqueued: time,
+            kind: 2,
+            event: event as i64,
+            monitor: Arc::as_ptr(&exit.slot).cast(),
+        };
+        controls::materialized(a, &exit.slot, exit.reason.text_bytes());
+        if (*a).last.is_null() {
+            (*a).first = message;
+        } else {
+            (*(*a).last).next = message;
+        }
+        (*a).last = message;
+        (*a).controls += 1;
+        if (*a).waiting && ((*a).deadline == u64::MAX || time < (*a).deadline) {
+            enqueue(a);
+        }
+    }
 }
 
 pub(super) unsafe fn send(s: *mut Session, observer: *mut Actor, down: Down) {
@@ -45,9 +128,7 @@ pub(super) unsafe fn adopt(s: *mut Session, a: *mut Actor, down: Down, time: u64
         let target = process::identity(s, down.target.as_ptr());
         roots[2] = target as usize;
         process::construction_safepoint();
-        let reason = memory::alloc(16, false).cast::<i64>();
-        *reason = down.reason.0;
-        *reason.add(1) = down.reason.1;
+        let reason = reasons::materialize(&down.reason) as *mut i64;
         roots[3] = reason as usize;
         process::construction_safepoint();
         let event = memory::alloc(32, false).cast::<i64>();
@@ -66,6 +147,11 @@ pub(super) unsafe fn adopt(s: *mut Session, a: *mut Actor, down: Down, time: u64
             event: event as i64,
             monitor: Arc::as_ptr(&down.monitor).cast(),
         };
+        controls::materialized(
+            a,
+            down.monitor.slot.as_ref().expect("Down reservation"),
+            down.reason.text_bytes(),
+        );
         if (*a).last.is_null() {
             (*a).first = message;
         } else {
@@ -86,9 +172,13 @@ pub(super) unsafe fn release_cell(s: *mut Session, a: *mut Actor, message: *mut 
             transport::release_message(s, a, (*message).cost);
         } else {
             (*a).controls -= 1;
-            let monitor = &*(*message).monitor.cast::<relations::Monitor>();
-            monitor.state.store(relations::CONSUMED, Ordering::Release);
-            relations::release_monitor(a, monitor);
+            if (*message).kind == 1 {
+                let monitor = &*(*message).monitor.cast::<relations::Monitor>();
+                monitor.state.store(relations::CONSUMED, Ordering::Release);
+                relations::release_monitor(a, monitor);
+            } else {
+                controls::release_slot(a, &*(*message).monitor.cast::<controls::Slot>());
+            }
         }
         (*message).next = null_mut();
         (*message).value = 0;

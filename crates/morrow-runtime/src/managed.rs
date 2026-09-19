@@ -40,12 +40,25 @@ pub const TYPE_RANGE: i64 = 10;
 pub const TYPE_JSON_VALUE: i64 = 12;
 pub const TYPE_PROCESS_ID: i64 = 13;
 pub const TYPE_MONITOR_REF: i64 = 14;
+mod actions;
+#[path = "managed/controls.rs"]
+mod controls;
+mod links;
 #[path = "managed/process.rs"]
 mod process;
+#[path = "managed/reasons.rs"]
+mod reasons;
 #[path = "managed/relations.rs"]
 mod relations;
 #[path = "managed/signals.rs"]
 mod signals;
+pub use links::{morrow_process_link, morrow_process_spawn_link, morrow_process_unlink};
+#[cfg(test)]
+#[path = "managed/fault_signal_tests.rs"]
+mod fault_signal_tests;
+#[cfg(test)]
+#[path = "managed/link_tests.rs"]
+mod link_tests;
 pub use process::*;
 pub use receive::morrow_process_receive_event;
 pub use relations::{
@@ -80,7 +93,8 @@ struct Message {
     value: i64,
     cost: usize,
     enqueued: u64,
-    kind: u8,
+    // Each GC-scanned word must be initialized; a byte tag would leave padding.
+    kind: u64,
     event: i64,
     // Opaque in the transitive native Exec layout; only owner-side signal code
     // interprets the retained monitor record behind this pointer.
@@ -100,6 +114,8 @@ struct ActorIdentity {
     supervisor: *mut supervision::Supervisor,
     alive: AtomicBool,
     pending: AtomicUsize,
+    control_pending: AtomicUsize,
+    exiting: AtomicBool,
     owner: AtomicUsize,
     ingress: Option<control::Owned<transport::Ingress>>,
     isolated: bool,
@@ -121,29 +137,45 @@ struct Actor {
     host_port: bool,
     fault: i64,
     infrastructure_fault: bool,
+    // The payload collector scans exactly these six initialized pointer words.
+    // Keep them contiguous: scheduler flags/padding and Rust controls are not roots.
     frame: *mut c_void,
     selector: *mut c_void,
     timeout_frame: *mut c_void,
+    first: *mut Message,
+    last: *mut Message,
+    scopes: *mut cleanup::Scope,
     frame_cost: usize,
     selector_cost: usize,
     timeout_cost: usize,
     messages: usize,
     deadline: u64,
-    first: *mut Message,
-    last: *mut Message,
     next: *mut Actor,
-    scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
     cleaning: bool,
     event_type: *const Type,
     controls: usize,
     control_retained: usize,
     monitors: Option<control::Owned<Vec<Arc<relations::Monitor>>>>,
+    control_slots: Option<control::Owned<Vec<Arc<controls::Slot>>>>,
+    terminal: Option<control::Owned<process::Terminal>>,
+    trap_exit: bool,
     // Neither Session identities nor Supervisor.current own actors: payload heaps
     // and PID wrappers do. These backward references therefore cannot cycle.
     _session: Option<control::Owned<Session>>,
     _supervisor: Option<control::Owned<supervision::Supervisor>>,
 }
+const ACTOR_ROOT_OFFSET: usize = std::mem::offset_of!(Actor, frame) / 8;
+const ACTOR_ROOT_WORDS: usize = 6;
+const _: () = {
+    let start = std::mem::offset_of!(Actor, frame);
+    assert!(start.is_multiple_of(8));
+    assert!(std::mem::offset_of!(Actor, selector) == start + 8);
+    assert!(std::mem::offset_of!(Actor, timeout_frame) == start + 16);
+    assert!(std::mem::offset_of!(Actor, first) == start + 24);
+    assert!(std::mem::offset_of!(Actor, last) == start + 32);
+    assert!(std::mem::offset_of!(Actor, scopes) == start + 40);
+};
 #[repr(C)]
 struct Pid {
     session: *mut Session,
@@ -178,10 +210,14 @@ struct Session {
     _shared: Option<control::Owned<Arc<transport::Shared>>>,
     _parallel: Option<control::Owned<parallel::Driver>>,
     _processes: Option<control::Owned<Arc<relations::Registry>>>,
+    actions: Option<control::Owned<actions::Queue>>,
 }
 // Retained-byte limits are a language-visible logical quota. The trailing Rust
 // ownership fields replace GC bookkeeping and do not change its historical
 // record charges; quota policy is a separate multi-scheduler decision.
+// Logical message admission stays stable when internal control metadata grows.
+// The collector separately accounts for the actual Message allocation size.
+const MESSAGE_BYTES: usize = 32;
 const ACTOR_BYTES: usize = 192;
 #[cfg(any(test, feature = "simulation"))]
 const SESSION_BYTES: usize = 144;
@@ -190,6 +226,9 @@ const SESSION_BYTES: usize = 120;
 #[cfg(test)]
 #[path = "managed/process_tests.rs"]
 mod process_tests;
+#[cfg(test)]
+#[path = "managed/root_tests.rs"]
+mod root_tests;
 #[cfg(test)]
 #[path = "managed/tests.rs"]
 mod tests;
@@ -278,7 +317,11 @@ unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
 }
 
 unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
-    unsafe { valid_pid(s, pid) && (*(*pid).actor).identity.alive.load(Ordering::Acquire) }
+    unsafe {
+        valid_pid(s, pid)
+            && (*(*pid).actor).identity.alive.load(Ordering::Acquire)
+            && !(*(*pid).actor).identity.exiting.load(Ordering::Acquire)
+    }
 }
 
 // SAFETY for private helpers: callers supply live invocation-owned records and
@@ -314,7 +357,12 @@ unsafe fn charge(s: *mut Session, cost: usize) -> bool {
             (*s).retained = retained;
             return true;
         }
-        if cost > BYTES - (*s).retained {
+        if (*s)
+            .retained
+            .checked_add(reasons::retained_bytes(s))
+            .and_then(|used| used.checked_add(cost))
+            .is_none_or(|used| used > BYTES)
+        {
             return false;
         }
         (*s).retained += cost;
@@ -441,3 +489,7 @@ mod cleanup;
 pub use cleanup::{
     morrow_managed_scope_defer, morrow_managed_scope_enter, morrow_managed_scope_leave,
 };
+
+#[cfg(test)]
+#[path = "managed/message_layout_tests.rs"]
+mod message_layout_tests;

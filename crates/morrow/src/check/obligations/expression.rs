@@ -403,6 +403,10 @@ impl Engine<'_> {
                 for child in operation.children() {
                     self.expression(child, depth)?;
                 }
+                if matches!(operation, crate::processes::ProcessExpr::Exit { .. }) {
+                    self.terminate(expr.span, depth)?;
+                    return self.node(Region::Empty, expr.span);
+                }
                 self.fresh(&expr.ty, None, expr.span, depth)
             }
             ir::ActorExpr::Spawn {

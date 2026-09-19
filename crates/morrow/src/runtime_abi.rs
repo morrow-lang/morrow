@@ -331,12 +331,18 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         "morrow_process_cancel_request" | "morrow_process_cancel_release" => (&[I64], None, None),
         "morrow_process_self"
         | "morrow_process_id"
+        | "morrow_process_link"
+        | "morrow_process_unlink"
+        | "morrow_process_trap_exit"
+        | "morrow_process_exit"
         | "morrow_process_monitor"
         | "morrow_process_id_equal"
         | "morrow_process_monitor_equal" => (&[I64, I64], Some(I64), None),
-        "morrow_process_spawn" | "morrow_process_spawn_monitor" | "morrow_process_demonitor" => {
-            (&[I64, I64, I64], Some(I64), None)
-        }
+        "morrow_process_spawn"
+        | "morrow_process_spawn_monitor"
+        | "morrow_process_spawn_link"
+        | "morrow_process_signal_exit"
+        | "morrow_process_demonitor" => (&[I64, I64, I64], Some(I64), None),
         "morrow_process_receive_event" => (&[I64, I64, I64, I64, I64], Some(I64), None),
         "morrow_list_push_mut" | "morrow_sort_report" | "morrow_term_move_to" => {
             (&[I64, I64], None, None)

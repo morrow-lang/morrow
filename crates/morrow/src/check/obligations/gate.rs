@@ -100,8 +100,13 @@ fn function_relevant(
     let mut pending = vec![&function.body];
     while let Some(expr) = pending.pop() {
         charge(work, 1, expr.span)?;
-        if matches!(expr.kind, ir::ExprKind::EditorHole { .. })
-            || contains(program, &expr.ty, work, expr.span)?
+        if matches!(
+            expr.kind,
+            ir::ExprKind::EditorHole { .. }
+                | ir::ExprKind::Actor(ir::ActorExpr::Process(
+                    crate::processes::ProcessExpr::Exit { .. }
+                ))
+        ) || contains(program, &expr.ty, work, expr.span)?
         {
             return Ok(true);
         }

@@ -120,10 +120,32 @@ impl<'a> Substitution<'a> {
             engine.node(Region::Empty, span)?
         };
         let exits = self.predicate(engine, self.summary.exits, span, 0)?;
+        let terminal = self.terminal_paths(engine, parent, span)?;
+        if self.borrow_after.is_some() && terminal != Predicate::FALSE {
+            self.return_capture_effects(engine, terminal, span)?;
+        }
+        engine.path = terminal;
+        engine.terminate(span, 0)?;
+        let normal = engine.predicates.not(terminal, &mut engine.work, span)?;
+        let normal = engine
+            .predicates
+            .and(exits, normal, &mut engine.work, span)?;
         engine.path = engine
             .predicates
-            .and(parent, exits, &mut engine.work, span)?;
+            .and(parent, normal, &mut engine.work, span)?;
         Ok(output)
+    }
+    /// Import the terminal subset without confusing it with ordinary returning paths.
+    fn terminal_paths(
+        &mut self,
+        engine: &mut Engine<'_>,
+        parent: Predicate,
+        span: Span,
+    ) -> Checked<Predicate> {
+        let terminal = self.predicate(engine, self.summary.terminated, span, 0)?;
+        engine
+            .predicates
+            .and(parent, terminal, &mut engine.work, span)
     }
     /// Import real function returns separately; a selected iteration cannot return the whole family.
     pub(super) fn iteration_returns(

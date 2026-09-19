@@ -566,3 +566,58 @@ fn concurrent_remote_senders_preserve_each_burst_through_source_collection() {
         assert!(group.endpoints.iter().all(transport::Endpoint::is_empty));
     }
 }
+
+#[test]
+fn ordinary_scalar_message_retains_its_historical_40_byte_admission() {
+    let scalar = scalar();
+    let function = Function {
+        identity: complete as *const c_void,
+        step: Some(complete),
+        select: None,
+        capture_count: 0,
+        captures: null(),
+        mailbox: &scalar,
+    };
+    let functions = [&function as *const Function];
+    for schedulers in [1, 2] {
+        for spare in [39, 40] {
+            let mut fault = 0;
+            unsafe {
+                let exec = host::open_local(&mut fault, functions.as_ptr(), 1);
+                if schedulers > 1 {
+                    assert_eq!(morrow_managed_parallel(exec, schedulers), 0);
+                }
+                let s = (*exec).session;
+                let mut frame = [complete as *const () as usize];
+                let pid = morrow_managed_spawn_on(exec, frame.as_mut_ptr().cast(), &scalar, 0);
+                assert!(!pid.is_null());
+                let a = (*pid.cast::<Pid>()).actor;
+                assert_eq!(dequeue(s), a);
+                let baseline = (*s).retained;
+                let padding = BYTES - baseline - spare;
+                assert!(charge(s, padding));
+                assert_eq!((*s).retained, BYTES - spare);
+                let sent = result(morrow_managed_send(exec, pid, i64::MIN, &scalar));
+                if spare == 39 {
+                    assert_eq!(sent, (1, 4));
+                    assert!((*a).first.is_null());
+                    assert_eq!((*s).retained, BYTES - 39);
+                } else {
+                    assert_eq!(sent, (0, 0), "40 bytes must still admit a scalar message");
+                    assert_eq!((*s).retained, BYTES);
+                    assert_eq!((*(*a).first).value, i64::MIN);
+                    assert_eq!((*(*a).first).cost, 40);
+                    assert!(memory::heap_owns((*a).heap, (*a).first.cast()));
+                }
+                if let Some(group) = shared(s) {
+                    assert_eq!(group.budget.retained(), (*s).retained);
+                    assert_eq!(group.budget.messages(), usize::from(spare == 40));
+                }
+                release(s, padding);
+                assert_eq!((*s).retained, baseline + if spare == 40 { 40 } else { 0 });
+                morrow_managed_close(exec);
+                assert_eq!(fault, 0);
+            }
+        }
+    }
+}

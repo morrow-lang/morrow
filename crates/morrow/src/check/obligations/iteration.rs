@@ -39,7 +39,8 @@ impl Engine<'_> {
         let ordinary = self.predicates.not(returning, &mut self.work, span)?;
         self.path = self
             .predicates
-            .and(parent, ordinary, &mut self.work, span)?;
+            .and(self.path, ordinary, &mut self.work, span)?;
+        self.resume_skipped(parent, nonempty, span)?;
         self.node(Region::Empty, span)
     }
     /// Empty collections cannot execute returns or create callback-local obligations.

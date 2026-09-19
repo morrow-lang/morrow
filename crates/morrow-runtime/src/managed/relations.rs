@@ -11,8 +11,6 @@ thread_local! { pub(super) static AFTER_DEATH: std::cell::Cell<Option<DeathHook>
 thread_local! { pub(super) static BEFORE_DEATH: std::cell::Cell<Option<DeathHook>> = const { std::cell::Cell::new(None) }; }
 
 pub(super) const PER_ACTOR: usize = 256;
-const GLOBAL: usize = 4096;
-pub(super) const RESERVATION: usize = 512;
 // Physical metadata includes a sparsely populated BTree node, whose allocation
 // can exceed the logical relationship slot. Keep this separate from admission.
 const METADATA_BYTES: usize = 1024;
@@ -27,9 +25,12 @@ pub(super) struct Epoch {
 }
 pub(super) struct Registry {
     pub epoch: Arc<Epoch>,
+    pub links: Mutex<links::Book>,
     next: AtomicU64,
     entries: Mutex<Entries>,
     pub isolated: AtomicUsize,
+    pub control_count: Arc<controls::Counter>,
+    pub reason_bytes: Arc<controls::Counter>,
     pub cancelled: AtomicBool,
     pub wake: Condvar,
     pub sleeping: Mutex<()>,
@@ -46,9 +47,12 @@ impl Registry {
             epoch: Arc::new(Epoch {
                 _accounting: memory::account_control(std::mem::size_of::<Epoch>() + 16, 1),
             }),
+            links: Mutex::new(links::Book::default()),
             next: AtomicU64::new(0),
             entries: Mutex::new(Entries::default()),
             isolated: AtomicUsize::new(0),
+            control_count: controls::Counter::new(),
+            reason_bytes: controls::Counter::new(),
             cancelled: AtomicBool::new(false),
             wake: Condvar::new(),
             sleeping: Mutex::new(()),
@@ -69,6 +73,7 @@ pub(super) struct Monitor {
     pub serial: u64,
     pub owner: Weak<control::Allocation<Actor>>,
     pub state: AtomicU8,
+    pub slot: Option<Arc<controls::Slot>>,
     // Conservative bound includes Arc storage and this relationship's share of
     // BTree nodes, target weak-vector capacity and owner-ledger capacity. Removal
     // shrinks vectors so a lone surviving record never owns unaccounted history.
@@ -172,6 +177,7 @@ pub unsafe extern "C" fn morrow_process_monitor(exec: *mut Exec, target: *mut c_
                 serial: previous + 1,
                 owner: control::Owned::retain(observer).downgrade(),
                 state: AtomicU8::new(CONSUMED),
+                slot: None,
                 _accounting: memory::account_control(std::mem::size_of::<Monitor>() + 16, 1),
             });
             drop(entries);
@@ -181,20 +187,16 @@ pub unsafe extern "C" fn morrow_process_monitor(exec: *mut Exec, target: *mut c_
             let _root = memory::root_range(&root, 1);
             return abi::result_ok(reference as i64);
         }
-        let count = (*observer)
-            .monitors
-            .as_ref()
-            .map_or(0, |m| (*m.as_ptr()).len());
-        if count >= PER_ACTOR || entries.reservations >= GLOBAL || !charge(s, RESERVATION) {
+        let Some(slot) = controls::reserve(s, observer, controls::FUTURE_BYTES) else {
             drop(entries);
             drop(route);
             return process::error(0);
-        }
+        };
         let Ok(previous) = registry
             .next
             .try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
         else {
-            release(s, RESERVATION);
+            controls::release_uninstalled(&slot);
             drop(entries);
             drop(route);
             return process::error(0);
@@ -206,6 +208,7 @@ pub unsafe extern "C" fn morrow_process_monitor(exec: *mut Exec, target: *mut c_
             serial: previous + 1,
             owner: control::Owned::retain(observer).downgrade(),
             state: AtomicU8::new(ACTIVE),
+            slot: Some(Arc::clone(&slot)),
             _accounting: memory::account_control(METADATA_BYTES, 4),
         });
         entries.reservations += 1;
@@ -221,9 +224,9 @@ pub unsafe extern "C" fn morrow_process_monitor(exec: *mut Exec, target: *mut c_
             (*observer).monitors = Some(control::Owned::new(Vec::new()));
         }
         (*(*observer).monitors.as_ref().unwrap().as_ptr()).push(Arc::clone(&monitor));
-        (*observer).control_retained += RESERVATION;
         drop(entries);
         drop(route);
+        controls::install(observer, slot);
         let reference = wrap(&monitor);
         let root = reference as usize;
         let _root = memory::root_range(&root, 1);
@@ -235,7 +238,7 @@ pub unsafe extern "C" fn morrow_process_monitor(exec: *mut Exec, target: *mut c_
                 signals::Down {
                     monitor,
                     target: transport::ActorRef::retain(target),
-                    reason: (7, 0),
+                    reason: reasons::Reason::Builtin(7, 0),
                 },
             );
         }
@@ -327,14 +330,17 @@ pub(super) unsafe fn release_monitor(a: *mut Actor, monitor: &Monitor) {
             }
         }
         drop(entries);
-        (*a).control_retained -= RESERVATION;
-        release(s, RESERVATION);
+        controls::release_slot(a, monitor.slot.as_ref().expect("active monitor slot"));
         drop(retained);
     }
 }
 
 /// Linearize death with registrations, then publish outside the registry lock.
-pub(super) unsafe fn retiring(a: *mut Actor) -> Vec<signals::Down> {
+pub(super) struct Retirement {
+    pub downs: Vec<signals::Down>,
+    pub exits: Vec<(transport::ActorRef, signals::Exit)>,
+}
+pub(super) unsafe fn retiring(a: *mut Actor) -> Retirement {
     unsafe {
         let s = (*a).exec.session;
         #[cfg(test)]
@@ -344,8 +350,12 @@ pub(super) unsafe fn retiring(a: *mut Actor) -> Vec<signals::Down> {
         let route = transport::ingress(a).route.lock().unwrap();
         let Some(registry) = existing(s) else {
             (*a).identity.alive.store(false, Ordering::Release);
-            return Vec::new();
+            return Retirement {
+                downs: Vec::new(),
+                exits: Vec::new(),
+            };
         };
+        let exits = links::retiring_locked(a, &registry);
         let mut entries = registry.entries.lock().unwrap();
         (*a).identity.alive.store(false, Ordering::Release);
         let monitors = entries
@@ -364,11 +374,7 @@ pub(super) unsafe fn retiring(a: *mut Actor) -> Vec<signals::Down> {
                 signals.push(signals::Down {
                     monitor,
                     target: transport::ActorRef::retain(a),
-                    reason: if (*a).fault == 0 {
-                        (0, 0)
-                    } else {
-                        (3, (*a).fault)
-                    },
+                    reason: process::terminal_reason(a),
                 });
             }
         }
@@ -376,7 +382,10 @@ pub(super) unsafe fn retiring(a: *mut Actor) -> Vec<signals::Down> {
         if let Some((context, hook)) = AFTER_DEATH.with(|hook| hook.take()) {
             hook(context);
         }
-        signals
+        Retirement {
+            downs: signals,
+            exits,
+        }
     }
 }
 pub(super) unsafe fn cancel_owned(a: *mut Actor) {

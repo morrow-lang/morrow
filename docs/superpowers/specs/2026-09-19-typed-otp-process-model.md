@@ -389,6 +389,44 @@ temporary-spec removal and typed current lookup must have distinct states.
 Implement significant-child automatic shutdown in that same final stage, using
 the reference configuration validation and natural-versus-induced distinction.
 
+### Supervisor bounds and management contract
+
+Root unlinked start, current and stop use driving adapters; actor calls suspend
+continuations. Root start_link remains invalid. Startup may wait indefinitely
+for an acknowledgement but must remain cancellable. No implicit startup timeout
+is added. Acknowledgement followed by child death still satisfies initialization;
+its ordered death is handled after the initial startup transaction commits.
+
+Use intensity 0..1024, period 1..86400 whole seconds, at most 1024 direct child
+specifications and nesting depth 64. These structural maxima remain subject to
+the invocation actor, control-slot and byte limits; they do not promise capacity
+for every structurally valid tree. Names contain at most 4096 UTF-8 bytes.
+Finite Graceful deadlines are 0..600000 ms. Admit at most 64 supervisor requests
+and perform at most 16 engine transitions per callback. Resource exhaustion
+rolls back atomically; malformed options fail before any child body starts.
+
+Dynamic start_child(handle, spec), terminate_child(handle, name),
+restart_child(handle, name) and delete_child(handle, name) return Result(Unit,
+Error). Names uniquely select workers or branches for these payload-independent
+controls. Typed current still requires the exact ChildKey(M) token and mailbox
+descriptor: a same-name replacement cannot revive or reinterpret an old key.
+which_children reports declaration-order name, kind and ProcessId state, never
+an erased Pid. Dynamic insertion appends; removing a child preserves the order
+of survivors. Normal, Shutdown and ShutdownDetail are non-abnormal exits for
+transient restart policy.
+
+Child retirement observation is admitted before startup and survives public
+unlink. Stop and escalation consume pre-reserved capabilities, even when the
+normal control quota is exhausted. A distinguished parent relationship treats
+parent Normal as shutdown rather than the ordinary linked Normal-ignore rule.
+The [supplemental pinned references](../../process-model/README.md) cover these
+policy cases. The accepted [compiler contract](../../process-model/supervisor-compiler-contract.md),
+[context specialization map](../../process-model/supervisor-context-map.md), and
+[request registration ABI](../../process-model/supervisor-registration-abi.md)
+freeze the stage 3 schemas, root/actor helper specialization, private immutable
+request authority and rooted reply handoff. These are design requirements;
+stage 3 implementation and acceptance are still pending.
+
 ## Module and ABI boundaries
 
 | Area | Responsibility |
@@ -457,6 +495,56 @@ effect inference even without a receive. Event selectors must explicitly publish
 Event(M)'s nominal layout even though the enclosing expression's result has a
 different type. The REPL must reject unsupported process operations explicitly.
 
+### Stage 2 implementation contract (accepted design; implementation in progress)
+
+Add link, unlink, atomic spawn_link, trap_exit, terminal local exit and direct
+signal_exit. Keep all existing native layouts and canonical reason/event tags.
+The compiler treats local exit as terminal without adding a public bottom type.
+Earlier argument effects and logical cleanup remain ordered; later operands and
+return continuations do not execute. Pending Result duties apply on terminal
+paths too, including termination through a helper function.
+
+Retain the 256-per-recipient and 4,096-per-invocation completion limits. Stage 2
+raises each future monitor/link reservation from 512 bytes to 512 plus 4,097
+bytes of receiver String capacity, within the same 64 MiB invocation limit.
+Accept at most 4,096 UTF-8 bytes in a textual reason. Direct signals reserve
+only their known receiver-copy requirement; the shared immutable source reason
+has a separate actual-storage charge. Oversize direct reasons return
+InvalidOptions; unadmitted or oversized local custom exit becomes checked
+Fault(9). Built-in terminal reasons require no fallible text allocation. Kill
+may fail control admission with ResourceLimit, but an admitted direct Kill
+cannot fail because the target lacks reason storage. No priority kill lane is
+part of this stage. Event Strings are rooted copies in the receiver heap;
+extracting a String and discarding its Event must preserve the String.
+
+A link commits two directed reservations atomically. Remote installation and
+release use the stable actor ingress; only the current owner changes Session
+mirrors or actor ledgers. Accounting installation is distinct from signal state.
+Use activity, sorted endpoint routes, then registry lock order, without GC,
+callbacks or publication under the registry lock. Death removes the active pair
+but does not invalidate its pending completion; unlink cancels that old epoch
+until materialization. Relinking cannot revive an old pending signal. Already
+materialized Exit cells remain queued after unlink.
+
+Accepted terminal intent moves a process to Exiting; heap retirement follows
+only after its current callback and chosen cleanup finish. New registrations
+before final retirement attach to its completion, while Dead yields NoProcess.
+Direct Kill produces Killed and skips user cleanup. A local exit with Kill
+remains an ordinary terminal cause, runs cleanup and propagates the trappable
+Kill reason. First accepted cause survives subsequent cleanup faults. Latch a
+checked callback, selector or cleanup fault before processing later ingress;
+retain that cause while cleanup temporarily clears its transient fault cell.
+Checked-origin termination follows the existing isolated or legacy recovery
+policy, distinct from explicit exit with a Fault reason. An admitted direct
+Kill may escalate an already committed terminal record at the next owner safe
+point: preserve its first reason but skip cleanup that has not begun. A running
+callback or defer must return before escalation takes effect; linked/local Kill
+does not select forced cleanup. Runtime-owned scopes, roots and charges still
+retire exactly once. Infrastructure failure still stops the invocation. Signals are processed between
+callbacks even within a multi-reduction scheduler turn. Cascades use bounded
+iterative work (at most 64 retirement actions per turn), with pending work
+included in quiescence and stop draining. Native callbacks remain cooperative.
+
 ## Staged implementation and acceptance
 
 Each stage starts with failing independent tests, then implementation, focused
@@ -523,8 +611,10 @@ stealing both disabled and enabled; retain existing migration/FIFO/stop tests.
 This document approves no claim of implemented OTP parity. Stage 1 implements
 isolated processes, typed identities, monitors and event receive. Its native scheduler matrix,
 ThreadSanitizer, deterministic replay and full repository gate pass (Decision165).
-Stages 2–5 remain open. Resumable supervisor call lowering
-needs implementation-level review in stage 3. The finite reason schema cannot
+Stage 2 also implements links, exit trapping, terminal local exit and direct
+signals with first-cause cleanup and legacy checked-fault policy preserved
+(Decision168). Stages 3–5 remain open. Their accepted compiler/context/registration
+designs above require implementation and independent acceptance. The finite reason schema cannot
 carry arbitrary Erlang terms. Existing host ports and TLS compatibility state
 are not process targets. Existing native-resource pinning remains in force.
 No acceptance stage claims native preemption or arbitrary OTP library support.

@@ -206,6 +206,8 @@ pub(crate) enum Operation {
         item: Type,
     },
     Continue(Box<ir::Expr>),
+    /// Terminal process operation: its status returns directly to the scheduler.
+    ProcessExit(Box<ir::Expr>),
     Pointer(Box<ir::Expr>),
     Register {
         view: crate::processes::ReceiveView,
@@ -229,6 +231,7 @@ impl Lowered {
             Operation::ScopeDefer(value)
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
+            | Operation::ProcessExit(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }
@@ -257,6 +260,7 @@ impl Lowered {
             Operation::ScopeDefer(value)
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
+            | Operation::ProcessExit(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }

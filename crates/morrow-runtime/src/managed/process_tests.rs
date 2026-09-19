@@ -4,7 +4,7 @@ use std::cell::RefCell;
 
 thread_local! { static EVENTS: RefCell<Vec<(i64, i64)>> = const { RefCell::new(Vec::new()) }; }
 
-unsafe extern "C" fn done(_: *mut Exec, _: *mut c_void) -> i64 {
+pub(super) unsafe extern "C" fn done(_: *mut Exec, _: *mut c_void) -> i64 {
     2
 }
 unsafe extern "C" fn broken(exec: *mut Exec, _: *mut c_void) -> i64 {
@@ -46,8 +46,8 @@ unsafe extern "C" fn select_down(_: *mut Exec, _: *mut c_void, value: i64) -> *m
     }
 }
 
-struct Fixture {
-    scalar: Box<Type>,
+pub(super) struct Fixture {
+    pub scalar: Box<Type>,
     _identity: Box<Type>,
     _reference: Box<Type>,
     _string: Box<Type>,
@@ -56,9 +56,9 @@ struct Fixture {
     _reason: Box<Type>,
     _event_children: Box<[*const Type]>,
     _event_arities: Box<[i64]>,
-    event: Box<Type>,
+    pub event: Box<Type>,
     _functions: Vec<Function>,
-    functions: Vec<*const Function>,
+    pub functions: Vec<*const Function>,
 }
 fn leaf(kind: i64) -> Box<Type> {
     Box::new(Type {
@@ -69,7 +69,7 @@ fn leaf(kind: i64) -> Box<Type> {
     })
 }
 impl Fixture {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let scalar = leaf(0);
         let identity = leaf(13);
         let reference = leaf(14);
@@ -150,10 +150,10 @@ impl Fixture {
             functions: pointers,
         }
     }
-    unsafe fn open(&self, fault: &mut i64) -> *mut Exec {
+    pub unsafe fn open(&self, fault: &mut i64) -> *mut Exec {
         unsafe { host::open_local(fault, self.functions.as_ptr(), self.functions.len() as i64) }
     }
-    unsafe fn spawn(&self, exec: *mut Exec, callback: usize) -> *mut Pid {
+    pub unsafe fn spawn(&self, exec: *mut Exec, callback: usize) -> *mut Pid {
         let mut frame = [callback as i64];
         unsafe {
             ok(morrow_process_spawn(
@@ -164,7 +164,7 @@ impl Fixture {
         }
     }
 }
-unsafe fn ok(result: i64) -> i64 {
+pub(super) unsafe fn ok(result: i64) -> i64 {
     unsafe {
         let result = &*(result as *const abi::ResultValue);
         assert_eq!(result.tag, 0, "expected native Ok");
@@ -203,6 +203,38 @@ fn isolated_fault_reports_one_typed_down_without_failing_sibling() {
         assert_eq!(fault, 0);
         EVENTS.with(|events| assert_eq!(*events.borrow(), [(3, 7)]));
         morrow_managed_close(exec);
+    }
+}
+
+#[test]
+fn monitor_prepays_unknown_text_reason_then_releases_unused_builtin_credit() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.open(&mut fault);
+        let observer = f.spawn(exec, done as *const () as usize);
+        let target = f.spawn(exec, done as *const () as usize);
+        let a = (*observer).actor;
+        let s = (*exec).session;
+        let id = morrow_process_id(exec, target.cast());
+        let before = (*s).retained;
+        let reference = ok(morrow_process_monitor(&raw mut (*a).exec, id));
+        assert_eq!((*s).retained, before + 512 + 4097);
+        assert_eq!((*a).control_retained, 512 + 4097);
+        scheduler::finish((*target).actor);
+        assert!(actions::drain(s));
+        assert_eq!((*a).control_retained, 512);
+        assert_eq!(
+            ok(morrow_process_demonitor(
+                &raw mut (*a).exec,
+                reference as *mut c_void,
+                3
+            )),
+            0
+        );
+        assert_eq!((*a).control_retained, 0);
+        morrow_managed_close(exec);
+        assert_eq!(fault, 0);
     }
 }
 
@@ -487,7 +519,8 @@ fn global_monitor_limit_and_cancellation_churn_release_all_logical_reservations(
                 ));
             }
         }
-        assert_eq!((*(*exec).session).retained, baseline + 4096 * 512);
+        // Stage2 future completions additionally reserve4097 bytes for a String reason.
+        assert_eq!((*(*exec).session).retained, baseline + 4096 * (512 + 4097));
         let last = (*observers[16]).actor;
         let rejected = morrow_process_monitor(&raw mut (*last).exec, id) as *const abi::ResultValue;
         assert_eq!((*rejected).tag, 1);
