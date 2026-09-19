@@ -4,6 +4,7 @@ use super::*;
 const MAX_RESTARTS: i64 = 32;
 
 #[repr(C)]
+#[derive(Default)]
 pub(super) struct Supervisor {
     heap: usize,
     initializer: *mut c_void,
@@ -46,12 +47,13 @@ pub unsafe extern "C" fn morrow_managed_supervise(
             fail(exec, 9);
             return null_mut();
         }
-        let supervisor = {
-            let _control = memory::enter_heap(0);
-            allocate::<Supervisor>()
-        };
-        (*supervisor).heap =
-            memory::create_actor_heap(supervisor.cast(), std::mem::size_of::<Supervisor>() / 8);
+        let owner = control::Owned::new(Supervisor::default());
+        let supervisor = owner.as_ptr();
+        (*supervisor).heap = memory::create_control_heap(
+            supervisor.cast(),
+            std::mem::size_of::<Supervisor>() / 8,
+            control::Owned::retain(supervisor).token(),
+        );
         (*supervisor).initializer_cost = cost.unwrap();
         (*supervisor).mailbox = mailbox;
         (*supervisor).remaining = max_restarts as usize;
@@ -66,6 +68,7 @@ pub unsafe extern "C" fn morrow_managed_supervise(
             return null_mut();
         }
         (*(*pid).actor).supervisor = supervisor;
+        (*(*pid).actor)._supervisor = Some(owner);
         (*supervisor).current = (*pid).actor;
         pid.cast()
     }
@@ -73,6 +76,7 @@ pub unsafe extern "C" fn morrow_managed_supervise(
 
 unsafe fn retire(s: *mut Session, supervisor: *mut Supervisor) {
     unsafe {
+        let _owner = control::Owned::retain(supervisor);
         if (*supervisor).heap == 0 {
             return;
         }
@@ -104,6 +108,7 @@ pub(super) unsafe fn completed(a: *mut Actor) {
 /// Handle an ordinary typed fault after every generated stack frame has returned.
 pub(super) unsafe fn recover(a: *mut Actor) -> bool {
     unsafe {
+        let _actor = control::Owned::retain(a);
         let supervisor = (*a).supervisor;
         if supervisor.is_null() {
             return false;
@@ -129,6 +134,7 @@ pub(super) unsafe fn recover(a: *mut Actor) -> bool {
             retire(s, supervisor);
         } else {
             (*(*pid).actor).supervisor = supervisor;
+            (*(*pid).actor)._supervisor = Some(control::Owned::retain(supervisor));
             (*supervisor).current = (*pid).actor;
         }
         true

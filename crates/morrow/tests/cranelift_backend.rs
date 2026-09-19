@@ -1875,6 +1875,76 @@ fn actor_force_collection_before_suspension(program: &mut Program) {
 }
 
 #[test]
+fn compiled_actor_main_keeps_exec_live_across_precise_heap_zero_collection() {
+    let source = "fn worker(): println(\"worker\")\nfn main():\n    let pid: Pid(()) = spawn(worker)\n    ()\n";
+    let checked =
+        morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = morrow_compiler::lowering::lower(&checked).unwrap();
+    let main = program
+        .functions
+        .iter_mut()
+        .find(|function| machine::bare(&function.name) == "morrow_main")
+        .unwrap();
+    let run = main
+        .body
+        .iter()
+        .position(|statement| {
+            matches!(statement,
+                Statement::Effect(Operation::Call { callee: Operand::Symbol(name), .. })
+                    if machine::bare(name) == "morrow_managed_run"
+            )
+        })
+        .unwrap();
+    let pressure = [
+        assign(
+            "exec_gc_before",
+            Scalar::I64,
+            Operation::Call {
+                callee: symbol("morrow_gc_heap_size"),
+                args: vec![],
+                variadic: None,
+            },
+        ),
+        Statement::Effect(Operation::Call {
+            callee: symbol("morrow_gc_collect_precise"),
+            args: vec![],
+            variadic: None,
+        }),
+        assign(
+            "exec_gc_after",
+            Scalar::I64,
+            Operation::Call {
+                callee: symbol("morrow_gc_heap_size"),
+                args: vec![],
+                variadic: None,
+            },
+        ),
+        assign(
+            "exec_gc_reclaimed",
+            Scalar::I64,
+            Operation::Binary(BinaryOp::Sub, temp("exec_gc_before"), temp("exec_gc_after")),
+        ),
+        Statement::Effect(Operation::Call {
+            callee: symbol("morrow_println_int"),
+            args: vec![(Scalar::I64, temp("exec_gc_reclaimed"))],
+            variadic: None,
+        }),
+    ];
+    main.body.splice(run..run, pressure);
+    let harness = "unsafe extern \"C\" { fn morrow_main() -> i32; } fn main() { assert_eq!(unsafe { morrow_main() },0); }";
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        // Only source main's zero-capture closure (one identity word) and its
+        // unused PID (four ABI words) die. The three-word Exec must survive.
+        b"40\nworker\n"
+    );
+}
+
+#[test]
 fn actor_cps_seeded_value_returns_preserve_full_width_and_unicode_under_precise_gc() {
     let mut source = String::from(
         r#"

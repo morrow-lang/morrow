@@ -59,11 +59,35 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
 }
 pub(super) unsafe fn finish(a: *mut Actor) {
     unsafe {
+        let _actor = control::Owned::retain(a);
         if !(*a).alive {
             return;
         }
         (*a).alive = false;
         let s = (*a).exec.session;
+        // Queue links borrow live actors. Retiring an actor outside dequeue
+        // (cancellation or a timer fault) must remove that borrow before release.
+        if (*a).queued {
+            let mut previous: *mut Actor = null_mut();
+            let mut current = (*s).first;
+            while !current.is_null() {
+                if current == a {
+                    if previous.is_null() {
+                        (*s).first = (*a).next;
+                    } else {
+                        (*previous).next = (*a).next;
+                    }
+                    if (*s).last == a {
+                        (*s).last = previous;
+                    }
+                    break;
+                }
+                previous = current;
+                current = (*current).next;
+            }
+            (*a).queued = false;
+            (*a).next = null_mut();
+        }
         while !(*a).first.is_null() {
             let m = (*a).first;
             (*a).first = (*m).next;
@@ -81,7 +105,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame_cost = 0;
         (*s).live -= 1;
         *(*s).identities.add((*a).slot) = null_mut();
-        release(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>());
+        release(s, ACTOR_BYTES + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
         supervision::completed(a);
@@ -215,6 +239,7 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
 /// Execute one ready continuation with its exact payload allocation scope.
 pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
     unsafe {
+        let _actor = control::Owned::retain(a);
         if (*a).host_port {
             return;
         }

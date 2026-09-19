@@ -146,7 +146,7 @@ impl Copy {
                         .allocate(std::mem::size_of::<Pid>(), false)
                         .cast::<Pid>();
                     std::ptr::copy_nonoverlapping(source as *const Pid, target, 1);
-                    memory::control_edge(target.cast(), (*target).actor.cast());
+                    control::attach(target.cast(), (*target).actor);
                     target as i64
                 }
                 TYPE_RANGE => {

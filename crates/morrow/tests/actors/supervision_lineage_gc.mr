@@ -1,0 +1,30 @@
+fn worker():
+    receive:
+        "fail" ->
+            let empty: List(Int) = []
+            println(List.head(empty))
+        value -> println(String.len(value))
+
+fn observe(original: Pid(String)):
+    # Keep the copied stale PID live while actor-local allocation crosses the
+    # collector threshold. Its retired lineage must still resolve afterwards.
+    for index in 0..128:
+        let noise = String.repeat("x", 16384)
+        if String.len(noise) != 16384:
+            println("corrupt")
+    match send(original, "again"):
+        Ok(()) -> println("wrong stale")
+        Err(_) -> println("stale")
+    match supervised_current(original):
+        Ok(current) ->
+            let payload = String.repeat("x", 16384)
+            match send(current, payload):
+                Ok(()) -> println("fresh")
+                Err(_) -> println("wrong fresh")
+        Err(_) -> println("missing")
+
+fn main() -> Result((), Int):
+    let original: Pid(String) = supervise(worker, 1)
+    send(original, "fail")?
+    let observer: Pid(()) = spawn(() -> observe(original))
+    Ok(())

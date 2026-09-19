@@ -2,6 +2,8 @@
 use crate::{abi, memory};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
+#[path = "managed/control.rs"]
+mod control;
 #[path = "managed/copy.rs"]
 mod copy;
 #[path = "managed/cost.rs"]
@@ -33,6 +35,7 @@ pub struct Function {
     pub mailbox: *const Type,
 }
 #[repr(C)]
+#[derive(Default)]
 pub struct Exec {
     session: *mut Session,
     actor: *mut Actor,
@@ -46,6 +49,7 @@ struct Message {
     enqueued: u64,
 }
 #[repr(C)]
+#[derive(Default)]
 struct Actor {
     exec: Exec,
     heap: usize,
@@ -72,6 +76,10 @@ struct Actor {
     scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
     cleaning: bool,
+    // Neither Session identities nor Supervisor.current own actors: payload heaps
+    // and PID wrappers do. These backward references therefore cannot cycle.
+    _session: Option<control::Owned<Session>>,
+    _supervisor: Option<control::Owned<supervision::Supervisor>>,
 }
 #[repr(C)]
 struct Pid {
@@ -81,6 +89,7 @@ struct Pid {
     mailbox: *const Type,
 }
 #[repr(C)]
+#[derive(Default)]
 struct Session {
     #[cfg(any(test, feature = "simulation"))]
     simulation: simulation::State,
@@ -97,7 +106,13 @@ struct Session {
     identities: *mut *mut Actor,
     first: *mut Actor,
     last: *mut Actor,
+    _identities: Option<control::Owned<Box<[*mut Actor]>>>,
 }
+// Retained-byte limits are a language-visible logical quota. The trailing Rust
+// ownership fields replace GC bookkeeping and do not change its historical
+// record charges; quota policy is a separate multi-scheduler decision.
+const ACTOR_BYTES: usize = std::mem::offset_of!(Actor, _session);
+const SESSION_BYTES: usize = std::mem::offset_of!(Session, _identities);
 #[cfg(test)]
 #[path = "managed/tests.rs"]
 mod tests;
@@ -144,7 +159,7 @@ unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
             id: (*a).id,
             mailbox: (*a).mailbox,
         };
-        memory::control_edge(pid.cast(), a.cast());
+        control::attach(pid.cast(), a);
         pid
     }
 }

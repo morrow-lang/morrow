@@ -132,21 +132,23 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
         if (*s).stopped
             || (*s).live >= LIVE
             || slot.is_none()
-            || !charge(s, std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>())
+            || !charge(s, ACTOR_BYTES + std::mem::size_of::<Pid>())
         {
             fail(exec, 9);
             return null_mut();
         }
-        let a = {
-            let _control = memory::enter_heap(0);
-            allocate::<Actor>()
-        };
+        let actor = control::Owned::new(Actor {
+            _session: Some(control::Owned::retain(s)),
+            ..Actor::default()
+        });
+        let a = actor.as_ptr();
         (*a).exec = Exec {
             session: s,
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        (*a).heap = memory::create_actor_heap(a.cast(), std::mem::size_of::<Actor>() / 8);
+        (*a).heap =
+            memory::create_control_heap(a.cast(), std::mem::size_of::<Actor>() / 8, actor.token());
         (*a).alive = true;
         (*a).host_port = true;
         (*a).mailbox = string;

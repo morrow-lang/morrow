@@ -96,6 +96,12 @@
     "stderr": ""
   },
   {
+    "file": "actors/supervision_lineage_gc.mr",
+    "exit": 0,
+    "stdout": "stale\nfresh\n16384\n",
+    "stderr": ""
+  },
+  {
     "file": "actors/sums_cps.mr",
     "exit": 0,
     "stdout": "sibling\nmap factory\nnone\nmap factory\nmap callback 2\n🌿 80\nmap factory\nouter 🌿\nmap factory\nmap callback 2\n🌿 80\nbind factory\nouter 🌿\nbind factory\nbind callback 2\n🌿 80\nbind factory\nbind callback -1\ninner\nfallback factory\nfallback callback outer 🌿\n78\nfallback factory\n2\n",

@@ -486,6 +486,30 @@ impl Emitter<'_> {
         self.output
             .statement(Statement::Return(Some(native_operand("1"))));
         self.output.statement(Statement::Label("@entry".to_owned()));
+        // Exec is a collected wrapper around external session ownership. Keep
+        // it explicit while source main and the scheduler may collect heap 0.
+        self.output.statement(Statement::Assign {
+            destination: "%exec_root".to_owned(),
+            ty: Scalar::I64,
+            operation: NativeOperation::StackAlloc { bytes: 8, align: 8 },
+        });
+        self.output.statement(Statement::Store {
+            kind: LoadKind::I64,
+            value: native_operand("%exec"),
+            address: native_operand("%exec_root"),
+        });
+        self.output.statement(Statement::Assign {
+            destination: "%exec_frame".to_owned(),
+            ty: Scalar::I64,
+            operation: NativeOperation::Call {
+                callee: native_operand("$morrow_gc_frame_enter"),
+                args: vec![
+                    (Scalar::I64, native_operand("%exec_root")),
+                    (Scalar::I64, native_operand("1")),
+                ],
+                variadic: None,
+            },
+        });
         let mut arguments = vec![
             (Scalar::I64, Operand::Int(0)),
             (Scalar::I64, native_operand("%fault")),
@@ -572,6 +596,12 @@ impl Emitter<'_> {
             ty: Scalar::I64,
             operation: NativeOperation::Load(LoadKind::I64, native_operand("%fault")),
         });
+        self.output
+            .statement(Statement::Effect(NativeOperation::Call {
+                callee: native_operand("$morrow_gc_frame_leave"),
+                args: vec![(Scalar::I64, native_operand("%exec_frame"))],
+                variadic: None,
+            }));
         self.output.statement(Statement::Assign {
             destination: "%failed".to_owned(),
             ty: Scalar::I32,

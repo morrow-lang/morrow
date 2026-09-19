@@ -1,19 +1,19 @@
-//! Nonmoving tracing heaps for invocation controls and isolated actor payloads.
+//! Nonmoving tracing heaps for program values and isolated actor payloads.
 use std::alloc::{Layout, alloc_zeroed, dealloc, handle_alloc_error};
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 #[path = "memory/heaps.rs"]
 mod heaps;
 #[path = "memory/platform.rs"]
 mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
-pub(crate) use heaps::{
-    control_edge, create as create_actor_heap, enter as enter_heap, owns as heap_owns,
-    retire as retire_heap,
-};
+pub(crate) use heaps::{create_control_heap, retain_control};
+pub(crate) use heaps::{enter as enter_heap, owns as heap_owns, retire as retire_heap};
 pub use heaps::{morrow_gc_frame_enter, morrow_gc_frame_leave};
 pub use rc::{
     morrow_rc_alloc, morrow_rc_drop, morrow_rc_dup, morrow_rc_flags, morrow_rc_refcount,
@@ -31,14 +31,73 @@ pub struct Stats {
     pub collections: usize,
 }
 
+#[derive(Default)]
+struct ControlStats {
+    bytes: AtomicUsize,
+    objects: AtomicUsize,
+}
+
+/// Accounting owned by the allocation itself, rather than by each cloned reference.
+/// Its last owner may release it on a different thread without entering a domain.
+pub(crate) struct ControlAllocation {
+    stats: Arc<ControlStats>,
+    bytes: usize,
+    objects: usize,
+}
+impl Drop for ControlAllocation {
+    fn drop(&mut self) {
+        self.stats.bytes.fetch_sub(self.bytes, Ordering::Relaxed);
+        self.stats
+            .objects
+            .fetch_sub(self.objects, Ordering::Relaxed);
+    }
+}
+
+/// Charge external control storage once, until the last reference releases it.
+pub(crate) fn account_control(bytes: usize, objects: usize) -> ControlAllocation {
+    heaps::with_current(|domain| domain.account_control(bytes, objects))
+}
+
 struct Block {
     layout: Layout,
     atomic: bool,
     marked: bool,
     external: usize,
     finalizer: Option<unsafe fn(*mut u8)>,
-    // Exact outgoing edge from a PID wrapper into invocation control storage.
+    // Exact outgoing edge from a wrapper into retained control storage.
     control: usize,
+    // Drops after the wrapper is finalized, including on heap retirement.
+    retention: Option<Control>,
+}
+
+/// One owned reference to stable control storage outside every collected heap.
+/// Moving this token transfers ownership, never permission to read mutable state.
+pub(crate) struct Control {
+    pointer: usize,
+    release: unsafe fn(*const ()),
+}
+impl Control {
+    /// Consume one reference to an external control allocation.
+    ///
+    /// # Safety
+    /// `pointer` names stable storage kept alive by this reference. `release` must
+    /// release it exactly once and may run on any thread. It must not panic, read
+    /// GC storage, or reenter a domain. Shared ownership uses atomic reference
+    /// counts; access to the control's mutable contents remains scheduler-owned.
+    pub(crate) unsafe fn new(pointer: *const (), release: unsafe fn(*const ())) -> Self {
+        assert!(!pointer.is_null());
+        Self {
+            pointer: pointer as usize,
+            release,
+        }
+    }
+}
+impl Drop for Control {
+    fn drop(&mut self) {
+        // SAFETY: construction transfers exactly one reference with an inert,
+        // thread-independent release operation.
+        unsafe { (self.release)(self.pointer as *const ()) };
+    }
 }
 impl Block {
     unsafe fn destroy(&self, address: usize) {
@@ -102,6 +161,7 @@ impl Heap {
                 external: 0,
                 finalizer: None,
                 control: 0,
+                retention: None,
             },
         );
         pointer
@@ -232,7 +292,7 @@ pub unsafe fn root_range(pointer: *const usize, words: usize) -> Root {
 }
 
 /// Report any managed edge that leaves an actor payload heap for something other
-/// than invocation control storage. Seeded scenarios call this on every step.
+/// than explicitly retained external control storage. Seeded scenarios check every step.
 #[cfg(any(test, feature = "simulation"))]
 pub(crate) fn verify_heap_edges() -> Result<(), String> {
     heaps::with_current(|domain| domain.verify_edges())
@@ -242,7 +302,7 @@ pub(crate) fn verify_heap_edges() -> Result<(), String> {
 /// Allocate zeroed stable storage in the active actor or invocation heap.
 #[inline(never)]
 pub fn alloc(size: usize, atomic: bool) -> *mut u8 {
-    if heaps::with(|h| h.bytes.saturating_add(size) > h.threshold) {
+    if heaps::should_collect(size) {
         collect();
     }
     heaps::with_mut(|heap| heap.allocate(size, atomic))
@@ -258,7 +318,7 @@ pub fn alloc(size: usize, atomic: bool) -> *mut u8 {
 /// graphs may be counted separately per wrapper). The value stays on this thread.
 pub unsafe fn managed<T: 'static>(value: T, retained_bytes: usize) -> *mut T {
     let pressure = retained_bytes.saturating_add(std::mem::size_of::<T>());
-    if heaps::with(|h| h.bytes.saturating_add(pressure) > h.threshold) {
+    if heaps::should_collect(pressure) {
         collect();
     }
     // SAFETY: caller establishes atomic ownership and finalizer constraints.

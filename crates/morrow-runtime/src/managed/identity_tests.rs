@@ -2,6 +2,124 @@
 use super::*;
 
 #[test]
+fn ownership_metadata_preserves_the_existing_logical_byte_quota() {
+    // Independent sizes of the original 64-bit runtime records, including the
+    // test/simulation clock's 24-byte prefix on Session.
+    assert_eq!(ACTOR_BYTES, 192);
+    assert_eq!(SESSION_BYTES, 144);
+    assert_eq!(std::mem::size_of::<Pid>(), 32);
+    assert_eq!(std::mem::size_of::<supervision::Supervisor>(), 48);
+}
+
+#[test]
+fn control_records_are_not_collected_program_values() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut initializer = [complete as *const () as i64, 41];
+    unsafe {
+        let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let session = (*exec).session;
+        let pid = morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
+            .cast::<Pid>();
+        let actor = (*pid).actor;
+        for control in [
+            session.cast(),
+            (*session).identities.cast(),
+            actor.cast(),
+            (*actor).supervisor.cast(),
+        ] {
+            assert!(
+                !memory::heap_owns(0, control),
+                "control storage must not belong to the invocation collector"
+            );
+        }
+        assert!(
+            memory::heap_owns(0, exec.cast()),
+            "the native Exec remains a collected ABI wrapper"
+        );
+        assert!(
+            memory::stats().bytes
+                >= IDS * std::mem::size_of::<*mut Actor>() + std::mem::size_of::<Session>(),
+            "off-heap control storage remains part of physical memory accounting"
+        );
+        morrow_managed_close(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn final_pid_release_reclaims_retired_actor_lineage_and_session() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    let mut initializer = [complete as *const () as i64, 41];
+    unsafe {
+        let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let pid = morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
+            .cast::<Pid>();
+        let session = control::observe((*exec).session);
+        let actor = control::observe((*pid).actor);
+        let supervisor = control::observe((*(*pid).actor).supervisor);
+        let slot = Box::new(pid as usize);
+        let root = memory::root_range(&*slot, 1);
+        morrow_managed_close(exec);
+        memory::morrow_gc_collect_precise();
+        assert!(
+            session.upgrade().is_some(),
+            "stale PID retains its session identity"
+        );
+        assert!(
+            actor.upgrade().is_some(),
+            "stale PID retains its exact retired actor"
+        );
+        assert!(
+            supervisor.upgrade().is_some(),
+            "stale PID retains supervision lineage"
+        );
+        drop(root);
+        memory::morrow_gc_collect_precise();
+        assert!(actor.upgrade().is_none());
+        assert!(supervisor.upgrade().is_none());
+        assert!(session.upgrade().is_none());
+        assert_eq!(memory::stats().bytes, 0);
+        assert_eq!(memory::stats().objects, 0);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn actor_heap_retains_detached_control_until_completion() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let pid = f.spawn(exec, 41);
+        let actor = (*pid).actor;
+        let lifetime = control::observe(actor);
+        memory::morrow_gc_collect_precise();
+        assert!(
+            !memory::heap_owns(0, pid.cast()),
+            "the PID is deliberately unrooted"
+        );
+        assert!(
+            lifetime.upgrade().is_some(),
+            "payload ownership retains a detached actor"
+        );
+        {
+            let _payload = memory::enter_heap((*actor).heap);
+            memory::morrow_gc_collect_precise();
+            assert_eq!(*(*actor).frame.cast::<i64>().add(1), 41);
+        }
+        assert_eq!(morrow_managed_poll(exec, 1), 0);
+        assert!(
+            lifetime.upgrade().is_none(),
+            "the final callback releases its control guard"
+        );
+        morrow_managed_close(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
 fn sequential_actor_churn_reuses_slots_beyond_the_old_lifetime_limit() {
     unsafe extern "C" fn done(_: *mut Exec, _: *mut c_void) -> i64 {
         2
@@ -64,6 +182,7 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
             morrow_managed_supervise(exec, initializer.as_mut_ptr().cast(), &*f.scalar, 1)
                 .cast::<Pid>();
         let old = (*original).actor;
+        let old_lifetime = control::observe(old);
         let old_heap = (*old).heap;
         let old_frame = (*old).frame;
         let stale = {
@@ -77,13 +196,14 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         (*old).fault = 1;
         assert!(supervision::recover(old));
         let current = (*session).first;
+        let current_lifetime = control::observe(current);
         assert_ne!(current, old);
         assert_eq!((*current).slot, (*old).slot);
         assert_ne!((*current).id, (*old).id);
         assert!(!memory::heap_owns(old_heap, old_frame));
         memory::morrow_gc_collect_precise();
         assert!(
-            memory::heap_owns(0, old.cast()),
+            old_lifetime.upgrade().is_some(),
             "foreign PID must retain its exact dead control record"
         );
         assert!(
@@ -108,7 +228,7 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         }
         memory::morrow_gc_collect_precise();
         assert!(
-            !memory::heap_owns(0, old.cast()),
+            old_lifetime.upgrade().is_none(),
             "payload sweep must remove dead PID control edges"
         );
         {
@@ -119,13 +239,13 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         scheduler::finish(current);
         memory::morrow_gc_collect_precise();
         assert!(
-            memory::heap_owns(0, current.cast()),
+            current_lifetime.upgrade().is_some(),
             "new PID wrappers in a foreign heap retain their dead control"
         );
         scheduler::finish(holder_actor);
         memory::morrow_gc_collect_precise();
         assert!(
-            !memory::heap_owns(0, current.cast()),
+            current_lifetime.upgrade().is_none(),
             "heap retirement must remove every PID control edge"
         );
         assert_eq!((*session).live, 0);

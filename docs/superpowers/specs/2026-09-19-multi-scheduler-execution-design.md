@@ -1,13 +1,13 @@
 # Multi-scheduler execution
 
-Status: proposed. Date: 2026-09-19. Step 2 of 5 toward parallel actor execution.
+Status: tasks 1 and 2 adopted; tasks 3–7 proposed. Date: 2026-09-19.
+Step 2 of 5 toward parallel actor execution.
 
 Step 1 is [sendable actor heaps](2026-09-15-sendable-actor-heaps-design.md),
 adopted as Decision156. It moved heap ownership out of thread-local storage into
 an explicit `Domain` and left the thread-local as a cursor. It produced no
-parallelism, and the `Activation` guard it introduced is still dead code:
-`crates/morrow-runtime/src/memory/heaps.rs:111` and `:376` carry
-`#[allow(dead_code)]` with a comment naming this step as the caller.
+parallelism. The activation API in `crates/morrow-runtime/src/memory/heaps.rs`
+still carries `#[allow(dead_code)]`; task 6's scheduler set will use it.
 
 ## Goal
 
@@ -31,10 +31,11 @@ copied without exception, as Decision156 requires.
 
 ## What the tree forces
 
-Verified at commit `6ea651e`. Five findings change the shape of this step relative
-to the sketch in the step 1 spec.
+The following findings describe the tree at commit `74fd147`. Tasks 1 and 2 below
+resolve the token and control-storage findings; the remaining findings constrain
+the later tasks. They change the shape of this step relative to the step 1 sketch.
 
-### 1. The session lives inside the domain it would own
+### 1. Control storage and ordinary program data share the invocation heap
 
 `crates/morrow-runtime/src/managed/lifecycle.rs:52` enters the invocation heap and
 allocates the `Session` there:
@@ -44,16 +45,26 @@ let _control_scope = memory::enter_heap(0);
 let s = allocate::<Session>();
 ```
 
-Every `Actor` record, every `Pid` and the identity table are allocated the same
-way. So `Session { domain: Domain }` is not expressible: the session is a managed
-object inside slot 0 of the domain that would own it. The domain has to be
-created, activated and dropped by an owner that sits **above** `morrow_managed_new`
-and outlives `morrow_managed_stop`.
+A census of every allocation site in `managed/` separates cleanly in two:
 
-That owner does not exist today. `morrow_managed_new` is called directly by
-compiled `main` and by `morrow_library_open`, and the only thing that ends an
-invocation is `morrow_managed_close` (`managed/host.rs:48`), which is a host-side
-entry point keyed by a `HOSTS` map rather than an owned runtime value.
+- **Invocation heap (slot 0):** `Session`, its `identities` table, `Actor`
+  (`lifecycle.rs:135`, `host.rs:142`) and `Supervisor` (`supervision.rs:51`). Each
+  enters heap 0 explicitly before allocating.
+- **Payload heaps:** `Pid`, mailbox `Message`, cleanup `Scope` and `Deferred`, and
+  copied frames. Each is a value belonging to one actor.
+
+That boundary is better than the step 1 spec assumed, and it is small: four record
+kinds. But slot 0 is not a control arena. It is also where compiled `main`
+allocates every ordinary program value, because `active` is 0 whenever no actor
+scope is entered. So the invocation heap cannot simply become per-scheduler: the
+four control records have to be reachable from every scheduler, while program data
+belongs to whichever domain allocated it.
+
+This retires the framing this document first gave task 2 — "an owned invocation
+above the session". Giving each invocation its own domain does not help, because
+the sharing boundary is not the session, and because compiled code has no way to
+name which invocation an ordinary allocation belongs to. What has to move is the
+four control records, out of the collected heap entirely.
 
 ### 2. Roots and scopes are not domain-aware, so activation is unsafe today
 
@@ -147,17 +158,21 @@ implementation detail, and it should be settled before the queues are split.
 
 ## Ordered tasks
 
-1. **Domain identity on roots and scopes.** `Domain` gains a unique id; `Root` and
-   `Scope` record theirs; retiring either under a different domain is a hard error
-   rather than silent corruption. Behaviour-preserving; independently testable with
-   two domains on one thread. Finding 2.
-2. **An owned invocation above the session.** A runtime-owned value creates a
-   `Domain`, activates it, drives `morrow_managed_new`, and drops the domain after
-   `morrow_managed_stop`. Two sessions on one thread stop sharing an invocation
-   heap, which is what lets the simulation driver host N schedulers. Finding 1.
+1. **Domain identity on roots and scopes.** *Adopted as Decision158.* `Domain`
+   gains a unique id; `Root` and `Scope` record theirs; retiring either under a
+   different domain is a hard error rather than silent corruption. Creating a
+   payload heap whose control record does not live in the invocation heap is
+   rejected for the same reason. Behaviour-preserving. Finding 2.
+2. **Lift control storage out of the collected invocation heap.** *Adopted as
+   Decision159.* Move `Session`,
+   the identity table, `Actor` and `Supervisor` to explicitly reference-counted
+   allocations released when the last reference dies, so a control record is
+   reachable from any scheduler and no longer swept by one scheduler's collector.
+   PID wrappers retain controls explicitly, so task 4's message fragments can
+   transfer those references without exposing collected storage. Findings 1 and 3.
 3. **Immutable actor identity header.** Split `Actor` so PID validation reads only
-   published, never-rewritten fields. Behaviour-preserving single-threaded.
-   Finding 3.
+   published, never-rewritten fields, and the retired record a stale PID follows
+   stays readable. Behaviour-preserving single-threaded. Finding 3.
 4. **Message fragments.** Give `managed/copy.rs` an explicit destination and route
    `send` through a fragment the receiver adopts. Finding 4.
 5. **Budget policy.** Settle split-versus-atomic for the session counters and
@@ -173,11 +188,15 @@ scenarios stop being a bit-exact oracle, for the reason Decision156 records.
 
 ## Verification
 
-Each behaviour-preserving task reproduces the seeded actor scenario's trace hash
-`01a55a0046de5614` with its recorded 48,334 callbacks, 1,226 delivered, 3,774
-timeouts, 2,501 restarts and 9,977 churn actors, and zero residue at cleanup. That
-is the sharpest oracle available while nothing about scheduling changes, and any
-divergence in tasks 1 to 4 is a defect in that task.
+Each behaviour-preserving task reproduces an actor scenario under the same seed
+and step count before and after the change. The task 2 baseline uses
+`cargo run -p morrow-sim -- --actors --seed 0x0046524e --steps 5000 --json`:
+trace hash `0xd4e402a412f11e2f`, 48,739 callbacks, 1,246 delivered, 3,754 timeouts,
+2,507 restarts, 10,000 churn actors and zero residue at cleanup. Decision156's
+`01a55a0046de5614` remains historical evidence for its recorded run, not a substitute
+for a freshly matched configuration. Any scheduling divergence in tasks 1 to 4
+is a defect in that task. Physical memory totals include external control storage;
+independent weak-reference probes additionally verify exact final reclamation.
 
 From task 6 the trace hash is no longer expected to be stable across scheduler
 counts. What replaces it: the driver replays a *recorded interleaving* rather than

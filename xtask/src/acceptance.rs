@@ -173,7 +173,7 @@ mod tests {
     #[test]
     fn preserves_all_native_oracles_and_rejects_escaping_paths() {
         let actual = cases(include_str!("../../crates/morrow/tests/native-cases.json")).unwrap();
-        assert_eq!(actual.len(), 316);
+        assert_eq!(actual.len(), 317);
         let fault = actual
             .iter()
             .find(|case| case.file == "actors/bad_timeout.mr")

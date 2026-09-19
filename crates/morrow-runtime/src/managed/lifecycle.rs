@@ -50,32 +50,39 @@ pub unsafe extern "C" fn morrow_managed_new(
             }
         }
         let _control_scope = memory::enter_heap(0);
-        let s = allocate::<Session>();
-        // The identity table can trigger collection before the returned Exec is
-        // published to compiler/host roots. Keep the incomplete Session explicit.
-        let session_slot = Box::new(s as usize);
-        let _session_root = memory::root_range(&*session_slot, 1);
+        let mut identities = vec![null_mut(); IDS].into_boxed_slice();
+        let identity_pointer = identities.as_mut_ptr();
+        let identities =
+            control::Owned::new_retained(identities, IDS * std::mem::size_of::<*mut Actor>(), 2);
+        let session = control::Owned::new(Session {
+            identities: identity_pointer,
+            _identities: Some(identities),
+            retained: SESSION_BYTES + IDS * std::mem::size_of::<*mut Actor>(),
+            functions,
+            function_count: count as usize,
+            next_deadline: u64::MAX,
+            ..Session::default()
+        });
+        let s = session.as_ptr();
         #[cfg(test)]
         if COLLECT_NEW.with(|collect| collect.get()) {
             memory::morrow_gc_collect_precise();
-            // Return a safe observable error rather than dereferencing a freed
-            // Session when testing constructor roots independently of the scanner.
-            if !memory::heap_owns(0, s.cast()) {
-                *fault = 11;
-                return null_mut();
-            }
         }
-        (*s).identities = memory::alloc(IDS * std::mem::size_of::<*mut Actor>(), false).cast();
-        (*s).retained = std::mem::size_of::<Session>() + IDS * std::mem::size_of::<*mut Actor>();
-        (*s).functions = functions;
-        (*s).function_count = count as usize;
-        (*s).next_deadline = u64::MAX;
         (*s).root = Exec {
             session: s,
             actor: null_mut(),
             fault,
         };
-        &raw mut (*s).root
+        // Compiled callers still root an ordinary Exec ABI value. Its metadata
+        // retains the Session without asking the collector to scan control data.
+        let exec = allocate::<Exec>();
+        *exec = Exec {
+            session: s,
+            actor: null_mut(),
+            fault,
+        };
+        memory::retain_control(exec.cast(), session.token());
+        exec
     }
 }
 
@@ -123,23 +130,22 @@ pub unsafe extern "C" fn morrow_managed_spawn(
             return null_mut();
         }
         let cost = cost.unwrap();
-        if !charge(
-            s,
-            cost + std::mem::size_of::<Actor>() + std::mem::size_of::<Pid>(),
-        ) {
+        if !charge(s, cost + ACTOR_BYTES + std::mem::size_of::<Pid>()) {
             fail(exec, 9);
             return null_mut();
         }
-        let a = {
-            let _control_scope = memory::enter_heap(0);
-            allocate::<Actor>()
-        };
+        let actor = control::Owned::new(Actor {
+            _session: Some(control::Owned::retain(s)),
+            ..Actor::default()
+        });
+        let a = actor.as_ptr();
         (*a).exec = Exec {
             session: s,
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        (*a).heap = memory::create_actor_heap(a.cast(), std::mem::size_of::<Actor>() / 8);
+        (*a).heap =
+            memory::create_control_heap(a.cast(), std::mem::size_of::<Actor>() / 8, actor.token());
         (*a).alive = true;
         (*a).mailbox = mailbox;
         {

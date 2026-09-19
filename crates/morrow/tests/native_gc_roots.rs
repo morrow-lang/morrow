@@ -70,6 +70,47 @@ fn actor_pid_wrappers_are_managed_references_despite_integer_scheduler_identitie
 }
 
 #[test]
+fn actor_main_roots_its_exec_wrapper_through_stop_and_fault_read() {
+    let program =
+        lowered("fn worker(): ()\nfn main():\n    let pid: Pid(()) = spawn(worker)\n    ()\n");
+    let function = program
+        .functions
+        .iter()
+        .find(|f| machine::bare(&f.name) == "morrow_main")
+        .unwrap();
+    assert_eq!(calls(function, "morrow_gc_frame_enter"), 1);
+    assert_eq!(calls(function, "morrow_gc_frame_leave"), 1);
+    let call = |symbol: &str| {
+        function
+            .body
+            .iter()
+            .position(|statement| matches!(statement,
+                Statement::Assign { operation: Operation::Call { callee: Operand::Symbol(name), .. }, .. }
+                | Statement::Effect(Operation::Call { callee: Operand::Symbol(name), .. })
+                    if machine::bare(name) == symbol
+            ))
+            .unwrap()
+    };
+    let fault_read = function
+        .body
+        .iter()
+        .rposition(|statement| {
+            matches!(statement,
+                Statement::Assign {
+                    operation: Operation::Load(_, Operand::Temp(address)),
+                    ..
+                } if address == "fault"
+            )
+        })
+        .unwrap();
+    assert!(call("morrow_managed_new") < call("morrow_gc_frame_enter"));
+    assert!(call("morrow_gc_frame_enter") < call("morrow_managed_run"));
+    assert!(call("morrow_managed_run") < call("morrow_managed_stop"));
+    assert!(call("morrow_managed_stop") < fault_read);
+    assert!(fault_read < call("morrow_gc_frame_leave"));
+}
+
+#[test]
 fn unboxed_nominal_roots_follow_the_payload_and_defers_finish_before_retirement() {
     let program = lowered(
         "newtype Count = Count(Int)\nnewtype Text = Text(String)\nfn number(value: Count) -> Count: value\nfn text(value: Text) -> Text: value\nfn main():\n    defer println(\"cleanup\")\n    ()\n",

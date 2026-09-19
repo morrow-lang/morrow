@@ -1,4 +1,146 @@
 use super::heaps::{Domain, EdgeViolation};
+
+/// Model an external control record without borrowing any runtime implementation.
+/// Only the collecting thread writes its root word; finalization reads no GC data.
+#[repr(C)]
+struct ExternalControl {
+    word: std::sync::atomic::AtomicUsize,
+    drops: std::sync::Arc<std::sync::atomic::AtomicUsize>,
+}
+impl Drop for ExternalControl {
+    fn drop(&mut self) {
+        self.drops.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+fn external_control() -> (
+    std::sync::Arc<ExternalControl>,
+    std::sync::Arc<std::sync::atomic::AtomicUsize>,
+) {
+    let drops = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    (
+        std::sync::Arc::new(ExternalControl {
+            word: std::sync::atomic::AtomicUsize::new(0),
+            drops: drops.clone(),
+        }),
+        drops,
+    )
+}
+fn control_token(control: &std::sync::Arc<ExternalControl>) -> Control {
+    unsafe fn release(pointer: *const ()) {
+        // SAFETY: control_token transferred this exact Arc reference.
+        drop(unsafe { std::sync::Arc::from_raw(pointer.cast::<ExternalControl>()) });
+    }
+    // SAFETY: atomic ownership and inert destruction; mutable words are only
+    // accessed by the test thread while the matching domain is active.
+    unsafe { Control::new(std::sync::Arc::into_raw(control.clone()).cast(), release) }
+}
+
+fn fresh_actor_heap() -> usize {
+    let (control, _) = external_control();
+    // SAFETY: one initialized stable word, retained until the heap retires.
+    unsafe {
+        create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    }
+}
+
+#[test]
+fn external_actor_control_survives_until_the_last_payload_scope_leaves() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let (control, drops) = external_control();
+    // SAFETY: stable control root storage is retained by the transferred token.
+    let actor = unsafe {
+        create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    };
+    let scope = enter_heap(actor);
+    let value = alloc(16, true);
+    unsafe {
+        value.write(73);
+    }
+    control
+        .word
+        .store(value as usize, std::sync::atomic::Ordering::SeqCst);
+    drop(control);
+    unsafe { morrow_gc_collect_precise() };
+    assert!(heap_owns(actor, value.cast()));
+    assert_eq!(unsafe { value.read() }, 73);
+    assert!(verify_heap_edges().is_ok());
+    retire_heap(actor);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
+    drop(scope);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
+    assert_eq!(stats().objects, 0);
+}
+
+#[test]
+fn wrappers_in_independent_domains_release_external_control_exactly_once() {
+    let mut first = Domain::new();
+    let mut second = Domain::new();
+    let (control, drops) = external_control();
+    for domain in [&mut first, &mut second] {
+        let _active = domain.activate();
+        let wrapper = alloc(8, true);
+        // SAFETY: fresh wrapper owns this atomic, inert reference.
+        unsafe { retain_control(wrapper, control_token(&control)) };
+        assert!(verify_heap_edges().is_ok());
+    }
+    drop(control);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
+    {
+        let _active = first.activate();
+        unsafe { morrow_gc_collect_precise() };
+    }
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
+    drop(second);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
+}
+
+#[test]
+fn external_control_accounting_is_counted_once_and_released_on_another_thread() {
+    let mut first = Domain::new();
+    let second = Domain::new();
+    let owner = {
+        let _active = first.activate();
+        std::sync::Arc::new(account_control(4096, 2))
+    };
+    let last = owner.clone();
+    drop(owner);
+    assert_eq!((first.stats().bytes, first.stats().objects), (4096, 2));
+    assert_eq!((second.stats().bytes, second.stats().objects), (0, 0));
+    std::thread::spawn(move || drop(last)).join().unwrap();
+    assert_eq!((first.stats().bytes, first.stats().objects), (0, 0));
+}
+
+#[test]
+fn external_control_bytes_trigger_collection_without_collecting_every_allocation() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let _owner = account_control(2 * 1024 * 1024, 1);
+    let before = stats().collections;
+    alloc(8, true);
+    assert_eq!(
+        stats().collections,
+        before + 1,
+        "external control bytes must participate in invocation collection pressure"
+    );
+    alloc(8, true);
+    assert_eq!(
+        stats().collections,
+        before + 1,
+        "the updated threshold includes still-live external controls"
+    );
+    let collected = collect();
+    assert!(collected.bytes >= 2 * 1024 * 1024);
+    assert!(collected.objects >= 1);
+}
 use super::*;
 
 #[test]
@@ -149,10 +291,8 @@ fn heap_shutdown_finalizes_remaining_external_payloads() {
 #[test]
 fn root_and_native_frame_tokens_retire_their_original_heap_after_scope_switch() {
     unsafe {
-        let control_a = alloc(16, false).cast::<usize>();
-        let control_b = alloc(16, false).cast::<usize>();
-        let a = create_actor_heap(control_a, 2);
-        let b = create_actor_heap(control_b, 2);
+        let a = fresh_actor_heap();
+        let b = fresh_actor_heap();
         let a_words = Box::new([0usize; 1]);
         let mut b_words = Box::new([0usize; 1]);
         let root_a;
@@ -199,12 +339,18 @@ fn active_heap_retirement_waits_for_callback_scope_and_finalizes_once() {
     }
     let count = std::rc::Rc::new(std::cell::Cell::new(0));
     unsafe {
-        let control = alloc(16, false).cast::<usize>();
-        let heap = create_actor_heap(control, 2);
+        let (control, _) = external_control();
+        let heap = create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        );
         {
             let _scope = enter_heap(heap);
             let value = managed(Counted(count.clone()), 4096);
-            control.write(value as usize);
+            control
+                .word
+                .store(value as usize, std::sync::atomic::Ordering::SeqCst);
             retire_heap(heap);
             assert_eq!(count.get(), 0);
             assert!(heap_owns(heap, value.cast()));
@@ -239,13 +385,7 @@ fn native_frame_lifetimes_match_seeded_cross_heap_model() {
             random ^= random << 17;
             random
         };
-        // SAFETY: control objects belong to the invocation heap. The actor heaps
-        // own and retire their registrations before these controls can disappear.
-        let actors = unsafe {
-            let a = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
-            let b = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
-            [a, b]
-        };
+        let actors = [fresh_actor_heap(), fresh_actor_heap()];
         let mut entries: Vec<Entry> = Vec::new();
         for _ in 0..256 {
             let heap = actors[(next() & 1) as usize];
@@ -336,7 +476,7 @@ fn native_frames_read_updated_slots_and_do_not_root_foreign_heap_addresses() {
         assert!(heap_owns(0, persistent.cast()));
         drop(root);
 
-        let actor = create_actor_heap(alloc(16, false).cast::<usize>(), 2);
+        let actor = fresh_actor_heap();
         let foreign = {
             let _scope = enter_heap(actor);
             alloc(16, true)
@@ -396,36 +536,52 @@ fn domain_frames_are_scoped_to_their_domain() {
 }
 
 #[test]
-fn actor_heaps_register_and_retire_their_invocation_control_root() {
+fn actor_heaps_retain_external_controls_without_roots_in_the_invocation_heap() {
     let mut domain = Domain::new();
-    let control = domain.with_mut(|heap| heap.allocate(8, false));
+    let (control, drops) = external_control();
     let before = domain.with(|heap| heap.roots.len());
-    // SAFETY: control is a live one-word invocation-heap allocation owned by this
-    // domain, and is not freed or replaced before the matching retire below.
-    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    // SAFETY: one stable initialized control word is owned by the transferred token.
+    let id = unsafe {
+        domain.create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    };
     assert_ne!(id, 0);
-    assert_eq!(domain.with(|heap| heap.roots.len()), before + 1);
-    assert!(!domain.owns(id, control.cast()));
+    assert_eq!(domain.with(|heap| heap.roots.len()), before);
+    assert!(!domain.owns(id, std::sync::Arc::as_ptr(&control).cast()));
+    drop(control);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
     domain.retire_heap(id);
     assert_eq!(domain.with(|heap| heap.roots.len()), before);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
 #[test]
-fn invocation_collection_gathers_control_words_from_every_actor_heap() {
+fn invocation_collection_leaves_external_controls_alive_without_scanning_actor_heaps() {
     let mut domain = Domain::new();
-    let control = domain.with_mut(|heap| heap.allocate(8, false));
-    // SAFETY: control is a live one-word invocation-heap allocation owned by this
-    // domain, retired below and never freed or replaced before then.
-    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    let (control, drops) = external_control();
+    // SAFETY: one stable initialized control word is owned by the transferred token.
+    let id = unsafe {
+        domain.create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    };
+    drop(control);
     domain.with_mut(|heap| heap.allocate(64, false));
     let retained = domain.collect_active(&[]);
     assert_eq!(
         (retained.objects, retained.bytes),
-        (1, 8),
-        "the actor control object survives while unreachable invocation payload does not"
+        (0, 0),
+        "unreachable program data is swept without collecting external controls"
     );
-    assert_eq!(domain.stats().objects, 1);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
+    assert_eq!(domain.stats().objects, 0);
     domain.retire_heap(id);
+    assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
 
 #[test]
@@ -457,16 +613,21 @@ fn domain_is_send_so_a_scheduler_can_own_one() {
 #[test]
 fn only_control_edges_leave_an_actor_payload_heap() {
     let mut domain = Domain::new();
-    let control = domain.with_mut(|heap| heap.allocate(8, false));
-    // SAFETY: control is a live one-word invocation-heap allocation of this domain.
-    let id = unsafe { domain.create_actor_heap(control.cast::<usize>(), 1) };
+    let (control, _) = external_control();
+    // SAFETY: stable initialized external control words are retained by the token.
+    let id = unsafe {
+        domain.create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    };
     let pid = {
         let _active = domain.activate();
         let _scope = enter_heap(id);
         let pid = alloc(16, false);
-        // SAFETY: pid is an allocation base in the active actor heap and control is
-        // a live invocation-heap allocation, exactly as the PID contract requires.
-        unsafe { control_edge(pid, control) };
+        // SAFETY: the fresh PID wrapper retains its own external control reference.
+        unsafe { retain_control(pid, control_token(&control)) };
         pid as usize
     };
     assert_eq!(domain.verify_edges(), Ok(()));
@@ -481,7 +642,7 @@ fn only_control_edges_leave_an_actor_payload_heap() {
             target: 0xdead_0000,
         })
     );
-    domain.force_control_edge(id, pid, control as usize);
+    domain.force_control_edge(id, pid, std::sync::Arc::as_ptr(&control) as usize);
     domain.retire_heap(id);
 }
 
@@ -509,9 +670,15 @@ fn a_root_retired_under_a_foreign_domain_is_rejected() {
 fn a_heap_scope_left_under_a_foreign_domain_is_rejected() {
     let mut first = Domain::new();
     let mut second = Domain::new();
-    let control = first.with_mut(|heap| heap.allocate(8, false));
-    // SAFETY: control is a live one-word invocation-heap allocation of this domain.
-    let id = unsafe { first.create_actor_heap(control.cast::<usize>(), 1) };
+    let (control, _) = external_control();
+    // SAFETY: stable initialized external control words are retained by the token.
+    let id = unsafe {
+        first.create_control_heap(
+            std::sync::Arc::as_ptr(&control).cast(),
+            1,
+            control_token(&control),
+        )
+    };
     let scope = {
         let _active = first.activate();
         enter_heap(id)
@@ -545,4 +712,38 @@ fn colliding_root_numbers_retire_in_the_domain_that_registered_them() {
         drop(kept);
     }
     assert_eq!(first.with(|heap| heap.roots.len()), 0);
+}
+
+/// A control record cannot be swept by another payload heap while its words
+/// remain registered. This preserves the former payload-control rejection.
+#[test]
+#[should_panic(expected = "external control storage cannot belong to a collected heap")]
+fn an_actor_control_object_inside_a_payload_heap_is_rejected() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let host = fresh_actor_heap();
+    let _scope = enter_heap(host);
+    let payload = alloc(8, false);
+    unsafe fn release(_: *const ()) {}
+    // SAFETY: deliberately invalid control placement is rejected before any
+    // registration; the live test allocation outlives the no-op release token.
+    let token = unsafe { Control::new(payload.cast(), release) };
+    unsafe { create_control_heap(payload.cast::<usize>(), 1, token) };
+}
+
+#[test]
+#[should_panic(expected = "control roots must name their retained owner")]
+fn external_control_roots_reject_a_different_owner() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let (first, _) = external_control();
+    let (second, _) = external_control();
+    // SAFETY: both records are live; the mismatched registration is rejected.
+    unsafe {
+        create_control_heap(
+            std::sync::Arc::as_ptr(&first).cast(),
+            1,
+            control_token(&second),
+        )
+    };
 }

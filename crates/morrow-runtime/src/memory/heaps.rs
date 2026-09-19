@@ -1,4 +1,4 @@
-//! Invocation control storage and independently collected actor payload heaps.
+//! Independent program and actor heaps with retained external control roots.
 use super::*;
 use std::cell::Cell;
 use std::ptr::null_mut;
@@ -12,9 +12,8 @@ const MISPLACED_SCOPE: &str = "a heap scope must leave under the domain that ent
 
 struct Slot {
     heap: Heap,
-    // The control word roots an invocation-owned Actor while this heap exists.
-    _control: Option<Box<usize>>,
-    control_root: Option<usize>,
+    // The heap and all its finalizers retire before their external root storage.
+    _retention: Option<Control>,
     scopes: usize,
     retired: bool,
 }
@@ -22,8 +21,7 @@ impl Slot {
     fn invocation() -> Self {
         Self {
             heap: Heap::new(),
-            _control: None,
-            control_root: None,
+            _retention: None,
             scopes: 0,
             retired: false,
         }
@@ -39,6 +37,7 @@ pub(crate) struct Domain {
     // instead of allocating tree nodes for each short-lived root registration.
     frames: Vec<Frame>,
     retired_collections: usize,
+    control_stats: Arc<ControlStats>,
 }
 struct Frame {
     token: usize,
@@ -61,23 +60,25 @@ impl Domain {
             next_frame: 0,
             frames: Vec::new(),
             retired_collections: 0,
+            control_stats: Arc::new(ControlStats::default()),
         }
     }
     /// Assert that the only edge leaving an actor payload heap is its control edge.
     ///
     /// Exactly three classes are permitted:
     ///   1. payload to payload within one heap,
-    ///   2. payload to control storage in the invocation heap,
+    ///   2. payload to explicitly retained external control storage,
     ///   3. invocation-internal.
     #[cfg(any(test, feature = "simulation"))]
     pub(crate) fn verify_edges(&self) -> Result<(), EdgeViolation> {
-        let invocation = &self.slots[&0].heap.blocks;
         for (&id, slot) in &self.slots {
-            if id == 0 {
-                continue;
-            }
             for (&block, metadata) in &slot.heap.blocks {
-                if metadata.control != 0 && !invocation.contains_key(&metadata.control) {
+                if metadata.control != 0
+                    && !metadata
+                        .retention
+                        .as_ref()
+                        .is_some_and(|owner| owner.pointer == metadata.control)
+                {
                     return Err(EdgeViolation {
                         heap: id,
                         block,
@@ -134,26 +135,14 @@ impl Domain {
     }
     pub(crate) fn collect_active(&mut self, roots: &[usize]) -> Stats {
         let active = self.active;
-        let mut controls = Vec::new();
-        if active == 0 {
-            // Foreign payload is never scanned. Metadata survives exactly as long
-            // as its wrapper allocation, including until that heap's next sweep.
-            controls.extend_from_slice(roots);
-            for (&id, slot) in &self.slots {
-                if id != 0 {
-                    controls.extend(
-                        slot.heap
-                            .blocks
-                            .values()
-                            .filter_map(|block| (block.control != 0).then_some(block.control)),
-                    );
-                }
-            }
-        }
-        let roots = if active == 0 { &controls } else { roots };
-        let Domain { slots, frames, .. } = self;
+        let Domain {
+            slots,
+            frames,
+            control_stats,
+            ..
+        } = self;
         let heap = &mut slots.get_mut(&active).unwrap().heap;
-        if frames.is_empty() {
+        let mut stats = if frames.is_empty() {
             heap.trace(roots)
         } else {
             // Borrow registrations while tracing only their owning heap. Scan
@@ -163,13 +152,39 @@ impl Domain {
                 .filter(|frame| frame.heap == active)
                 .map(|frame| (frame.pointer, frame.words));
             heap.trace_ranges(roots, ranges)
+        };
+        if active == 0 {
+            // A tiny unreachable Exec may retain a large identity table. Its
+            // external storage must affect both the trigger and the new threshold.
+            let controls = control_stats.bytes.load(Ordering::Relaxed);
+            heap.threshold = heap
+                .bytes
+                .saturating_add(controls)
+                .saturating_mul(2)
+                .max(1024 * 1024);
+            stats.bytes += controls;
+            stats.objects += control_stats.objects.load(Ordering::Relaxed);
         }
+        stats
+    }
+    fn should_collect(&self, additional: usize) -> bool {
+        let heap = &self.slots[&self.active].heap;
+        let controls = if self.active == 0 {
+            self.control_stats.bytes.load(Ordering::Relaxed)
+        } else {
+            0
+        };
+        heap.bytes
+            .saturating_add(controls)
+            .saturating_add(additional)
+            > heap.threshold
     }
     pub(crate) fn stats(&self) -> Stats {
         self.slots.values().fold(
             Stats {
                 collections: self.retired_collections,
-                ..Stats::default()
+                bytes: self.control_stats.bytes.load(Ordering::Relaxed),
+                objects: self.control_stats.objects.load(Ordering::Relaxed),
             },
             |mut total, slot| {
                 let stats = slot.heap.stats();
@@ -180,17 +195,28 @@ impl Domain {
             },
         )
     }
+    pub(crate) fn account_control(&self, bytes: usize, objects: usize) -> ControlAllocation {
+        for (counter, amount) in [
+            (&self.control_stats.bytes, bytes),
+            (&self.control_stats.objects, objects),
+        ] {
+            counter
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                    current.checked_add(amount)
+                })
+                .unwrap_or_else(|_| std::process::abort());
+        }
+        ControlAllocation {
+            stats: self.control_stats.clone(),
+            bytes,
+            objects,
+        }
+    }
     pub(crate) fn shutdown(&mut self) {
         assert_eq!(self.active, 0);
         assert!(self.frames.is_empty());
-        // Persistent actor control registrations are owned by this store. Native
-        // callers must still retire their own stack/foreign-container Root tokens.
-        let controlled = self
-            .slots
-            .values()
-            .filter(|slot| slot.control_root.is_some())
-            .count();
-        assert_eq!(self.slots[&0].heap.roots.len(), controlled);
+        // Native callers retire their own stack/foreign-container roots.
+        assert!(self.slots[&0].heap.roots.is_empty());
         assert!(self.slots.values().all(|slot| slot.scopes == 0));
         assert!(
             self.slots
@@ -203,35 +229,51 @@ impl Domain {
         *self = Domain::new();
         self.id = id;
     }
-    /// Attach a PID's exact control edge without rooting another actor's payload.
+    /// Retain a control record independently of every collected allocation.
     /// # Safety
-    /// `pointer` is an allocation base in the active heap, and `control` is a live
-    /// invocation-owned Actor whose immutable identity the initialized PID retains.
-    pub(crate) unsafe fn control_edge(&mut self, pointer: *const u8, control: *const u8) {
-        let active = self.active;
-        assert!(self.slots[&0].heap.blocks.contains_key(&(control as usize)));
-        if active != 0 {
+    /// The wrapper is a live allocation base in the current heap. The token's
+    /// release operation meets Control's contract even during a collection.
+    unsafe fn retain_control(&mut self, pointer: *const u8, retention: Control) {
+        assert!(
             self.slots
-                .get_mut(&active)
-                .unwrap()
-                .heap
-                .blocks
-                .get_mut(&(pointer as usize))
-                .expect("PID allocation belongs to current heap")
-                .control = control as usize;
-        }
+                .keys()
+                .all(|&id| !self.owns(id, retention.pointer as *const _)),
+            "external control storage cannot belong to a collected heap"
+        );
+        let block = self
+            .slots
+            .get_mut(&self.active)
+            .unwrap()
+            .heap
+            .blocks
+            .get_mut(&(pointer as usize))
+            .expect("control wrapper belongs to current heap");
+        assert!(
+            block.retention.is_none(),
+            "a control wrapper already owns a reference"
+        );
+        block.control = retention.pointer;
+        block.retention = Some(retention);
     }
-    /// Create a payload heap whose external roots are the invocation-owned actor words.
+    /// Register external control roots with an owner that outlives the heap.
     /// # Safety
-    /// The control object must be an invocation-heap allocation, readable for `words`
-    /// words, and cannot be freed or replaced until this payload heap is retired.
-    pub(crate) unsafe fn create_actor_heap(
+    /// The registered words are initialized and remain readable. Only this
+    /// domain's scheduler writes them, outside collection.
+    pub(crate) unsafe fn create_control_heap(
         &mut self,
         control: *const usize,
         words: usize,
+        retention: Control,
     ) -> usize {
-        let control_word = Box::new(control as usize);
-        let control_root = register(&mut self.slots.get_mut(&0).unwrap().heap, &*control_word, 1);
+        assert_eq!(
+            control as usize, retention.pointer,
+            "control roots must name their retained owner"
+        );
+        assert!(words <= isize::MAX as usize / 8);
+        assert!(
+            self.slots.keys().all(|&id| !self.owns(id, control.cast())),
+            "external control storage cannot belong to a collected heap"
+        );
         let mut heap = Heap::new();
         register(&mut heap, control, words);
         self.next_heap = self
@@ -243,8 +285,7 @@ impl Domain {
             id,
             Slot {
                 heap,
-                _control: Some(control_word),
-                control_root: Some(control_root),
+                _retention: Some(retention),
                 scopes: 0,
                 retired: false,
             },
@@ -318,6 +359,7 @@ impl Domain {
             slot.heap.roots.remove(&id);
         }
     }
+    #[cfg(test)]
     pub(crate) fn with<R>(&self, f: impl FnOnce(&Heap) -> R) -> R {
         f(&self.slots[&self.active].heap)
     }
@@ -332,18 +374,14 @@ impl Domain {
                 .get(&id)
                 .is_some_and(|slot| slot.retired && slot.scopes == 0)
         {
-            if let Some(root) = self.slots[&id].control_root {
-                self.slots.get_mut(&0).unwrap().heap.roots.remove(&root);
-            }
             self.frames.retain(|frame| frame.heap != id);
             self.retired_collections += self.slots[&id].heap.collections;
             self.slots.remove(&id);
         }
     }
 }
-/// A managed edge that leaves an actor payload heap without landing in invocation
-/// control storage. Step 4 of the parallel actor work has to sever the permitted
-/// control edges; anything else must not exist in the first place.
+/// A managed edge that leaves a payload heap without landing in external
+/// control storage retained by the wrapper. No collected heap owns that storage.
 #[cfg(any(test, feature = "simulation"))]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct EdgeViolation {
@@ -405,23 +443,15 @@ impl Drop for Activation<'_> {
     }
 }
 
-pub(super) fn with<R>(f: impl FnOnce(&Heap) -> R) -> R {
-    with_current(|domain| domain.with(f))
-}
 pub(super) fn with_mut<R>(f: impl FnOnce(&mut Heap) -> R) -> R {
     with_current(|domain| domain.with_mut(f))
 }
 
-/// Attach a PID's exact control edge without rooting another actor's payload.
-/// # Safety
-/// `pointer` is an allocation base in the active heap, and `control` is a live
-/// invocation-owned Actor whose immutable identity the initialized PID retains.
-pub(crate) unsafe fn control_edge(pointer: *const u8, control: *const u8) {
-    with_current(|domain| unsafe { domain.control_edge(pointer, control) });
-}
-
 pub(super) fn collect(roots: &[usize]) -> Stats {
     with_current(|domain| domain.collect_active(roots))
+}
+pub(super) fn should_collect(additional: usize) -> bool {
+    with_current(|domain| domain.should_collect(additional))
 }
 fn register(heap: &mut Heap, pointer: *const usize, words: usize) -> usize {
     heap.next_root = heap
@@ -472,12 +502,22 @@ pub(crate) fn enter(id: usize) -> Scope {
     with_current(|domain| domain.enter(id))
 }
 
-/// Create a payload heap whose external roots are the invocation-owned actor words.
+/// Retain external control storage for a GC wrapper.
 /// # Safety
-/// The control object must be an invocation-heap allocation, readable for `words`
-/// words, and cannot be freed or replaced until this payload heap is retired.
-pub(crate) unsafe fn create(control: *const usize, words: usize) -> usize {
-    with_current(|domain| unsafe { domain.create_actor_heap(control, words) })
+/// `pointer` is a live allocation base in the current heap.
+pub(crate) unsafe fn retain_control(pointer: *const u8, retention: Control) {
+    with_current(|domain| unsafe { domain.retain_control(pointer, retention) });
+}
+/// Register control words while retaining their external owner.
+/// # Safety
+/// The control words are initialized, readable and stable until heap retirement;
+/// writes happen only on the thread that owns this domain, outside collection.
+pub(crate) unsafe fn create_control_heap(
+    control: *const usize,
+    words: usize,
+    retention: Control,
+) -> usize {
+    with_current(|domain| unsafe { domain.create_control_heap(control, words, retention) })
 }
 /// Retire payload storage once its final active callback/scope has returned.
 pub(crate) fn retire(id: usize) {
