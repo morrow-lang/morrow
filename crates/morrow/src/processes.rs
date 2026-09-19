@@ -22,6 +22,12 @@ pub(crate) const API_NAMES: &[&str] = &[
     "Process.id",
     "Process.monitor",
     "Process.demonitor",
+    "Process.link",
+    "Process.unlink",
+    "Process.spawn_link",
+    "Process.trap_exit",
+    "Process.exit",
+    "Process.signal_exit",
 ];
 pub(crate) fn is_api(name: &str) -> bool {
     API_NAMES.contains(&name)
@@ -59,13 +65,21 @@ pub(crate) fn result(value: Type) -> Type {
     Type::Result(Box::new(value), Box::new(error()))
 }
 
+/// Atomic spawn relationships remain mutually exclusive.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SpawnMode {
+    Isolated,
+    Monitor,
+    Link,
+}
+
 /// Public typed operations are independently validated before native emission.
 #[derive(Clone, Debug)]
 pub enum ProcessExpr {
     Spawn {
         entry: Box<ir::Expr>,
         mailbox: Type,
-        monitor: bool,
+        mode: SpawnMode,
     },
     SelfPid {
         mailbox: Type,
@@ -75,6 +89,22 @@ pub enum ProcessExpr {
     },
     Monitor {
         target: Box<ir::Expr>,
+    },
+    Link {
+        target: Box<ir::Expr>,
+    },
+    Unlink {
+        target: Box<ir::Expr>,
+    },
+    TrapExit {
+        enabled: Box<ir::Expr>,
+    },
+    Exit {
+        reason: Box<ir::Expr>,
+    },
+    SignalExit {
+        target: Box<ir::Expr>,
+        reason: Box<ir::Expr>,
     },
     Demonitor {
         reference: Box<ir::Expr>,
@@ -87,7 +117,12 @@ impl ProcessExpr {
             Self::Spawn { entry, .. } => vec![entry],
             Self::SelfPid { .. } => vec![],
             Self::Id { pid } => vec![pid],
-            Self::Monitor { target } => vec![target],
+            Self::Monitor { target } | Self::Link { target } | Self::Unlink { target } => {
+                vec![target]
+            }
+            Self::TrapExit { enabled } => vec![enabled],
+            Self::Exit { reason } => vec![reason],
+            Self::SignalExit { target, reason } => vec![target, reason],
             Self::Demonitor { reference, options } => vec![reference, options],
         }
     }
@@ -96,7 +131,12 @@ impl ProcessExpr {
             Self::Spawn { entry, .. } => vec![entry],
             Self::SelfPid { .. } => vec![],
             Self::Id { pid } => vec![pid],
-            Self::Monitor { target } => vec![target],
+            Self::Monitor { target } | Self::Link { target } | Self::Unlink { target } => {
+                vec![target]
+            }
+            Self::TrapExit { enabled } => vec![enabled],
+            Self::Exit { reason } => vec![reason],
+            Self::SignalExit { target, reason } => vec![target, reason],
             Self::Demonitor { reference, options } => vec![reference, options],
         }
     }

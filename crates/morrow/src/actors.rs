@@ -208,6 +208,8 @@ pub(crate) enum Operation {
     Continue(Box<ir::Expr>),
     /// Private nonescaping Unit helper self-tail frame; never authored IR.
     ContinueReusable(Box<ir::Expr>),
+    /// Terminal process operation: its status returns directly to the scheduler.
+    ProcessExit(Box<ir::Expr>),
     Pointer(Box<ir::Expr>),
     Register {
         view: crate::processes::ReceiveView,
@@ -232,6 +234,7 @@ impl Lowered {
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
             | Operation::ContinueReusable(value)
+            | Operation::ProcessExit(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }
@@ -261,6 +264,7 @@ impl Lowered {
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
             | Operation::ContinueReusable(value)
+            | Operation::ProcessExit(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }

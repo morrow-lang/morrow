@@ -1,0 +1,11 @@
+   Compiling morrow v0.1.0 (/Users/nheer/Projects/github.com/niklas-heer/fern/crates/morrow)
+    Finished `test` profile [unoptimized] target(s) in 0.97s
+     Running tests/sole_backend.rs (target/debug/build/morrow/4156c1fb68311e05/out/sole_backend-4156c1fb68311e05)
+
+running 3 tests
+test help_advertises_cranelift_as_the_native_backend ... ok
+test removed_backend_rejects_before_source_access ... ok
+test default_native_compilation_does_not_resolve_qbe ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.86s
+

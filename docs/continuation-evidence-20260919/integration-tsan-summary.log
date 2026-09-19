@@ -1,0 +1,8 @@
+test managed::transport_tests::queued_envelopes_share_one_exact_global_message_limit ... ok
+test managed::process_tests::global_monitor_limit_and_cancellation_churn_release_all_logical_reservations ... ok
+test managed::simulation::scenario::tests::seeded_corpus_preserves_deadlines_and_sibling_progress ... ok
+test managed::link_tests::full_global_completion_fanout_is_bounded_and_stop_releases_pending_actions ... ok
+test managed::cleanup::tests::seeded_scope_model_releases_roots_and_preserves_first_cleanup_failure ... ok
+
+test result: ok. 263 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 37.41s
+

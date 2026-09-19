@@ -1,0 +1,39 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling morrow-json v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-json)
+   Compiling morrow-runtime v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-runtime)
+    Finished `test` profile [unoptimized] target(s) in 4.73s
+     Running unittests src/lib.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/1e00b2911219d337/out/morrow_runtime-1e00b2911219d337)
+
+running 6 tests
+memo bytes=48 prior_hashmap_bytes=48 fragment_copy_bytes=112
+
+thread 'managed::copy::memo_tests::memo_replaces_inline_keys_without_spilling_including_all_zero_key' (6102226) panicked at crates/morrow-runtime/src/managed/copy_memo_tests.rs:229:5:
+assertion `left == right` failed: replacement of either inline key must not spill
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+tiny memo blocks=1 Counts { plain: 2, bytes: 916, zeroed: 1 }
+test managed::copy::memo_tests::cyclic_source_remains_rejected_before_any_copy_allocation ... ok
+test managed::copy::memo_tests::descriptor_sensitive_dag_sharing_survives_spill_and_adoption ... ok
+test managed::copy::memo_tests::wide_heap_copy_keeps_every_fallback_value_rooted_through_collection ... ok
+tiny memo blocks=2 Counts { plain: 2, bytes: 916, zeroed: 2 }
+
+thread 'managed::copy::memo_tests::tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata' (6102227) panicked at crates/morrow-runtime/src/managed/copy_memo_tests.rs:102:5:
+assertion `left == right` failed: only each fragment's BTreeMap node may allocate; no tiny copy memo
+  left: 4
+ right: 2
+test managed::copy::memo_tests::memo_keys_preserve_full_width_source_descriptor_and_frame_sentinel ... ok
+test managed::copy::memo_tests::memo_replaces_inline_keys_without_spilling_including_all_zero_key ... FAILED
+test managed::copy::memo_tests::tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata ... FAILED
+
+failures:
+
+failures:
+    managed::copy::memo_tests::memo_replaces_inline_keys_without_spilling_including_all_zero_key
+    managed::copy::memo_tests::tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata
+
+test result: FAILED. 4 passed; 2 failed; 0 ignored; 0 measured; 230 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p morrow-runtime --lib`

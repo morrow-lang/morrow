@@ -194,6 +194,7 @@ pub unsafe extern "C" fn morrow_process_id_equal(left: *mut c_void, right: *mut 
 
 pub(super) unsafe fn fault(a: *mut Actor) {
     unsafe {
+        latch_fault(a);
         cleanup::unwind(a);
         if (*a).identity.isolated {
             if (*a).infrastructure_fault || matches!((*a).fault, 11 | 12) {
@@ -204,6 +205,212 @@ pub(super) unsafe fn fault(a: *mut Actor) {
         } else if !supervision::recover(a) {
             fail(&raw mut (*(*a).exec.session).root, (*a).fault);
         }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum TerminalOrigin {
+    Explicit,
+    Checked,
+}
+
+pub(super) struct Terminal {
+    origin: TerminalOrigin,
+    pub reason: reasons::Reason,
+    pub forced: bool,
+    pub cleanup_fault: i64,
+}
+
+/// Preserve the first checked failure before ingress or cleanup can overwrite the
+/// transient fault cell. Its origin retains legacy recovery/root-failure policy;
+/// explicit Process.exit(Fault(code)) is a different terminal operation.
+pub(super) unsafe fn latch_fault(a: *mut Actor) {
+    unsafe {
+        if (*a).fault != 0 && (*a).terminal.is_none() {
+            (*a).terminal = Some(control::Owned::new(Terminal {
+                origin: TerminalOrigin::Checked,
+                reason: reasons::Reason::Builtin(3, (*a).fault),
+                forced: false,
+                cleanup_fault: 0,
+            }));
+            (*a).identity.exiting.store(true, Ordering::Release);
+        }
+    }
+}
+
+pub(super) unsafe fn commit_terminal(a: *mut Actor, reason: reasons::Reason, forced: bool) {
+    unsafe {
+        latch_fault(a);
+        if (*a).terminal.is_none() {
+            (*a).terminal = Some(control::Owned::new(Terminal {
+                origin: TerminalOrigin::Explicit,
+                reason,
+                forced,
+                cleanup_fault: 0,
+            }));
+            (*a).identity.exiting.store(true, Ordering::Release);
+        } else if forced {
+            (*(*a).terminal.as_ref().unwrap().as_ptr()).forced = true;
+        }
+    }
+}
+
+pub(super) unsafe fn forced(a: *mut Actor) -> bool {
+    unsafe {
+        (*a).terminal
+            .as_ref()
+            .is_some_and(|terminal| (*terminal.as_ptr()).forced)
+    }
+}
+
+pub(super) unsafe fn terminal_reason(a: *mut Actor) -> reasons::Reason {
+    unsafe {
+        (*a).terminal.as_ref().map_or_else(
+            || reasons::Reason::Builtin(if (*a).fault == 0 { 0 } else { 3 }, (*a).fault),
+            |terminal| (*terminal.as_ptr()).reason.clone(),
+        )
+    }
+}
+
+#[cfg(test)]
+type TerminalHook = (usize, unsafe fn(usize));
+#[cfg(test)]
+thread_local! { pub(super) static BEFORE_TERMINAL_CLEANUP: std::cell::Cell<Option<TerminalHook>> = const { std::cell::Cell::new(None) }; }
+
+pub(super) unsafe fn finish_terminal(a: *mut Actor) -> bool {
+    unsafe {
+        let Some(terminal) = (*a).terminal.as_ref().map(|terminal| terminal.as_ptr()) else {
+            return false;
+        };
+        if (*terminal).origin == TerminalOrigin::Checked {
+            return false;
+        }
+        #[cfg(test)]
+        if let Some((context, hook)) = BEFORE_TERMINAL_CLEANUP.with(|hook| hook.take()) {
+            hook(context);
+        }
+        transport::drain_actor((*a).exec.session, a);
+        if (*terminal).forced {
+            cleanup::discard(a);
+        } else {
+            cleanup::unwind(a);
+        }
+        (*terminal).cleanup_fault = (*a).fault;
+        if (*a).infrastructure_fault || matches!((*a).fault, 11 | 12) {
+            fail(&raw mut (*(*a).exec.session).root, (*a).fault);
+        }
+        scheduler::finish(a);
+        true
+    }
+}
+
+/// Commit a terminal reason; cleanup and heap retirement follow callback return.
+/// # Safety
+/// Exec is an actor context and reason is a canonical rooted native ExitReason.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_process_exit(exec: *mut Exec, reason: i64) -> i64 {
+    unsafe {
+        if exec.is_null() {
+            return 3;
+        }
+        if (*exec).actor.is_null() {
+            fail(exec, 11);
+            return 3;
+        }
+        if *(*exec).fault != 0 {
+            return 3;
+        }
+        let reason = match reasons::read((*exec).session, reason) {
+            Ok(reason) => reason,
+            Err(error) => {
+                fail(
+                    exec,
+                    if matches!(error, reasons::Error::Invalid) {
+                        11
+                    } else {
+                        9
+                    },
+                );
+                return 3;
+            }
+        };
+        commit_terminal((*exec).actor, reason, false);
+        2
+    }
+}
+
+/// Set recipient-side exit trapping and return its previous full-width Bool.
+/// # Safety
+/// Exec is a live actor context; enabled is exactly0 or1.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_process_trap_exit(exec: *mut Exec, enabled: i64) -> i64 {
+    unsafe {
+        if exec.is_null() {
+            return 0;
+        }
+        if (*exec).actor.is_null() || !matches!(enabled, 0 | 1) {
+            fail(exec, 11);
+            return 0;
+        }
+        let a = (*exec).actor;
+        let previous = (*a).trap_exit;
+        (*a).trap_exit = enabled != 0;
+        i64::from(previous)
+    }
+}
+
+/// Send an explicit exit signal through the recipient's ordered control ingress.
+/// # Safety
+/// Exec is owner-thread actor context; target and reason are retained native values.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_process_signal_exit(
+    exec: *mut Exec,
+    target: *mut c_void,
+    reason: i64,
+) -> i64 {
+    unsafe {
+        if exec.is_null() || (*exec).actor.is_null() {
+            return error(4);
+        }
+        let s = (*exec).session;
+        let id = target.cast::<Identity>();
+        if !valid_identity(s, id) {
+            return error(1);
+        }
+        let a = (*id).actor;
+        if (*a).identity.host_port {
+            return error(3);
+        }
+        let reason = match reasons::read(s, reason) {
+            Ok(reason) => reason,
+            Err(reasons::Error::Invalid) => {
+                fail(exec, 11);
+                return error(4);
+            }
+            Err(reasons::Error::Oversize) => return error(4),
+            Err(reasons::Error::ResourceLimit) => return error(0),
+        };
+        if !(*a).identity.alive.load(Ordering::Acquire) {
+            return abi::result_ok(0);
+        }
+        if (*s).stopped || shared(s).is_some_and(|g| g.stopped.load(Ordering::Acquire)) {
+            return error(0);
+        }
+        let Some(slot) = controls::reserve(s, a, controls::SLOT_BYTES + reason.text_bytes()) else {
+            return error(0);
+        };
+        transport::send_control(
+            s,
+            a,
+            transport::Payload::Exit(signals::Exit {
+                source: transport::ActorRef::retain((*exec).actor),
+                reason,
+                slot,
+                linked: false,
+                _epoch: None,
+            }),
+        );
+        abi::result_ok(0)
     }
 }
 

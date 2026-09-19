@@ -1,0 +1,330 @@
+   Compiling morrow-runtime v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-runtime)
+    Finished `test` profile [unoptimized] target(s) in 6.37s
+     Running unittests src/lib.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/1e00b2911219d337/out/morrow_runtime-1e00b2911219d337)
+
+running 236 tests
+test actors::tests::ownership_forest_rejects_cycles_and_reparenting ... ok
+test actors::tests::dead_pid_restart_is_single_use_and_parent_exit_stops_subtree ... ok
+test actors::tests::fixed_restart_window_at_zero_is_not_reinitialized_for_each_crash ... ok
+test actors::tests::subtree_notifications_follow_preorder_after_all_children_stop ... ok
+test actors::tests::rest_for_one_restarts_live_suffix_in_registration_order ... ok
+test actors::tests::one_for_all_never_revives_a_normally_stopped_sibling ... ok
+test actors::tests::fifo_mailboxes_and_round_robin_tickets ... ok
+test io::tests::directory_close_failure_cannot_publish_partial_success ... ok
+test foreign::tests::bounded_import_rejects_null_limits_invalid_utf8_and_missing_nul ... ok
+test json_codec::budget_tests::transparent_newtypes_add_only_a_work_step ... ok
+test json_codec::budget_tests::sum_counter_oracle_includes_envelope_paths_and_payloads ... ok
+test json_codec::budget_tests::union_selection_changes_neither_allocation_nor_node_counters ... ok
+test json_codec::budget_tests::sibling_counter_oracle_matches_the_native_profile_exactly ... ok
+test io::tests::file_roundtrip_empty_unicode_and_append ... ok
+test io::tests::stderr_validation_and_empty_write_do_not_require_descriptor ... ok
+test json_codec::budget_tests::recursive_native_value_uses_depth_and_preserves_exact_path_length ... ok
+test foreign::tests::binary32_matches_rust_oracle_for_seeded_bits_and_boundaries ... ok
+test json_codec::custom_tests::callback_json_operations_share_work_allocations_and_caught_exhaustion ... ok
+test json_codec::tests::arrays_maps_and_transparent_newtypes_keep_their_native_layouts ... ok
+test json_codec::tests::conversion_and_parse_errors_have_distinct_offsets_and_nul_keys_fail_at_parent ... ok
+test json_codec::custom_tests::callback_language_fault_never_dereferences_a_neutral_result ... ok
+test json_codec::custom_tests::infallible_constructor_quota_stops_before_a_neutral_value_is_used ... ok
+test json_codec::custom_tests::custom_codec_callbacks_preserve_full_width_native_payloads ... ok
+test json_codec::custom_tests::managed_custom_payloads_survive_sibling_callbacks_and_precise_collection ... ok
+test json_codec::root_tests::nested_decode_retains_every_partial_object_across_precise_collection ... ok
+test json_codec::tests::full_width_primitives_and_float_bits_round_trip ... ok
+test json_codec::tests::nullable_record_field_uses_heap_none_and_unions_never_try_second_decoder ... ok
+test json_codec::tests::primitive_and_path_allocations_share_the_original_budget ... ok
+test json_codec::tests::record_rejects_unknown_before_missing_fields_and_escapes_pointer_paths ... ok
+test json_codec::tests::sum_envelope_preserves_source_tag_order_and_nested_failure_paths ... ok
+test io::tests::file_rejects_binary_and_oversize_without_truncating ... ok
+
+running 1 test
+test json_codec::tests::union_record_keys_select_once_and_all_sum_tags_disambiguate ... ok
+test json_codec::budget_tests::external_json_capacity_triggers_collection_and_releases_rust_graphs ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 235 filtered out; finished in 0.01s
+
+test managed::affinity::tests::native_resource_access_pins_only_the_current_actor_and_restores_nesting ... ok
+test managed::budget::tests::byte_reservations_are_exact_and_roll_back_once ... ok
+test managed::budget::tests::generations_reach_max_without_wrapping ... ok
+test managed::budget::tests::actor_failure_rolls_back_every_reserved_counter ... ok
+test managed::budget::tests::checked_release_rejects_a_second_release ... ok
+test managed::budget::tests::initial_bytes_preserve_the_original_absolute_charge ... ok
+test managed::budget::tests::actor_reservations_share_one_exact_limit ... ok
+test managed::budget::tests::message_failure_rolls_back_mailbox_global_and_bytes ... ok
+test json_codec::budget_tests::external_json_capacity_triggers_collection_and_releases_rust_graphs ... ok
+test managed::budget::tests::mailbox_reservations_share_one_exact_limit ... ok
+test managed::control::tests::weak_upgrade_retains_live_control_and_cannot_revive_finalized_storage ... ok
+test managed::budget::tests::only_one_concurrent_byte_reservation_reaches_the_last_byte ... ok
+test managed::copy::fragment_tests::fragment_capture_frame_copies_shared_captures ... ok
+test managed::copy::fragment_tests::fragment_preflight_rejects_over_budget_list_without_allocating ... ok
+test managed::copy::fragment_tests::fragment_pid_preserves_generation_and_retains_retired_actor_until_collection ... ok
+test managed::copy::fragment_tests::fragment_json_clones_rc_nodes_and_preserves_internal_sharing ... ok
+test managed::copy::fragment_tests::fragment_copies_full_width_graph_and_dag_after_source_collection ... ok
+test managed::copy::memo_tests::cyclic_source_remains_rejected_before_any_copy_allocation ... ok
+test json_codec::unions::nested::tests::seeded_structural_selection_allocates_only_the_selected_payload_and_retains_it ... ok
+test managed::copy::memo_tests::descriptor_sensitive_dag_sharing_survives_spill_and_adoption ... ok
+test json_codec::custom_tests::callback_projections_and_rejected_scans_cannot_bypass_shared_allowances ... ok
+test managed::copy::memo_tests::memo_keys_preserve_full_width_source_descriptor_and_frame_sentinel ... ok
+test managed::copy::memo_tests::tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata ... ok
+test managed::cost::tests::wide_graph_validation_preserves_cost_and_shared_value_accounting ... ok
+test managed::copy::memo_tests::memo_replaces_inline_keys_without_spilling_including_all_zero_key ... ok
+test managed::descriptor_cache::tests::collisions_alternation_and_budget_failures_preserve_registry_semantics ... ok
+test managed::budget::tests::global_message_reservations_share_one_exact_limit ... ok
+test managed::copy::memo_tests::wide_heap_copy_keeps_every_fallback_value_rooted_through_collection ... ok
+test managed::cleanup::tests::empty_logical_scope_limit_is_atomic_and_cancel_releases_all_admitted_scopes ... ok
+test managed::message_layout_tests::writing_message_kind_clears_a_poisoned_foreign_pointer_word ... ok
+test managed::migration::tests::an_adopted_actor_cannot_be_donated_back_before_its_first_callback ... ok
+test managed::lifecycle::constructor_tests::json_decoded_containers_can_be_captured_and_sent_to_real_actors ... ok
+test managed::migration::tests::donation_collects_dead_payloads_before_validating_the_live_actor_graph ... ok
+test managed::descriptor_cache::tests::migrated_callbacks_warm_the_destination_scheduler_cache ... ok
+test managed::descriptor_cache::tests::repeated_real_callbacks_stop_rescanning_registered_descriptors ... ok
+test managed::descriptor_cache::tests::sessions_never_reuse_another_registrations_cached_identity ... ok
+test managed::migration::tests::stealing_configuration_accepts_only_explicit_zero_or_one ... ok
+test managed::migration::tests::stop_adopts_an_in_flight_transfer_and_runs_its_cleanup_once ... ok
+test managed::migration::tests::migration_declines_callback_pinning_host_ports_and_supervised_initializers ... ok
+test managed::migration::tests::waiting_actor_migration_preserves_deadline_selector_gc_and_failure_cleanup ... ok
+test managed::migration::tests::repeated_declined_steals_cannot_delay_the_donors_ready_callback ... ok
+test managed::parallel::tests::published_invocation_fault_wins_over_later_direct_root_fault_writes ... ok
+test managed::parallel::tests::runnable_root_actor_never_enters_the_remote_work_wait ... ok
+test managed::migration::tests::owner_assisted_stealing_and_actor_migration_replay_exactly ... ok
+test managed::lifecycle::constructor_tests::repeated_open_roots_new_session_before_identity_table_allocation ... ok
+test managed::migration::tests::concurrent_sends_preserve_each_sender_fifo_while_actor_is_in_transit ... ok
+test managed::migration::tests::migration_moves_live_frame_mailbox_and_cleanup_to_another_os_thread ... ok
+test managed::parallel::tests::useful_local_turns_do_not_reacquire_global_activity ... ok
+test managed::migration::tests::idle_os_worker_requests_and_receives_owner_assisted_work ... ok
+test managed::parallel::tests::failed_second_worker_start_joins_the_already_started_worker ... ok
+test managed::parallel::tests::stop_observation_imports_racing_worker_fault_and_joins_before_return ... ok
+test managed::parallel::tests::simulated_scheduler_choices_replay_across_isolated_domains ... ok
+test managed::process_tests::atomic_spawn_monitor_and_event_materialization_survive_precise_collection ... ok
+test managed::process_tests::cancellation_interrupts_a_finite_receive_wait_before_its_deadline ... ok
+test managed::parallel::tests::a_blocked_worker_does_not_prevent_another_worker_callback ... ok
+test managed::process_tests::cancellation_token_survives_later_parallel_configuration ... ok
+test managed::parallel::tests::worker_fault_cancels_other_scheduler_and_preserves_first_fault_through_cleanup ... ok
+test managed::process_tests::distinct_invocation_epochs_prevent_generation_aliases_and_keep_copied_refs_valid ... ok
+test managed::process_tests::invalid_native_cleanup_escalates_without_replacing_the_first_checked_fault ... ok
+test managed::process_tests::checked_fault_callback_statuses_remain_isolated_but_unknown_status_escalates ... ok
+test managed::process_tests::isolated_fault_reports_one_typed_down_without_failing_sibling ... ok
+test managed::parallel::tests::zero_live_during_supervision_restart_is_busy_until_the_worker_quiesces ... ok
+test managed::process_tests::isolated_processes_do_not_swallow_invalid_native_status_or_infrastructure_faults ... ok
+test managed::process_tests::cancelled_poll_preserves_existing_and_stop_cleanup_faults ... ok
+test managed::process_tests::first_monitor_registry_cannot_miss_a_concurrent_legacy_death ... ok
+test managed::process_tests::monitor_references_are_fresh_and_demonitor_has_owner_and_flush_semantics ... ok
+test managed::process_tests::migration_preserves_ordered_system_cells_and_owner_monitor_reservations ... ok
+test managed::process_tests::opaque_identity_copy_compares_by_generation_and_preserves_native_layouts ... ok
+test managed::process_tests::monitor_byte_admission_and_atomic_spawn_failure_roll_back_without_faulting_parent ... ok
+test managed::process_tests::process_root_spawns_follow_configured_scheduler_placement ... ok
+test managed::process_tests::cancellation_wakes_confirmed_parked_finite_and_infinite_waiters ... ok
+test managed::quantum::tests::configuration_is_bounded_and_default_preserves_single_callback_turns ... ok
+test managed::process_tests::selector_timer_and_cleanup_faults_use_the_same_isolated_retirement_path ... ok
+test managed::process_tests::owned_cross_thread_cancel_wakes_isolated_waiter_without_legacy_deadlock_fault ... ok
+test managed::quantum::tests::immediately_selected_receive_ends_the_quantum ... ok
+test managed::quantum::tests::configured_quantum_rotates_ready_actors_without_recursive_callbacks ... ok
+test managed::process_tests::repeated_nonflushing_demonitor_keeps_queued_event_capacity_reserved ... ok
+test managed::quantum::tests::quantum_counts_exactly_and_resets_only_between_turns ... ok
+test managed::process_tests::parallel_idle_barriers_admit_process_lease_and_wake_ingress_then_restore_legacy_deadlock ... ok
+test managed::receive::reuse_tests::reused_frames_obey_exact_reduction_rotation_and_clear_callback_metadata ... ok
+test managed::root_tests::actor_padding_is_not_a_payload_root_or_a_foreign_heap_edge ... ok
+test managed::receive::reuse_tests::scalar_reuse_preserves_owned_roots_frame_address_and_exact_charge ... ok
+test managed::receive::reuse_tests::reuse_decline_rejection_and_quota_failure_leave_original_state_intact ... ok
+test managed::simulation::scenario::tests::invalid_work_bounds_are_rejected_before_starting_runtime ... ok
+test managed::root_tests::all_six_actor_payload_roots_survive_precise_collection_and_handoff ... ok
+test managed::receive::reuse_tests::reused_frame_moves_to_another_os_owner_with_unchanged_address_and_live_roots ... ok
+test managed::simulation::tests::failed_virtual_clock_send_is_atomic_and_does_not_touch_other_sessions ... ok
+test managed::simulation::tests::virtual_clocks_are_invocation_local_and_reject_invalid_advances_atomically ... ok
+test managed::simulation::scenario::tests::wrong_expected_timer_is_rejected_with_replay_configuration ... ok
+test managed::process_tests::death_commit_races_are_cancelled_or_drained_without_losing_reservations ... ok
+test managed::simulation::tests::virtual_deadline_overflow_faults_without_wrapping_or_sleeping ... ok
+test managed::supervision::tests::failed_supervised_actor_restarts_fresh_initializer_without_stopping_sibling ... ok
+test managed::supervision::tests::synchronized_lineage_replacement_and_clear_release_only_weak_ownership ... ok
+test managed::supervision::tests::synchronized_lineage_upgrades_without_retaining_an_actor_supervisor_cycle ... ok
+test managed::tests::actor_collection_does_not_retain_payload_through_another_actor_heap ... ok
+test managed::tests::actor_termination_finalizes_copied_json_even_with_stale_pointer_words ... ok
+test managed::tests::actor_termination_reclaims_its_payload_without_collecting_other_actors ... ok
+test managed::tests::entries_are_queued_and_drained_fifo_with_independent_fault_slots ... ok
+test managed::tests::clock_failure_rolls_back_send_and_foreign_pid_has_no_effect ... ok
+test managed::tests::host_reply_port_copies_utf8_atomically_and_never_executes_a_callback ... ok
+test managed::tests::hosted_session_waits_for_external_input_without_fault_and_resumes_with_a_budget ... ok
+test managed::tests::identities::actor_heap_retains_detached_control_until_completion ... ok
+test managed::tests::identities::control_records_are_not_collected_program_values ... ok
+test managed::tests::identities::final_actor_generation_is_admitted_once_and_never_wraps ... ok
+test managed::tests::identities::final_pid_release_reclaims_retired_actor_lineage_and_session ... ok
+test managed::tests::identities::foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies ... ok
+test managed::tests::identities::ownership_metadata_preserves_the_existing_logical_byte_quota ... ok
+test managed::tests::identities::published_pid_uses_shared_session_identity_and_atomic_retirement ... ok
+test managed::tests::identities::published_pid_validation_does_not_read_mutable_scheduler_state ... ok
+test managed::supervision::tests::foreign_supervision_lookup_races_restarts_and_precise_collection ... ok
+test managed::tests::invalid_supervision_budget_publishes_no_actor_or_initializer_heap ... ok
+test managed::tests::late_message_loses_at_equal_deadline_and_unmatched_timely_message_remains_ordered ... ok
+test managed::tests::malformed_descriptor_rejected_before_publication ... ok
+test managed::tests::native_range_descriptor_copies_three_full_width_words_without_json_interpretation ... ok
+test managed::tests::promoted_older_timer_cannot_be_overtaken_by_new_zero_timeout ... ok
+test managed::tests::quota_failure_does_not_copy_or_publish_message ... ok
+test managed::tests::receive_prefers_existing_match_before_zero_timeout_and_retires_roots ... ok
+test managed::tests::host_reply_churn_reuses_identity_and_close_preserves_other_rooted_sessions ... ok
+test managed::tests::receiver_survives_sender_collection_and_termination_with_separate_heaps ... ok
+test managed::tests::send_copies_nested_graph_and_preserves_internal_sharing ... ok
+test managed::tests::sent_json_owns_an_independent_graph_and_charges_its_storage ... ok
+test managed::tests::spawn_copies_capture_storage_before_publishing_actor ... ok
+test managed::tests::supervised_restart_retires_old_heap_and_requires_explicit_fresh_pid_lookup ... ok
+test managed::tests::suspended_receive_roots_belong_to_the_actor_until_resume ... ok
+test managed::transport::tests::completed_copy_cannot_publish_after_the_destination_final_drain ... ok
+test managed::tests::unaccounted_and_cyclic_message_graphs_are_rejected ... ok
+test managed::transport::tests::publication_after_empty_observation_remains_queued_for_the_owner ... ok
+test managed::transport::tests::retirement_between_publication_and_route_lock_cannot_strand_ingress ... ok
+test managed::transport::tests::stopped_final_drain_fences_an_already_admitted_spawn ... ok
+test managed::tests::copy_roots_partial_lists_across_allocation_pressure ... ok
+test managed::transport_tests::ordinary_scalar_message_retains_its_historical_40_byte_admission ... ok
+test managed::transport_tests::concurrent_remote_senders_preserve_each_burst_through_source_collection ... ok
+test managed::transport_tests::published_worker_fault_wins_when_stopped_group_rejects_root_admission ... ok
+test managed::transport_tests::simulated_send_copies_across_domains_and_survives_source_collection ... ok
+test managed::transport_tests::threaded_send_copies_across_domains_and_survives_source_collection ... ok
+test managed::process_tests::ordinary_receive_skips_down_and_full_user_mailbox_cannot_hide_it_from_event_receive ... ok
+test managed::simulation::scenario::tests::seeded_actor_scenarios_replay_real_outcomes_and_release_all_heaps ... ok
+test memory::heaps::transfer::tests::foreign_index_exhaustion_preserves_source_heap_and_roots ... ok
+test memory::heaps::transfer::tests::foreign_roots_and_payload_interior_edges_are_rejected_without_mutation ... ok
+test memory::heaps::transfer::tests::direct_probe_preserves_interior_edge_and_exhaustion_rejection ... ok
+test memory::heaps::transfer::tests::tiny_candidate_does_not_index_thousands_of_unrelated_allocations ... ok
+test managed::transport_tests::unadopted_envelopes_count_toward_the_exact_mailbox_limit_and_shutdown_releases_them ... ok
+test memory::sweep_tests::dense_and_small_sweeps_preserve_in_place_cleanup_and_live_addresses ... ok
+test memory::tests::a_domain_can_be_built_on_one_thread_and_used_on_another ... ok
+test memory::tests::a_heap_scope_left_under_a_foreign_domain_is_rejected - should panic ... ok
+test memory::tests::a_root_retired_under_a_foreign_domain_is_rejected - should panic ... ok
+test memory::tests::abandoned_actor_heap_transfer_finalizes_on_a_foreign_thread_without_a_domain ... ok
+test memory::heaps::transfer::tests::many_foreign_heaps_do_not_multiply_scalar_validation_work ... ok
+test memory::tests::active_heap_retirement_waits_for_callback_scope_and_finalizes_once ... ok
+test memory::tests::actor_heap_transfer_keeps_shared_native_json_nodes_exclusively_owned ... ok
+test memory::tests::actor_heap_transfer_refuses_scope_frame_and_ephemeral_root_atomically ... ok
+test memory::tests::actor_heap_transfer_preserves_cycles_controls_and_exclusive_rc_graphs ... ok
+test memory::tests::actor_heap_transfer_rejects_foreign_payload_edges_without_mutation ... ok
+test memory::tests::actor_heaps_retain_external_controls_without_roots_in_the_invocation_heap ... ok
+test memory::tests::adopted_fragment_retains_finalizers_until_receiver_collection ... ok
+test memory::tests::an_actor_control_object_inside_a_payload_heap_is_rejected - should panic ... ok
+test memory::tests::atomic_payload_does_not_retain_pointer_shaped_bytes ... ok
+test memory::tests::colliding_root_numbers_retire_in_the_domain_that_registered_them ... ok
+test memory::tests::cycle_is_collected_without_an_external_root ... ok
+test memory::tests::discarded_fragment_finalizes_values_and_controls_on_another_thread ... ok
+test memory::tests::domain_frames_are_scoped_to_their_domain ... ok
+test memory::sweep_tests::sparse_sweep_preserves_live_cycles_roots_controls_and_finalization_order ... ok
+test memory::tests::domain_is_send_so_a_scheduler_can_own_one ... ok
+test memory::tests::domain_roots_register_and_unregister_in_their_own_heap ... ok
+test memory::tests::empty_allocations_are_nonnull_zeroed_and_aligned ... ok
+test memory::tests::external_actor_control_survives_until_the_last_payload_scope_leaves ... ok
+test memory::tests::external_control_accounting_is_counted_once_and_released_on_another_thread ... ok
+test memory::tests::external_control_bytes_trigger_collection_without_collecting_every_allocation ... ok
+test memory::tests::external_control_heap_scans_only_the_selected_payload_word_range ... ok
+test memory::tests::external_owned_payload_is_charged_and_finalized_exactly_once ... ok
+test memory::tests::external_control_roots_reject_a_different_owner - should panic ... ok
+test memory::tests::heap_shutdown_finalizes_remaining_external_payloads ... ok
+test memory::tests::fragment_transfer_adopts_storage_without_moving_or_losing_accounting ... ok
+test memory::tests::invocation_collection_leaves_external_controls_alive_without_scanning_actor_heaps ... ok
+test memory::tests::metadata_reference_counts_do_not_control_tracing_lifetime ... ok
+test memory::tests::native_frames_read_updated_slots_and_do_not_root_foreign_heap_addresses ... ok
+test memory::tests::native_stack_value_survives_allocation_safepoints ... ok
+test memory::tests::only_control_edges_leave_an_actor_payload_heap ... ok
+test memory::tests::registered_rust_container_roots_survive_collection ... ok
+test memory::tests::retains_transitive_and_interior_roots_and_reclaims_unreachable_blocks ... ok
+test memory::tests::root_and_native_frame_tokens_retire_their_original_heap_after_scope_switch ... ok
+test memory::tests::two_domains_allocate_into_independent_heaps ... ok
+test memory::tests::wrappers_in_independent_domains_release_external_control_exactly_once ... ok
+test memory::tests::native_frame_lifetimes_match_seeded_cross_heap_model ... ok
+test process::tests::bounded_process_distinguishes_invalid_spawn_timeout_and_signal ... ok
+test process::tests::bounded_process_keeps_literal_arguments_streams_and_exit_status ... ok
+test process::tests::bounded_process_enforces_independent_caps_and_text_validation ... ok
+test process::tests::successful_direct_child_does_not_wait_for_inherited_descendant_streams ... ok
+test services::regex::checked_replacement_bounds_every_append_and_preserves_existing_fault ... ok
+test services::regex::tests::posix_longest_match_and_optional_capture_slots ... ok
+test services::http::tests::http_uses_real_request_and_preserves_status_and_body_failures ... ok
+test tui::prompt::tests::editing_preserves_utf8_boundaries_and_limit ... ok
+test tui::tests::explicit_styles_clamp_colors_and_reset_sequences ... ok
+test tui::tests::panel_table_and_progress_preserve_native_rendering ... ok
+test tui::tests::tree_snapshots_and_log_escaping_are_exact ... ok
+test services::sql::tests::sqlite_lifecycle_quota_stale_ids_and_arbitrary_statements ... ok
+test memory::tests::actor_heap_transfer_refuses_unbounded_scan_without_retiring_storage ... ok
+test managed::transport_tests::actor_admission_is_one_shared_1024_limit_across_three_schedulers ... ok
+test managed::transport_tests::queued_envelopes_share_one_exact_global_message_limit ... ok
+test managed::simulation::scenario::tests::seeded_corpus_preserves_deadlines_and_sibling_progress ... ok
+test managed::process_tests::global_monitor_limit_and_cancellation_churn_release_all_logical_reservations ... ok
+test managed::tests::identities::sequential_actor_churn_reuses_slots_beyond_the_old_lifetime_limit ... ok
+test managed::cleanup::tests::seeded_scope_model_releases_roots_and_preserves_first_cleanup_failure ... ok
+test managed::simulation::scenario::tests::replay_survives_more_than_the_old_lifetime_identity_limit ... ok
+
+test result: ok. 236 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 34.63s
+
+     Running tests/core_values.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/aefe2da4a63b8d06/out/core_values-aefe2da4a63b8d06)
+
+running 5 tests
+test byte_indices_and_unicode_split_are_distinct_contracts ... ok
+test decimal_uses_unicode16_nd_and_rejects_other_numeric_categories ... ok
+test explicit_release_preserves_live_aliases_under_tracing_collection ... ok
+test float_text_preserves_seventeen_digit_general_format ... ok
+test list_updates_keep_source_values_and_full_width_words ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/io_protocols.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/187dde32552a70c2/out/io_protocols-187dde32552a70c2)
+test terminal cursor editing and restoration ... ok
+test password masking and restoration ... ok
+test cursor sequences and nonterminal silence ... ok
+test stderr descriptors and SIGPIPE ... ok
+test canonical cleanup exports ... ok
+5 protocol tests passed
+     Running tests/json_values.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/21ce6a674ab38782/out/json_values-21ce6a674ab38782)
+
+running 2 tests
+test native_json_duplicate_and_malformed_byte_errors ... ok
+test json_roundtrip_and_exact_numeric_projection ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/managed_abi.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/28d8f6ca8ff75a54/out/managed_abi-28d8f6ca8ff75a54)
+
+running 1 test
+test managed_context_remains_ffi_safe_with_unchanged_public_layouts ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/native_frame_allocations.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/30628ac771b14b43/out/native_frame_allocations-30628ac771b14b43)
+
+running 2 tests
+test publishing_an_owned_pid_continuation_needs_no_temporary_heap_storage ... ok
+test repeated_callback_frames_do_not_allocate_after_depth_warmup ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/safe_access.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/72df785966ab1300/out/safe_access-72df785966ab1300)
+
+running 5 tests
+test checked_integer_arithmetic_reports_overflow_and_invalid_divisors_as_none ... ok
+test positional_access_returns_full_width_options_without_faulting ... ok
+test integer_parsing_accepts_exact_decimal_text_within_range ... ok
+test take_and_drop_clamp_counts_and_never_alias_the_source ... ok
+test sum_range_zip_and_sort_preserve_full_width_words ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/sort_state.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/fc5812d2ad602acf/out/sort_state-fc5812d2ad602acf)
+
+running 2 tests
+test sort_state_is_stable_and_bounded_by_n_log_n_comparisons ... ok
+test sort_state_handles_empty_singleton_and_reversed_inputs ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/string_roots.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/003b06792b8fd65e/out/string_roots-003b06792b8fd65e)
+
+running 1 test
+test string_copy_roots_all_sources_held_only_in_a_rust_vector ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/value_abi.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/ae4fa188d9760d6e/out/value_abi-ae4fa188d9760d6e)
+
+running 1 test
+test values_keep_full_width_payloads_and_native_offsets ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests morrow_runtime
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

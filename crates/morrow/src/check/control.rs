@@ -286,6 +286,11 @@ pub(super) fn strict_divergence(kind: ir::ExprKind, ty: Type) -> TypedKind {
         } => vec![value],
         If { condition, .. } => vec![condition],
         Match { value, .. } => vec![value],
+        Actor(ir::ActorExpr::Receive { timeout, .. }) => timeout
+            .as_ref()
+            .map(|(duration, _)| vec![duration.as_ref()])
+            .unwrap_or_default(),
+        Actor(actor) => crate::actors::children(actor),
         _ => vec![],
     };
     if let Some(index) = children.iter().position(|child| child.ty == Type::Never) {

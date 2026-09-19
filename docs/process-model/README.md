@@ -56,6 +56,19 @@ fail the run. This fixture does not cover rolling intensity boundaries, failed
 initialization, significant-child shutdown or deadline escalation; those need
 additional oracles before supervisor acceptance.
 
+`supervisor_policies_reference.exs` adds 34 observations, verified on the same
+pinned toolchain at one/two/four schedulers with exact output, zero exit status
+and empty stderr. It covers permanent/transient/temporary reasons (including
+ShutdownDetail), initial rollback, ignored children, failed restart attempts,
+failed group initializer retry points, manual restart at intensity zero,
+significant-child automatic shutdown, Graceful(0), Infinity and unlink.
+A nested shutdown handshake also proves that a killed branch can be reported
+dead while its trapping leaf is still alive; explicit release then retires that
+leaf with Shutdown. Neither the fixture nor the Morrow plan equates branch
+retirement with a hard deadline for every descendant. Exact rolling-window and
+deadline boundaries still require injected-clock native tests; this fixture
+avoids elapsed-time assertions.
+
 Passing this reference fixture does not verify Morrow. Its compiler/native
 fixtures, deterministic races, resource accounting, migration, cancellation and
 full repository gate remain separate acceptance requirements. Morrow's typed

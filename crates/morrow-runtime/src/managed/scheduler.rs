@@ -71,8 +71,9 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             return;
         }
         let notifications = relations::retiring(a);
-        transport::discard_pending(a);
         let s = (*a).exec.session;
+        actions::append(s, notifications);
+        transport::discard_pending(a);
         // Queue links borrow live actors. Retiring an actor outside dequeue
         // (cancellation or a timer fault) must remove that borrow before release.
         if (*a).queued {
@@ -103,6 +104,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         }
         (*a).last = null_mut();
         relations::cancel_owned(a);
+        controls::cancel_owned(a);
         clear_receive(a);
         release(s, (*a).frame_cost);
         (*a).frame = null_mut();
@@ -117,11 +119,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
         supervision::completed(a);
-        for down in notifications {
-            if let Some(observer) = control::Owned::upgrade(&down.monitor.owner) {
-                signals::send(s, observer.as_ptr(), down);
-            }
-        }
+        (*a).terminal = None;
         if (*a).identity.isolated {
             let registry = relations::registry(s);
             registry.isolated.fetch_sub(1, Ordering::AcqRel);
@@ -174,8 +172,17 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
         }
         (*s).next_deadline = earliest;
         for &a in &due[..count] {
-            if !poll(a, false) && (*a).fault == 0 {
+            let _actor = control::Owned::retain(a);
+            process::latch_fault(a);
+            transport::drain_actor(s, a);
+            if process::finish_terminal(a) {
+                continue;
+            }
+            if (*a).fault == 0 && !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
+            }
+            if process::finish_terminal(a) {
+                continue;
             }
             if (*a).fault != 0 {
                 process::fault(a);
@@ -269,7 +276,7 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             return;
         }
         let s = (*exec).session;
-        while (*s).live != 0 && *(*s).root.fault == 0 && !(*s).stopped {
+        while ((*s).live != 0 || actions::pending(s)) && *(*s).root.fault == 0 && !(*s).stopped {
             if process::cancelled(s) {
                 break;
             }
@@ -287,6 +294,9 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             }
             let a = dequeue(s);
             if a.is_null() {
+                if actions::drain(s) {
+                    continue;
+                }
                 if !idle(s) {
                     break;
                 }
@@ -316,6 +326,11 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
         let mut budget = (*s).reduction_budget;
         budget.reset();
         loop {
+            process::latch_fault(a);
+            transport::drain_actor(s, a);
+            if process::finish_terminal(a) || (*a).fault != 0 {
+                break;
+            }
             if !budget.take() {
                 enqueue(a);
                 break;
@@ -330,6 +345,7 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             }
             if (*a).waiting {
                 poll(a, false);
+                process::finish_terminal(a);
                 break;
             }
             let f = function(s, (*a).frame);
@@ -342,6 +358,14 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             };
             (*a).running = false;
             (*a).running_function = null();
+            process::latch_fault(a);
+            transport::drain_actor(s, a);
+            if !matches!(status, 0..=3) {
+                fail(&raw mut (*a).exec, 11);
+            }
+            if process::finish_terminal(a) {
+                break;
+            }
             let continuing = std::mem::take(&mut (*a).continuation_pending);
             if status == 0 && continuing && !(*a).queued && !(*a).waiting && (*a).fault == 0 {
                 continue;
@@ -365,9 +389,10 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             // and faults end this turn even if reductions remain.
             break;
         }
-        if (*a).fault != 0 {
+        if (*a).fault != 0 && (*a).identity.alive.load(Ordering::Acquire) {
             process::fault(a);
         }
+        actions::drain(s);
     }
 }
 
@@ -396,12 +421,17 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             }
             (*a).queued = false;
             (*a).next = null_mut();
-            cleanup::unwind(a);
+            if process::forced(a) {
+                cleanup::discard(a);
+            } else {
+                cleanup::unwind(a);
+            }
             if (*a).fault != 0 {
                 fail(&raw mut (*s).root, (*a).fault);
             }
             finish(a);
         }
+        actions::discard(s);
     }
 }
 
@@ -427,7 +457,7 @@ pub(super) unsafe fn turn(s: *mut Session) -> bool {
         }
         let actor = dequeue(s);
         if actor.is_null() {
-            return false;
+            return actions::drain(s);
         }
         if (*actor).identity.alive.load(Ordering::Acquire) {
             step(s, actor);

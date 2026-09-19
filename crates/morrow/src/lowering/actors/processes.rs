@@ -1,6 +1,6 @@
 //! Explicit-context process calls use additive symbols and the existing rooted value ABI.
 use super::*;
-use crate::processes::{self as p, ProcessExpr};
+use crate::processes::{self as p, ProcessExpr, SpawnMode};
 
 pub(super) fn validate(
     operation: &ProcessExpr,
@@ -12,12 +12,12 @@ pub(super) fn validate(
         ProcessExpr::Spawn {
             entry,
             mailbox,
-            monitor,
+            mode,
         } => {
-            if *monitor && owner.is_none() {
+            if *mode != SpawnMode::Isolated && owner.is_none() {
                 return Err(invalid(
                     expr.span,
-                    "spawn_monitor requires an actor context",
+                    "spawn relationship requires an actor context",
                 ));
             }
             validate::sendable(mailbox, layouts, expr.span)?;
@@ -33,7 +33,7 @@ pub(super) fn validate(
                 expect_type(effect.clone(), mailbox.clone(), expr.span)?;
             }
             let pid = Type::Pid(Box::new(mailbox.clone()));
-            p::result(if *monitor {
+            p::result(if *mode == SpawnMode::Monitor {
                 Type::Tuple(vec![pid, p::monitor_ref()])
             } else {
                 pid
@@ -57,6 +57,38 @@ pub(super) fn validate(
             }
             expect_type(target.ty.clone(), p::identity(), expr.span)?;
             p::result(p::monitor_ref())
+        }
+        ProcessExpr::Link { target } | ProcessExpr::Unlink { target } => {
+            if owner.is_none() {
+                return Err(invalid(
+                    expr.span,
+                    "link operation requires an actor context",
+                ));
+            }
+            expect_type(target.ty.clone(), p::identity(), expr.span)?;
+            p::result(Type::Unit)
+        }
+        ProcessExpr::TrapExit { enabled } => {
+            if owner.is_none() {
+                return Err(invalid(expr.span, "trap_exit requires an actor context"));
+            }
+            expect_type(enabled.ty.clone(), Type::Bool, expr.span)?;
+            Type::Bool
+        }
+        ProcessExpr::Exit { reason } => {
+            if owner.is_none() {
+                return Err(invalid(expr.span, "exit requires an actor context"));
+            }
+            expect_type(reason.ty.clone(), p::reason(), expr.span)?;
+            Type::Never
+        }
+        ProcessExpr::SignalExit { target, reason } => {
+            if owner.is_none() {
+                return Err(invalid(expr.span, "signal_exit requires an actor context"));
+            }
+            expect_type(target.ty.clone(), p::identity(), expr.span)?;
+            expect_type(reason.ty.clone(), p::reason(), expr.span)?;
+            p::result(Type::Unit)
         }
         ProcessExpr::Demonitor { reference, options } => {
             if owner.is_none() {
@@ -83,7 +115,7 @@ impl Emitter<'_> {
             ProcessExpr::Spawn {
                 entry,
                 mailbox,
-                monitor,
+                mode,
             } => {
                 let entry = self.expr(entry, locals, depth)?;
                 let descriptor = self.actor_type(mailbox)?;
@@ -92,13 +124,20 @@ impl Emitter<'_> {
                     (Scalar::I64, native_operand(&descriptor)),
                 ]);
                 let pid = Type::Pid(Box::new(mailbox.clone()));
-                if *monitor {
+                if *mode == SpawnMode::Monitor {
                     (
                         "$morrow_process_spawn_monitor",
                         p::result(Type::Tuple(vec![pid, p::monitor_ref()])),
                     )
                 } else {
-                    ("$morrow_process_spawn", p::result(pid))
+                    (
+                        if *mode == SpawnMode::Link {
+                            "$morrow_process_spawn_link"
+                        } else {
+                            "$morrow_process_spawn"
+                        },
+                        p::result(pid),
+                    )
                 }
             }
             ProcessExpr::SelfPid { mailbox } => {
@@ -115,6 +154,60 @@ impl Emitter<'_> {
                     native_operand(&self.expr(target, locals, depth)?),
                 ));
                 ("$morrow_process_monitor", p::result(p::monitor_ref()))
+            }
+            ProcessExpr::Link { target } | ProcessExpr::Unlink { target } => {
+                arguments.push((
+                    Scalar::I64,
+                    native_operand(&self.expr(target, locals, depth)?),
+                ));
+                (
+                    if matches!(operation, ProcessExpr::Link { .. }) {
+                        "$morrow_process_link"
+                    } else {
+                        "$morrow_process_unlink"
+                    },
+                    p::result(Type::Unit),
+                )
+            }
+            ProcessExpr::TrapExit { enabled } => {
+                let enabled = self.expr(enabled, locals, depth)?;
+                let enabled = self.payload(locals, &Type::Bool, enabled);
+                arguments.push((Scalar::I64, native_operand(&enabled)));
+                let previous = self.assign(
+                    locals,
+                    Type::Int,
+                    NativeOperation::Call {
+                        callee: native_operand("$morrow_process_trap_exit"),
+                        args: arguments,
+                        variadic: None,
+                    },
+                );
+                self.guard_fault(locals);
+                let previous = self.assign(
+                    locals,
+                    Type::Bool,
+                    NativeOperation::Binary(
+                        MachineBinary::Compare(Comparison::Ne, Scalar::I64),
+                        native_operand(&previous),
+                        native_operand("0"),
+                    ),
+                );
+                return Ok((Type::Bool, previous));
+            }
+            ProcessExpr::Exit { .. } => {
+                return Err(invalid(
+                    _span,
+                    "terminal process exit was not continuation-lowered",
+                ));
+            }
+            ProcessExpr::SignalExit { target, reason } => {
+                let target = self.expr(target, locals, depth)?;
+                let reason = self.expr(reason, locals, depth)?;
+                arguments.extend([
+                    (Scalar::I64, native_operand(&target)),
+                    (Scalar::I64, native_operand(&reason)),
+                ]);
+                ("$morrow_process_signal_exit", p::result(Type::Unit))
             }
             ProcessExpr::Demonitor { reference, options } => {
                 let reference = self.expr(reference, locals, depth)?;

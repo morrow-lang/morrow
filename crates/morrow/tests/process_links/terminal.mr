@@ -1,0 +1,89 @@
+type Signal:
+    Ready(ProcessId)
+    Waiting
+fn handled(result: Result((), Process.Error)) -> Unit:
+    match result:
+        Ok(()) -> ()
+        Err(_) -> println("operation-error")
+fn settled(result: Result((), Process.Error)) -> Unit:
+    match result:
+        Ok(()) -> println("settled")
+        Err(_) -> println("settlement-error")
+fn reason_text(reason: Process.ExitReason) -> String:
+    match reason:
+        Process.Normal -> "normal"
+        Process.Shutdown -> "shutdown"
+        Process.ShutdownDetail(text) -> "detail:{text}"
+        Process.Fault(code) -> "fault:{code}"
+        Process.Failure(text) -> "failure:{text}"
+        Process.Kill -> "kill"
+        Process.Killed -> "killed"
+        Process.NoProcess -> "noproc"
+fn mark(label: String) -> Int:
+    println(label)
+    1
+fn sink(first: Int, second: Unit, third: Int) -> Unit:
+    println("sink-ran")
+fn stop_here() -> Unit:
+    defer println("inner-cleanup")
+    Process.exit(Process.Failure("explicit"))
+fn branch(stop: Bool) -> Int:
+    if stop: Process.exit(Process.Normal)
+    else: 42
+fn retained_reason(value: Int) -> Process.ExitReason:
+    let own: Pid(Signal) = Process.self()
+    Process.Failure("retained-{value}")
+fn child(case: Int) -> Unit:
+    defer println("outer={case}")
+    match case:
+        0 -> sink(first: mark("before"), second: Process.exit(Process.Shutdown), third: mark("after"))
+        1 ->
+            stop_here()
+            println("helper-resumed")
+        2 ->
+            println(branch(stop: false))
+            println(branch(stop: true))
+        3 -> Process.exit(Process.Fault(7 / (case - 3)))
+        4 -> Process.exit(Process.Kill)
+        5 -> Process.exit(Process.Fault(-9223372036854775808))
+        6 -> Process.exit(Process.Fault(9223372036854775807))
+        7 -> Process.exit(retained_reason(case))
+        _ ->
+            let own: Pid(Signal) = Process.self()
+            let pending = Process.link(Process.id(own))
+            defer settled(pending)
+            Process.exit(Process.ShutdownDetail("owed-{case}"))
+fn forced(reply: Pid(Signal)) -> Unit:
+    defer println("forced-cleanup-ran")
+    let own: Pid(Signal) = Process.self()
+    let previous = Process.trap_exit(true)
+    match send(reply, Ready(Process.id(own))):
+        Ok(()) -> ()
+        Err(_) -> println("send-error")
+    receive:
+        Waiting -> ()
+fn down(reference: MonitorRef, identity: ProcessId) -> Process.ExitReason:
+    let own: Pid(Signal) = Process.self()
+    receive_event:
+        Process.Down(ref, process, reason) if ref == reference and process == identity -> reason
+fn observer() -> Unit:
+    let own: Pid(Signal) = Process.self()
+    for case in [0, 1, 2, 3, 4, 5, 6, 7, 8]:
+        let started: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> child(case))
+        match started:
+            Ok((pid, reference)) -> println("down={reason_text(down(reference, Process.id(pid)))}")
+            Err(_) -> println("spawn-error")
+    let started: Result((Pid(Signal), MonitorRef), Process.Error) = Process.spawn_monitor(() -> forced(own))
+    match started:
+        Ok((pid, reference)) ->
+            let identity = Process.id(pid)
+            receive:
+                Ready(process) if process == identity -> ()
+            handled(Process.signal_exit(identity, Process.Kill))
+            println("forced={reason_text(down(reference, identity))}")
+        Err(_) -> println("spawn-error")
+fn main():
+    let started: Result(Pid(Signal), Process.Error) = Process.spawn(observer)
+    match started:
+        Ok(_) -> ()
+        Err(_) -> println("observer-error")

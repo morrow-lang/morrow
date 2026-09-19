@@ -1,0 +1,11 @@
+   Compiling morrow-test-supervisor v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-test-supervisor)
+   Compiling morrow v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow)
+    Finished `test` profile [unoptimized] target(s) in 16.60s
+     Running tests/process_model_native.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow/874635b3068dcbab/out/process_model_native-874635b3068dcbab)
+
+running 2 tests
+test demonitor_flush_and_info_dead_processes_and_event_message_view ... ok
+test isolated_fault_monitors_and_copied_identities_preserve_typed_messages ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.20s
+

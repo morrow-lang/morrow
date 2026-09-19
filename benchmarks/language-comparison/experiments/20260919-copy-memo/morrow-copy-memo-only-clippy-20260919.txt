@@ -1,0 +1,12 @@
+    Blocking waiting for file lock on build directory
+    Checking libc v0.2.189
+    Checking smallvec v1.16.0
+    Checking morrow-json v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-json)
+    Checking rusqlite v0.40.2
+    Checking getrandom v0.2.17
+    Checking ring v0.17.14
+    Checking rustls-webpki v0.103.15
+    Checking rustls v0.23.44
+    Checking ureq v3.4.0
+    Checking morrow-runtime v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-runtime)
+    Finished `dev` profile [unoptimized] target(s) in 15.17s

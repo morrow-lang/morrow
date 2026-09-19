@@ -1,0 +1,15 @@
+    Blocking waiting for file lock on build directory
+    Finished `dev` profile [unoptimized] target(s) in 5.99s
+     Running `target/debug/xtask simulate --actors --seed 4608590 --steps 5000`
+    Blocking waiting for file lock on build directory
+   Compiling morrow v0.1.0 (/Users/nheer/Projects/github.com/niklas-heer/fern/crates/morrow)
+   Compiling morrow-runtime v0.1.0 (/Users/nheer/Projects/github.com/niklas-heer/fern/crates/morrow-runtime)
+   Compiling morrow-web-app v0.1.0 (/Users/nheer/Projects/github.com/niklas-heer/fern/crates/morrow-web-app)
+   Compiling morrow-sim v0.1.0 (/Users/nheer/Projects/github.com/niklas-heer/fern/crates/morrow-sim)
+    Finished `dev` profile [unoptimized] target(s) in 1m 00s
+     Running `target/debug/morrow-sim --actors --seed 4608590 --steps 5000`
+Actor simulation passed: seed 4608590, 5000 steps, 1689842360 virtual ms
+48739 callbacks; 1246 delivered; 3754 timeouts; 2507 restarts; 10000 churn
+Cleanup: 0 live actors, 0 messages, 0 heap bytes, 0 heap objects
+Trace hash: d4e402a412f11e2f
+Virtual duration describes this scenario, not equivalent production coverage.

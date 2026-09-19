@@ -1,0 +1,354 @@
+diff --git a/crates/morrow-runtime/src/managed/copy.rs b/crates/morrow-runtime/src/managed/copy.rs
+index 092507a2..d523e61b 100644
+--- a/crates/morrow-runtime/src/managed/copy.rs
++++ b/crates/morrow-runtime/src/managed/copy.rs
+@@ -4,6 +4,9 @@
+ //! source heap current and own every copied block until receiver adoption.
+ use super::*;
+ use std::collections::HashMap;
++#[path = "copy_memo.rs"]
++mod memo;
++use memo::Memo;
+ use std::rc::Rc;
+ 
+ struct Rooted {
+@@ -46,7 +49,7 @@ pub(super) struct Copy {
+     pub value: i64,
+     session: *mut Session,
+     roots: Vec<Rooted>,
+-    seen: HashMap<(i64, usize), i64>,
++    seen: Memo,
+     json: HashMap<usize, morrow_json::Json>,
+     destination: Destination,
+ }
+@@ -56,7 +59,7 @@ impl Copy {
+             value: 0,
+             session,
+             roots: vec![Rooted::new(source as usize)],
+-            seen: HashMap::new(),
++            seen: Memo::default(),
+             json: HashMap::new(),
+             destination: Destination::Heap,
+         }
+@@ -66,7 +69,7 @@ impl Copy {
+             value: 0,
+             session,
+             roots: Vec::new(),
+-            seen: HashMap::new(),
++            seen: Memo::default(),
+             json: HashMap::new(),
+             destination: Destination::Fragment(memory::Fragment::new()),
+         }
+@@ -603,3 +606,7 @@ mod fragment_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++#[path = "copy_memo_tests.rs"]
++mod memo_tests;
+diff --git a/crates/morrow-runtime/src/managed/copy_memo.rs b/crates/morrow-runtime/src/managed/copy_memo.rs
+new file mode 100644
+index 00000000..eaeaa80b
+--- /dev/null
++++ b/crates/morrow-runtime/src/managed/copy_memo.rs
+@@ -0,0 +1,54 @@
++//! Tiny graph copies avoid a temporary hash table; larger graphs retain it.
++use std::collections::HashMap;
++
++type Key = (i64, usize);
++type Entry = (Key, i64);
++const INLINE: usize = 2;
++
++pub(super) enum Memo {
++    Inline {
++        entries: [Entry; INLINE],
++        len: usize,
++    },
++    Overflow(HashMap<Key, i64>),
++}
++impl Default for Memo {
++    fn default() -> Self {
++        Self::Inline {
++            entries: [((0, 0), 0); INLINE],
++            len: 0,
++        }
++    }
++}
++impl Memo {
++    pub(super) fn get(&self, key: &Key) -> Option<&i64> {
++        match self {
++            Self::Inline { entries, len } => entries[..*len]
++                .iter()
++                .find_map(|(prior, value)| (prior == key).then_some(value)),
++            Self::Overflow(values) => values.get(key),
++        }
++    }
++    pub(super) fn insert(&mut self, key: Key, value: i64) {
++        match self {
++            Self::Inline { entries, len } => {
++                if let Some((_, prior)) =
++                    entries[..*len].iter_mut().find(|(prior, _)| *prior == key)
++                {
++                    *prior = value;
++                } else if *len < INLINE {
++                    entries[*len] = (key, value);
++                    *len += 1;
++                } else {
++                    let mut values = HashMap::with_capacity(INLINE + 1);
++                    values.extend(entries.iter().copied());
++                    values.insert(key, value);
++                    *self = Self::Overflow(values);
++                }
++            }
++            Self::Overflow(values) => {
++                values.insert(key, value);
++            }
++        }
++    }
++}
+diff --git a/crates/morrow-runtime/src/managed/copy_memo_tests.rs b/crates/morrow-runtime/src/managed/copy_memo_tests.rs
+new file mode 100644
+index 00000000..27546df0
+--- /dev/null
++++ b/crates/morrow-runtime/src/managed/copy_memo_tests.rs
+@@ -0,0 +1,239 @@
++//! Count real copy allocations and preserve graph identity across tiny/fallback paths.
++use super::*;
++use std::alloc::{GlobalAlloc, Layout, System};
++use std::cell::Cell;
++#[derive(Clone, Copy, Debug, Default)]
++struct Counts {
++    plain: usize,
++    bytes: usize,
++    zeroed: usize,
++}
++thread_local! { static ACTIVE: Cell<Option<Counts>> = const { Cell::new(None) }; }
++struct Counter;
++fn record(layout: Layout, zeroed: bool) {
++    let _ = ACTIVE.try_with(|active| {
++        if let Some(mut count) = active.get() {
++            if zeroed {
++                count.zeroed += 1;
++            } else {
++                count.plain += 1;
++                count.bytes += layout.size();
++            }
++            active.set(Some(count));
++        }
++    });
++}
++// SAFETY: forwarding preserves allocator contracts and counters allocate nothing.
++unsafe impl GlobalAlloc for Counter {
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        record(layout, false);
++        unsafe { System.alloc(layout) }
++    }
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        record(layout, true);
++        unsafe { System.alloc_zeroed(layout) }
++    }
++    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
++        unsafe { System.dealloc(pointer, layout) }
++    }
++    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
++        record(
++            Layout::from_size_align(size, layout.align()).unwrap(),
++            false,
++        );
++        unsafe { System.realloc(pointer, layout, size) }
++    }
++}
++#[global_allocator]
++static ALLOCATOR: Counter = Counter;
++fn measure<T>(operation: impl FnOnce() -> T) -> (T, Counts) {
++    ACTIVE.with(|active| assert!(active.replace(Some(Counts::default())).is_none()));
++    let result = operation();
++    let counts = ACTIVE.with(|active| active.replace(None).unwrap());
++    (result, counts)
++}
++fn ty(kind: i64, children: &[*const Type]) -> Type {
++    Type {
++        kind,
++        count: children.len() as i64,
++        children: children.as_ptr(),
++        arities: null(),
++    }
++}
++#[test]
++fn tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata() {
++    let scalar = ty(0, &[]);
++    let scalar_fields = [&scalar as *const Type];
++    let answer = ty(3, &scalar_fields);
++    let string = ty(1, &[]);
++    let string_fields = [&string as *const Type];
++    let owned = ty(3, &string_fields);
++    let scalar_value = [0, i64::MIN];
++    let owned_value = [0, c"owned".as_ptr() as i64];
++    drop(memory::Fragment::new());
++    let mut metadata = 0;
++    for (descriptor, source, blocks) in [
++        (&answer, scalar_value.as_ptr(), 1),
++        (&owned, owned_value.as_ptr(), 2),
++    ] {
++        // SAFETY: literal immutable descriptors/values live through synchronous copy.
++        unsafe {
++            assert!(cost::value(null_mut(), descriptor, source as i64).is_some());
++            let (fragment, counts) =
++                measure(|| value_fragment(null_mut(), descriptor, source as i64));
++            println!("tiny memo blocks={blocks} {counts:?}");
++            metadata += counts.plain;
++            assert_eq!(counts.zeroed, blocks);
++            let target = fragment.value as *const i64;
++            assert_ne!(target, source);
++            assert_eq!(*target, 0);
++            if blocks == 1 {
++                assert_eq!(*target.add(1), i64::MIN);
++            } else {
++                assert_eq!(
++                    std::ffi::CStr::from_ptr(*target.add(1) as *const _),
++                    c"owned"
++                );
++                assert_ne!(*target.add(1), owned_value[1]);
++            }
++            drop(fragment);
++        }
++    }
++    assert_eq!(
++        metadata, 2,
++        "only each fragment's BTreeMap node may allocate; no tiny copy memo"
++    );
++}
++
++#[test]
++fn memo_keys_preserve_full_width_source_descriptor_and_frame_sentinel() {
++    let mut copy = Copy::fragment(null_mut());
++    assert_eq!(copy.seen.get(&(0, 0)), None);
++    println!(
++        "memo bytes={} prior_hashmap_bytes={} fragment_copy_bytes={}",
++        std::mem::size_of_val(&copy.seen),
++        std::mem::size_of::<HashMap<(i64, usize), i64>>(),
++        std::mem::size_of::<FragmentCopy>()
++    );
++    for descriptor in [0, usize::MAX, 1, 2, 3, 4, 5, 6] {
++        let value = i64::MIN.wrapping_add(descriptor as i64);
++        copy.seen.insert((i64::MAX, descriptor), value);
++        for prior in [0, usize::MAX, 1, 2, 3, 4, 5, 6]
++            .into_iter()
++            .take_while(|&prior| prior != descriptor)
++        {
++            assert_eq!(
++                copy.seen.get(&(i64::MAX, prior)),
++                Some(&i64::MIN.wrapping_add(prior as i64))
++            );
++        }
++        assert_eq!(copy.seen.get(&(i64::MAX, descriptor)), Some(&value));
++    }
++    copy.seen.insert((i64::MAX, 0), i64::MAX);
++    assert_eq!(copy.seen.get(&(i64::MAX, 0)), Some(&i64::MAX));
++    assert_eq!(copy.seen.get(&(i64::MIN, 0)), None);
++    assert_eq!(copy.seen.get(&(i64::MAX, 42)), None);
++}
++
++#[test]
++fn descriptor_sensitive_dag_sharing_survives_spill_and_adoption() {
++    unsafe {
++        let scalar = ty(0, &[]);
++        let children = [&scalar as *const Type, &scalar];
++        let first = ty(3, &children);
++        let second = ty(3, &children);
++        let fields = [&first as *const Type, &second, &first];
++        let outer = ty(3, &fields);
++        let leaf = [0, i64::MIN, i64::MAX];
++        let source = [
++            0,
++            leaf.as_ptr() as i64,
++            leaf.as_ptr() as i64,
++            leaf.as_ptr() as i64,
++        ];
++        assert!(cost::value(null_mut(), &outer, source.as_ptr() as i64).is_some());
++        let fragment = value_fragment(null_mut(), &outer, source.as_ptr() as i64);
++        let pointer = fragment.adopt() as *const i64;
++        let root_word = pointer as usize;
++        let root = memory::root_range(&root_word, 1);
++        memory::morrow_gc_collect_precise();
++        assert_eq!(*pointer.add(1), *pointer.add(3));
++        assert_ne!(*pointer.add(1), *pointer.add(2));
++        for offset in [1, 2] {
++            assert_eq!(
++                std::slice::from_raw_parts(*pointer.add(offset) as *const i64, 3),
++                leaf
++            );
++        }
++        drop(root);
++        memory::morrow_gc_collect_precise();
++    }
++}
++
++#[test]
++fn cyclic_source_remains_rejected_before_any_copy_allocation() {
++    let mut recursive = ty(3, &[]);
++    let children = [&recursive as *const Type];
++    recursive.children = children.as_ptr();
++    recursive.count = 1;
++    let mut source = [0i64; 2];
++    source[1] = source.as_ptr() as i64;
++    let (accepted, counts) = measure(|| unsafe {
++        cost::value(null_mut(), &recursive, source.as_ptr() as i64).is_some()
++    });
++    assert!(!accepted);
++    assert_eq!(counts.plain + counts.zeroed, 0);
++}
++
++#[test]
++fn wide_heap_copy_keeps_every_fallback_value_rooted_through_collection() {
++    unsafe {
++        let string = ty(1, &[]);
++        let fields = [&string as *const Type; 64];
++        let outer = ty(3, &fields);
++        let texts: Vec<_> = (0..64)
++            .map(|index| std::ffi::CString::new(format!("word{index}")).unwrap())
++            .collect();
++        let mut source = vec![0];
++        source.extend(texts.iter().map(|text| text.as_ptr() as i64));
++        assert!(cost::value(null_mut(), &outer, source.as_ptr() as i64).is_some());
++        let copied = value(null_mut(), &outer, source.as_ptr() as i64);
++        memory::morrow_gc_collect_precise();
++        for (index, text) in texts.iter().enumerate() {
++            let pointer = *((copied.value as *const i64).add(index + 1)) as *const std::ffi::c_char;
++            assert_ne!(pointer, text.as_ptr());
++            assert_eq!(std::ffi::CStr::from_ptr(pointer), text.as_c_str());
++        }
++        drop(copied);
++        memory::morrow_gc_collect_precise();
++        assert_eq!(memory::stats().objects, 0);
++    }
++}
++
++#[test]
++fn memo_replaces_inline_keys_without_spilling_including_all_zero_key() {
++    let mut copy = Copy::fragment(null_mut());
++    assert_eq!(copy.seen.get(&(0, 0)), None);
++    let (_, counts) = measure(|| {
++        copy.seen.insert((0, 0), i64::MIN);
++        copy.seen.insert((i64::MIN, usize::MAX), i64::MAX);
++        assert_eq!(copy.seen.get(&(0, 0)), Some(&i64::MIN));
++        assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&i64::MAX));
++        for value in [0, i64::MAX, i64::MIN] {
++            copy.seen.insert((0, 0), value);
++            copy.seen.insert((i64::MIN, usize::MAX), !value);
++            assert_eq!(copy.seen.get(&(0, 0)), Some(&value));
++            assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&!value));
++        }
++    });
++    assert_eq!(
++        counts.plain + counts.zeroed,
++        0,
++        "replacement of either inline key must not spill"
++    );
++    // A third distinct key may spill, but cannot erase the all-zero key.
++    copy.seen.insert((i64::MAX, 0), 42);
++    assert_eq!(copy.seen.get(&(0, 0)), Some(&i64::MIN));
++    assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&i64::MAX));
++    assert_eq!(copy.seen.get(&(i64::MAX, 0)), Some(&42));
++}

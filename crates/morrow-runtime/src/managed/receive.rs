@@ -43,6 +43,11 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
         let mut previous: *mut Message = null_mut();
         let mut message = (*a).first;
         for _ in 0..MAILBOX + relations::PER_ACTOR {
+            process::latch_fault(a);
+            transport::drain_actor(s, a);
+            if (*a).terminal.is_some() {
+                return false;
+            }
             if message.is_null() {
                 break;
             }
@@ -65,7 +70,11 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 value
             };
             let selected = ((*selector).select.unwrap())(&raw mut (*a).exec, (*a).selector, value);
-            if (*a).fault != 0 {
+            let selected_root = selected as usize;
+            let _selected_root = memory::root_range(&selected_root, 1);
+            process::latch_fault(a);
+            transport::drain_actor(s, a);
+            if (*a).fault != 0 || (*a).terminal.is_some() {
                 return false;
             }
             if !selected.is_null() {

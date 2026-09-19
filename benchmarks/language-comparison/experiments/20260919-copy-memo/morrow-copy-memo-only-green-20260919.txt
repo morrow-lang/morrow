@@ -1,0 +1,17 @@
+   Compiling morrow-runtime v0.1.0 (/private/tmp/morrow-copy-memo-only-20260919/crates/morrow-runtime)
+    Finished `test` profile [unoptimized] target(s) in 4.46s
+     Running unittests src/lib.rs (/tmp/morrow-unboxed-send-target-20260919/debug/build/morrow-runtime/1e00b2911219d337/out/morrow_runtime-1e00b2911219d337)
+
+running 6 tests
+test managed::copy::memo_tests::cyclic_source_remains_rejected_before_any_copy_allocation ... ok
+memo bytes=64 prior_hashmap_bytes=48 fragment_copy_bytes=112
+tiny memo blocks=1 Counts { plain: 1, bytes: 808, zeroed: 1 }
+tiny memo blocks=2 Counts { plain: 1, bytes: 808, zeroed: 2 }
+test managed::copy::memo_tests::tiny_copy_memo_requires_no_allocation_beyond_fragment_metadata ... ok
+test managed::copy::memo_tests::memo_replaces_inline_keys_without_spilling_including_all_zero_key ... ok
+test managed::copy::memo_tests::memo_keys_preserve_full_width_source_descriptor_and_frame_sentinel ... ok
+test managed::copy::memo_tests::descriptor_sensitive_dag_sharing_survives_spill_and_adoption ... ok
+test managed::copy::memo_tests::wide_heap_copy_keeps_every_fallback_value_rooted_through_collection ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 230 filtered out; finished in 0.00s
+

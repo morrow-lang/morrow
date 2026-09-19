@@ -99,6 +99,42 @@ impl Engine<'_> {
         }
         self.exit(value, span, depth)
     }
+    /// Actor termination retains every existing duty and mandatory cleanup but has no successor.
+    pub(super) fn terminate(&mut self, span: Span, depth: usize) -> Checked<()> {
+        if self.path == Predicate::FALSE {
+            return Ok(());
+        }
+        self.exits = self
+            .predicates
+            .or(self.exits, self.path, &mut self.work, span)?;
+        self.terminated = self
+            .predicates
+            .or(self.terminated, self.path, &mut self.work, span)?;
+        if let Some(previous) = self.iteration_breaks {
+            self.iteration_breaks =
+                Some(
+                    self.predicates
+                        .or(previous, self.path, &mut self.work, span)?,
+                );
+        }
+        self.run_cleanups(span, depth + 1)?;
+        self.path = Predicate::FALSE;
+        Ok(())
+    }
+    /// Restore only paths that skipped a traversal; executed terminal paths stay unreachable.
+    pub(super) fn resume_skipped(
+        &mut self,
+        parent: Predicate,
+        executed: Predicate,
+        span: Span,
+    ) -> Checked<()> {
+        let skipped = self.predicates.not(executed, &mut self.work, span)?;
+        let skipped = self.predicates.and(parent, skipped, &mut self.work, span)?;
+        self.path = self
+            .predicates
+            .or(self.path, skipped, &mut self.work, span)?;
+        Ok(())
+    }
     /// Join values with the exact surviving branch guards; returned paths do not continue.
     pub(super) fn conditional(
         &mut self,

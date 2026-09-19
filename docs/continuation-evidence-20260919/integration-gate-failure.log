@@ -1,0 +1,45 @@
+test stderr_signature_is_fallible_unit_with_heap_transport ... ok
+test stderr_result_obligation_and_argument_type_are_enforced ... ok
+test forged_stderr_ir_signature_is_rejected ... ok
+test forged_stderr_argument_arity_is_rejected_before_emission ... ok
+test interactive_execution_refuses_unimplemented_stderr_effects_explicitly ... ok
+test direct_and_first_class_stderr_calls_use_same_validated_native_abi ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/sole_backend.rs (target/debug/build/morrow/5fa15336eb4a7965/out/sole_backend-5fa15336eb4a7965)
+
+running 3 tests
+test removed_backend_rejects_before_source_access ... ok
+test help_advertises_cranelift_as_the_native_backend ... ok
+test default_native_compilation_does_not_resolve_qbe ... FAILED
+
+failures:
+
+---- default_native_compilation_does_not_resolve_qbe stdout ----
+
+thread 'default_native_compilation_does_not_resolve_qbe' (6378893) panicked at crates/morrow/tests/sole_backend.rs:37:5:
+link failed (exit status: 1):
+ld: warning: ignoring duplicate libraries: '-lSystem'
+ld: multiple errors: tapi error: malformed file
+/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/libiconv.2.tbd:4:20: error: unknown architecture
+                   arm64e.x1-macos, arm64e.x1-maccatalyst ]
+                   ^~~~~~~~~~~~~~~
+ in '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/libiconv.tbd'; tapi error: malformed file
+/Library/Developer/CommandLineTools/SDKs/MacOSX27.0.sdk/usr/lib/libSystem.B.tbd:4:20: error: unknown architecture
+                   arm64e.x1-macos, arm64e.x1-maccatalyst ]
+                   ^~~~~~~~~~~~~~~
+ in '/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/libSystem.tbd'
+clang: error: linker command failed with exit code 1 (use -v to see invocation)
+
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    default_native_compilation_does_not_resolve_qbe
+
+test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p morrow --test sole_backend`
+xtask: cd "/Users/nheer/Projects/github.com/niklas-heer/fern" && "/Users/nheer/.rustup/toolchains/nightly-2026-09-06-aarch64-apple-darwin/bin/cargo" "test" "--workspace" "--locked" failed: exit status: 101

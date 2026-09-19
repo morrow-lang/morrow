@@ -94,7 +94,13 @@ pub unsafe extern "C" fn morrow_managed_scope_leave(exec: *mut Exec) -> i64 {
             return 3;
         }
         drain(a, false);
-        if *(*exec).fault == 0 { 0 } else { 3 }
+        if *(*exec).fault != 0 {
+            3
+        } else if (*a).terminal.is_some() {
+            2
+        } else {
+            0
+        }
     }
 }
 
@@ -103,6 +109,29 @@ pub unsafe extern "C" fn morrow_managed_scope_leave(exec: *mut Exec) -> i64 {
 pub(super) unsafe fn unwind(a: *mut Actor) {
     unsafe {
         drain(a, true);
+    }
+}
+
+/// Forced termination releases admitted cleanup storage without running user code.
+pub(super) unsafe fn discard(a: *mut Actor) {
+    unsafe {
+        let s = (*a).exec.session;
+        while !(*a).scopes.is_null() {
+            let scope = (*a).scopes;
+            while !(*scope).first.is_null() {
+                let node = (*scope).first;
+                (*scope).first = (*node).next;
+                release(s, (*node).cost);
+                (*node).closure = null_mut();
+                (*node).next = null_mut();
+                (*node).cost = 0;
+                (*a).cleanup_entries -= 1;
+            }
+            (*a).scopes = (*scope).previous;
+            (*scope).previous = null_mut();
+            release(s, std::mem::size_of::<Scope>());
+            (*a).cleanup_entries -= 1;
+        }
     }
 }
 
@@ -154,10 +183,18 @@ unsafe fn drain(a: *mut Actor, all: bool) {
         let _heap = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
         let mut first_fault = (*a).fault;
+        process::latch_fault(a);
         (*a).cleaning = true;
         while !(*a).scopes.is_null() {
             let scope = (*a).scopes;
             while !(*scope).first.is_null() {
+                transport::drain_actor(s, a);
+                if process::forced(a) {
+                    discard(a);
+                    (*a).fault = first_fault;
+                    (*a).cleaning = false;
+                    return;
+                }
                 let node = (*scope).first;
                 let f = function(s, (*node).closure);
                 (*a).fault = 0;
@@ -175,12 +212,20 @@ unsafe fn drain(a: *mut Actor, all: bool) {
                 if first_fault == 0 {
                     first_fault = (*a).fault;
                 }
+                process::latch_fault(a);
                 (*scope).first = (*node).next;
                 release(s, (*node).cost);
                 (*node).closure = null_mut();
                 (*node).next = null_mut();
                 (*node).cost = 0;
                 (*a).cleanup_entries -= 1;
+                transport::drain_actor(s, a);
+                if process::forced(a) {
+                    discard(a);
+                    (*a).fault = first_fault;
+                    (*a).cleaning = false;
+                    return;
+                }
             }
             (*a).scopes = (*scope).previous;
             (*scope).previous = null_mut();

@@ -347,6 +347,9 @@ impl Checker<'_> {
             self.expression(argument, depth)?
         };
         let resolved = self.inference.resolve(&entry.ty, span)?;
+        if resolved == Type::Never {
+            return Ok(entry);
+        }
         let Some((effect, params, result)) = crate::actors::function(&resolved) else {
             return Err(Diagnostic::new(span, "spawn requires a function value"));
         };

@@ -1,6 +1,6 @@
 //! Explicit actor context and typed Result admission for isolated process operations.
 use super::*;
-use crate::processes::{self as p, ProcessExpr};
+use crate::processes::{self as p, ProcessExpr, SpawnMode};
 
 impl Checker<'_> {
     pub(super) fn process_call(
@@ -26,7 +26,7 @@ impl Checker<'_> {
         }
         let arity = match name {
             "Process.self" => 0,
-            "Process.demonitor" => 2,
+            "Process.demonitor" | "Process.signal_exit" => 2,
             _ => 1,
         };
         if args.len() != arity {
@@ -36,22 +36,28 @@ impl Checker<'_> {
             ));
         }
         let (operation, ty) = match name {
-            "Process.spawn" | "Process.spawn_monitor" => {
+            "Process.spawn" | "Process.spawn_monitor" | "Process.spawn_link" => {
                 let mailbox = self.inference.fresh();
                 let pid = Type::Pid(Box::new(mailbox.clone()));
-                let monitor = name == "Process.spawn_monitor";
-                let result = p::result(if monitor {
+                let mode = match name {
+                    "Process.spawn_monitor" => SpawnMode::Monitor,
+                    "Process.spawn_link" => SpawnMode::Link,
+                    _ => SpawnMode::Isolated,
+                };
+                let result = p::result(if mode == SpawnMode::Monitor {
                     Type::Tuple(vec![pid, p::monitor_ref()])
                 } else {
                     pid
                 });
-                self.constrain_result(&result, expected, span)?;
+                if expected.is_some_and(|ty| matches!(ty, Type::Result(..))) {
+                    self.constrain_result(&result, expected, span)?;
+                }
                 let entry = self.spawn_entry(&args[0], &mailbox, span, depth)?;
                 (
                     ProcessExpr::Spawn {
                         entry: Box::new(entry),
                         mailbox,
-                        monitor,
+                        mode,
                     },
                     result,
                 )
@@ -70,7 +76,10 @@ impl Checker<'_> {
             }
             "Process.id" => {
                 let pid = self.expression(&args[0], depth)?;
-                if !matches!(self.inference.resolve(&pid.ty, span)?, Type::Pid(_)) {
+                if !matches!(
+                    self.inference.resolve(&pid.ty, span)?,
+                    Type::Pid(_) | Type::Never
+                ) {
                     return Err(Diagnostic::new(span, "Process.id requires a typed Pid"));
                 }
                 (ProcessExpr::Id { pid: Box::new(pid) }, p::identity())
@@ -82,6 +91,31 @@ impl Checker<'_> {
                         target: Box::new(target),
                     },
                     p::result(p::monitor_ref()),
+                )
+            }
+            "Process.link" | "Process.unlink" => {
+                let target = Box::new(self.expression_equal(&args[0], &p::identity(), depth)?);
+                let operation = if name == "Process.link" {
+                    ProcessExpr::Link { target }
+                } else {
+                    ProcessExpr::Unlink { target }
+                };
+                (operation, p::result(Type::Unit))
+            }
+            "Process.trap_exit" => {
+                let enabled = Box::new(self.expression_equal(&args[0], &Type::Bool, depth)?);
+                (ProcessExpr::TrapExit { enabled }, Type::Bool)
+            }
+            "Process.exit" => {
+                let reason = Box::new(self.expression_equal(&args[0], &p::reason(), depth)?);
+                (ProcessExpr::Exit { reason }, Type::Never)
+            }
+            "Process.signal_exit" => {
+                let target = Box::new(self.expression_equal(&args[0], &p::identity(), depth)?);
+                let reason = Box::new(self.expression_equal(&args[1], &p::reason(), depth)?);
+                (
+                    ProcessExpr::SignalExit { target, reason },
+                    p::result(Type::Unit),
                 )
             }
             "Process.demonitor" => {
@@ -97,8 +131,10 @@ impl Checker<'_> {
             }
             _ => return Err(Diagnostic::new(span, "unknown process operation")),
         };
+        let (kind, ty) =
+            control::strict_divergence(ir::ExprKind::Actor(ir::ActorExpr::Process(operation)), ty);
         self.constrain_result(&ty, expected, span)?;
-        Ok((ir::ExprKind::Actor(ir::ActorExpr::Process(operation)), ty))
+        Ok((kind, ty))
     }
 
     pub(super) fn finalize_process(&self, operation: &mut ProcessExpr, span: Span) -> Checked<()> {

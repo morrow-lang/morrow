@@ -42,12 +42,25 @@ pub const TYPE_RANGE: i64 = 10;
 pub const TYPE_JSON_VALUE: i64 = 12;
 pub const TYPE_PROCESS_ID: i64 = 13;
 pub const TYPE_MONITOR_REF: i64 = 14;
+mod actions;
+#[path = "managed/controls.rs"]
+mod controls;
+mod links;
 #[path = "managed/process.rs"]
 mod process;
+#[path = "managed/reasons.rs"]
+mod reasons;
 #[path = "managed/relations.rs"]
 mod relations;
 #[path = "managed/signals.rs"]
 mod signals;
+pub use links::{morrow_process_link, morrow_process_spawn_link, morrow_process_unlink};
+#[cfg(test)]
+#[path = "managed/fault_signal_tests.rs"]
+mod fault_signal_tests;
+#[cfg(test)]
+#[path = "managed/link_tests.rs"]
+mod link_tests;
 pub use process::*;
 pub use receive::morrow_process_receive_event;
 pub use relations::{
@@ -103,6 +116,8 @@ struct ActorIdentity {
     supervisor: *mut supervision::Supervisor,
     alive: AtomicBool,
     pending: AtomicUsize,
+    control_pending: AtomicUsize,
+    exiting: AtomicBool,
     owner: AtomicUsize,
     ingress: Option<control::Owned<transport::Ingress>>,
     isolated: bool,
@@ -146,6 +161,9 @@ struct Actor {
     controls: usize,
     control_retained: usize,
     monitors: Option<control::Owned<Vec<Arc<relations::Monitor>>>>,
+    control_slots: Option<control::Owned<Vec<Arc<controls::Slot>>>>,
+    terminal: Option<control::Owned<process::Terminal>>,
+    trap_exit: bool,
     // Neither Session identities nor Supervisor.current own actors: payload heaps
     // and PID wrappers do. These backward references therefore cannot cycle.
     _session: Option<control::Owned<Session>>,
@@ -198,6 +216,7 @@ struct Session {
     _shared: Option<control::Owned<Arc<transport::Shared>>>,
     _parallel: Option<control::Owned<parallel::Driver>>,
     _processes: Option<control::Owned<Arc<relations::Registry>>>,
+    actions: Option<control::Owned<actions::Queue>>,
 }
 // Retained-byte limits are a language-visible logical quota. The trailing Rust
 // ownership fields replace GC bookkeeping and do not change its historical
@@ -304,7 +323,11 @@ unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
 }
 
 unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
-    unsafe { valid_pid(s, pid) && (*(*pid).actor).identity.alive.load(Ordering::Acquire) }
+    unsafe {
+        valid_pid(s, pid)
+            && (*(*pid).actor).identity.alive.load(Ordering::Acquire)
+            && !(*(*pid).actor).identity.exiting.load(Ordering::Acquire)
+    }
 }
 
 // SAFETY for private helpers: callers supply live invocation-owned records and
@@ -340,7 +363,12 @@ unsafe fn charge(s: *mut Session, cost: usize) -> bool {
             (*s).retained = retained;
             return true;
         }
-        if cost > BYTES - (*s).retained {
+        if (*s)
+            .retained
+            .checked_add(reasons::retained_bytes(s))
+            .and_then(|used| used.checked_add(cost))
+            .is_none_or(|used| used > BYTES)
+        {
             return false;
         }
         (*s).retained += cost;
