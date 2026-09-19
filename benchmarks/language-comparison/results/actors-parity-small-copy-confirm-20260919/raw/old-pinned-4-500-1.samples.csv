@@ -1,0 +1,4 @@
+event,index,observed_after_process_start_ns
+ready,,1700250
+summary,,53113250
+streams-closed,,53541875

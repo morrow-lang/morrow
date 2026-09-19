@@ -1,0 +1,746 @@
+[
+  {
+    "directory": "benchmarks/language-comparison/results/actors-parity-small-copy-20260919",
+    "rows": 144,
+    "warmups": 24,
+    "measured": 120,
+    "raw_files": 432,
+    "checksums": {
+      "500": 74411992000,
+      "5000": 745199920000
+    },
+    "cells": [
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 137104.22391464247,
+        "new_ops": 140443.3258601684,
+        "ratio": 1.0243544790246928,
+        "paired_ratios": [
+          1.2531763885191136,
+          1.0243544790246928,
+          1.1496004828857858,
+          0.9575634794747874,
+          0.9839935309087485
+        ],
+        "paired_median": 1.0243544790246928,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 128936.4229487299,
+        "new_ops": 148298.84998876174,
+        "ratio": 1.1501703444009075,
+        "paired_ratios": [
+          1.2363204980810913,
+          1.1501703444009075,
+          1.137437027819554,
+          0.8654550218109538,
+          1.0322238404671369
+        ],
+        "paired_median": 1.137437027819554,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 82459.77509096343,
+        "new_ops": 116873.13267321879,
+        "ratio": 1.4173350890697085,
+        "paired_ratios": [
+          0.8084232103880846,
+          1.8765892055687334,
+          1.67037547004717,
+          1.0943348872806011,
+          1.122551523392709
+        ],
+        "paired_median": 1.122551523392709,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 69299.75653869407,
+        "new_ops": 70940.78763995819,
+        "ratio": 1.0236801856633917,
+        "paired_ratios": [
+          1.4444421530118634,
+          0.7490143180863367,
+          0.9437101476824035,
+          0.9827590910078392,
+          1.0319075801731334
+        ],
+        "paired_median": 0.9827590910078392,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 114195.34335370826,
+        "new_ops": 119062.56830982312,
+        "ratio": 1.0426219214652137,
+        "paired_ratios": [
+          0.9326086298944767,
+          1.0243700018138437,
+          0.9099527596908048,
+          1.036295660208585,
+          1.0718454781335578
+        ],
+        "paired_median": 1.0243700018138437,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 91639.86677854367,
+        "new_ops": 95021.63312980076,
+        "ratio": 1.0369027855467037,
+        "paired_ratios": [
+          1.2308007941520913,
+          1.0056654895787585,
+          1.013388892561409,
+          1.091143452268104,
+          1.2734520230481106
+        ],
+        "paired_median": 1.091143452268104,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 89256.7776567891,
+        "new_ops": 97635.48964617585,
+        "ratio": 1.0938719972796311,
+        "paired_ratios": [
+          0.8784658555833752,
+          1.2318098601001257,
+          1.0938719972796311,
+          1.3265871549963784,
+          0.8146350984348666
+        ],
+        "paired_median": 1.0938719972796311,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 94152.1672309516,
+        "new_ops": 82638.53833039876,
+        "ratio": 0.8777125451365304,
+        "paired_ratios": [
+          2.1250676777506783,
+          0.8907171228090314,
+          0.7986751582936956,
+          0.7816261987268109,
+          1.2755599020036652
+        ],
+        "paired_median": 0.8907171228090314,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 120527.87814755664,
+        "new_ops": 167484.94401946594,
+        "ratio": 1.3895950596128637,
+        "paired_ratios": [
+          0.9211979665012655,
+          1.2480829647306455,
+          1.0637613088224414,
+          1.3895950596128637,
+          1.1207397401691732
+        ],
+        "paired_median": 1.1207397401691732,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 138313.7721798744,
+        "new_ops": 104077.65689320551,
+        "ratio": 0.7524750084746046,
+        "paired_ratios": [
+          1.123323169367828,
+          0.8170011450332484,
+          0.8783939446328696,
+          0.7114624493099123,
+          1.3268271394819382
+        ],
+        "paired_median": 0.8783939446328696,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 191848.4973950859,
+        "new_ops": 205830.08360221089,
+        "ratio": 1.072878267992539,
+        "paired_ratios": [
+          1.072878267992539,
+          1.0431868605133463,
+          1.0023950711586187,
+          1.005751345137459,
+          0.7210446080650129
+        ],
+        "paired_median": 1.005751345137459,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 159283.17252306658,
+        "new_ops": 169743.42088424918,
+        "ratio": 1.065670768578318,
+        "paired_ratios": [
+          1.0429755275438493,
+          1.114853298428844,
+          1.0319843019162573,
+          1.0648537010112713,
+          1.2365364953645175
+        ],
+        "paired_median": 1.0648537010112713,
+        "winning_rounds": 5
+      }
+    ],
+    "wins": 10,
+    "artifacts": [
+      {
+        "label": "old Morrow workload",
+        "bytes": 984072,
+        "sha256": "28acad7ca55af8ea02eb8d6f3dac4927d71120aa2b03724c385e8fe3ea7dc7ef",
+        "path": "/private/tmp/morrow-actors-initialized-roots-20260919",
+        "checked": true
+      },
+      {
+        "label": "new Morrow workload",
+        "bytes": 985656,
+        "sha256": "48ea30fc057484d6021fb7eff6dd953dbce75d3166ca1184f2402a3e43b2db34",
+        "path": "/private/tmp/morrow-actors-small-copy-20260919",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner",
+        "bytes": 813088,
+        "sha256": "8a7bd9fbc0fa77575df3d529b10037a0bb2d5a9bdf1f30de23e71d82b0276ef5",
+        "path": "/tmp/morrow-actor-runner-request-reply-diagnostic",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner source",
+        "bytes": 42663,
+        "sha256": "66ed0cec79508a5424337707df3467b4d9fdad1efa586097a32af21074b97d83",
+        "path": "benchmarks/language-comparison/src/actor_comparison.rs",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "directory": "benchmarks/language-comparison/results/actors-parity-monitor-baseline-20260919",
+    "rows": 144,
+    "warmups": 24,
+    "measured": 120,
+    "raw_files": 432,
+    "checksums": {
+      "500": 74411992000,
+      "5000": 745199920000
+    },
+    "cells": [
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 330179.431885015,
+        "new_ops": 319082.3701566088,
+        "ratio": 0.9663908146396268,
+        "paired_ratios": [
+          1.1425276923476646,
+          0.999017300212569,
+          0.9116670402700104,
+          0.8332234355956248,
+          0.9368873219640029
+        ],
+        "paired_median": 0.9368873219640029,
+        "winning_rounds": 1
+      },
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 329562.81885460194,
+        "new_ops": 327505.60981288686,
+        "ratio": 0.9937577635460672,
+        "paired_ratios": [
+          0.9953433073611947,
+          1.0454390316836988,
+          1.0112443134495472,
+          1.0313005916223115,
+          0.9827121455967128
+        ],
+        "paired_median": 1.0112443134495472,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 310488.94732118386,
+        "new_ops": 319904.8283135767,
+        "ratio": 1.0303259780215384,
+        "paired_ratios": [
+          1.0166705321443081,
+          1.0442495136581016,
+          1.003803936532324,
+          1.0211740119245192,
+          0.9814071913605702
+        ],
+        "paired_median": 1.0166705321443081,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 195540.65622662066,
+        "new_ops": 188410.68229690284,
+        "ratio": 0.963537127944101,
+        "paired_ratios": [
+          0.6776321512276869,
+          0.965003311667561,
+          0.8820366126792766,
+          0.986272515444524,
+          0.9840071273771414
+        ],
+        "paired_median": 0.965003311667561,
+        "winning_rounds": 0
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 299066.81806924334,
+        "new_ops": 305638.79702479736,
+        "ratio": 1.0219749519454626,
+        "paired_ratios": [
+          1.0163109309705596,
+          1.0203742025309213,
+          1.02311551952626,
+          1.0062144039884697,
+          1.0574708372779216
+        ],
+        "paired_median": 1.0203742025309213,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 308078.39509178745,
+        "new_ops": 323173.0160873104,
+        "ratio": 1.0489960387875485,
+        "paired_ratios": [
+          1.0473751443270491,
+          1.0638653854767322,
+          0.9680671437278779,
+          0.9973803195809492,
+          1.0621443678793174
+        ],
+        "paired_median": 1.0473751443270491,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 246681.14303648358,
+        "new_ops": 244729.5203454357,
+        "ratio": 0.9920884804285213,
+        "paired_ratios": [
+          1.1921320440223324,
+          0.9126213770905673,
+          0.8369836779989167,
+          0.8836425205305123,
+          1.001140172613592
+        ],
+        "paired_median": 0.9126213770905673,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 253957.92433045877,
+        "new_ops": 259828.66222458388,
+        "ratio": 1.0231169706934835,
+        "paired_ratios": [
+          0.9249509941475857,
+          0.900450885043151,
+          0.9719978460349723,
+          1.0231169706934835,
+          0.9567411009224945
+        ],
+        "paired_median": 0.9567411009224945,
+        "winning_rounds": 1
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 283311.9310647109,
+        "new_ops": 279231.5025490782,
+        "ratio": 0.9855973996566326,
+        "paired_ratios": [
+          1.0591853717596602,
+          0.9884896002406006,
+          0.9284741392292536,
+          0.9622990649189329,
+          0.9964073091112052
+        ],
+        "paired_median": 0.9884896002406006,
+        "winning_rounds": 1
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 174885.86186261792,
+        "new_ops": 171658.73974322266,
+        "ratio": 0.9815472669715843,
+        "paired_ratios": [
+          0.901353515310319,
+          0.6840628941529412,
+          1.0053720150366368,
+          0.962189878299913,
+          1.2597766290629377
+        ],
+        "paired_median": 0.962189878299913,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 293190.46831264027,
+        "new_ops": 280872.14621260203,
+        "ratio": 0.9579852572597867,
+        "paired_ratios": [
+          0.5548330058661955,
+          0.9524720442335433,
+          1.037415524240892,
+          0.8607360375408609,
+          0.9633073691323207
+        ],
+        "paired_median": 0.9524720442335433,
+        "winning_rounds": 1
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 249877.92409235597,
+        "new_ops": 221147.0482743274,
+        "ratio": 0.8850203517482019,
+        "paired_ratios": [
+          1.379689702840167,
+          1.0879201363823547,
+          0.839380898838356,
+          1.1217979766670436,
+          0.6270891618510677
+        ],
+        "paired_median": 1.0879201363823547,
+        "winning_rounds": 3
+      }
+    ],
+    "wins": 4,
+    "artifacts": [
+      {
+        "label": "old Morrow workload",
+        "bytes": 940136,
+        "sha256": "c5c175164aa1ee39f5272e3688fcffdd34b132449a968142c26ae5c208ad2f52",
+        "path": "/private/tmp/morrow-actors-descriptor-cache-20260919",
+        "checked": true
+      },
+      {
+        "label": "new Morrow workload",
+        "bytes": 984072,
+        "sha256": "28acad7ca55af8ea02eb8d6f3dac4927d71120aa2b03724c385e8fe3ea7dc7ef",
+        "path": "/private/tmp/morrow-actors-initialized-roots-20260919",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner",
+        "bytes": 813088,
+        "sha256": "8a7bd9fbc0fa77575df3d529b10037a0bb2d5a9bdf1f30de23e71d82b0276ef5",
+        "path": "/tmp/morrow-actor-runner-request-reply-diagnostic",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner source",
+        "bytes": 42663,
+        "sha256": "66ed0cec79508a5424337707df3467b4d9fdad1efa586097a32af21074b97d83",
+        "path": "benchmarks/language-comparison/src/actor_comparison.rs",
+        "checked": true
+      }
+    ]
+  },
+  {
+    "directory": "benchmarks/language-comparison/results/actors-parity-small-copy-confirm-20260919",
+    "rows": 144,
+    "warmups": 24,
+    "measured": 120,
+    "raw_files": 432,
+    "checksums": {
+      "500": 74411992000,
+      "5000": 745199920000
+    },
+    "cells": [
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 330772.99871895753,
+        "new_ops": 341799.69760126254,
+        "ratio": 1.033336151756673,
+        "paired_ratios": [
+          1.0285304693708806,
+          1.0672101738719375,
+          1.351740782058406,
+          0.6942212380550966,
+          1.0611448564813923
+        ],
+        "paired_median": 1.0611448564813923,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 333652.21448624076,
+        "new_ops": 342590.7125071026,
+        "ratio": 1.0267898657127912,
+        "paired_ratios": [
+          1.0644216710288117,
+          1.0127481215911822,
+          1.0250970451284969,
+          0.981662363929912,
+          1.033205491490003
+        ],
+        "paired_median": 1.0250970451284969,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 309828.587721129,
+        "new_ops": 307443.4972174346,
+        "ratio": 0.9923019030579541,
+        "paired_ratios": [
+          1.0279698469581349,
+          0.9275474234957121,
+          0.5771975772111573,
+          1.1300744595925563,
+          1.044675693660431
+        ],
+        "paired_median": 1.0279698469581349,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 500,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 187510.16363683838,
+        "new_ops": 204210.24082449885,
+        "ratio": 1.0890622506202088,
+        "paired_ratios": [
+          2.1820192276730315,
+          1.1883808582695876,
+          0.7609691019480566,
+          1.0780610112681255,
+          1.0920924370418232
+        ],
+        "paired_median": 1.0920924370418232,
+        "winning_rounds": 4
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 305956.59240845207,
+        "new_ops": 318382.3502197097,
+        "ratio": 1.0406128127962324,
+        "paired_ratios": [
+          1.0230619857403709,
+          1.0326337768742042,
+          1.030848846050082,
+          1.0417520765916763,
+          1.0439018436693341
+        ],
+        "paired_median": 1.0326337768742042,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 500,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 323002.03257104044,
+        "new_ops": 303882.3361516774,
+        "ratio": 0.9408062659322186,
+        "paired_ratios": [
+          0.757066407435727,
+          0.7614280357297385,
+          1.1402098445383992,
+          1.286729602724366,
+          1.059506664008451
+        ],
+        "paired_median": 1.059506664008451,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "pinned",
+        "old_ops": 302511.07828655833,
+        "new_ops": 322142.3270101996,
+        "ratio": 1.06489431340774,
+        "paired_ratios": [
+          1.0630499126474058,
+          1.0693510215379232,
+          1.07033329354887,
+          1.061257486141167,
+          1.06489431340774
+        ],
+        "paired_median": 1.06489431340774,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 5000,
+        "schedulers": 1,
+        "mode": "stealing",
+        "old_ops": 298925.9914210258,
+        "new_ops": 323873.6368707691,
+        "ratio": 1.0834575987559592,
+        "paired_ratios": [
+          1.2003918373050417,
+          1.0948395486585234,
+          1.0957008740656227,
+          1.0600769375881025,
+          1.0471726127817904
+        ],
+        "paired_median": 1.0948395486585234,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "pinned",
+        "old_ops": 306075.45468522666,
+        "new_ops": 333121.8641039807,
+        "ratio": 1.0883651694532939,
+        "paired_ratios": [
+          1.0745521395970177,
+          1.1539301870894272,
+          1.0561897614041507,
+          1.0370355472120345,
+          1.0786055451456156
+        ],
+        "paired_median": 1.0745521395970177,
+        "winning_rounds": 5
+      },
+      {
+        "requests": 5000,
+        "schedulers": 2,
+        "mode": "stealing",
+        "old_ops": 293432.81317018165,
+        "new_ops": 199880.38408265053,
+        "ratio": 0.6811793879600176,
+        "paired_ratios": [
+          0.6811793879600176,
+          0.566071928151774,
+          1.0625300710718881,
+          1.949509815326378,
+          1.1230815303286772
+        ],
+        "paired_median": 1.0625300710718881,
+        "winning_rounds": 3
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "pinned",
+        "old_ops": 276698.9042507221,
+        "new_ops": 298495.23440605024,
+        "ratio": 1.0787727375153537,
+        "paired_ratios": [
+          0.9992265038142064,
+          0.9706062840520819,
+          0.9761918772631567,
+          1.0787727375153537,
+          1.0420065380604393
+        ],
+        "paired_median": 0.9992265038142064,
+        "winning_rounds": 2
+      },
+      {
+        "requests": 5000,
+        "schedulers": 4,
+        "mode": "stealing",
+        "old_ops": 230634.68913626662,
+        "new_ops": 246693.02868458806,
+        "ratio": 1.0696267313839924,
+        "paired_ratios": [
+          1.3379036889026874,
+          1.202460327712351,
+          1.170973366491775,
+          1.0090787749608052,
+          1.0701587323409358
+        ],
+        "paired_median": 1.170973366491775,
+        "winning_rounds": 5
+      }
+    ],
+    "wins": 9,
+    "artifacts": [
+      {
+        "label": "old Morrow workload",
+        "bytes": 984072,
+        "sha256": "28acad7ca55af8ea02eb8d6f3dac4927d71120aa2b03724c385e8fe3ea7dc7ef",
+        "path": "/private/tmp/morrow-actors-initialized-roots-20260919",
+        "checked": true
+      },
+      {
+        "label": "new Morrow workload",
+        "bytes": 985656,
+        "sha256": "48ea30fc057484d6021fb7eff6dd953dbce75d3166ca1184f2402a3e43b2db34",
+        "path": "/private/tmp/morrow-actors-small-copy-20260919",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner",
+        "bytes": 813088,
+        "sha256": "8a7bd9fbc0fa77575df3d529b10037a0bb2d5a9bdf1f30de23e71d82b0276ef5",
+        "path": "/tmp/morrow-actor-runner-request-reply-diagnostic",
+        "checked": true
+      },
+      {
+        "label": "benchmark runner source",
+        "bytes": 42663,
+        "sha256": "66ed0cec79508a5424337707df3467b4d9fdad1efa586097a32af21074b97d83",
+        "path": "benchmarks/language-comparison/src/actor_comparison.rs",
+        "checked": true
+      }
+    ]
+  }
+]

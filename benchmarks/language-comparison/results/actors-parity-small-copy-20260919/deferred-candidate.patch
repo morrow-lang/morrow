@@ -1,0 +1,887 @@
+diff --git a/crates/morrow-runtime/src/managed/copy.rs b/crates/morrow-runtime/src/managed/copy.rs
+index 092507a2..9ee979e0 100644
+--- a/crates/morrow-runtime/src/managed/copy.rs
++++ b/crates/morrow-runtime/src/managed/copy.rs
+@@ -5,6 +5,9 @@
+ use super::*;
+ use std::collections::HashMap;
+ use std::rc::Rc;
++#[path = "copy_memo.rs"]
++mod memo;
++use memo::Memo;
+ 
+ struct Rooted {
+     // Drop the registration before freeing its stable word.
+@@ -46,7 +49,7 @@ pub(super) struct Copy {
+     pub value: i64,
+     session: *mut Session,
+     roots: Vec<Rooted>,
+-    seen: HashMap<(i64, usize), i64>,
++    seen: Memo,
+     json: HashMap<usize, morrow_json::Json>,
+     destination: Destination,
+ }
+@@ -56,7 +59,7 @@ impl Copy {
+             value: 0,
+             session,
+             roots: vec![Rooted::new(source as usize)],
+-            seen: HashMap::new(),
++            seen: Memo::default(),
+             json: HashMap::new(),
+             destination: Destination::Heap,
+         }
+@@ -66,7 +69,7 @@ impl Copy {
+             value: 0,
+             session,
+             roots: Vec::new(),
+-            seen: HashMap::new(),
++            seen: Memo::default(),
+             json: HashMap::new(),
+             destination: Destination::Fragment(memory::Fragment::new()),
+         }
+@@ -603,3 +606,71 @@ mod fragment_tests {
+         }
+     }
+ }
++
++#[cfg(test)]
++mod allocation_probe {
++    use super::*;
++    #[test]
++    fn tiny_copy_allocator_breakdown() {
++        let scalar = Type {
++            kind: 0,
++            count: 0,
++            children: null(),
++            arities: null(),
++        };
++        let fields = [&scalar as *const Type];
++        let tuple = Type {
++            kind: 3,
++            count: 1,
++            children: fields.as_ptr(),
++            arities: null(),
++        };
++        let text = Type {
++            kind: 1,
++            count: 0,
++            children: null(),
++            arities: null(),
++        };
++        let text_fields = [&text as *const Type];
++        let pair = Type {
++            kind: 3,
++            count: 1,
++            children: text_fields.as_ptr(),
++            arities: null(),
++        };
++        let source = [0, i64::MIN];
++        let string = c"payload";
++        let owned_source = [0, string.as_ptr() as i64];
++        drop(memory::Fragment::new());
++        for (name, descriptor, address) in [
++            ("answer", &tuple, source.as_ptr()),
++            ("owned", &pair, owned_source.as_ptr()),
++        ] {
++            // SAFETY: literal descriptors and source graphs live through synchronous copying.
++            let (fragment, count) = memory::fragment_probe::measure(|| unsafe {
++                assert!(cost::value(null_mut(), descriptor, address as i64).is_some());
++                value_fragment(null_mut(), descriptor, address as i64)
++            });
++            println!("copy {name} {count:?}");
++            // SAFETY: the fragment owns this initialized root allocation.
++            unsafe {
++                let copied = fragment.value as *const i64;
++                assert_eq!(*copied, 0);
++                assert_ne!(copied, address);
++                if name == "answer" {
++                    assert_eq!(*copied.add(1), i64::MIN);
++                    assert_eq!(count.zeroed, 1);
++                } else {
++                    assert_eq!(std::ffi::CStr::from_ptr(*copied.add(1) as *const _), string);
++                    assert_ne!(*copied.add(1), string.as_ptr() as i64);
++                    assert_eq!(count.zeroed, 2);
++                }
++            }
++            drop(fragment);
++        }
++    }
++}
++
++#[cfg(test)]
++#[path = "copy_memo_tests.rs"]
++mod memo_tests;
+diff --git a/crates/morrow-runtime/src/managed/copy_memo.rs b/crates/morrow-runtime/src/managed/copy_memo.rs
+new file mode 100644
+index 00000000..eaeaa80b
+--- /dev/null
++++ b/crates/morrow-runtime/src/managed/copy_memo.rs
+@@ -0,0 +1,54 @@
++//! Tiny graph copies avoid a temporary hash table; larger graphs retain it.
++use std::collections::HashMap;
++
++type Key = (i64, usize);
++type Entry = (Key, i64);
++const INLINE: usize = 2;
++
++pub(super) enum Memo {
++    Inline {
++        entries: [Entry; INLINE],
++        len: usize,
++    },
++    Overflow(HashMap<Key, i64>),
++}
++impl Default for Memo {
++    fn default() -> Self {
++        Self::Inline {
++            entries: [((0, 0), 0); INLINE],
++            len: 0,
++        }
++    }
++}
++impl Memo {
++    pub(super) fn get(&self, key: &Key) -> Option<&i64> {
++        match self {
++            Self::Inline { entries, len } => entries[..*len]
++                .iter()
++                .find_map(|(prior, value)| (prior == key).then_some(value)),
++            Self::Overflow(values) => values.get(key),
++        }
++    }
++    pub(super) fn insert(&mut self, key: Key, value: i64) {
++        match self {
++            Self::Inline { entries, len } => {
++                if let Some((_, prior)) =
++                    entries[..*len].iter_mut().find(|(prior, _)| *prior == key)
++                {
++                    *prior = value;
++                } else if *len < INLINE {
++                    entries[*len] = (key, value);
++                    *len += 1;
++                } else {
++                    let mut values = HashMap::with_capacity(INLINE + 1);
++                    values.extend(entries.iter().copied());
++                    values.insert(key, value);
++                    *self = Self::Overflow(values);
++                }
++            }
++            Self::Overflow(values) => {
++                values.insert(key, value);
++            }
++        }
++    }
++}
+diff --git a/crates/morrow-runtime/src/managed/copy_memo_tests.rs b/crates/morrow-runtime/src/managed/copy_memo_tests.rs
+new file mode 100644
+index 00000000..5d3bd349
+--- /dev/null
++++ b/crates/morrow-runtime/src/managed/copy_memo_tests.rs
+@@ -0,0 +1,189 @@
++//! Count real copy allocations and preserve graph identity across tiny/fallback paths.
++use super::*;
++use crate::memory::fragment_probe::measure;
++
++fn ty(kind: i64, children: &[*const Type]) -> Type {
++    Type {
++        kind,
++        count: children.len() as i64,
++        children: children.as_ptr(),
++        arities: null(),
++    }
++}
++#[test]
++fn tiny_copy_requires_no_temporary_metadata_allocation() {
++    let scalar = ty(0, &[]);
++    let scalar_fields = [&scalar as *const Type];
++    let answer = ty(3, &scalar_fields);
++    let string = ty(1, &[]);
++    let string_fields = [&string as *const Type];
++    let owned = ty(3, &string_fields);
++    let scalar_value = [0, i64::MIN];
++    let owned_value = [0, c"owned".as_ptr() as i64];
++    drop(memory::Fragment::new());
++    let mut metadata = 0;
++    for (descriptor, source, blocks) in [
++        (&answer, scalar_value.as_ptr(), 1),
++        (&owned, owned_value.as_ptr(), 2),
++    ] {
++        // SAFETY: literal immutable descriptors/values live through synchronous copy.
++        unsafe {
++            assert!(cost::value(null_mut(), descriptor, source as i64).is_some());
++            let (fragment, counts) =
++                measure(|| value_fragment(null_mut(), descriptor, source as i64));
++            println!("tiny memo blocks={blocks} {counts:?}");
++            metadata += counts.plain;
++            assert_eq!(counts.zeroed, blocks);
++            let target = fragment.value as *const i64;
++            assert_ne!(target, source);
++            assert_eq!(*target, 0);
++            if blocks == 1 {
++                assert_eq!(*target.add(1), i64::MIN);
++            } else {
++                assert_eq!(
++                    std::ffi::CStr::from_ptr(*target.add(1) as *const _),
++                    c"owned"
++                );
++                assert_ne!(*target.add(1), owned_value[1]);
++            }
++            drop(fragment);
++        }
++    }
++    assert_eq!(
++        metadata, 0,
++        "tiny graph copy and detached storage need no temporary metadata allocation"
++    );
++}
++
++#[test]
++fn memo_keys_preserve_full_width_source_descriptor_and_frame_sentinel() {
++    let mut copy = Copy::fragment(null_mut());
++    assert_eq!(copy.seen.get(&(0, 0)), None);
++    println!(
++        "memo bytes={} prior_hashmap_bytes={} fragment_copy_bytes={}",
++        std::mem::size_of::<memo::Memo>(),
++        std::mem::size_of::<HashMap<(i64, usize), i64>>(),
++        std::mem::size_of::<FragmentCopy>()
++    );
++    for descriptor in [0, usize::MAX, 1, 2, 3, 4, 5, 6] {
++        let value = i64::MIN.wrapping_add(descriptor as i64);
++        copy.seen.insert((i64::MAX, descriptor), value);
++        for prior in [0, usize::MAX, 1, 2, 3, 4, 5, 6]
++            .into_iter()
++            .take_while(|&prior| prior != descriptor)
++        {
++            assert_eq!(
++                copy.seen.get(&(i64::MAX, prior)),
++                Some(&i64::MIN.wrapping_add(prior as i64))
++            );
++        }
++        assert_eq!(copy.seen.get(&(i64::MAX, descriptor)), Some(&value));
++    }
++    copy.seen.insert((i64::MAX, 0), i64::MAX);
++    assert_eq!(copy.seen.get(&(i64::MAX, 0)), Some(&i64::MAX));
++    assert_eq!(copy.seen.get(&(i64::MIN, 0)), None);
++    assert_eq!(copy.seen.get(&(i64::MAX, 42)), None);
++}
++
++#[test]
++fn descriptor_sensitive_dag_sharing_survives_spill_and_adoption() {
++    unsafe {
++        let scalar = ty(0, &[]);
++        let children = [&scalar as *const Type, &scalar];
++        let first = ty(3, &children);
++        let second = ty(3, &children);
++        let fields = [&first as *const Type, &second, &first];
++        let outer = ty(3, &fields);
++        let leaf = [0, i64::MIN, i64::MAX];
++        let source = [
++            0,
++            leaf.as_ptr() as i64,
++            leaf.as_ptr() as i64,
++            leaf.as_ptr() as i64,
++        ];
++        assert!(cost::value(null_mut(), &outer, source.as_ptr() as i64).is_some());
++        let fragment = value_fragment(null_mut(), &outer, source.as_ptr() as i64);
++        let pointer = fragment.adopt() as *const i64;
++        let root_word = pointer as usize;
++        let root = memory::root_range(&root_word, 1);
++        memory::morrow_gc_collect_precise();
++        assert_eq!(*pointer.add(1), *pointer.add(3));
++        assert_ne!(*pointer.add(1), *pointer.add(2));
++        for offset in [1, 2] {
++            assert_eq!(
++                std::slice::from_raw_parts(*pointer.add(offset) as *const i64, 3),
++                leaf
++            );
++        }
++        drop(root);
++        memory::morrow_gc_collect_precise();
++    }
++}
++
++#[test]
++fn cyclic_source_remains_rejected_before_any_copy_allocation() {
++    let mut recursive = ty(3, &[]);
++    let children = [&recursive as *const Type];
++    recursive.children = children.as_ptr();
++    recursive.count = 1;
++    let mut source = [0i64; 2];
++    source[1] = source.as_ptr() as i64;
++    let (accepted, counts) = measure(|| unsafe {
++        cost::value(null_mut(), &recursive, source.as_ptr() as i64).is_some()
++    });
++    assert!(!accepted);
++    assert_eq!(counts.plain + counts.zeroed, 0);
++}
++
++#[test]
++fn wide_heap_copy_keeps_every_fallback_value_rooted_through_collection() {
++    unsafe {
++        let string = ty(1, &[]);
++        let fields = [&string as *const Type; 64];
++        let outer = ty(3, &fields);
++        let texts: Vec<_> = (0..64)
++            .map(|index| std::ffi::CString::new(format!("word{index}")).unwrap())
++            .collect();
++        let mut source = vec![0];
++        source.extend(texts.iter().map(|text| text.as_ptr() as i64));
++        assert!(cost::value(null_mut(), &outer, source.as_ptr() as i64).is_some());
++        let copied = value(null_mut(), &outer, source.as_ptr() as i64);
++        memory::morrow_gc_collect_precise();
++        for (index, text) in texts.iter().enumerate() {
++            let pointer = *((copied.value as *const i64).add(index + 1)) as *const std::ffi::c_char;
++            assert_ne!(pointer, text.as_ptr());
++            assert_eq!(std::ffi::CStr::from_ptr(pointer), text.as_c_str());
++        }
++        drop(copied);
++        memory::morrow_gc_collect_precise();
++        assert_eq!(memory::stats().objects, 0);
++    }
++}
++
++#[test]
++fn memo_replaces_inline_keys_without_spilling_including_all_zero_key() {
++    let mut copy = Copy::fragment(null_mut());
++    assert_eq!(copy.seen.get(&(0, 0)), None);
++    let (_, counts) = measure(|| {
++        copy.seen.insert((0, 0), i64::MIN);
++        copy.seen.insert((i64::MIN, usize::MAX), i64::MAX);
++        assert_eq!(copy.seen.get(&(0, 0)), Some(&i64::MIN));
++        assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&i64::MAX));
++        for value in [0, i64::MAX, i64::MIN] {
++            copy.seen.insert((0, 0), value);
++            copy.seen.insert((i64::MIN, usize::MAX), !value);
++            assert_eq!(copy.seen.get(&(0, 0)), Some(&value));
++            assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&!value));
++        }
++    });
++    assert_eq!(
++        counts.plain + counts.zeroed,
++        0,
++        "replacement of either inline key must not spill"
++    );
++    // A third distinct key may spill, but cannot erase the all-zero key.
++    copy.seen.insert((i64::MAX, 0), 42);
++    assert_eq!(copy.seen.get(&(0, 0)), Some(&i64::MIN));
++    assert_eq!(copy.seen.get(&(i64::MIN, usize::MAX)), Some(&i64::MAX));
++    assert_eq!(copy.seen.get(&(i64::MAX, 0)), Some(&42));
++}
+diff --git a/crates/morrow-runtime/src/memory.rs b/crates/morrow-runtime/src/memory.rs
+index 08dfa68b..0c01d265 100644
+--- a/crates/morrow-runtime/src/memory.rs
++++ b/crates/morrow-runtime/src/memory.rs
+@@ -127,6 +127,46 @@ impl Drop for Control {
+     }
+ }
+ impl Block {
++    fn allocate(layout: Layout, atomic: bool) -> (usize, Self) {
++        // SAFETY: valid nonzero layout; the caller retains the returned metadata
++        // until it destroys or transfers this stable native allocation.
++        let pointer = unsafe { alloc_zeroed(layout) };
++        if pointer.is_null() {
++            handle_alloc_error(layout);
++        }
++        (
++            pointer as usize,
++            Self {
++                layout,
++                atomic,
++                marked: false,
++                external: 0,
++                finalizer: None,
++                control: 0,
++                retention: None,
++            },
++        )
++    }
++    unsafe fn managed<T: 'static>(value: T, retained_bytes: usize) -> (usize, Self) {
++        unsafe fn finalize<T>(pointer: *mut u8) {
++            unsafe {
++                pointer.cast::<T>().drop_in_place();
++            }
++        }
++        let layout = Layout::from_size_align(
++            std::mem::size_of::<T>().max(1),
++            std::mem::align_of::<T>().max(16),
++        )
++        .unwrap_or_else(|_| std::process::abort());
++        let (address, mut block) = Self::allocate(layout, true);
++        // SAFETY: the fresh allocation has T's alignment and adequate storage.
++        unsafe {
++            (address as *mut T).write(value);
++        }
++        block.external = retained_bytes;
++        block.finalizer = Some(finalize::<T>);
++        (address, block)
++    }
+     unsafe fn destroy(&self, address: usize) {
+         if let Some(finalizer) = self.finalizer {
+             // SAFETY: finalizer was paired with this allocation's initialized T.
+@@ -170,28 +210,13 @@ impl Heap {
+         self.allocate_layout(layout, atomic)
+     }
+     fn allocate_layout(&mut self, layout: Layout, atomic: bool) -> *mut u8 {
+-        // SAFETY: valid nonzero layout; the block remains owned until sweep/shutdown.
+-        let pointer = unsafe { alloc_zeroed(layout) };
+-        if pointer.is_null() {
+-            handle_alloc_error(layout);
+-        }
++        let (address, block) = Block::allocate(layout, atomic);
+         self.bytes = self
+             .bytes
+             .checked_add(layout.size())
+             .unwrap_or_else(|| std::process::abort());
+-        self.blocks.insert(
+-            pointer as usize,
+-            Block {
+-                layout,
+-                atomic,
+-                marked: false,
+-                external: 0,
+-                finalizer: None,
+-                control: 0,
+-                retention: None,
+-            },
+-        );
+-        pointer
++        self.blocks.insert(address, block);
++        address as *mut u8
+     }
+     fn mark(&mut self, candidate: usize, pending: &mut Vec<usize>) -> bool {
+         let Some((&base, block)) = self.blocks.range_mut(..=candidate).next_back() else {
+@@ -282,29 +307,15 @@ impl Heap {
+         }
+     }
+     unsafe fn managed<T: 'static>(&mut self, value: T, retained_bytes: usize) -> *mut T {
+-        unsafe fn finalize<T>(pointer: *mut u8) {
+-            unsafe {
+-                pointer.cast::<T>().drop_in_place();
+-            }
+-        }
+-        let layout = Layout::from_size_align(
+-            std::mem::size_of::<T>().max(1),
+-            std::mem::align_of::<T>().max(16),
+-        )
+-        .unwrap_or_else(|_| std::process::abort());
+-        let pointer = self.allocate_layout(layout, true).cast::<T>();
+-        // SAFETY: the fresh allocation has T's alignment and adequate storage.
+-        unsafe {
+-            pointer.write(value);
+-        }
+-        let block = self.blocks.get_mut(&(pointer as usize)).unwrap();
+-        block.external = retained_bytes;
+-        block.finalizer = Some(finalize::<T>);
++        // SAFETY: caller transfers the same exclusive inert value ownership.
++        let (address, block) = unsafe { Block::managed(value, retained_bytes) };
+         self.bytes = self
+             .bytes
+-            .checked_add(retained_bytes)
++            .checked_add(block.layout.size())
++            .and_then(|bytes| bytes.checked_add(block.external))
+             .unwrap_or_else(|| std::process::abort());
+-        pointer
++        self.blocks.insert(address, block);
++        address as *mut T
+     }
+ }
+ impl Drop for Heap {
+@@ -436,3 +447,7 @@ pub extern "C" fn morrow_gc_collect() {
+ pub extern "C" fn morrow_gc_heap_size() -> usize {
+     stats().bytes
+ }
++
++#[cfg(test)]
++#[path = "memory/fragment_probe.rs"]
++pub(crate) mod fragment_probe;
+diff --git a/crates/morrow-runtime/src/memory/fragment.rs b/crates/morrow-runtime/src/memory/fragment.rs
+index 8a2b6a05..bf9c634c 100644
+--- a/crates/morrow-runtime/src/memory/fragment.rs
++++ b/crates/morrow-runtime/src/memory/fragment.rs
+@@ -1,25 +1,67 @@
+ //! Detached payload storage, owned in full until adopted by one receiver.
+-use super::{Control, ControlAllocation, Heap, account_control, heaps};
++use super::{Block, Control, ControlAllocation, account_control, heaps};
++use std::alloc::Layout;
++use std::collections::BTreeMap;
++
++// Keep only tiny fragments inline; larger graphs retain the original ordered
++// map and merge path. Inline entries are sorted to preserve destruction order.
++enum Blocks {
++    Inline([Option<(usize, Block)>; 2]),
++    Tree(BTreeMap<usize, Block>),
++}
+ 
+ /// A complete native graph with no references into another collected heap.
+ /// Allocations never collect: every block is live until adoption or destruction.
+ /// The creator's physical accounting follows this storage until that transition.
+ pub(crate) struct Fragment {
+-    heap: Heap,
++    blocks: Blocks,
+     accounting: ControlAllocation,
+ }
+ impl Fragment {
+     pub(crate) fn new() -> Self {
+         Self {
+-            heap: Heap::new(),
++            blocks: Blocks::Inline([None, None]),
+             accounting: account_control(0, 0),
+         }
+     }
+ 
++    fn insert(&mut self, address: usize, block: Block) {
++        self.accounting.grow(
++            block
++                .layout
++                .size()
++                .checked_add(block.external)
++                .unwrap_or_else(|| std::process::abort()),
++            1,
++        );
++        match &mut self.blocks {
++            Blocks::Inline(blocks) => {
++                if let Some(index) = blocks.iter().position(Option::is_none) {
++                    blocks[index] = Some((address, block));
++                    blocks.sort_unstable_by_key(|entry| {
++                        entry.as_ref().map_or(usize::MAX, |(key, _)| *key)
++                    });
++                } else {
++                    let mut tree = BTreeMap::new();
++                    for (key, value) in std::mem::take(blocks).into_iter().flatten() {
++                        tree.insert(key, value);
++                    }
++                    tree.insert(address, block);
++                    self.blocks = Blocks::Tree(tree);
++                }
++            }
++            Blocks::Tree(blocks) => {
++                blocks.insert(address, block);
++            }
++        }
++    }
++
+     pub(crate) fn allocate(&mut self, bytes: usize, atomic: bool) -> *mut u8 {
+-        let pointer = self.heap.allocate(bytes, atomic);
+-        self.accounting.grow(bytes.max(1), 1);
+-        pointer
++        let layout =
++            Layout::from_size_align(bytes.max(1), 16).unwrap_or_else(|_| std::process::abort());
++        let (address, block) = Block::allocate(layout, atomic);
++        self.insert(address, block);
++        address as *mut u8
+     }
+ 
+     /// Own an inert Rust value with no references into collected storage.
+@@ -30,11 +72,10 @@ impl Fragment {
+     /// obey memory::managed's no-panic, no-GC-access, no-reentry contract and be
+     /// valid on any thread. `retained_bytes` covers external owned storage.
+     pub(crate) unsafe fn managed<T: 'static>(&mut self, value: T, retained_bytes: usize) -> *mut T {
+-        let before = self.heap.bytes;
+         // SAFETY: caller establishes exclusive transferable finalizer ownership.
+-        let pointer = unsafe { self.heap.managed(value, retained_bytes) };
+-        self.accounting.grow(self.heap.bytes - before, 1);
+-        pointer
++        let (address, block) = unsafe { Block::managed(value, retained_bytes) };
++        self.insert(address, block);
++        address as *mut T
+     }
+ 
+     /// Attach one external control reference to a fragment-owned wrapper.
+@@ -42,11 +83,15 @@ impl Fragment {
+     /// The pointer is a live allocation base in this fragment. Its control token
+     /// meets Control's thread-independent release contract.
+     pub(crate) unsafe fn retain_control(&mut self, pointer: *const u8, retention: Control) {
+-        let block = self
+-            .heap
+-            .blocks
+-            .get_mut(&(pointer as usize))
+-            .expect("control wrapper belongs to this fragment");
++        let address = pointer as usize;
++        let block = match &mut self.blocks {
++            Blocks::Inline(blocks) => blocks
++                .iter_mut()
++                .flatten()
++                .find_map(|(key, block)| (*key == address).then_some(block)),
++            Blocks::Tree(blocks) => blocks.get_mut(&address),
++        }
++        .expect("control wrapper belongs to this fragment");
+         assert!(block.retention.is_none(), "wrapper already retains control");
+         block.control = retention.pointer;
+         block.retention = Some(retention);
+@@ -58,14 +103,46 @@ impl Fragment {
+         heaps::with_mut(|target| {
+             target.bytes = target
+                 .bytes
+-                .checked_add(self.heap.bytes)
++                .checked_add(self.accounting.bytes)
+                 .unwrap_or_else(|| std::process::abort());
+-            target.blocks.append(&mut self.heap.blocks);
+-            self.heap.bytes = 0;
++            match std::mem::replace(&mut self.blocks, Blocks::Inline([None, None])) {
++                Blocks::Inline(blocks) => {
++                    for (address, block) in blocks.into_iter().flatten() {
++                        target.blocks.insert(address, block);
++                    }
++                }
++                Blocks::Tree(mut blocks) => target.blocks.append(&mut blocks),
++            }
+         });
+     }
+ }
+ 
++impl Drop for Fragment {
++    fn drop(&mut self) {
++        let destroy = |address, block: &Block| {
++            // SAFETY: the fragment still exclusively owns this initialized block;
++            // finalizers are inert and may run after the creator's Domain exits.
++            unsafe {
++                block.destroy(address);
++            }
++        };
++        match &self.blocks {
++            Blocks::Inline(blocks) => {
++                for (address, block) in blocks.iter().flatten() {
++                    destroy(*address, block);
++                }
++            }
++            Blocks::Tree(blocks) => {
++                for (&address, block) in blocks {
++                    destroy(address, block);
++                }
++            }
++        }
++        // Field destruction releases retained controls after all native blocks,
++        // matching Heap::drop, then releases the creator's physical accounting.
++    }
++}
++
+ // Heap metadata carries exclusive allocation ownership and thread-independent
+ // finalizers/controls. The unsafe initialization contracts preserve that property.
+ const _: fn() = || {
+diff --git a/crates/morrow-runtime/src/memory/fragment_probe.rs b/crates/morrow-runtime/src/memory/fragment_probe.rs
+new file mode 100644
+index 00000000..d95d002e
+--- /dev/null
++++ b/crates/morrow-runtime/src/memory/fragment_probe.rs
+@@ -0,0 +1,222 @@
++//! Independent allocator probe: native payloads use zeroed allocation, metadata does not.
++use std::alloc::{GlobalAlloc, Layout, System};
++use std::cell::Cell;
++
++#[derive(Clone, Copy, Debug, Default)]
++pub(crate) struct Counts {
++    pub plain: usize,
++    pub zeroed: usize,
++    pub plain_bytes: usize,
++    pub zeroed_bytes: usize,
++}
++thread_local! {
++    static ACTIVE: Cell<Option<Counts>> = const { Cell::new(None) };
++}
++struct Counter;
++fn record(layout: Layout, zeroed: bool) {
++    let _ = ACTIVE.try_with(|active| {
++        if let Some(mut count) = active.get() {
++            if zeroed {
++                count.zeroed += 1;
++                count.zeroed_bytes += layout.size();
++            } else {
++                count.plain += 1;
++                count.plain_bytes += layout.size();
++            }
++            active.set(Some(count));
++        }
++    });
++}
++// SAFETY: forwarding preserves all allocator contracts; counters allocate nothing.
++unsafe impl GlobalAlloc for Counter {
++    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
++        record(layout, false);
++        unsafe { System.alloc(layout) }
++    }
++    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
++        record(layout, true);
++        unsafe { System.alloc_zeroed(layout) }
++    }
++    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
++        unsafe { System.dealloc(pointer, layout) }
++    }
++    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
++        record(
++            Layout::from_size_align(size, layout.align()).unwrap(),
++            false,
++        );
++        unsafe { System.realloc(pointer, layout, size) }
++    }
++}
++#[global_allocator]
++static ALLOCATOR: Counter = Counter;
++pub(crate) fn measure<T>(operation: impl FnOnce() -> T) -> (T, Counts) {
++    ACTIVE.with(|active| assert!(active.replace(Some(Counts::default())).is_none()));
++    let value = operation();
++    let count = ACTIVE.with(|active| active.replace(None).unwrap());
++    (value, count)
++}
++
++#[test]
++fn tiny_fragment_metadata_does_not_allocate() {
++    // Warm domain/accounting initialization outside the observed interval.
++    drop(super::Fragment::new());
++    let before = super::stats();
++    println!(
++        "metadata sizes: block={} heap={} accounting={} fragment={} prior_fragment={}",
++        std::mem::size_of::<super::Block>(),
++        std::mem::size_of::<super::Heap>(),
++        std::mem::size_of::<super::ControlAllocation>(),
++        std::mem::size_of::<super::Fragment>(),
++        std::mem::size_of::<super::Heap>() + std::mem::size_of::<super::ControlAllocation>()
++    );
++    let mut tiny_metadata = 0;
++    for length in [0, 1, 2, 3, 64] {
++        let mut addresses = [0usize; 64];
++        let (fragment, count) = measure(|| {
++            let mut fragment = super::Fragment::new();
++            for (i, address) in addresses[..length].iter_mut().enumerate() {
++                let pointer = fragment.allocate(16, true).cast::<u64>();
++                // SAFETY: each block provides two initialized aligned u64 words.
++                unsafe {
++                    pointer.write(i as u64);
++                    pointer.add(1).write(u64::MAX - i as u64);
++                }
++                *address = pointer as usize;
++            }
++            fragment
++        });
++        println!("fragment blocks={length} {count:?}");
++        assert_eq!(count.zeroed, length);
++        for (i, &address) in addresses[..length].iter().enumerate() {
++            // SAFETY: the still-owned fragment keeps these exact addresses live.
++            unsafe {
++                assert_eq!(*(address as *const u64), i as u64);
++                assert_eq!(*((address as *const u64).add(1)), u64::MAX - i as u64);
++            }
++        }
++        drop(fragment);
++        assert_eq!(super::stats().bytes, before.bytes);
++        assert_eq!(super::stats().objects, before.objects);
++        if length <= 2 {
++            tiny_metadata += count.plain;
++        }
++    }
++    assert_eq!(
++        tiny_metadata, 0,
++        "tiny detached payload needs no temporary metadata allocation"
++    );
++}
++
++#[test]
++fn fragment_boundary_preserves_alignment_and_ordered_finalizers_controls() {
++    use std::sync::{Arc, Mutex};
++    type Events = Arc<Mutex<Vec<(char, usize)>>>;
++    #[repr(align(64))]
++    struct Value {
++        events: Events,
++        address: usize,
++    }
++    impl Drop for Value {
++        fn drop(&mut self) {
++            self.events.lock().unwrap().push(('F', self.address));
++        }
++    }
++    struct Retention {
++        events: Events,
++        address: usize,
++    }
++    impl Drop for Retention {
++        fn drop(&mut self) {
++            self.events.lock().unwrap().push(('C', self.address));
++        }
++    }
++    unsafe fn release(pointer: *const ()) {
++        // SAFETY: exactly one Arc strong reference was consumed by Control::new.
++        unsafe {
++            drop(Arc::from_raw(pointer.cast::<Retention>()));
++        }
++    }
++    for count in [1, 2, 3, 64] {
++        for adopt in [false, true] {
++            let events: Events = Arc::new(Mutex::new(Vec::new()));
++            let sender_events = events.clone();
++            let (fragment, addresses) = std::thread::spawn(move || {
++                let mut fragment = super::Fragment::new();
++                let mut addresses = Vec::new();
++                for _ in 0..count {
++                    // SAFETY: Arc-backed event records own no collected pointers;
++                    // inert finalizers can run after sender thread destruction.
++                    unsafe {
++                        let value = fragment.managed(
++                            Value {
++                                events: sender_events.clone(),
++                                address: 0,
++                            },
++                            37,
++                        );
++                        assert_eq!(value as usize % 64, 0);
++                        (*value).address = value as usize;
++                        let retention = Arc::new(Retention {
++                            events: sender_events.clone(),
++                            address: value as usize,
++                        });
++                        let token = super::Control::new(Arc::into_raw(retention).cast(), release);
++                        fragment.retain_control(value.cast(), token);
++                        addresses.push(value as usize);
++                    }
++                }
++                (fragment, addresses)
++            })
++            .join()
++            .unwrap();
++            // Original Domain is gone; returned storage is the sole native owner.
++            let mut sorted = addresses.clone();
++            sorted.sort_unstable();
++            std::thread::spawn(move || {
++                if adopt {
++                    fragment.adopt();
++                    let roots = addresses;
++                    // SAFETY: addresses are stable and the Vec outlives this root.
++                    let root = unsafe { super::root_range(roots.as_ptr(), roots.len()) };
++                    // SAFETY: every live native root is registered above, or all have retired.
++                    unsafe {
++                        super::morrow_gc_collect_precise();
++                    }
++                    assert_eq!(super::stats().objects, count);
++                    assert_eq!(super::stats().bytes, count * (64 + 37));
++                    for &address in &roots {
++                        assert_eq!(unsafe { (*(address as *const Value)).address }, address);
++                    }
++                    drop(root);
++                    // SAFETY: every live native root is registered above, or all have retired.
++                    unsafe {
++                        super::morrow_gc_collect_precise();
++                    }
++                    assert_eq!(super::stats().bytes, 0);
++                    assert_eq!(super::stats().objects, 0);
++                } else {
++                    drop(fragment);
++                }
++            })
++            .join()
++            .unwrap();
++            let actual = events.lock().unwrap().clone();
++            let expected: Vec<_> = if adopt {
++                // Collector finalizes and releases each block before its successor.
++                sorted
++                    .iter()
++                    .flat_map(|&address| [('F', address), ('C', address)])
++                    .collect()
++            } else {
++                // Detached/Heap Drop finalizes all blocks, then drops all controls.
++                sorted
++                    .iter()
++                    .map(|&address| ('F', address))
++                    .chain(sorted.iter().map(|&address| ('C', address)))
++                    .collect()
++            };
++            assert_eq!(actual, expected, "count={count}, adopt={adopt}");
++        }
++    }
++}
