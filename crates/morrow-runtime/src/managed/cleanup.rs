@@ -169,6 +169,9 @@ unsafe fn drain(a: *mut Actor, all: bool) {
                 if (*a).fault == 0 && status != 2 {
                     (*a).fault = 11;
                 }
+                if matches!((*a).fault, 11 | 12) {
+                    (*a).infrastructure_fault = true;
+                }
                 if first_fault == 0 {
                     first_fault = (*a).fault;
                 }

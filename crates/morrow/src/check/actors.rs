@@ -126,6 +126,7 @@ pub(super) fn attach(
 fn mailbox(body: &ast::Expr, registry: &nominal::Registry) -> Checked<Option<Type>> {
     let mut pending = vec![body];
     let mut patterns = Vec::new();
+    let mut actor_context = false;
     let mut work = 0;
     while let Some(expr) = pending.pop() {
         work += 1;
@@ -138,12 +139,14 @@ fn mailbox(body: &ast::Expr, registry: &nominal::Registry) -> Checked<Option<Typ
         if matches!(expr.kind, ast::ExprKind::Lambda { .. }) {
             continue;
         }
-        if let ast::ExprKind::Receive { arms, .. } = &expr.kind {
-            patterns.extend(arms.iter().map(|a| &a.pattern));
+        if let ast::ExprKind::Receive { view, arms, .. } = &expr.kind {
+            actor_context = true;
+            patterns.extend(arms.iter().map(|a| (&a.pattern, *view)));
         }
+        actor_context |= process_context(expr);
         pending.extend(crate::actors::source_children(expr));
     }
-    if patterns.is_empty() {
+    if !actor_context {
         return Ok(None);
     }
     let signatures = HashMap::new();
@@ -164,7 +167,10 @@ fn mailbox(body: &ast::Expr, registry: &nominal::Registry) -> Checked<Option<Typ
     let ty = checker.inference.fresh();
     parameters::constrain(
         &mut checker,
-        patterns.into_iter().map(|p| (p, ty.clone())).collect(),
+        patterns
+            .into_iter()
+            .map(|(p, view)| (p, view.item(&ty)))
+            .collect(),
     )?;
     let ty = checker.inference.resolve(&ty, body.span)?;
     Ok(Some(generalize(&ty)))
@@ -299,33 +305,7 @@ impl Checker<'_> {
         let mailbox = self.inference.fresh();
         let ty = Type::Pid(Box::new(mailbox.clone()));
         self.constrain_result(&ty, expected, span)?;
-        let function = Type::Function(Vec::new(), Box::new(Type::Unit));
-        let context = Type::ActorFunction(Box::new(mailbox.clone()), Box::new(function));
-        let entry = if let ast::ExprKind::Lambda { body, .. } = &args[0].value.kind {
-            let ordinary = Type::Function(Vec::new(), Box::new(Type::Unit));
-            let expected = if self.actor_body(body) {
-                &context
-            } else {
-                &ordinary
-            };
-            self.expression_expected(&args[0], Some(expected), depth)?
-        } else {
-            self.expression(&args[0], depth)?
-        };
-        let resolved = self.inference.resolve(&entry.ty, span)?;
-        let Some((effect, params, result)) = crate::actors::function(&resolved) else {
-            return Err(Diagnostic::new(span, "spawn requires a function value"));
-        };
-        if !params.is_empty() || *result != Type::Unit {
-            return Err(Diagnostic::new(
-                span,
-                "spawn requires a zero-argument Unit function",
-            ));
-        }
-        if let Some(effect) = effect {
-            self.inference
-                .unify(effect, &mailbox, span, "spawn mailbox")?;
-        }
+        let entry = self.spawn_entry(&args[0], &mailbox, span, depth)?;
         let max_restarts = if supervised {
             Some(Box::new(self.expression_expected(
                 &args[1],
@@ -345,9 +325,50 @@ impl Checker<'_> {
         ))
     }
 
+    /// Share entry checking between legacy and isolated admission APIs.
+    pub(super) fn spawn_entry(
+        &mut self,
+        argument: &ast::Argument,
+        mailbox: &Type,
+        span: Span,
+        depth: usize,
+    ) -> Checked<ir::Expr> {
+        let function = Type::Function(Vec::new(), Box::new(Type::Unit));
+        let context = Type::ActorFunction(Box::new(mailbox.clone()), Box::new(function));
+        let entry = if let ast::ExprKind::Lambda { body, .. } = &argument.value.kind {
+            let ordinary = Type::Function(Vec::new(), Box::new(Type::Unit));
+            let expected = if self.actor_body(body) {
+                &context
+            } else {
+                &ordinary
+            };
+            self.expression_expected(argument, Some(expected), depth)?
+        } else {
+            self.expression(argument, depth)?
+        };
+        let resolved = self.inference.resolve(&entry.ty, span)?;
+        let Some((effect, params, result)) = crate::actors::function(&resolved) else {
+            return Err(Diagnostic::new(span, "spawn requires a function value"));
+        };
+        if !params.is_empty() {
+            return Err(Diagnostic::new(
+                span,
+                "spawn requires a zero-argument Unit function",
+            ));
+        }
+        self.inference
+            .unify(result, &Type::Unit, span, "spawn entry return")?;
+        if let Some(effect) = effect {
+            self.inference
+                .unify(effect, mailbox, span, "spawn mailbox")?;
+        }
+        Ok(entry)
+    }
+
     /// Type selective arms in isolated scopes without falsely requiring exhaustive message coverage.
     pub(super) fn receive(
         &mut self,
+        view: crate::processes::ReceiveView,
         arms: &[ast::MatchArm],
         timeout: Option<&(Box<ast::Expr>, Box<ast::Expr>)>,
         expected: Option<&Type>,
@@ -375,7 +396,8 @@ impl Checker<'_> {
                 guard_source(guard)?;
             }
             self.scopes.push(HashMap::new());
-            let pattern = self.pattern(&arm.pattern, &mailbox, &mut HashSet::new(), 0)?;
+            let pattern =
+                self.pattern(&arm.pattern, &view.item(&mailbox), &mut HashSet::new(), 0)?;
             let guard = arm
                 .guard
                 .as_ref()
@@ -392,6 +414,7 @@ impl Checker<'_> {
         }
         Ok((
             ir::ExprKind::Actor(ir::ActorExpr::Receive {
+                view,
                 mailbox,
                 arms: checked,
                 timeout,
@@ -463,6 +486,7 @@ impl Checker<'_> {
     /// Finalize each effect's children and reject unproved transfer/accountability boundaries.
     pub(super) fn finalize_actor(&self, actor: &mut ir::ActorExpr, span: Span) -> Checked<()> {
         match actor {
+            ir::ActorExpr::Process(operation) => self.finalize_process(operation, span)?,
             ir::ActorExpr::Lowered(_) => {
                 return Err(Diagnostic::new(
                     span,
@@ -498,14 +522,20 @@ impl Checker<'_> {
         for child in crate::actors::children_mut(actor) {
             self.finalize(child)?;
         }
-        if let ir::ActorExpr::Receive { mailbox, arms, .. } = actor {
+        if let ir::ActorExpr::Receive {
+            view,
+            mailbox,
+            arms,
+            ..
+        } = actor
+        {
             for arm in arms.iter() {
                 if let Some(guard) = &arm.guard {
                     crate::actors::contracts::guard(guard)?;
                 }
             }
             let retained = coverage::selective(
-                mailbox,
+                &view.item(mailbox),
                 arms,
                 self.registry,
                 span,
@@ -586,7 +616,7 @@ impl Checker<'_> {
             if matches!(expr.kind, ast::ExprKind::Lambda { .. }) {
                 continue;
             }
-            if matches!(expr.kind, ast::ExprKind::Receive { .. }) {
+            if matches!(expr.kind, ast::ExprKind::Receive { .. }) || process_context(expr) {
                 return true;
             }
             let name = match &expr.kind {
@@ -608,7 +638,7 @@ impl Checker<'_> {
     }
 
     /// Require recursively immutable, accounted message layouts while keeping generic obligations open.
-    fn actor_sendable(&self, ty: &Type, span: Span) -> Checked<()> {
+    pub(super) fn actor_sendable(&self, ty: &Type, span: Span) -> Checked<()> {
         let mut pending = vec![ty.clone()];
         let mut seen = HashSet::new();
         let mut work = 0usize;
@@ -630,7 +660,11 @@ impl Checker<'_> {
                 | Type::Float
                 | Type::String
                 | Type::Range
-                | Type::Native(crate::runtime::NativeType::JsonValue)
+                | Type::Native(
+                    crate::runtime::NativeType::JsonValue
+                    | crate::runtime::NativeType::ProcessId
+                    | crate::runtime::NativeType::MonitorRef,
+                )
                 | Type::Pid(_)
                 | Type::Generic(_)
                 | Type::Infer(_) => {}
@@ -665,5 +699,18 @@ impl Checker<'_> {
             }
         }
         Ok(())
+    }
+}
+
+/// Actor-only primitives establish context even without a receive in this body.
+fn process_context(expr: &ast::Expr) -> bool {
+    match &expr.kind {
+        ast::ExprKind::Call { name, .. } | ast::ExprKind::Pipe { name, .. } => {
+            crate::processes::requires_actor(name)
+        }
+        ast::ExprKind::GlobalCall { resolved, .. } | ast::ExprKind::GlobalPipe { resolved, .. } => {
+            crate::processes::requires_actor(resolved)
+        }
+        _ => false,
     }
 }

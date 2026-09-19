@@ -961,6 +961,8 @@ fn reserved_declaration(name: &str) -> bool {
         || crate::codec_syntax::is_codec(name)
         || crate::runtime::native_type(name).is_some()
         || crate::runtime::lookup(name).is_some()
+        || name == "Process"
+        || name.starts_with("Process.")
         || crate::runtime::reserved_namespace(name)
         || matches!(
             name,
@@ -1082,7 +1084,9 @@ fn local(scopes: &[BTreeSet<String>], name: &str) -> bool {
 fn qualify_type(ty: &mut Type, names: &Names) -> Result<(), Error> {
     match ty {
         Type::Named(name, args) => {
-            resolve_global(name, &names.types, false)?;
+            if !crate::processes::nominal_name(name) {
+                resolve_global(name, &names.types, false)?;
+            }
             for arg in args {
                 qualify_type(arg, names)?;
             }
@@ -1166,6 +1170,9 @@ fn unresolved_global(name: &str, names: &NameMap, allow_builtin: bool) -> String
 
 /// Builtin-qualified calls need no source import; arbitrary module prefixes do.
 fn builtin_path(name: &str) -> bool {
+    if crate::processes::is_api(name) || crate::processes::constructor_path(name) {
+        return true;
+    }
     crate::check::builtin(name).is_some()
         || crate::check::sets::is_api(name)
         || crate::ffi::is_api(name)
@@ -1660,7 +1667,12 @@ fn pattern(
             bound.insert(name.clone());
         }
         ast::PatternKind::NamedConstructor { name, fields } => {
-            resolve_global(name, &names.values, false).map_err(|e| at_span(e, original))?;
+            resolve_global(
+                name,
+                &names.values,
+                crate::processes::constructor_path(name),
+            )
+            .map_err(|e| at_span(e, original))?;
             for field in fields {
                 pattern_binding(field, names, bound, offset)?;
             }
@@ -1750,7 +1762,7 @@ fn rewrite_receive(
     scopes: &mut Vec<BTreeSet<String>>,
     offset: usize,
 ) -> Result<(), Error> {
-    if let ast::ExprKind::Receive { arms, timeout } = kind {
+    if let ast::ExprKind::Receive { arms, timeout, .. } = kind {
         for arm in arms {
             rewrite_arm(arm, names, prefixes, scopes, offset)?;
         }

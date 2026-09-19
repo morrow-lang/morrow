@@ -9,10 +9,13 @@ pub(super) fn binary_type(op: BinaryOp, operand: &Type, span: Span) -> Lowering<
         Add | Subtract | Multiply | Divide | Power => matches!(operand, Type::Int | Type::Float),
         Remainder | BitAnd | BitOr | BitXor | ShiftLeft | ShiftRight => *operand == Type::Int,
         Lt | Le | Gt | Ge => matches!(operand, Type::Int | Type::Float),
-        Eq | Ne => matches!(
-            operand,
-            Type::Int | Type::Float | Type::Bool | Type::String | Type::Pid(_)
-        ),
+        Eq | Ne => {
+            crate::processes::opaque(operand)
+                || matches!(
+                    operand,
+                    Type::Int | Type::Float | Type::Bool | Type::String | Type::Pid(_)
+                )
+        }
         In | And | Or => {
             return Err(invalid(
                 span,
@@ -41,6 +44,41 @@ impl Emitter<'_> {
         rhs: &str,
         locals: &mut Locals,
     ) -> String {
+        if crate::processes::opaque(operand) {
+            let symbol = if *operand == crate::processes::identity() {
+                "$morrow_process_id_equal"
+            } else {
+                "$morrow_process_monitor_equal"
+            };
+            let value = self.assign(
+                locals,
+                Type::Int,
+                NativeOperation::Call {
+                    callee: native_operand(symbol),
+                    args: vec![
+                        (Scalar::I64, native_operand(lhs)),
+                        (Scalar::I64, native_operand(rhs)),
+                    ],
+                    variadic: None,
+                },
+            );
+            return self.assign(
+                locals,
+                Type::Bool,
+                NativeOperation::Binary(
+                    MachineBinary::Compare(
+                        if op == BinaryOp::Eq {
+                            Comparison::Ne
+                        } else {
+                            Comparison::Eq
+                        },
+                        Scalar::I64,
+                    ),
+                    native_operand(&value),
+                    native_operand("0"),
+                ),
+            );
+        }
         // Keep proven-safe literal divisors visible to native optimization.
         // Operands have already been evaluated in source order. Division by a
         // nonzero value other than -1 cannot fault or overflow for any i64 lhs,

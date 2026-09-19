@@ -262,7 +262,7 @@ fn source_instance(
 /// Substitute the bounded expression tree's explicit local annotations and guards.
 pub(super) fn substitute_expr(expr: &mut ast::Expr, values: &HashMap<String, Type>) -> Checked<()> {
     match &mut expr.kind {
-        ast::ExprKind::Receive { arms, timeout } => substitute_receive(arms, timeout, values)?,
+        ast::ExprKind::Receive { arms, timeout, .. } => substitute_receive(arms, timeout, values)?,
         ast::ExprKind::TypeTarget(ty) => *ty = nominal::substitute(ty, values)?,
         ast::ExprKind::Range { .. } | ast::ExprKind::For { .. } | ast::ExprKind::With { .. } => {
             substitute_iteration(expr, values)?

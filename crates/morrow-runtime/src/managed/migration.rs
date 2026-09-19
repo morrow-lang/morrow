@@ -59,9 +59,10 @@ pub(super) unsafe fn transfer(s: *mut Session, a: *mut Actor, target: usize) -> 
             + (*a).frame_cost
             + (*a).selector_cost
             + (*a).timeout_cost
-            + cleanup::retained(a);
+            + cleanup::retained(a)
+            + (*a).control_retained;
         let mut message = (*a).first;
-        for _ in 0..(*a).messages {
+        for _ in 0..(*a).messages + (*a).controls {
             debug_assert!(!message.is_null());
             retained += (*message).cost;
             message = (*message).next;

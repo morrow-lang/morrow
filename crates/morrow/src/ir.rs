@@ -485,6 +485,7 @@ fn statement_children(stmt: &Stmt) -> Vec<&Expr> {
 /// Actor operations retain semantic mailbox identity through concrete specialization.
 #[derive(Clone, Debug)]
 pub enum ActorExpr {
+    Process(crate::processes::ProcessExpr),
     Lowered(crate::actors::Lowered),
     Spawn {
         entry: Box<Expr>,
@@ -499,6 +500,7 @@ pub enum ActorExpr {
         message: Box<Expr>,
     },
     Receive {
+        view: crate::processes::ReceiveView,
         mailbox: Type,
         arms: Vec<MatchArm>,
         timeout: Option<(Box<Expr>, Box<Expr>)>,

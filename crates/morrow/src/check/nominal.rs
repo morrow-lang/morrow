@@ -5,6 +5,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 
 mod foreign;
 mod newtypes;
+mod processes;
 mod sets;
 pub(super) use newtypes::charge_newtype_type;
 
@@ -79,6 +80,7 @@ impl Registry {
                 ));
             }
         }
+        result.register_processes();
         result.register_set();
         result.register_foreign();
         for decl in &declarations {
@@ -492,6 +494,11 @@ impl Registry {
             let mut expressions = vec![&function.body];
             while let Some(expr) = expressions.pop() {
                 pending.push(expr.ty.clone());
+                if let ir::ExprKind::Actor(ir::ActorExpr::Receive { view, mailbox, .. }) =
+                    &expr.kind
+                {
+                    pending.push(view.item(mailbox));
+                }
                 expressions.extend(children(expr));
             }
         }

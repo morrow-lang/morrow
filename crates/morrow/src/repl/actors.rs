@@ -315,10 +315,21 @@ pub(super) fn prepare(program: Rc<ir::Program>) -> Result<Prepared, String> {
     let mut pending: Vec<_> = program.functions.iter().map(|f| &f.body).collect();
     let mut active = false;
     while let Some(expr) = pending.pop() {
-        if matches!(expr.kind, ir::ExprKind::Actor(_)) {
-            active = true;
-            break;
+        if matches!(
+            expr.kind,
+            ir::ExprKind::Actor(
+                ir::ActorExpr::Process(_)
+                    | ir::ActorExpr::Receive {
+                        view: crate::processes::ReceiveView::Events,
+                        ..
+                    }
+            )
+        ) {
+            return Err(
+                "typed Process operations and receive_event require the native backend".into(),
+            );
         }
+        active |= matches!(expr.kind, ir::ExprKind::Actor(_));
         pending.extend(ir::children(expr));
     }
     if !active {

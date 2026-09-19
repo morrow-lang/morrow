@@ -272,6 +272,9 @@ impl Checker<'_> {
         if crate::ffi::is_api(name) {
             return self.foreign_api(name, args, expected, span, depth);
         }
+        if crate::processes::is_api(name) {
+            return self.process_call(name, args, expected, span, depth);
+        }
         if sets::is_api(name) {
             return self.set_call(name, args, expected, span, depth);
         }

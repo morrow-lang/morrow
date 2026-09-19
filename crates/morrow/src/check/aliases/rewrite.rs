@@ -23,7 +23,9 @@ fn expression_kind(expr: &mut ast::Expr, expander: &mut Expander<'_>) -> Checked
                 expression(arg, expander)?;
             }
         }
-        ast::ExprKind::Receive { arms, timeout } => substitute_receive(arms, timeout, expander)?,
+        ast::ExprKind::Receive { arms, timeout, .. } => {
+            substitute_receive(arms, timeout, expander)?
+        }
         ast::ExprKind::TypeTarget(ty) => *ty = expander.expand(ty, expr.span)?,
         ast::ExprKind::Range { .. } | ast::ExprKind::For { .. } | ast::ExprKind::With { .. } => {
             substitute_iteration(expr, expander)?

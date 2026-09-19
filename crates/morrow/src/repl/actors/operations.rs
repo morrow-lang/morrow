@@ -107,6 +107,7 @@ impl Machine {
                 selector,
                 timeout,
                 duration,
+                ..
             } => {
                 let selector = self.expression(selector)?;
                 let timeout = timeout

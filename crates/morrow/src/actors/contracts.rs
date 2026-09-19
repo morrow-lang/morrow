@@ -70,7 +70,12 @@ pub(crate) fn validate(program: &ir::Program) -> Result<BTreeSet<usize>, Diagnos
                     ));
                 }
             }
-            if let ir::ExprKind::Actor(ir::ActorExpr::Spawn {
+            if let ir::ExprKind::Actor(ir::ActorExpr::Process(
+                crate::processes::ProcessExpr::Spawn { entry, .. },
+            )) = &expr.kind
+            {
+                pending.push((entry, true));
+            } else if let ir::ExprKind::Actor(ir::ActorExpr::Spawn {
                 entry,
                 max_restarts,
                 ..
@@ -123,7 +128,11 @@ fn capture_type(
                     "foreign pointers cannot cross actor boundaries",
                 ));
             }
-            Type::Native(crate::runtime::NativeType::JsonValue) => {}
+            Type::Native(
+                crate::runtime::NativeType::JsonValue
+                | crate::runtime::NativeType::ProcessId
+                | crate::runtime::NativeType::MonitorRef,
+            ) => {}
             Type::Native(_) | Type::Result(_, _) => {
                 return Err(Diagnostic::new(
                     span,

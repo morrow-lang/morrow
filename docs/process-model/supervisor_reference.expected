@@ -1,0 +1,16 @@
+one_for_one_startup=start:a,start:b,start:c,start:d
+one_for_one_restart=start:b
+one_for_one_fresh=true
+one_for_one_shutdown=stop:d,stop:c,stop:b,stop:a
+one_for_all_startup=start:a,start:b,start:c,start:d
+one_for_all_restart=stop:d,stop:c,stop:a,start:a,start:b,start:c,start:d
+one_for_all_fresh=true
+one_for_all_shutdown=stop:d,stop:c,stop:b,stop:a
+rest_for_one_startup=start:a,start:b,start:c,start:d
+rest_for_one_restart=stop:d,stop:c,start:b,start:c,start:d
+rest_for_one_fresh=true
+rest_for_one_shutdown=stop:d,stop:c,stop:b,stop:a
+manual_stop=stop:permanent
+manual_restart_fresh=true
+deleted_restart={:error, :not_found}
+temporary_restart={:error, :not_found}

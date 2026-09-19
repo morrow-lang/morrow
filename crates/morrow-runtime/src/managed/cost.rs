@@ -39,7 +39,7 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
                 continue;
             }
             if seen.len() >= 4096
-                || !(0..=TYPE_JSON_VALUE).contains(&(*ty).kind)
+                || !(0..=TYPE_MONITOR_REF).contains(&(*ty).kind)
                 || !(0..=4096).contains(&(*ty).count)
             {
                 return false;
@@ -246,6 +246,14 @@ impl Cost {
                     valid_pid(s, pid)
                         && (*pid).mailbox == *(*ty).children
                         && self.add(std::mem::size_of::<Pid>())
+                }
+                TYPE_PROCESS_ID => {
+                    process::valid_identity(self.session, pointer.cast())
+                        && self.add(std::mem::size_of::<process::Identity>())
+                }
+                TYPE_MONITOR_REF => {
+                    relations::valid(self.session, pointer.cast())
+                        && self.add(std::mem::size_of::<relations::Reference>())
                 }
                 7 => self.frame(pointer, depth),
                 TYPE_RANGE => self.add(24),

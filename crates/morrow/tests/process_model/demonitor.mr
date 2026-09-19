@@ -1,0 +1,46 @@
+fn report(port: Pid(String), text: String):
+    match send(port, text):
+        Ok(()) -> ()
+        Err(_) -> ()
+fn observer(port: Pid(String)):
+    let own: Pid(()) = Process.self()
+    match Process.monitor(Process.id(own)):
+        Ok(reference) ->
+            match Process.demonitor(reference, Process.DemonitorOptions(false, true)):
+                Ok(false) -> report(port: port, text: "cancelled")
+                _ -> report(port: port, text: "cancel-error")
+            match Process.demonitor(reference, Process.DemonitorOptions(false, true)):
+                Ok(false) -> report(port: port, text: "inactive")
+                _ -> report(port: port, text: "inactive-error")
+        Err(_) -> report(port: port, text: "self-monitor-error")
+    let started: Result((Pid(()), MonitorRef), Process.Error) = Process.spawn_monitor(() -> ())
+    match started:
+        Ok((child, first)) ->
+            let identity = Process.id(child)
+            receive_event:
+                Process.Down(reference, process, Process.Normal) if reference == first and process == identity -> report(port: port, text: "normal")
+            match Process.monitor(identity):
+                Ok(queued) ->
+                    match Process.demonitor(queued, Process.DemonitorOptions(true, true)):
+                        Ok(false) -> report(port: port, text: "flushed")
+                        _ -> report(port: port, text: "flush-error")
+                    receive_event:
+                        Process.Down(_, _, _) -> report(port: port, text: "stale-down")
+                        after 0 -> report(port: port, text: "empty")
+                Err(_) -> report(port: port, text: "dead-monitor-error")
+            match Process.monitor(identity):
+                Ok(last) ->
+                    receive_event:
+                        Process.Down(reference, process, Process.NoProcess) if reference == last and process == identity -> report(port: port, text: "dead")
+                Err(_) -> report(port: port, text: "dead-error")
+        Err(_) -> report(port: port, text: "spawn-error")
+    match send(own, ()):
+        Ok(()) -> ()
+        Err(_) -> report(port: port, text: "send-error")
+    receive_event:
+        Process.Message(()) -> report(port: port, text: "message")
+pub fn start(port: Pid(String)) -> ():
+    let started: Result(Pid(()), Process.Error) = Process.spawn(() -> observer(port))
+    match started:
+        Ok(_) -> ()
+        Err(_) -> report(port: port, text: "observer-error")

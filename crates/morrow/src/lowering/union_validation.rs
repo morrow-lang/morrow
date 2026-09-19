@@ -57,6 +57,10 @@ fn walk(
             visit(&expr.ty, false)?;
             if let ExprKind::Actor(
                 ir::ActorExpr::Spawn { mailbox, .. }
+                | ir::ActorExpr::Process(
+                    crate::processes::ProcessExpr::Spawn { mailbox, .. }
+                    | crate::processes::ProcessExpr::SelfPid { mailbox },
+                )
                 | ir::ActorExpr::Receive { mailbox, .. }
                 | ir::ActorExpr::Call { mailbox, .. },
             ) = &expr.kind

@@ -444,7 +444,7 @@ impl<'a> Walker<'a, '_> {
                 self.pending.push(Task::Enter);
                 self.pending.push(Task::Expression(iterable));
             }
-            ast::ExprKind::Receive { arms, timeout } => {
+            ast::ExprKind::Receive { arms, timeout, .. } => {
                 if let Some((duration, body)) = timeout {
                     self.scoped(body);
                     self.pending.push(Task::Expression(duration));

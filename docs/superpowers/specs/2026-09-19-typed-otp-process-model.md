@@ -1,6 +1,6 @@
 # Typed process relationships and supervision
 
-Status: design proposal; no process-model implementation or acceptance claim.
+Status: stage 1 implemented and accepted; stages 2–5 planned.
 Date: 2026-09-19.
 
 ## Goal and boundary
@@ -91,7 +91,8 @@ rules. An inactive link suppresses its pending signal.
 After demonitor returns, the monitor cannot place a new `DOWN` in the caller's
 mailbox; an already queued event remains unless flushed. With `info`, the result
 reports successful cancellation before delivery; with both `info` and `flush`,
-it reports whether flushing was unnecessary. Unlink prevents subsequent effects
+it reports whether the monitor was still active, not whether a queued cell was
+actually removed. After cancellation or consumption the result remains false. Unlink prevents subsequent effects
 of that link on its caller, but does not erase an already queued `EXIT` or cancel
 an explicit exit signal. The trap flag operation returns its previous value.
 [Official BIF contracts](https://www.erlang.org/doc/apps/erts/erlang.html).
@@ -129,9 +130,19 @@ Shutdown waits using a monitor, so a child unlinking itself does not hang the
 supervisor's death observation.
 [Pinned supervisor implementation](https://raw.githubusercontent.com/erlang/otp/OTP-29.0.6/lib/stdlib/src/supervisor.erl).
 
+The executable [monitor reference](../../process-model/monitor_reference.exs)
+checks these edge cases on pinned OTP-29.0.6 at one, two and four schedulers.
+The documentation's phrase about flushing being needed must not be interpreted
+as “a mailbox cell was found”: the pinned
+[`demonitor_2` implementation](https://raw.githubusercontent.com/erlang/otp/OTP-29.0.6/erts/emulator/beam/bif.c)
+keeps the `info` result false when the monitor is absent, including after its
+Down was already consumed. The same source creates no active self-monitor.
+
 ## Proposed source API
 
-These are signatures and proposed syntax, not currently compilable examples.
+These are the full target signatures. Stage 1 implements spawn, spawn_monitor,
+self, id, monitor, demonitor and receive_event; the remaining operations are
+planned. See [the implemented API](../../PROCESS_MODEL.md).
 `Entry(M)` below denotes the existing zero-argument Unit initializer with mailbox
 effect `M`; it is not a new general first-class effect or existential facility.
 
@@ -187,12 +198,16 @@ Morrow's existing `send -> Result` behavior remains unchanged. A valid dead loca
 identity can be monitored and linked: monitor succeeds with a fresh reference
 and queued `NoProcess`; link produces the ordinary link-exit effect with that
 reason. Signalling a dead valid identity is a successful no-op. Invalid foreign
-identities fail before mutation. Self-link/unlink are no-ops; self-monitor is
-valid but naturally cannot be consumed after the owner itself dies.
+identities fail before mutation. Self-link/unlink are no-ops. Self-monitor returns a fresh owner-stamped inert
+reference without an active relationship or completion reservation; demonitor
+with `info` returns false for it, matching the pinned runtime.
 
 The reason vocabulary deliberately uses bounded typed data rather than arbitrary
-Erlang terms. String reasons have a documented byte limit, validated before a
-signal or local exit is admitted. Normal return maps to `Normal`; checked actor
+Erlang terms. Stage 2 limits string reasons to 4,096 UTF-8 bytes, validated and
+charged before a signal or local exit is admitted. Oversize signal reasons return
+InvalidOptions; an oversize local terminal reason raises checked fault 9.
+Malformed native reason representations remain infrastructure fault 11.
+Normal return maps to `Normal`; checked actor
 fault maps to `Fault(code)`. First accepted terminal cause wins. A cleanup failure
 is retained as diagnostic data without replacing that cause. Panic/abort, OOM
 and unsafe native corruption are not recoverable process exceptions.
@@ -223,7 +238,8 @@ cannot produce that sender's `Down` ahead of the message. Different senders do
 not acquire a specified global order; selective matching may skip older cells.
 
 `DemonitorOptions` has `flush` and `info` booleans with the reference contract's
-result meanings. Flush affects only this reference's system Down cell, never a
+result meanings. In particular, `info + flush` returns false after prior
+cancellation or Down consumption even when no cell remains to remove. Flush affects only this reference's system Down cell, never a
 user payload with similar fields. Unlink uses a link-generation token so an old
 in-flight exit cannot affect a newly established link. Once converted to an
 Exit cell, unlink leaves it queued.
@@ -504,13 +520,15 @@ stealing both disabled and enabled; retain existing migration/FIFO/stop tests.
 
 ## Readiness and remaining gaps
 
-This document approves no claim of implemented OTP parity. The stage 1 contract selects control
-quotas and opaque descriptor encoding; their implementation and acceptance remain
-open. Resumable supervisor call lowering needs implementation-level review in stage 3. The finite reason schema cannot
+This document approves no claim of implemented OTP parity. Stage 1 implements
+isolated processes, typed identities, monitors and event receive. Its native scheduler matrix,
+ThreadSanitizer, deterministic replay and full repository gate pass (Decision165).
+Stages 2–5 remain open. Resumable supervisor call lowering
+needs implementation-level review in stage 3. The finite reason schema cannot
 carry arbitrary Erlang terms. Existing host ports and TLS compatibility state
 are not process targets. Existing native-resource pinning remains in force.
 No acceptance stage claims native preemption or arbitrary OTP library support.
 
-The read-only investigation produced this proposal only: no runtime edits,
-builds or benchmarks were run for this design task. The performance checkpoint
-and its measurements remain independently reviewable.
+The original read-only investigation produced the proposal. Subsequent stage 1
+implementation and reference fixtures are tracked independently from performance
+checkpoints; neither is evidence that the other acceptance axis is complete.

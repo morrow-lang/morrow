@@ -42,17 +42,29 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
         let selector = function(s, (*a).selector);
         let mut previous: *mut Message = null_mut();
         let mut message = (*a).first;
-        for _ in 0..MAILBOX {
+        for _ in 0..MAILBOX + relations::PER_ACTOR {
             if message.is_null() {
                 break;
+            }
+            if (*a).event_type.is_null() && (*message).kind != 0 {
+                previous = message;
+                message = (*message).next;
+                continue;
             }
             if !initial && (*a).deadline != u64::MAX && (*message).enqueued >= (*a).deadline {
                 previous = message;
                 message = (*message).next;
                 continue;
             }
-            let selected =
-                ((*selector).select.unwrap())(&raw mut (*a).exec, (*a).selector, (*message).value);
+            let value = if (*a).event_type.is_null() {
+                (*message).value
+            } else {
+                let Some(value) = signals::event_value(a, message) else {
+                    return false;
+                };
+                value
+            };
+            let selected = ((*selector).select.unwrap())(&raw mut (*a).exec, (*a).selector, value);
             if (*a).fault != 0 {
                 return false;
             }
@@ -68,10 +80,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 if (*a).last == message {
                     (*a).last = previous;
                 }
-                transport::release_message(s, a, (*message).cost);
-                (*message).next = null_mut();
-                (*message).value = 0;
-                (*message).cost = 0;
+                signals::release_cell(s, a, message);
                 return true;
             }
             previous = message;
@@ -122,6 +131,42 @@ pub unsafe extern "C" fn morrow_managed_receive(
     selector: *mut c_void,
     timeout: *mut c_void,
     duration: i64,
+) -> i64 {
+    unsafe { receive(exec, selector, timeout, duration, null()) }
+}
+
+/// Register selective receive over the typed Message/Down/Exit envelope.
+/// # Safety
+/// Exec and closures obey managed receive; event is a stable compiler descriptor.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_process_receive_event(
+    exec: *mut Exec,
+    selector: *mut c_void,
+    timeout: *mut c_void,
+    duration: i64,
+    event: *const Type,
+) -> i64 {
+    unsafe {
+        if exec.is_null() || (*exec).actor.is_null() {
+            if !exec.is_null() {
+                fail(exec, 11);
+            }
+            return 3;
+        }
+        if !signals::descriptor(event, (*(*exec).actor).identity.mailbox) {
+            fail(exec, 11);
+            return 3;
+        }
+        receive(exec, selector, timeout, duration, event)
+    }
+}
+
+unsafe fn receive(
+    exec: *mut Exec,
+    selector: *mut c_void,
+    timeout: *mut c_void,
+    duration: i64,
+    event: *const Type,
 ) -> i64 {
     unsafe {
         if exec.is_null() || (*exec).actor.is_null() {
@@ -196,6 +241,7 @@ pub unsafe extern "C" fn morrow_managed_receive(
         (*a).timeout_frame = timeout;
         (*a).timeout_cost = timeout_cost;
         (*a).waiting = true;
+        (*a).event_type = event;
         release(s, (*a).frame_cost);
         (*a).frame = null_mut();
         (*a).frame_cost = 0;

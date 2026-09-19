@@ -107,6 +107,7 @@ fn arm_children(arms: &[ast::MatchArm]) -> Vec<&ast::Expr> {
 /// Actor children remain visible to publication checks, capture discovery and resource accounting.
 pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
     match actor {
+        ir::ActorExpr::Process(value) => value.children(),
         ir::ActorExpr::Lowered(value) => value.children(),
         ir::ActorExpr::Spawn {
             entry,
@@ -134,6 +135,7 @@ pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
 /// Mutable actor children allow ordinary substitution and closure lifting without replay.
 pub(crate) fn children_mut(actor: &mut ir::ActorExpr) -> Vec<&mut ir::Expr> {
     match actor {
+        ir::ActorExpr::Process(value) => value.children_mut(),
         ir::ActorExpr::Lowered(value) => value.children_mut(),
         ir::ActorExpr::Spawn {
             entry,
@@ -206,6 +208,8 @@ pub(crate) enum Operation {
     Continue(Box<ir::Expr>),
     Pointer(Box<ir::Expr>),
     Register {
+        view: crate::processes::ReceiveView,
+        mailbox: Type,
         selector: Box<ir::Expr>,
         timeout: Option<Box<ir::Expr>>,
         duration: Box<ir::Expr>,
@@ -234,6 +238,7 @@ impl Lowered {
                 selector,
                 timeout,
                 duration,
+                ..
             } => std::iter::once(selector.as_ref())
                 .chain(timeout.as_deref())
                 .chain([duration.as_ref()])
@@ -261,6 +266,7 @@ impl Lowered {
                 selector,
                 timeout,
                 duration,
+                ..
             } => std::iter::once(selector.as_mut())
                 .chain(timeout.as_deref_mut())
                 .chain([duration.as_mut()])
@@ -279,7 +285,7 @@ impl Lowered {
 fn scoped_children(expr: &ast::Expr) -> Vec<&ast::Expr> {
     use ast::ExprKind::*;
     match &expr.kind {
-        Receive { arms, timeout } => {
+        Receive { arms, timeout, .. } => {
             let mut out = arm_children(arms);
             if let Some((duration, body)) = timeout {
                 out.extend([duration.as_ref(), body.as_ref()]);

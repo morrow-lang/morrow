@@ -109,6 +109,7 @@ fn actor_expr(
     layouts: &HashMap<Type, &ir::TypeLayout>,
 ) -> Lowering<()> {
     match actor {
+        ir::ActorExpr::Process(operation) => processes::validate(operation, expr, owner, layouts)?,
         ir::ActorExpr::Lowered(_) => {
             return Err(invalid(
                 expr.span,
@@ -155,6 +156,7 @@ fn actor_expr(
             mailbox,
             arms,
             timeout,
+            ..
         } => receive(mailbox, arms, timeout, expr, owner, layouts)?,
         ir::ActorExpr::Call {
             function,
@@ -225,7 +227,11 @@ fn ownership(
             | Type::Float
             | Type::String
             | Type::Range
-            | Type::Native(crate::runtime::NativeType::JsonValue)
+            | Type::Native(
+                crate::runtime::NativeType::JsonValue
+                | crate::runtime::NativeType::ProcessId
+                | crate::runtime::NativeType::MonitorRef,
+            )
             | Type::Pid(_) => {}
             Type::List(item) | Type::Option(item) => pending.push(item),
             Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),

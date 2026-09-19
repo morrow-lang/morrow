@@ -2363,7 +2363,7 @@ impl Parser {
 
     /// Parse unary operators, literals, calls, grouping, and conditionals.
     fn prefix(&mut self) -> ParseResult<Parsed> {
-        if self.word("receive") {
+        if self.word("receive") || self.word("receive_event") {
             return self.receive_expression();
         }
         if self.word("with") {
@@ -3321,7 +3321,12 @@ impl Parser {
                 break;
             }
             self.take();
-            let (part, part_span) = self.name()?;
+            let (part, part_span) = if name == "Process" && self.word("spawn") {
+                let token = self.take();
+                ("spawn".into(), token.span)
+            } else {
+                self.name()?
+            };
             name.push('.');
             name.push_str(&part);
             span.end = part_span.end;
@@ -3449,6 +3454,7 @@ fn reserved(name: &str) -> bool {
             | "impl"
             | "actor"
             | "receive"
+            | "receive_event"
             | "spawn"
             | "where"
             | "do"

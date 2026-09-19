@@ -23,6 +23,7 @@ mod obligations;
 mod parameters;
 mod pipes;
 mod preflight;
+mod processes;
 pub(crate) mod recovery;
 mod returns;
 mod schemes;
@@ -343,7 +344,7 @@ fn signatures(
 
 /// Return whether `name` denotes a builtin function, namespace, or sum constructor.
 fn reserved(name: &str) -> bool {
-    if runtime::native_type(name).is_some() {
+    if runtime::native_type(name).is_some() || name == "Process" || name.starts_with("Process.") {
         return true;
     }
     builtin(name).is_some()
@@ -938,9 +939,18 @@ impl Checker<'_> {
             ast::ExprKind::ForeignCall { declaration, args } => {
                 self.foreign_call(declaration, args, expr.span, depth + 1)
             }
-            ast::ExprKind::Receive { arms, timeout } => {
-                self.receive(arms, timeout.as_ref(), expected, expr.span, depth + 1)
-            }
+            ast::ExprKind::Receive {
+                view,
+                arms,
+                timeout,
+            } => self.receive(
+                *view,
+                arms,
+                timeout.as_ref(),
+                expected,
+                expr.span,
+                depth + 1,
+            ),
             ast::ExprKind::TypeTarget(_) => Err(Diagnostic::new(
                 expr.span,
                 "compile-time type target cannot be used as a value",
@@ -2283,6 +2293,7 @@ pub(crate) fn builtin_api_names() -> Vec<&'static str> {
     let mut names: Vec<&'static str> = BUILTIN_NAMES
         .iter()
         .copied()
+        .chain(crate::processes::API_NAMES.iter().copied())
         .chain(sets::API_NAMES.iter().copied())
         .chain(crate::ffi::API_NAMES.iter().copied())
         .chain(runtime::names())
@@ -2362,7 +2373,12 @@ fn binary_result(op: ast::BinaryOp, left: &Type, right: &Type) -> Option<Type> {
             Some(Type::Int)
         }
         Add | Subtract | Multiply | Divide | Power if *left == Type::Float => Some(Type::Float),
-        Eq | Ne if scalar(left) || *left == Type::Float || matches!(left, Type::Pid(_)) => {
+        Eq | Ne
+            if scalar(left)
+                || *left == Type::Float
+                || matches!(left, Type::Pid(_))
+                || crate::processes::opaque(left) =>
+        {
             Some(Type::Bool)
         }
         Lt | Le | Gt | Ge if matches!(left, Type::Int | Type::Float) => Some(Type::Bool),

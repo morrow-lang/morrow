@@ -233,6 +233,8 @@ impl Emitter<'_> {
             Type::Map(key, value) => (9, vec![vec![*key.clone(), *value.clone()]]),
             Type::Range => (10, vec![]),
             Type::Native(crate::runtime::NativeType::JsonValue) => (12, vec![]),
+            Type::Native(crate::runtime::NativeType::ProcessId) => (13, vec![]),
+            Type::Native(crate::runtime::NativeType::MonitorRef) => (14, vec![]),
             Type::Native(_) => (11, vec![]),
             _ => {
                 return Err(invalid(

@@ -38,6 +38,19 @@ const WORK: usize = 1048576;
 pub const TYPE_RANGE: i64 = 10;
 /// Immutable json.Value descriptor, distinct from Range and unsupported native handles.
 pub const TYPE_JSON_VALUE: i64 = 12;
+pub const TYPE_PROCESS_ID: i64 = 13;
+pub const TYPE_MONITOR_REF: i64 = 14;
+#[path = "managed/process.rs"]
+mod process;
+#[path = "managed/relations.rs"]
+mod relations;
+#[path = "managed/signals.rs"]
+mod signals;
+pub use process::*;
+pub use receive::morrow_process_receive_event;
+pub use relations::{
+    morrow_process_demonitor, morrow_process_monitor, morrow_process_monitor_equal,
+};
 #[repr(C)]
 pub struct Type {
     pub kind: i64,
@@ -67,6 +80,11 @@ struct Message {
     value: i64,
     cost: usize,
     enqueued: u64,
+    kind: u8,
+    event: i64,
+    // Opaque in the transitive native Exec layout; only owner-side signal code
+    // interprets the retained monitor record behind this pointer.
+    monitor: *const c_void,
 }
 /// Published before any PID exposes its actor. Identity and ingress ownership
 /// stay immutable; alive, pending and current owner are atomic. Mutable payload
@@ -84,6 +102,8 @@ struct ActorIdentity {
     pending: AtomicUsize,
     owner: AtomicUsize,
     ingress: Option<control::Owned<transport::Ingress>>,
+    isolated: bool,
+    host_port: bool,
 }
 #[repr(C)]
 #[derive(Default)]
@@ -100,6 +120,7 @@ struct Actor {
     waiting: bool,
     host_port: bool,
     fault: i64,
+    infrastructure_fault: bool,
     frame: *mut c_void,
     selector: *mut c_void,
     timeout_frame: *mut c_void,
@@ -114,6 +135,10 @@ struct Actor {
     scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
     cleaning: bool,
+    event_type: *const Type,
+    controls: usize,
+    control_retained: usize,
+    monitors: Option<control::Owned<Vec<Arc<relations::Monitor>>>>,
     // Neither Session identities nor Supervisor.current own actors: payload heaps
     // and PID wrappers do. These backward references therefore cannot cycle.
     _session: Option<control::Owned<Session>>,
@@ -152,6 +177,7 @@ struct Session {
     _identities: Option<control::Owned<Box<[*mut Actor]>>>,
     _shared: Option<control::Owned<Arc<transport::Shared>>>,
     _parallel: Option<control::Owned<parallel::Driver>>,
+    _processes: Option<control::Owned<Arc<relations::Registry>>>,
 }
 // Retained-byte limits are a language-visible logical quota. The trailing Rust
 // ownership fields replace GC bookkeeping and do not change its historical
@@ -161,6 +187,9 @@ const ACTOR_BYTES: usize = 192;
 const SESSION_BYTES: usize = 144;
 #[cfg(not(any(test, feature = "simulation")))]
 const SESSION_BYTES: usize = 120;
+#[cfg(test)]
+#[path = "managed/process_tests.rs"]
+mod process_tests;
 #[cfg(test)]
 #[path = "managed/tests.rs"]
 mod tests;
@@ -232,6 +261,10 @@ unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
 }
 
 /// Validate immutable identity even when its old slot now belongs to another actor.
+/// A retained PID owns Actor -> owner Session. Local keys are that retained
+/// Session address; parallel keys are its retained Shared Arc address. Migration
+/// replaces the Session with another owner in that same Shared group, so neither
+/// key can be reused while any old PID wrapper remains alive.
 unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
     unsafe {
         !pid.is_null()
@@ -252,6 +285,9 @@ unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
 // validated immutable compiler descriptors; callbacks never overlap Rust references.
 unsafe fn fail(exec: *mut Exec, code: i64) {
     unsafe {
+        if !(*exec).actor.is_null() && matches!(code, 11 | 12) {
+            (*(*exec).actor).infrastructure_fault = true;
+        }
         if *(*exec).fault == 0 {
             // A root operation rejected during shutdown must not replace a
             // worker's already published failure with an admission error.
