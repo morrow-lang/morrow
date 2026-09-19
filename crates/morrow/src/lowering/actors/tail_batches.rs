@@ -10,8 +10,8 @@ impl Builder<'_> {
         {
             return Ok(function.body.clone());
         }
-        // Counting both branches and the replaced call overestimates each executed
-        // path. Also cap zero-cost syntax growth and leave room for normalization
+        // Counting both branches overestimates each executed path. Also cap
+        // zero-cost syntax growth and leave room for normalization
         // and CPS depth: an optimization must not exhaust their recursion budget.
         let copies = copies(&function.body, cost);
         if copies < 2 || eligible(&function.body, function.id, true, 0) != Some((1, false)) {
@@ -115,7 +115,16 @@ fn copies(body: &Expr, cost: usize) -> usize {
                 .map(|child| (child, level + 1)),
         );
     }
-    (tail_helpers::STEP_WORK / cost)
+    // Each expansion replaces one self-call (charge 1) with the copied body;
+    // argument computations are retained exactly once. Recursive cycles never
+    // enter inline_work's finite-sink cost map, so expanded work is
+    // 1 + copies * (cost - 1). A cost 1 body is still bounded by syntax growth.
+    let work_copies = if cost == 1 {
+        8
+    } else {
+        (tail_helpers::STEP_WORK - 1) / (cost - 1)
+    };
+    work_copies
         .min(8)
         .min(1024 / nodes)
         .min(MAX_DEPTH / (4 * (depth + 1)))
@@ -291,5 +300,65 @@ fn rename_pattern(pattern: &mut Pattern, offset: usize) {
             rename_pattern(rest, offset);
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zero_work_syntax_and_cost_one_keep_growth_and_depth_limits() {
+        let span = Span::default();
+        let leaf = node(ExprKind::Unit, Type::Unit, span);
+        assert_eq!(copies(&leaf, 1), 8);
+        let wide = node(
+            ExprKind::Block(vec![Stmt::Expr(leaf.clone()); 1024]),
+            Type::Unit,
+            span,
+        );
+        assert_eq!(copies(&wide, 1), 1);
+        let mut deep = leaf;
+        for _ in 0..MAX_DEPTH / 4 {
+            deep = node(ExprKind::Block(vec![Stmt::Expr(deep)]), Type::Unit, span);
+        }
+        assert_eq!(copies(&deep, 1), 1);
+    }
+
+    #[test]
+    fn frozen_hot_loop_expansion_fits_thirty_one_source_work_units() {
+        let source =
+            include_str!("../../../../../benchmarks/language-comparison/programs/actors.mr");
+        let checked = crate::check::check(&crate::parse::parse(source).unwrap()).unwrap();
+        let function = checked
+            .functions
+            .iter()
+            .find(|f| f.name == "hot_loop")
+            .unwrap();
+        let layouts = HashMap::new();
+        let mut builder = Builder {
+            layouts: &layouts,
+            source_return_type: Type::Unit,
+            plan: Plan::default(),
+            next_function: checked.functions.len(),
+            source_count: checked.functions.len(),
+            current_source: function.id.0,
+            next_local: function.local_count,
+            mailbox: Type::Unit,
+            generic: true,
+            work: 0,
+            targets: BTreeMap::new(),
+            loops: Vec::new(),
+            returning: BTreeMap::new(),
+            return_to: None,
+            scoped: false,
+            inline_work: BTreeMap::new(),
+        };
+        let expanded = builder.batch_body(function).unwrap();
+        assert_eq!(
+            tail_helpers::expression_work(&expanded, &builder.inline_work),
+            31
+        );
+        assert_eq!(tail_helpers::STEP_WORK, 32);
     }
 }

@@ -246,3 +246,95 @@ fn main() { assert_eq!(unsafe { morrow_main() }, 0); }"#;
         expected
     );
 }
+
+#[test]
+fn terminal_effect_recurrence_finishes_in_three_iteration_turns_without_starving_sibling() {
+    let source = r#"
+type Event:
+    HotDone(Int)
+fn hot_loop(remaining: Int, value: Int, done: Pid(Event)) -> Unit:
+    if remaining == 0:
+        println("hot-done")
+        match send(done, HotDone(value)):
+            Ok(_) -> ()
+            Err(_) -> ()
+    else:
+        hot_loop(remaining: remaining - 1, value: (value * 48271) % 2147483647, done: done)
+fn collect(reply: Pid(String)) -> Unit:
+    receive:
+        HotDone(value) ->
+            match send(reply, "done={value}"):
+                Ok(()) -> ()
+                Err(_) -> ()
+pub fn start(reply: Pid(String)) -> Unit:
+    let done: Pid(Event) = spawn(() -> collect(reply))
+    let busy: Pid(()) = spawn(() -> hot_loop(remaining: 3000, value: 7, done: done))
+    let sibling: Pid(()) = spawn(() ->
+        match send(reply, "sibling"):
+            Ok(()) -> ()
+            Err(_) -> ())
+"#;
+    let checked =
+        morrow_compiler::check::check_library(&morrow_compiler::parse::parse(source).unwrap())
+            .unwrap();
+    let program = morrow_compiler::native_library::lower(
+        &checked,
+        &[morrow_compiler::native_library::Export::new(
+            "start", "start",
+        )],
+    )
+    .unwrap();
+    let harness = r#"
+unsafe extern "C" {
+    fn morrow_library_open(fault: *mut i64) -> usize;
+    fn morrow_library_string_port(exec: usize) -> usize;
+    fn morrow_export_start(fault: *mut i64, exec: usize, port: usize) -> i32;
+    fn morrow_managed_poll(exec: usize, steps: i64) -> i64;
+    fn morrow_managed_port_read(exec: usize, port: usize, output: *mut u8, capacity: usize) -> i64;
+    fn morrow_managed_close(exec: usize);
+    fn morrow_gc_frame_enter(slots: *const usize, words: usize) -> usize;
+    fn morrow_gc_frame_leave(token: usize);
+    fn morrow_gc_collect_precise();
+}
+fn main() {
+    let mut fault = 0;
+    unsafe {
+        let exec = morrow_library_open(&mut fault);
+        assert_ne!(exec, 0);
+        let port = morrow_library_string_port(exec);
+        let root = morrow_gc_frame_enter(&port, 1);
+        morrow_export_start(&mut fault, exec, port);
+        let mut received = Vec::new();
+        let mut turns = 0;
+        while turns < 1100 && received.len() < 2 {
+            morrow_managed_poll(exec, 1);
+            turns += 1;
+            morrow_gc_collect_precise();
+            let mut bytes = [0u8; 128];
+            let count = morrow_managed_port_read(exec, port, bytes.as_mut_ptr(), bytes.len());
+            if count >= 0 {
+                received.push(String::from_utf8(bytes[..count as usize].to_vec()).unwrap());
+                if received.len() == 1 {
+                    assert_eq!(received[0], "sibling");
+                    assert!(turns <= 10, "sibling was delayed for {turns} turns");
+                }
+            }
+        }
+        assert_eq!(fault, 0);
+        assert_eq!(received, ["sibling", "done=315511746"], "three-iteration batches must complete within 1100 polls; turns={turns}");
+        assert!(turns >= 1000, "3000 iterations require at least 1000 bounded callbacks: {turns}");
+        morrow_managed_close(exec);
+        morrow_gc_frame_leave(root);
+    }
+    println!("three iterations, rooted and fair");
+}
+"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()],
+        ),
+        b"hot-done\nthree iterations, rooted and fair\n",
+    );
+}

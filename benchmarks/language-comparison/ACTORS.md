@@ -5,12 +5,14 @@ The dated results below are one reproducible comparison on the recorded host.
 The dated reports elsewhere in this directory remain unchanged historical
 evidence.
 
-The latest [parity checkpoint3](results/actors-parity-checkpoint3-20260919/PARITY.md)
-adds descriptor caching. Its unchanged matrix still passes zero of nine strict
-cells; [checkpoint2](results/actors-parity-checkpoint2-20260919/PARITY.md) and
-[checkpoint1](results/actors-parity-checkpoint1-20260919/PARITY.md) remain separate
-historical snapshots. Independent OTP reference fixtures do not establish Morrow
-feature acceptance, and throughput improvements alone do not establish parity.
+The latest [parity checkpoint4](results/actors-parity-checkpoint4-20260919/PARITY.md)
+adds immediately consumed send outcomes and exact bounded tail batching after
+the corrected monitor baseline. Its unchanged matrix still passes zero of nine
+strict cells; one-scheduler contention reaches 0.785× BEAM, while S4 request/reply
+regresses versus [checkpoint3](results/actors-parity-checkpoint3-20260919/PARITY.md).
+Earlier checkpoints remain historical snapshots. Independent OTP reference
+fixtures do not establish Morrow feature acceptance, and throughput improvements
+alone do not establish parity.
 
 ## Workloads and independent checks
 

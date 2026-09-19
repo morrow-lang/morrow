@@ -1,0 +1,507 @@
+{
+  "processes": 216,
+  "warmups": 36,
+  "measured": 180,
+  "raw_files": 648,
+  "cells": [
+    {
+      "workload": "request-reply",
+      "schedulers": 1,
+      "morrow": 349106.1453525692,
+      "beam": 1148661.9882621104,
+      "ratio": 0.3039241734470171
+    },
+    {
+      "workload": "request-reply",
+      "schedulers": 2,
+      "morrow": 210753.9383621392,
+      "beam": 2217013.165039864,
+      "ratio": 0.09506210503641715
+    },
+    {
+      "workload": "request-reply",
+      "schedulers": 4,
+      "morrow": 249521.42570304612,
+      "beam": 1576904.965259798,
+      "ratio": 0.15823491662475486
+    },
+    {
+      "workload": "contention",
+      "schedulers": 1,
+      "morrow": 12164.793091306334,
+      "beam": 15498.73356651791,
+      "ratio": 0.7848894904281776
+    },
+    {
+      "workload": "contention",
+      "schedulers": 2,
+      "morrow": 8701.835173020925,
+      "beam": 23314.182743095942,
+      "ratio": 0.3732421277172073
+    },
+    {
+      "workload": "contention",
+      "schedulers": 4,
+      "morrow": 9250.455062999019,
+      "beam": 23241.704045566763,
+      "ratio": 0.39801105137828724
+    },
+    {
+      "workload": "lifecycle",
+      "schedulers": 1,
+      "morrow": 85079.67301488794,
+      "beam": 191161.66053771187,
+      "ratio": 0.44506661417132676
+    },
+    {
+      "workload": "lifecycle",
+      "schedulers": 2,
+      "morrow": 28535.11424151883,
+      "beam": 240156.32675894967,
+      "ratio": 0.11881891527330099
+    },
+    {
+      "workload": "lifecycle",
+      "schedulers": 4,
+      "morrow": 29005.896543747254,
+      "beam": 229336.4293751299,
+      "ratio": 0.12647749257620894
+    }
+  ],
+  "strict": 0,
+  "competitive": 0,
+  "load_intervals": [
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 0,
+      "intervals": 53
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 1,
+      "intervals": 53
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 2,
+      "intervals": 53
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 3,
+      "intervals": 53
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 4,
+      "intervals": 52
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 1,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 1,
+      "round": 5,
+      "intervals": 53
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 1,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 1,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 2,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 2,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 2,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 2,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 0,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 1,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 2,
+      "intervals": 125
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 2,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 3,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 4,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r1",
+      "schedulers": 4,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "elixir-beam",
+      "schedulers": 4,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-stealing-r32-experimental",
+      "schedulers": 4,
+      "round": 5,
+      "intervals": 256
+    },
+    {
+      "implementation": "morrow-pinned-r1",
+      "schedulers": 4,
+      "round": 5,
+      "intervals": 256
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+Arguments: ["/tmp/morrow-contention-diagnostic-20260919", "--contention-diagnostic", "/tmp/morrow-actors-unboxed-send-20260919", "/tmp/morrow-actors-tail-batch-exact-20260919", "benchmarks/language-comparison/results/actors-parity-tail-batch-exact-20260919"]
+Protocol: contention with257 probes and2000000 recurrence steps; schedulers 1/2/4; pinned/stealing; reductions 1; one warmup plus five measured rounds; old/new and mode order rotates each round.
+old Morrow workload: 983784 bytes; f65a5b69db66ea4dcf8f8ac4bab74b7013ab86530e797673b32d51586a1a3ebf; /private/tmp/morrow-actors-unboxed-send-20260919
+new Morrow workload: 983832 bytes; b0c6edaf00c0a7017061b095027bc740ff369becccba486286a38a7706e73d49; /private/tmp/morrow-actors-tail-batch-exact-20260919
+benchmark runner: 833864 bytes; 56cce18129f1a09fcd1f6174506fa0350d2fed1bdde1ae52d9fc3d1ff7612091; /tmp/morrow-contention-diagnostic-20260919
+benchmark runner source: 50758 bytes; 7f8dc54f5720166166ae6e923c805b0a0884a16023f7d0221dc6bd05de9c8324; /tmp/morrow-contention-diagnostic-20260919.rs
+
+Host:
+Darwin MacBook-Air-von-Niklas-1326.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:57 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8132 arm64

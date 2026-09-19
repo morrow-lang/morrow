@@ -1,0 +1,598 @@
+{
+  "processes": 72,
+  "raw_files": 216,
+  "warmups": 12,
+  "measured": 60,
+  "cells": [
+    {
+      "schedulers": 1,
+      "mode": "pinned",
+      "old": 8412.392914657157,
+      "new": 12136.23753025205,
+      "ratio": 1.4426617555043977,
+      "paired_ratios": [
+        1.430816133281122,
+        1.458314938308897,
+        1.4500029514196326,
+        1.433862187020797,
+        1.4230446300529993
+      ]
+    },
+    {
+      "schedulers": 1,
+      "mode": "stealing",
+      "old": 8526.391404229647,
+      "new": 12270.573107859722,
+      "ratio": 1.4391285276644368,
+      "paired_ratios": [
+        1.4341544717226296,
+        1.438188797872019,
+        1.4872001927769103,
+        1.4364367027191531,
+        1.4234963733207293
+      ]
+    },
+    {
+      "schedulers": 2,
+      "mode": "pinned",
+      "old": 6528.510845152055,
+      "new": 9399.043448010929,
+      "ratio": 1.4396917874449846,
+      "paired_ratios": [
+        1.4875757978844557,
+        1.4834006889276812,
+        1.4222437981673548,
+        1.4159941829033766,
+        1.4390097852524444
+      ]
+    },
+    {
+      "schedulers": 2,
+      "mode": "stealing",
+      "old": 5940.622713178091,
+      "new": 8674.568467221303,
+      "ratio": 1.4602119821510458,
+      "paired_ratios": [
+        1.5194684994015897,
+        1.497163405796272,
+        1.3793902087953218,
+        1.4379225292331164,
+        1.4956109844249377
+      ]
+    },
+    {
+      "schedulers": 4,
+      "mode": "pinned",
+      "old": 6589.8069532719865,
+      "new": 9481.412484017179,
+      "ratio": 1.4387997328676594,
+      "paired_ratios": [
+        1.4565677328555622,
+        1.4258807051169822,
+        1.4194004795072084,
+        1.4306862514214895,
+        1.4521272046958744
+      ]
+    },
+    {
+      "schedulers": 4,
+      "mode": "stealing",
+      "old": 6419.049060092615,
+      "new": 9307.365084582401,
+      "ratio": 1.44996011051645,
+      "paired_ratios": [
+        1.4465543754194878,
+        1.476358336570111,
+        1.4505863415933413,
+        1.4497500447376792,
+        1.4582776674437787
+      ]
+    }
+  ],
+  "load_intervals": [
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 1,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 1,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 2,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 2,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 0,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 1,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 2,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 3,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 4,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "new",
+      "mode": "stealing",
+      "schedulers": 4,
+      "round": 5,
+      "intervals_under_load": 256
+    },
+    {
+      "artifact": "old",
+      "mode": "pinned",
+      "schedulers": 4,
+      "round": 5,
+      "intervals_under_load": 256
+    }
+  ]
+}
