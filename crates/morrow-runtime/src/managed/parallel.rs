@@ -7,6 +7,8 @@ use std::time::Duration;
 
 #[cfg(test)]
 type RetirementHook = (usize, fn(usize));
+#[cfg(test)]
+type IdleBoundaryHook = (usize, unsafe fn(usize));
 
 #[cfg(test)]
 thread_local! {
@@ -16,6 +18,8 @@ thread_local! {
     static AFTER_SUPERVISED_RETIREMENT: std::cell::Cell<Option<RetirementHook>> = const { std::cell::Cell::new(None) };
     static ACTIVITY_LOCKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static RUN_WAITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    pub(super) static BEFORE_QUIESCENCE: std::cell::Cell<Option<IdleBoundaryHook>> = const { std::cell::Cell::new(None) };
+    pub(super) static AT_QUIESCENCE: std::cell::Cell<Option<IdleBoundaryHook>> = const { std::cell::Cell::new(None) };
 }
 
 #[cfg(test)]
@@ -125,6 +129,11 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
             }
         };
         let group = transport::Shared::new(count as usize, (*s).retained);
+        // A host can obtain a cancellation token before selecting schedulers.
+        // Preserve that token's epoch and cancellation state across attachment.
+        if let Some(registry) = relations::existing(s) {
+            assert!(group.processes.set(registry).is_ok());
+        }
         group.stealing.store(stealing, Ordering::Release);
         let idle = Arc::new(
             (0..count)
@@ -352,6 +361,10 @@ pub(super) unsafe fn poll(exec: *mut Exec, max_steps: i64) -> Option<i64> {
             return Some(3);
         }
         for _ in 0..max_steps {
+            if process::cancelled(s) {
+                morrow_managed_stop(exec);
+                return Some(if *(*s).root.fault == 0 { 0 } else { 3 });
+            }
             publish_fault(s);
             if *(*s).root.fault != 0 {
                 morrow_managed_stop(exec);
@@ -430,6 +443,10 @@ unsafe fn quiescent_status(s: *mut Session, d: *mut Driver) -> Option<i64> {
             return None;
         }
         #[cfg(test)]
+        if let Some((context, hook)) = BEFORE_QUIESCENCE.with(|hook| hook.take()) {
+            hook(context);
+        }
+        #[cfg(test)]
         record_activity_lock();
         let _activity = Arc::as_ref(&(*d).shared).activity.lock().unwrap();
         let idle = (*s).first.is_null()
@@ -438,6 +455,10 @@ unsafe fn quiescent_status(s: *mut Session, d: *mut Driver) -> Option<i64> {
                 .endpoints
                 .iter()
                 .all(|endpoint| endpoint.is_empty());
+        #[cfg(test)]
+        if idle && let Some((context, hook)) = AT_QUIESCENCE.with(|hook| hook.take()) {
+            hook(context);
+        }
         idle.then(|| i64::from(Arc::as_ref(&(*d).shared).budget.live() != 0))
     }
 }
@@ -457,6 +478,10 @@ pub(super) unsafe fn run(exec: *mut Exec) -> bool {
                 }
                 3 => break,
                 1 => {
+                    if process::lease(s) {
+                        Arc::as_ref(&(*d).shared).endpoints[0].wait(wait_duration(s));
+                        continue;
+                    }
                     fail(exec, 10);
                     morrow_managed_stop(exec);
                     break;

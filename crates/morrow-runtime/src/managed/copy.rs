@@ -225,6 +225,43 @@ impl Copy {
                     self.retain_pid(target);
                     target as i64
                 }
+                TYPE_PROCESS_ID => {
+                    let source = source as *const process::Identity;
+                    let target = self
+                        .allocate(std::mem::size_of::<process::Identity>(), false)
+                        .cast::<process::Identity>();
+                    std::ptr::copy_nonoverlapping(source, target, 1);
+                    Arc::increment_strong_count((*source).epoch);
+                    let epoch = Arc::from_raw((*source).epoch);
+                    let retention =
+                        control::Owned::new((control::Owned::retain((*source).actor), epoch))
+                            .token();
+                    match &mut self.destination {
+                        Destination::Heap => memory::retain_control(target.cast(), retention),
+                        Destination::Fragment(fragment) => {
+                            fragment.retain_control(target.cast(), retention)
+                        }
+                    }
+                    target as i64
+                }
+                TYPE_MONITOR_REF => {
+                    let source = source as *const relations::Reference;
+                    let target = self
+                        .allocate(std::mem::size_of::<relations::Reference>(), false)
+                        .cast::<relations::Reference>();
+                    let pointer = (*source).monitor;
+                    Arc::increment_strong_count(pointer);
+                    let owner = Arc::from_raw(pointer);
+                    (*target).monitor = pointer;
+                    let retention = control::Owned::new(owner).token();
+                    match &mut self.destination {
+                        Destination::Heap => memory::retain_control(target.cast(), retention),
+                        Destination::Fragment(fragment) => {
+                            fragment.retain_control(target.cast(), retention)
+                        }
+                    }
+                    target as i64
+                }
                 TYPE_RANGE => {
                     let target = self.allocate(24, true).cast::<i64>();
                     std::ptr::copy_nonoverlapping(source as *const i64, target, 3);

@@ -7,6 +7,8 @@ mod control_types;
 mod descriptors;
 #[path = "actors/lower.rs"]
 mod lower;
+#[path = "actors/processes.rs"]
+mod processes;
 #[path = "actors/reuse.rs"]
 mod reuse;
 #[path = "actors/tail_helpers.rs"]
@@ -137,6 +139,9 @@ impl Emitter<'_> {
         depth: usize,
     ) -> Lowering<(Type, String)> {
         match actor {
+            ir::ActorExpr::Process(operation) => {
+                self.process_expression(operation, span, locals, depth)
+            }
             ir::ActorExpr::Spawn {
                 entry,
                 mailbox,
@@ -394,6 +399,8 @@ impl Emitter<'_> {
                 )
             }
             Operation::Register {
+                view,
+                mailbox,
                 selector,
                 timeout,
                 duration,
@@ -405,17 +412,25 @@ impl Emitter<'_> {
                     .map(|e| self.expr(e, locals, depth))
                     .transpose()?
                     .unwrap_or_else(|| "0".into());
+                let mut args = vec![
+                    (Scalar::I64, native_operand("%exec")),
+                    (Scalar::I64, native_operand(&selector)),
+                    (Scalar::I64, native_operand(&timeout)),
+                    (Scalar::I64, native_operand(&duration)),
+                ];
+                let symbol = if *view == crate::processes::ReceiveView::Events {
+                    let descriptor = self.actor_type(&view.item(mailbox))?;
+                    args.push((Scalar::I64, native_operand(&descriptor)));
+                    "$morrow_process_receive_event"
+                } else {
+                    "$morrow_managed_receive"
+                };
                 self.assign(
                     locals,
                     Type::Int,
                     NativeOperation::Call {
-                        callee: native_operand("$morrow_managed_receive"),
-                        args: vec![
-                            (Scalar::I64, native_operand("%exec")),
-                            (Scalar::I64, native_operand(&(selector))),
-                            (Scalar::I64, native_operand(&(timeout))),
-                            (Scalar::I64, native_operand(&(duration))),
-                        ],
+                        callee: native_operand(symbol),
+                        args,
                         variadic: None,
                     },
                 )

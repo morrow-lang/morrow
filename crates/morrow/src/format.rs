@@ -587,12 +587,18 @@ impl Renderer<'_> {
     /// Format receive arms and the optional timeout as independently scoped suites.
     fn receive(
         &self,
+        view: crate::processes::ReceiveView,
         arms: &[ast::MatchArm],
         timeout: &Option<(Box<Expr>, Box<Expr>)>,
         span: Span,
         indent: usize,
     ) -> Result<Vec<Line>> {
-        let mut lines = vec![line(indent, "receive:", span.start)];
+        let keyword = if view == crate::processes::ReceiveView::Events {
+            "receive_event:"
+        } else {
+            "receive:"
+        };
+        let mut lines = vec![line(indent, keyword, span.start)];
         lines.extend(self.match_arms(arms, indent + 1)?);
         if let Some((duration, body)) = timeout {
             lines.extend(self.suite(
@@ -608,9 +614,11 @@ impl Renderer<'_> {
     /// Dispatch scoped and terminating expressions separately from ordinary values.
     fn control_expression(&self, expression: &Expr, indent: usize) -> Result<Vec<Line>> {
         match &expression.kind {
-            ExprKind::Receive { arms, timeout } => {
-                self.receive(arms, timeout, expression.span, indent)
-            }
+            ExprKind::Receive {
+                view,
+                arms,
+                timeout,
+            } => self.receive(*view, arms, timeout, expression.span, indent),
             ExprKind::For {
                 pattern,
                 iterable,
@@ -1660,7 +1668,7 @@ fn structural(mut program: ast::Program) -> String {
 fn clear_expression(expression: &mut Expr) {
     expression.span = Span::default();
     match &mut expression.kind {
-        ExprKind::Receive { arms, timeout } => clear_receive(arms, timeout),
+        ExprKind::Receive { arms, timeout, .. } => clear_receive(arms, timeout),
         ExprKind::TypeTarget(_) => {}
         ExprKind::Unary { value, .. }
         | ExprKind::Try(value)

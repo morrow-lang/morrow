@@ -1,0 +1,15 @@
+trap_previous=false
+trap_previous_again=true
+idempotent=fault:7:once
+atomic_spawn_link=normal
+untrapped_normal=ignored
+direct_kill=killed
+linked_kill=trapped:kill
+linked_kill_untrapped=kill
+unlink_before_death=none
+unlink_queued_exit=preserved
+unlink_explicit_exit=preserved
+dead_link=noproc
+dead_signal=ok
+self_link=noop
+self_normal_signal=ignored

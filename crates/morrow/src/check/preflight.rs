@@ -437,7 +437,7 @@ impl Budget {
                     }
                     pending.extend(args.iter().map(|arg| (arg, depth + 1)));
                 }
-                ast::ExprKind::Receive { arms, timeout } => {
+                ast::ExprKind::Receive { arms, timeout, .. } => {
                     self.receive(arms, timeout, expr.span, &mut pending, depth)?
                 }
                 ast::ExprKind::ConditionMatch(arms) => queue_conditions(arms, &mut pending, depth),

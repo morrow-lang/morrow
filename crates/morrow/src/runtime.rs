@@ -6,6 +6,8 @@ use crate::Type;
 /// Opaque runtime-owned handles; callers cannot inspect or construct their C fields.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum NativeType {
+    ProcessId,
+    MonitorRef,
     Panel,
     Table,
     Tree,
@@ -19,6 +21,8 @@ impl NativeType {
     /// Qualified source annotation spelling, preserving ordinary user-defined type names.
     pub fn name(self) -> &'static str {
         match self {
+            Self::ProcessId => "ProcessId",
+            Self::MonitorRef => "MonitorRef",
             Self::Panel => "Tui.Panel",
             Self::Table => "Tui.Table",
             Self::Tree => "Tui.Tree",
@@ -38,6 +42,8 @@ pub fn native_type(name: &str) -> Option<NativeType> {
         name => name,
     };
     [
+        NativeType::ProcessId,
+        NativeType::MonitorRef,
         NativeType::Panel,
         NativeType::Table,
         NativeType::Tree,

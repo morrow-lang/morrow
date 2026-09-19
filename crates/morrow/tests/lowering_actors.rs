@@ -37,6 +37,7 @@ fn inactive_root_receive_cannot_forge_a_managed_context() {
                 ty: Type::Unit,
                 span,
                 kind: ExprKind::Actor(ActorExpr::Receive {
+                    view: morrow_compiler::processes::ReceiveView::Messages,
                     mailbox: Type::Int,
                     arms: vec![MatchArm {
                         pattern: Pattern::Wildcard,
@@ -226,6 +227,7 @@ fn receiving_control_cannot_hide_forged_result_types_during_cps() {
     };
     let receive = |body, ty| Expr {
         kind: ExprKind::Actor(ActorExpr::Receive {
+            view: morrow_compiler::processes::ReceiveView::Messages,
             mailbox: Type::Bool,
             arms: vec![arm(body)],
             timeout: None,

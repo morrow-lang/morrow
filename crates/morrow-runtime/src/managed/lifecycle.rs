@@ -188,6 +188,16 @@ pub(super) unsafe fn spawn(
     mailbox: *const Type,
     supervisor: *mut supervision::Supervisor,
 ) -> *mut c_void {
+    unsafe { spawn_policy(exec, closure, mailbox, supervisor, false) }
+}
+
+pub(super) unsafe fn spawn_policy(
+    exec: *mut Exec,
+    closure: *mut c_void,
+    mailbox: *const Type,
+    supervisor: *mut supervision::Supervisor,
+    isolated: bool,
+) -> *mut c_void {
     unsafe {
         if exec.is_null() || (*exec).session.is_null() || *(*exec).fault != 0 {
             return null_mut();
@@ -207,7 +217,7 @@ pub(super) unsafe fn spawn(
             return null_mut();
         };
         let frame = copy::frame_fragment(s, closure);
-        match create_actor(s, frame, cost, mailbox, supervisor) {
+        match create_actor(s, frame, cost, mailbox, supervisor, isolated) {
             Ok(actor) => new_pid(actor.as_ptr()).cast(),
             Err(code) => {
                 fail(exec, code);
@@ -223,8 +233,9 @@ pub(super) unsafe fn spawn_fragment(
     frame: copy::FragmentCopy,
     cost: usize,
     mailbox: *const Type,
+    isolated: bool,
 ) -> Result<transport::ActorRef, i64> {
-    unsafe { create_actor(s, frame, cost, mailbox, null_mut()) }
+    unsafe { create_actor(s, frame, cost, mailbox, null_mut(), isolated) }
 }
 unsafe fn create_actor(
     s: *mut Session,
@@ -232,6 +243,7 @@ unsafe fn create_actor(
     cost: usize,
     mailbox: *const Type,
     supervisor: *mut supervision::Supervisor,
+    isolated: bool,
 ) -> Result<transport::ActorRef, i64> {
     unsafe {
         let slot = vacant_slot(s).ok_or(9)?;
@@ -252,6 +264,7 @@ unsafe fn create_actor(
                 slot,
                 mailbox,
                 supervisor,
+                isolated,
                 alive: AtomicBool::new(true),
                 ..ActorIdentity::default()
             },
@@ -279,6 +292,11 @@ unsafe fn create_actor(
         }
         (*a).frame_cost = cost;
         (*a).deadline = u64::MAX;
+        if isolated {
+            relations::registry(s)
+                .isolated
+                .fetch_add(1, Ordering::AcqRel);
+        }
         publish_actor(s, a, slot);
         enqueue(a);
         Ok(transport::ActorRef::retain(a))

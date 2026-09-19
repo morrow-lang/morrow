@@ -209,12 +209,13 @@ impl Builder<'_> {
                 mailbox,
             }) => self.tail_call(*function, args, mailbox, next, expr.span),
             ExprKind::Actor(ir::ActorExpr::Receive {
+                view,
                 arms,
                 timeout,
                 mailbox,
             }) => {
                 expect_type(mailbox.clone(), self.mailbox.clone(), expr.span)?;
-                self.receive(arms, timeout, next, expr.span, depth + 1)
+                self.receive(*view, arms, timeout, next, expr.span, depth + 1)
             }
             ExprKind::If {
                 condition,
@@ -428,6 +429,7 @@ impl Builder<'_> {
     /// Selectors allocate a selected frame only after its complete pattern and guard succeed.
     fn receive(
         &mut self,
+        view: crate::processes::ReceiveView,
         arms: &[MatchArm],
         timeout: &Option<(Box<Expr>, Box<Expr>)>,
         next: Option<&Continuation>,
@@ -436,7 +438,7 @@ impl Builder<'_> {
     ) -> Lowering<Expr> {
         let candidate = ir::Param {
             id: self.local(span)?,
-            ty: self.mailbox.clone(),
+            ty: view.item(&self.mailbox),
         };
         let value = Box::new(node(
             ExprKind::Local(candidate.id),
@@ -474,6 +476,8 @@ impl Builder<'_> {
         };
         Ok(operation(
             Operation::Register {
+                view,
+                mailbox: self.mailbox.clone(),
                 selector,
                 timeout,
                 duration,

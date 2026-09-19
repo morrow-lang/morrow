@@ -1,0 +1,13 @@
+distinct=true
+payload=9223372036854775807
+first=fault:1
+ordinary=selected
+second=fault:1
+late=noproc
+cancelled=true
+cancelled_delivery=none
+consumed_info=false
+consumed_flush_info=false
+self_info=false
+active_flush_info=true
+repeated_flush_info=false

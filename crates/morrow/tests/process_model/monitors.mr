@@ -1,0 +1,51 @@
+type Payload:
+    Number(Int)
+    Identity(MonitorRef, ProcessId)
+fn report(port: Pid(String), text: String):
+    match send(port, text):
+        Ok(()) -> ()
+        Err(_) -> ()
+fn broken(reply: Pid(Payload)):
+    receive:
+        () -> ()
+    match send(reply, Number(9007199254740993)):
+        Ok(()) -> ()
+        Err(_) -> ()
+    let empty: List(Int) = []
+    println(List.head(empty))
+fn observer(port: Pid(String)):
+    let own: Pid(Payload) = Process.self()
+    let started: Result((Pid(()), MonitorRef), Process.Error) = Process.spawn_monitor(() -> broken(own))
+    match started:
+        Ok((child, first)) ->
+            let identity = Process.id(child)
+            match Process.monitor(identity):
+                Ok(second) ->
+                    match send(child, ()):
+                        Ok(()) -> ()
+                        Err(_) -> report(port: port, text: "release-error")
+                    match send(own, Identity(second, identity)):
+                        Ok(()) -> ()
+                        Err(_) -> report(port: port, text: "send-error")
+                    receive:
+                        Identity(copied, copied_id) ->
+                            if copied == second and copied_id == identity and first != second:
+                                report(port: port, text: "identities")
+                            else: report(port: port, text: "identity-error")
+                    receive:
+                        Number(value) -> report(port: port, text: "wide={value}")
+                    receive_event:
+                        Process.Down(reference, process, Process.Fault(_)) if reference == first and process == identity -> report(port: port, text: "first")
+                    receive_event:
+                        Process.Down(reference, process, Process.Fault(_)) if reference == second and process == identity -> report(port: port, text: "second")
+                Err(_) -> report(port: port, text: "monitor-error")
+        Err(_) -> report(port: port, text: "spawn-error")
+pub fn start(port: Pid(String)) -> ():
+    let observed: Result(Pid(Payload), Process.Error) = Process.spawn(() -> observer(port))
+    match observed:
+        Ok(_) -> ()
+        Err(_) -> report(port: port, text: "observer-error")
+    let sibling: Result(Pid(()), Process.Error) = Process.spawn(() -> report(port: port, text: "sibling"))
+    match sibling:
+        Ok(_) -> ()
+        Err(_) -> report(port: port, text: "sibling-error")

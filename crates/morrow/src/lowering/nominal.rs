@@ -14,6 +14,15 @@ pub(super) fn layouts(types: &[ir::TypeLayout]) -> Lowering<HashMap<Type, &ir::T
         return Err(invalid(Span::default(), "nominal layout limit exceeded"));
     }
     for layout in types {
+        if matches!(&layout.ty, Type::Named(name, _) if name.starts_with("Process.")) {
+            let expected = crate::processes::nominal_shape(&layout.ty)
+                .ok_or_else(|| invalid(Span::default(), "invalid process nominal type"))?;
+            if layout.storage != ir::LayoutStorage::Tagged
+                || (layout.variants.clone(), layout.fields.clone()) != expected
+            {
+                return Err(invalid(Span::default(), "invalid process nominal layout"));
+            }
+        }
         concrete(&layout.ty, Span::default(), 0)?;
         if !matches!(layout.ty, Type::Named(_, _)) || layout.variants.is_empty() {
             return Err(invalid(

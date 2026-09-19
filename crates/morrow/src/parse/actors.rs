@@ -3,6 +3,11 @@ use super::*;
 impl Parser {
     /// Parse a bounded receive block; timeout is one final wildcard arm, never a message pattern.
     pub(super) fn receive_expression(&mut self) -> ParseResult<Parsed> {
+        let view = if self.word("receive_event") {
+            crate::processes::ReceiveView::Events
+        } else {
+            crate::processes::ReceiveView::Messages
+        };
         let start = self.take().span.start;
         self.expect(Kind::Colon, "expected ':' after receive")?;
         self.expect(Kind::Newline, "receive requires an indented arm block")?;
@@ -21,7 +26,14 @@ impl Parser {
             if arms.len() >= 128 {
                 return Err(self.error("receive arm limit exceeded (128)"));
             }
-            let pattern = self.typed_pattern()?;
+            let pattern = if view == crate::processes::ReceiveView::Events && self.word("after") {
+                Pattern {
+                    kind: PatternKind::Wildcard,
+                    span: self.current().span,
+                }
+            } else {
+                self.typed_pattern()?
+            };
             if self.word("after") {
                 if !matches!(pattern.kind, PatternKind::Wildcard) {
                     return Err(Diagnostic::new(
@@ -53,7 +65,11 @@ impl Parser {
             return Err(self.error("receive requires at least one message arm"));
         }
         expression(
-            ExprKind::Receive { arms, timeout },
+            ExprKind::Receive {
+                view,
+                arms,
+                timeout,
+            },
             Span { start, end },
             depth,
         )

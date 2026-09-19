@@ -1,5 +1,11 @@
 //! FIFO cooperative scheduling, deterministic timer promotion and root retirement.
 use super::*;
+#[cfg(test)]
+type IdleHook = (usize, unsafe fn(usize));
+#[cfg(test)]
+thread_local! { pub(super) static BEFORE_IDLE_WAIT: std::cell::Cell<Option<IdleHook>> = const { std::cell::Cell::new(None) }; }
+#[cfg(test)]
+thread_local! { pub(super) static AT_PARK: std::cell::Cell<Option<IdleHook>> = const { std::cell::Cell::new(None) }; }
 pub(super) unsafe fn enqueue(a: *mut Actor) {
     unsafe {
         if !(*a).identity.alive.load(Ordering::Acquire) || (*a).queued {
@@ -52,6 +58,7 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
         let retired = (*a).deadline;
         (*a).deadline = u64::MAX;
         (*a).waiting = false;
+        (*a).event_type = null();
         if !(*s).stopped && retired != u64::MAX && retired == (*s).next_deadline {
             refresh(s);
         }
@@ -63,7 +70,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         if !(*a).identity.alive.load(Ordering::Acquire) {
             return;
         }
-        (*a).identity.alive.store(false, Ordering::Release);
+        let notifications = relations::retiring(a);
         transport::discard_pending(a);
         let s = (*a).exec.session;
         // Queue links borrow live actors. Retiring an actor outside dequeue
@@ -92,12 +99,10 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         while !(*a).first.is_null() {
             let m = (*a).first;
             (*a).first = (*m).next;
-            transport::release_message(s, a, (*m).cost);
-            (*m).next = null_mut();
-            (*m).value = 0;
-            (*m).cost = 0;
+            signals::release_cell(s, a, m);
         }
         (*a).last = null_mut();
+        relations::cancel_owned(a);
         clear_receive(a);
         release(s, (*a).frame_cost);
         (*a).frame = null_mut();
@@ -112,6 +117,16 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
         supervision::completed(a);
+        for down in notifications {
+            if let Some(observer) = control::Owned::upgrade(&down.monitor.owner) {
+                signals::send(s, observer.as_ptr(), down);
+            }
+        }
+        if (*a).identity.isolated {
+            let registry = relations::registry(s);
+            registry.isolated.fetch_sub(1, Ordering::AcqRel);
+            registry.wake.notify_all();
+        }
     }
 }
 
@@ -162,9 +177,11 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
             if !poll(a, false) && (*a).fault == 0 {
                 earliest = earliest.min((*a).deadline);
             }
-            if (*a).fault != 0 && !supervision::recover(a) {
-                fail(&raw mut (*s).root, (*a).fault);
-                break;
+            if (*a).fault != 0 {
+                process::fault(a);
+                if *(*s).root.fault != 0 {
+                    break;
+                }
             }
         }
         (*s).next_deadline = earliest;
@@ -184,10 +201,47 @@ unsafe fn idle(s: *mut Session) -> bool {
             return true;
         }
         if (*s).next_deadline == u64::MAX {
+            if process::lease(s) {
+                let registry = relations::registry(s);
+                let guard = registry.sleeping.lock().unwrap();
+                if !registry.cancelled.load(Ordering::Acquire) {
+                    #[cfg(test)]
+                    if let Some((context, hook)) = AT_PARK.with(|hook| hook.take()) {
+                        hook(context);
+                    }
+                    drop(
+                        registry
+                            .wake
+                            .wait_timeout(guard, std::time::Duration::from_millis(10))
+                            .unwrap(),
+                    );
+                }
+                return !registry.cancelled.load(Ordering::Acquire);
+            }
             fail(&raw mut (*s).root, 10);
             return false;
         }
         let delay = (*s).next_deadline.saturating_sub(now);
+        #[cfg(test)]
+        if let Some((context, hook)) = BEFORE_IDLE_WAIT.with(|hook| hook.take()) {
+            hook(context);
+        }
+        if let Some(registry) = relations::existing(s) {
+            let guard = registry.sleeping.lock().unwrap();
+            if !registry.cancelled.load(Ordering::Acquire) {
+                #[cfg(test)]
+                if let Some((context, hook)) = AT_PARK.with(|hook| hook.take()) {
+                    hook(context);
+                }
+                drop(
+                    registry
+                        .wake
+                        .wait_timeout(guard, std::time::Duration::from_millis(delay))
+                        .unwrap(),
+                );
+            }
+            return !registry.cancelled.load(Ordering::Acquire);
+        }
         let sleep = libc::timespec {
             tv_sec: (delay / 1000) as _,
             tv_nsec: ((delay % 1000) * 1000000) as _,
@@ -216,6 +270,9 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
         }
         let s = (*exec).session;
         while (*s).live != 0 && *(*s).root.fault == 0 && !(*s).stopped {
+            if process::cancelled(s) {
+                break;
+            }
             if (*s).next_deadline != u64::MAX {
                 let Some(now) = now(s) else {
                     fail(&raw mut (*s).root, 12);
@@ -240,7 +297,7 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
             }
             step(s, a);
         }
-        if *(*s).root.fault != 0 {
+        if *(*s).root.fault != 0 || process::cancelled(s) {
             morrow_managed_stop(exec);
         }
     }
@@ -294,9 +351,12 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
                 if (*a).fault == 0 {
                     finish(a);
                 }
-            } else if !matches!(status, 0 | 1 | 3)
-                || (status == 0 && !(*a).queued)
-                || (status == 1 && !(*a).waiting)
+            } else if !matches!(status, 0..=3)
+                // Generated checked-fault epilogues return a neutral status
+                // without publishing continuation/wait state. Validate shape
+                // only when the callback completed without a checked fault.
+                || ((*a).fault == 0 && status == 0 && !(*a).queued)
+                || ((*a).fault == 0 && status == 1 && !(*a).waiting)
                 || (status == 3 && (*a).fault == 0)
             {
                 fail(&raw mut (*a).exec, 11);
@@ -306,10 +366,7 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             break;
         }
         if (*a).fault != 0 {
-            cleanup::unwind(a);
-            if !supervision::recover(a) {
-                fail(&raw mut (*s).root, (*a).fault);
-            }
+            process::fault(a);
         }
     }
 }

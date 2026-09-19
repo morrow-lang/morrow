@@ -7,7 +7,7 @@ use std::time::Duration;
 #[cfg(test)]
 type RouteHook = (usize, fn(usize));
 #[cfg(test)]
-thread_local! { static BEFORE_ROUTE: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) }; }
+thread_local! { pub(super) static BEFORE_ROUTE: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) }; }
 #[cfg(test)]
 type DrainHook = (usize, unsafe fn(usize));
 #[cfg(test)]
@@ -15,9 +15,11 @@ thread_local! {
     pub(super) static AFTER_COMMAND: std::cell::Cell<Option<DrainHook>> = const { std::cell::Cell::new(None) };
     static AFTER_EMPTY: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) };
     static BEFORE_DRAIN_LOCK: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) };
+    pub(super) static AT_PARK: std::cell::Cell<Option<DrainHook>> = const { std::cell::Cell::new(None) };
 }
 
 pub(super) struct Shared {
+    pub processes: std::sync::OnceLock<Arc<relations::Registry>>,
     pub budget: budget::Budget,
     pub stopped: AtomicBool,
     pub fault: AtomicI64,
@@ -32,6 +34,7 @@ impl Shared {
     pub fn new(count: usize, initial_bytes: usize) -> Arc<Self> {
         let activity = Arc::new(Mutex::new(()));
         Arc::new(Self {
+            processes: std::sync::OnceLock::new(),
             budget: budget::Budget::new(initial_bytes).expect("validated invocation charge"),
             stopped: AtomicBool::new(false),
             fault: AtomicI64::new(0),
@@ -90,6 +93,12 @@ impl Endpoint {
     pub fn wait(&self, duration: Duration) {
         let queue = self.queue.lock().unwrap();
         if queue.is_empty() {
+            #[cfg(test)]
+            if let Some((context, hook)) = AT_PARK.with(|hook| hook.take()) {
+                unsafe {
+                    hook(context);
+                }
+            }
             drop(self.changed.wait_timeout(queue, duration).unwrap());
         }
     }
@@ -117,6 +126,7 @@ pub(super) enum Command {
         frame: copy::FragmentCopy,
         cost: usize,
         mailbox: usize,
+        isolated: bool,
         reply: mpsc::SyncSender<Result<ActorRef, i64>>,
     },
 }
@@ -156,6 +166,7 @@ pub(super) unsafe fn ingress<'a>(a: *mut Actor) -> &'a Ingress {
 struct Envelope {
     actor: ActorRef,
     payload: Option<copy::FragmentCopy>,
+    down: Option<signals::Down>,
     cost: usize,
     enqueued: u64,
     shared: Arc<Shared>,
@@ -171,6 +182,46 @@ impl Drop for Envelope {
             }
         }
     }
+}
+
+#[cfg(test)]
+pub(super) unsafe fn prepared_message(
+    exec: *mut Exec,
+    a: *mut Actor,
+    value: i64,
+    ty: *const Type,
+) -> impl FnOnce() -> bool + Send {
+    unsafe {
+        let s = (*exec).session;
+        let shared = shared_arc(s);
+        let reservation = shared
+            .budget
+            .try_reserve_message(&(*a).identity.pending, 8)
+            .unwrap();
+        let payload = copy::value_fragment(s, ty, value);
+        reservation.commit();
+        let envelope = Envelope {
+            actor: ActorRef::retain(a),
+            payload: Some(payload),
+            down: None,
+            cost: 8,
+            enqueued: now(s).unwrap(),
+            shared,
+        };
+        move || {
+            let a = envelope.actor.as_ptr();
+            publish(usize::MAX, a, envelope)
+        }
+    }
+}
+
+#[cfg(test)]
+pub(super) fn prepared_command(
+    group: Arc<Shared>,
+    scheduler: usize,
+    command: Command,
+) -> impl FnOnce() -> bool + Send {
+    move || group.endpoints[scheduler].push(command, &group.stopped)
 }
 
 /// Caller owns this scheduler and has validated the source graph.
@@ -202,6 +253,7 @@ pub(super) unsafe fn send(
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
                 payload: Some(payload),
+                down: None,
                 cost,
                 enqueued: time,
                 shared: shared_arc(s),
@@ -223,6 +275,28 @@ pub(super) unsafe fn send(
             let payload = copy::value_fragment(s, ty, value);
             adopt(s, a, payload, cost, time);
             true
+        }
+    }
+}
+
+pub(super) unsafe fn send_down(s: *mut Session, a: *mut Actor, down: signals::Down, time: u64) {
+    unsafe {
+        if shared(s).is_some() {
+            let envelope = Envelope {
+                actor: ActorRef::retain(a),
+                payload: None,
+                down: Some(down),
+                cost: 0,
+                enqueued: time,
+                shared: shared_arc(s),
+            };
+            if publish((*s).scheduler, a, envelope)
+                && (*a).identity.owner.load(Ordering::Acquire) == (*s).scheduler
+            {
+                drain_actor(s, a);
+            }
+        } else if !(*s).stopped {
+            signals::adopt(s, a, down, time);
         }
     }
 }
@@ -267,13 +341,17 @@ pub(super) unsafe fn drain_actor(s: *mut Session, a: *mut Actor) {
             if (*a).identity.alive.load(Ordering::Acquire)
                 && !envelope.shared.stopped.load(Ordering::Acquire)
             {
-                adopt(
-                    s,
-                    a,
-                    envelope.payload.take().unwrap(),
-                    envelope.cost,
-                    envelope.enqueued,
-                );
+                if let Some(down) = envelope.down.take() {
+                    signals::adopt(s, a, down, envelope.enqueued);
+                } else {
+                    adopt(
+                        s,
+                        a,
+                        envelope.payload.take().unwrap(),
+                        envelope.cost,
+                        envelope.enqueued,
+                    );
+                }
             }
         }
     }
@@ -311,6 +389,9 @@ unsafe fn adopt(
             value: payload.adopt(),
             cost,
             enqueued: time,
+            kind: 0,
+            event: 0,
+            monitor: null(),
         };
         if (*a).last.is_null() {
             (*a).first = message;
@@ -391,12 +472,13 @@ pub(super) unsafe fn drain(s: *mut Session) {
                     frame,
                     cost,
                     mailbox,
+                    isolated,
                     reply,
                 } => {
                     let result = if group.stopped.load(Ordering::Acquire) {
                         Err(9)
                     } else {
-                        lifecycle::spawn_fragment(s, frame, cost, mailbox as *const Type)
+                        lifecycle::spawn_fragment(s, frame, cost, mailbox as *const Type, isolated)
                     };
                     let _ = reply.send(result);
                 }
@@ -415,6 +497,15 @@ pub(super) unsafe fn spawn_remote(
     closure: *mut c_void,
     mailbox: *const Type,
     target: usize,
+) -> *mut c_void {
+    unsafe { spawn_remote_policy(exec, closure, mailbox, target, false) }
+}
+pub(super) unsafe fn spawn_remote_policy(
+    exec: *mut Exec,
+    closure: *mut c_void,
+    mailbox: *const Type,
+    target: usize,
+    isolated: bool,
 ) -> *mut c_void {
     unsafe {
         let s = (*exec).session;
@@ -448,6 +539,7 @@ pub(super) unsafe fn spawn_remote(
                 frame,
                 cost,
                 mailbox: mailbox as usize,
+                isolated,
                 reply,
             },
             &group.stopped,
@@ -520,6 +612,7 @@ mod tests {
             admitted.send(()).unwrap();
             remote_pause.release.wait();
             remote_group.endpoints[0].push_locked(Command::Spawn {
+                isolated: false,
                 frame,
                 cost: 14,
                 mailbox: 0,
@@ -596,6 +689,7 @@ mod tests {
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
                 payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MIN)),
+                down: None,
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),
@@ -665,6 +759,7 @@ mod tests {
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
                 payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MAX)),
+                down: None,
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),
@@ -717,6 +812,7 @@ mod tests {
             let envelope = Envelope {
                 actor: ActorRef::retain(a),
                 payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MIN)),
+                down: None,
                 cost,
                 enqueued: 0,
                 shared: Arc::clone(&group),

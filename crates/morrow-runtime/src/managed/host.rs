@@ -95,6 +95,10 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
         }
         let s = (*exec).session;
         for _ in 0..max_steps {
+            if process::cancelled(s) {
+                morrow_managed_stop(exec);
+                return if *(*s).root.fault == 0 { 0 } else { 3 };
+            }
             if *(*s).root.fault != 0 {
                 morrow_managed_stop(exec);
                 return 3;
@@ -199,6 +203,7 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             actor.token(),
         );
         (*a).host_port = true;
+        (*a).identity.host_port = true;
         (*a).pinned = true;
         (*a).deadline = u64::MAX;
         publish_actor(s, a, slot.unwrap());

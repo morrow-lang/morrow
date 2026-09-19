@@ -179,6 +179,7 @@ pub enum ExprKind {
         args: Vec<Expr>,
     },
     Receive {
+        view: crate::processes::ReceiveView,
         arms: Vec<MatchArm>,
         timeout: Option<(Box<Expr>, Box<Expr>)>,
     },

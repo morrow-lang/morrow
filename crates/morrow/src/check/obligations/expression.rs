@@ -399,6 +399,12 @@ impl Engine<'_> {
     /// Sending borrows its message; only the newly returned enqueue Result gains a fresh duty.
     fn actor(&mut self, actor: &ir::ActorExpr, expr: &ir::Expr, depth: usize) -> Checked<Value> {
         match actor {
+            ir::ActorExpr::Process(operation) => {
+                for child in operation.children() {
+                    self.expression(child, depth)?;
+                }
+                self.fresh(&expr.ty, None, expr.span, depth)
+            }
             ir::ActorExpr::Spawn {
                 entry,
                 max_restarts,
@@ -420,6 +426,7 @@ impl Engine<'_> {
                 self.fresh(&expr.ty, None, expr.span, depth)
             }
             ir::ActorExpr::Receive {
+                view,
                 mailbox,
                 arms,
                 timeout,
@@ -427,7 +434,7 @@ impl Engine<'_> {
                 if let Some((duration, _)) = timeout {
                     self.expression(duration, depth)?;
                 }
-                let value = self.fresh(mailbox, None, expr.span, depth)?;
+                let value = self.fresh(&view.item(mailbox), None, expr.span, depth)?;
                 self.matching_region(
                     value,
                     arms,

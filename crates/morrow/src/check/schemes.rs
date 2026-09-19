@@ -45,7 +45,7 @@ impl Capability {
             Self::Add => matches!(ty, Type::Int | Type::Float | Type::String),
             Self::Numeric | Self::Order => matches!(ty, Type::Int | Type::Float),
             Self::MapKey => scalar(ty),
-            Self::Equality if matches!(ty, Type::Pid(_)) => true,
+            Self::Equality if matches!(ty, Type::Pid(_)) || crate::processes::opaque(ty) => true,
             Self::Equality | Self::Display | Self::Print | Self::Contains | Self::Sort => {
                 scalar(ty) || *ty == Type::Float
             }

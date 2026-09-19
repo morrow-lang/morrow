@@ -17,6 +17,7 @@ pub mod modules;
 pub mod native_library;
 pub mod parse;
 pub mod presentation;
+pub mod processes;
 pub mod repl;
 pub mod runtime;
 pub mod runtime_abi;
