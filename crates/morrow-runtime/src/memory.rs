@@ -6,13 +6,17 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+#[path = "memory/fragment.rs"]
+mod fragment;
 #[path = "memory/heaps.rs"]
 mod heaps;
 #[path = "memory/platform.rs"]
 mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
-pub(crate) use heaps::{create_control_heap, retain_control};
+pub(crate) use fragment::Fragment;
+pub(crate) use heaps::Domain;
+pub(crate) use heaps::{create_control_heap, create_control_heap_at, retain_control};
 pub(crate) use heaps::{enter as enter_heap, owns as heap_owns, retire as retire_heap};
 pub use heaps::{morrow_gc_frame_enter, morrow_gc_frame_leave};
 pub use rc::{
@@ -43,6 +47,25 @@ pub(crate) struct ControlAllocation {
     stats: Arc<ControlStats>,
     bytes: usize,
     objects: usize,
+}
+impl ControlAllocation {
+    fn grow(&mut self, bytes: usize, objects: usize) {
+        for (counter, amount) in [(&self.stats.bytes, bytes), (&self.stats.objects, objects)] {
+            counter
+                .try_update(Ordering::Relaxed, Ordering::Relaxed, |current| {
+                    current.checked_add(amount)
+                })
+                .unwrap_or_else(|_| std::process::abort());
+        }
+        self.bytes = self
+            .bytes
+            .checked_add(bytes)
+            .unwrap_or_else(|| std::process::abort());
+        self.objects = self
+            .objects
+            .checked_add(objects)
+            .unwrap_or_else(|| std::process::abort());
+    }
 }
 impl Drop for ControlAllocation {
     fn drop(&mut self) {

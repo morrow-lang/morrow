@@ -106,10 +106,10 @@ pub unsafe fn snapshot(exec: *mut Exec) -> Result<Snapshot, ClockError> {
             milliseconds: (*s).simulation.milliseconds,
             callbacks: (*s).simulation.callbacks,
             next_deadline: ((*s).next_deadline != u64::MAX).then_some((*s).next_deadline),
-            live: (*s).live,
-            messages: (*s).messages,
-            retained: (*s).retained,
-            identities: (*s).next_id,
+            live: shared(s).map_or((*s).live, |group| group.budget.live()),
+            messages: shared(s).map_or((*s).messages, |group| group.budget.messages()),
+            retained: shared(s).map_or((*s).retained, |group| group.budget.retained()),
+            identities: shared(s).map_or((*s).next_id, |group| group.budget.generation()),
         })
     }
 }

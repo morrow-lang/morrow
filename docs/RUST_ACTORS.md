@@ -68,18 +68,21 @@ A selected frame is allocated only after the complete pattern and guard succeed.
 Spawn and send copy supported message/capture graphs into receiver-owned storage,
 preserving sharing within a copied graph. Collection cannot follow payloads into
 another actor's heap. PID copies retain scheduler identity, without sharing the
-other actor's payload. Runtime copy roots protect partial graphs until their
-frame or mailbox root is published. Actor callbacks enter their heap through a
+other actor's payload. In-heap copy roots protect partial graphs; cross-scheduler copies own all their
+blocks in off-heap fragments until owner adoption publishes a mailbox root. Actor callbacks enter their heap through a
 scope guard; retirement releases the heap after active scopes finish. Compiler
 root frames are explicit, but normal collection still uses conservative native
 stack/register and heap-word scanning. See [runtime memory](MEMORY_MANAGEMENT.md).
 
 ## Ownership, quotas, and failures
 
-One invocation owns a FIFO cooperative scheduler, immutable PID identities and
-mailboxes. In native CLI programs, main executes first. Successful main drains
-actors; main faults or returned Err stop pending actors without running their
-bodies. An unsupervised actor fault stops the session after active ordinary
+One invocation owns immutable PID identities and one or more FIFO cooperative
+schedulers. The default single scheduler runs source main before actor callbacks.
+Opt-in parallel workers can run actors concurrently with main; successful main
+drains the invocation, while main faults or returned Err cancel it. Set
+`MORROW_SCHEDULERS` to 1–64 before invocation creation. Root spawns distribute
+round-robin; actor-spawned children remain on the parent's scheduler. See the
+[parallel execution contract](ACTOR_RUNTIME.md#typed-native-execution). An unsupervised actor fault stops the session after active ordinary
 helper cleanup. A supervised child instead uses its bounded restart policy.
 A waiting CLI session without runnable actors or a pending timer reports
 deadlock. Blocking host calls and nonyielding source computation can delay

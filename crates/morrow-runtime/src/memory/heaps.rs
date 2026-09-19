@@ -124,7 +124,6 @@ impl Domain {
         self.active = previous;
         self.remove_retired(entered);
     }
-    #[allow(dead_code)]
     pub(crate) fn activate(&mut self) -> Activation<'_> {
         let previous = CURRENT.with(|cell| cell.replace(self as *mut Domain));
         Activation {
@@ -265,17 +264,34 @@ impl Domain {
         words: usize,
         retention: Control,
     ) -> usize {
+        unsafe { self.create_control_heap_at(control, words, 0, retention) }
+    }
+    /// Retain the whole control allocation but scan only scheduler-owned words.
+    /// # Safety
+    /// `control` names retention's owner base. The range starting at offset_words
+    /// spans words initialized, stable words in that allocation. Only this
+    /// domain's scheduler may write that range, outside collection. Concurrently
+    /// accessed atomics must be excluded from the scanned range.
+    pub(crate) unsafe fn create_control_heap_at(
+        &mut self,
+        control: *const usize,
+        words: usize,
+        offset_words: usize,
+        retention: Control,
+    ) -> usize {
         assert_eq!(
             control as usize, retention.pointer,
             "control roots must name their retained owner"
         );
         assert!(words <= isize::MAX as usize / 8);
+        assert!(offset_words <= isize::MAX as usize / 8 - words);
         assert!(
             self.slots.keys().all(|&id| !self.owns(id, control.cast())),
             "external control storage cannot belong to a collected heap"
         );
         let mut heap = Heap::new();
-        register(&mut heap, control, words);
+        // SAFETY: caller supplies an in-bounds range in the retained allocation.
+        register(&mut heap, unsafe { control.add(offset_words) }, words);
         self.next_heap = self
             .next_heap
             .checked_add(1)
@@ -429,9 +445,8 @@ impl Drop for Busy {
 }
 
 /// Installs a domain as this thread's current domain until dropped.
-// Step 2 of the parallel actor work hands one Domain to each scheduler and
-// activates it there; until then only the tests construct one.
-#[allow(dead_code)]
+// Each worker owns and activates its domain; the deterministic driver switches
+// between separate domains on one thread.
 pub(crate) struct Activation<'a> {
     previous: *mut Domain,
     _domain: PhantomData<&'a mut Domain>,
@@ -519,6 +534,21 @@ pub(crate) unsafe fn create_control_heap(
 ) -> usize {
     with_current(|domain| unsafe { domain.create_control_heap(control, words, retention) })
 }
+/// Retain a control allocation while excluding its concurrent identity header
+/// from conservative scanning.
+/// # Safety
+/// The owner base equals control. The offset/count selects initialized stable
+/// words in that allocation, written only by this scheduler outside collection.
+pub(crate) unsafe fn create_control_heap_at(
+    control: *const usize,
+    words: usize,
+    offset_words: usize,
+    retention: Control,
+) -> usize {
+    with_current(|domain| unsafe {
+        domain.create_control_heap_at(control, words, offset_words, retention)
+    })
+}
 /// Retire payload storage once its final active callback/scope has returned.
 pub(crate) fn retire(id: usize) {
     with_current(|domain| domain.retire_heap(id));
@@ -549,8 +579,7 @@ pub extern "C" fn morrow_gc_frame_leave(token: usize) {
     with_current(|domain| domain.frame_leave(token));
 }
 
-// A Domain must remain movable between threads: step 2 of the parallel actor work
-// hands one to each scheduler. Root and Scope stay thread-bound by design and keep
+// A Domain remains movable between threads; active roots and scopes do not. Root and Scope stay thread-bound by design and keep
 // their PhantomData<Rc<()>> markers.
 const _: fn() = || {
     fn assert_send<T: Send>() {}

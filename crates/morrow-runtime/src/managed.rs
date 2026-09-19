@@ -2,12 +2,23 @@
 use crate::{abi, memory};
 use std::ffi::c_void;
 use std::ptr::{null, null_mut};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+#[path = "managed/budget.rs"]
+mod budget;
 #[path = "managed/control.rs"]
 mod control;
 #[path = "managed/copy.rs"]
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+#[path = "managed/parallel.rs"]
+mod parallel;
+pub use parallel::morrow_managed_parallel;
+#[cfg(any(test, feature = "simulation"))]
+pub use parallel::{recorded as scheduler_recording, simulate as simulate_schedulers};
+#[path = "managed/transport.rs"]
+mod transport;
 const LIVE: usize = 1024;
 const IDS: usize = 65536;
 const MAILBOX: usize = 4096;
@@ -48,19 +59,30 @@ struct Message {
     cost: usize,
     enqueued: u64,
 }
+/// Published once before any PID or queue exposes its actor. Only `alive` and
+/// `pending` change atomically; the owning scheduler has every other mutable field.
+#[repr(C)]
+#[derive(Default)]
+struct ActorIdentity {
+    session_key: usize,
+    scheduler: usize,
+    id: u64,
+    slot: usize,
+    mailbox: *const Type,
+    supervisor: *mut supervision::Supervisor,
+    alive: AtomicBool,
+    pending: AtomicUsize,
+}
 #[repr(C)]
 #[derive(Default)]
 struct Actor {
+    identity: ActorIdentity,
     exec: Exec,
     heap: usize,
-    id: u64,
-    slot: usize,
-    alive: bool,
     queued: bool,
     waiting: bool,
     host_port: bool,
     fault: i64,
-    mailbox: *const Type,
     frame: *mut c_void,
     selector: *mut c_void,
     timeout_frame: *mut c_void,
@@ -72,7 +94,6 @@ struct Actor {
     first: *mut Message,
     last: *mut Message,
     next: *mut Actor,
-    supervisor: *mut supervision::Supervisor,
     scopes: *mut cleanup::Scope,
     cleanup_entries: usize,
     cleaning: bool,
@@ -91,6 +112,10 @@ struct Pid {
 #[repr(C)]
 #[derive(Default)]
 struct Session {
+    // Finalized before any actor publication; shared by all scheduler-local
+    // Sessions participating in one invocation.
+    session_key: usize,
+    scheduler: usize,
     #[cfg(any(test, feature = "simulation"))]
     simulation: simulation::State,
     root: Exec,
@@ -107,24 +132,50 @@ struct Session {
     first: *mut Actor,
     last: *mut Actor,
     _identities: Option<control::Owned<Box<[*mut Actor]>>>,
+    _shared: Option<control::Owned<Arc<transport::Shared>>>,
+    _parallel: Option<control::Owned<parallel::Driver>>,
 }
 // Retained-byte limits are a language-visible logical quota. The trailing Rust
 // ownership fields replace GC bookkeeping and do not change its historical
 // record charges; quota policy is a separate multi-scheduler decision.
-const ACTOR_BYTES: usize = std::mem::offset_of!(Actor, _session);
-const SESSION_BYTES: usize = std::mem::offset_of!(Session, _identities);
+const ACTOR_BYTES: usize = 192;
+#[cfg(any(test, feature = "simulation"))]
+const SESSION_BYTES: usize = 144;
+#[cfg(not(any(test, feature = "simulation")))]
+const SESSION_BYTES: usize = 120;
 #[cfg(test)]
 #[path = "managed/tests.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "managed/transport_tests.rs"]
+mod transport_tests;
 
 fn allocate<T>() -> *mut T {
     memory::alloc(std::mem::size_of::<T>(), false).cast()
 }
 
+/// Borrow the invocation group while the caller keeps its Session alive.
+unsafe fn shared<'a>(s: *mut Session) -> Option<&'a transport::Shared> {
+    unsafe { (*s)._shared.as_ref().map(|shared| &**shared.as_ptr()) }
+}
+
+/// Clone the shared invocation group for ownership beyond the current call.
+unsafe fn shared_arc(s: *mut Session) -> Arc<transport::Shared> {
+    unsafe {
+        Arc::clone(
+            &*(*s)
+                ._shared
+                .as_ref()
+                .expect("shared scheduler group")
+                .as_ptr(),
+        )
+    }
+}
+
 /// Find reusable storage without changing immutable actor generations.
 unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
     unsafe {
-        if (*s).next_id == u64::MAX {
+        if shared(s).is_none() && (*s).next_id == u64::MAX {
             return None;
         }
         for slot in 0..(*s).used_slots {
@@ -138,12 +189,10 @@ unsafe fn vacant_slot(s: *mut Session) -> Option<usize> {
 
 unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
     unsafe {
-        (*s).next_id = (*s)
-            .next_id
-            .checked_add(1)
-            .expect("generation was admitted");
-        (*a).id = (*s).next_id;
-        (*a).slot = slot;
+        let id = (*a).identity.id;
+        debug_assert_ne!(id, 0);
+        debug_assert_eq!((*a).identity.slot, slot);
+        (*s).next_id = (*s).next_id.max(id);
         (*s).used_slots = (*s).used_slots.max(slot + 1);
         *(*s).identities.add(slot) = a;
         (*s).live += 1;
@@ -154,10 +203,10 @@ unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
     unsafe {
         let pid = allocate::<Pid>();
         *pid = Pid {
-            session: (*a).exec.session,
+            session: (*a).identity.session_key as *mut Session,
             actor: a,
-            id: (*a).id,
-            mailbox: (*a).mailbox,
+            id: (*a).identity.id,
+            mailbox: (*a).identity.mailbox,
         };
         control::attach(pid.cast(), a);
         pid
@@ -168,24 +217,17 @@ unsafe fn new_pid(a: *mut Actor) -> *mut Pid {
 unsafe fn valid_pid(s: *mut Session, pid: *const Pid) -> bool {
     unsafe {
         !pid.is_null()
-            && (*pid).session == s
+            && (*pid).session as usize == (*s).session_key
             && !(*pid).actor.is_null()
             && (*pid).id != 0
-            && (*pid).id <= (*s).next_id
-            && (*(*pid).actor).exec.session == s
-            && (*(*pid).actor).id == (*pid).id
-            && (*(*pid).actor).mailbox == (*pid).mailbox
+            && (*(*pid).actor).identity.session_key == (*s).session_key
+            && (*(*pid).actor).identity.id == (*pid).id
+            && (*(*pid).actor).identity.mailbox == (*pid).mailbox
     }
 }
 
 unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
-    unsafe {
-        valid_pid(s, pid)
-            && !(*s).stopped
-            && (*(*pid).actor).alive
-            && (*(*pid).actor).slot < (*s).used_slots
-            && *(*s).identities.add((*(*pid).actor).slot) == (*pid).actor
-    }
+    unsafe { valid_pid(s, pid) && (*(*pid).actor).identity.alive.load(Ordering::Acquire) }
 }
 
 // SAFETY for private helpers: callers supply live invocation-owned records and
@@ -193,24 +235,66 @@ unsafe fn live_pid(s: *mut Session, pid: *const Pid) -> bool {
 unsafe fn fail(exec: *mut Exec, code: i64) {
     unsafe {
         if *(*exec).fault == 0 {
-            *(*exec).fault = code;
+            // A root operation rejected during shutdown must not replace a
+            // worker's already published failure with an admission error.
+            let published = if (*exec).actor.is_null() && !(*exec).session.is_null() {
+                shared((*exec).session).map_or(0, |group| group.fault.load(Ordering::Acquire))
+            } else {
+                0
+            };
+            *(*exec).fault = if published == 0 { code } else { published };
         }
     }
 }
 unsafe fn charge(s: *mut Session, cost: usize) -> bool {
     unsafe {
-        if cost > BYTES - (*s).retained {
-            false
-        } else {
-            (*s).retained += cost;
-            true
+        if let Some(shared) = shared(s) {
+            let Some(reservation) = shared.budget.try_charge(cost) else {
+                return false;
+            };
+            let retained = (*s)
+                .retained
+                .checked_add(cost)
+                .expect("local retained-byte mirror overflowed");
+            reservation.commit();
+            (*s).retained = retained;
+            return true;
         }
+        if cost > BYTES - (*s).retained {
+            return false;
+        }
+        (*s).retained += cost;
+        true
     }
 }
 unsafe fn release(s: *mut Session, cost: usize) {
     unsafe {
         assert!(cost <= (*s).retained);
+        if let Some(shared) = shared(s) {
+            shared.budget.release_bytes(cost);
+        }
         (*s).retained -= cost;
+    }
+}
+
+/// Admit one actor and return the immutable invocation-wide generation.
+unsafe fn reserve_actor(s: *mut Session, total_cost: usize) -> Option<u64> {
+    unsafe {
+        if let Some(shared) = shared(s) {
+            let reservation = shared.budget.try_reserve_actor(total_cost)?;
+            let retained = (*s)
+                .retained
+                .checked_add(total_cost)
+                .expect("local retained-byte mirror overflowed");
+            let generation = reservation.commit();
+            (*s).retained = retained;
+            return Some(generation);
+        }
+        if (*s).live >= LIVE {
+            return None;
+        }
+        let generation = (*s).next_id.checked_add(1)?;
+        charge(s, total_cost).then_some(generation)
     }
 }
 unsafe fn function_work(

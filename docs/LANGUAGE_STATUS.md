@@ -17,6 +17,7 @@ implemented language and links to its execution contracts.
 | Pure compile-time constant data | Yes | Yes | Yes |
 | Dynamic, derived and custom JSON codecs | Yes | Yes | Host capability not implemented |
 | Typed actor mailboxes, suspension and supervision | Yes | Virtual-time scheduler | Server-side capability |
+| Parallel pinned actor schedulers | Opt-in `MORROW_SCHEDULERS=1..64` | No; deterministic interactive scheduler | Server-side capability |
 | Source C FFI and retained pointer handles | Yes | Rejected | Rejected |
 
 “Yes” refers to the documented feature contract, not every possible future

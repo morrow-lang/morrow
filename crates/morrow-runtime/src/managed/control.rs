@@ -1,8 +1,9 @@
 //! Reference ownership for scheduler control records outside collected payloads.
 //!
-//! References may be released by a moved heap, but the records remain exclusively
-//! accessed on their invocation thread. Atomic ownership does not make mutation
-//! thread safe. Destructors only release owned storage and never enter a domain.
+//! References may be released by a moved heap. Foreign readers access only
+//! immutable identity or explicitly synchronized fields; mutable scheduler state
+//! remains owner-only. Atomic ownership does not make mutation thread safe.
+//! Destructors only release owned storage and never enter a domain.
 use std::cell::UnsafeCell;
 use std::ffi::c_void;
 use std::marker::PhantomData;
@@ -74,13 +75,23 @@ impl<T> Owned<T> {
         unsafe { crate::memory::Control::new(owner.pointer.as_ptr().cast(), release::<T>) }
     }
 
-    #[cfg(test)]
     pub(super) fn downgrade(&self) -> std::sync::Weak<Allocation<T>> {
         // SAFETY: borrow the into_raw-produced reference without consuming it.
         let owner = ManuallyDrop::new(unsafe {
             Arc::from_raw(self.pointer.as_ptr().cast::<Allocation<T>>())
         });
         Arc::downgrade(&owner)
+    }
+
+    /// Retain a published control without racing the final strong release.
+    /// This grants allocation lifetime only, never access to owner-only fields.
+    /// Dropping the resulting reference uses the same inert, TLS-independent
+    /// destruction contract as retained control tokens.
+    pub(super) fn upgrade(weak: &std::sync::Weak<Allocation<T>>) -> Option<Self> {
+        weak.upgrade().map(|owner| Self {
+            pointer: NonNull::new(Arc::into_raw(owner).cast_mut().cast()).unwrap(),
+            _type: PhantomData,
+        })
     }
 }
 
@@ -101,4 +112,32 @@ pub(super) unsafe fn attach<T>(wrapper: *const u8, record: *mut T) {
 #[cfg(test)]
 pub(super) unsafe fn observe<T>(pointer: *mut T) -> std::sync::Weak<Allocation<T>> {
     unsafe { Owned::retain(pointer).downgrade() }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn weak_upgrade_retains_live_control_and_cannot_revive_finalized_storage() {
+        struct Counted(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+        impl Drop for Counted {
+            fn drop(&mut self) {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            }
+        }
+        let drops = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let owner = Owned::new(Counted(drops.clone()));
+        let pointer = owner.as_ptr();
+        let weak = owner.downgrade();
+        let retained = Owned::upgrade(&weak).expect("live weak reference");
+        assert_eq!(retained.as_ptr(), pointer);
+        drop(owner);
+        assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 0);
+        drop(retained);
+        assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert!(Owned::upgrade(&weak).is_none());
+        drop(weak);
+        assert_eq!(drops.load(std::sync::atomic::Ordering::SeqCst), 1);
+    }
 }

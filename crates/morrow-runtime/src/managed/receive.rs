@@ -7,7 +7,7 @@ unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
         let f = function(s, frame);
         if f.is_null()
             || (*f).step.is_none()
-            || (!(*f).mailbox.is_null() && (*f).mailbox != (*a).mailbox)
+            || (!(*f).mailbox.is_null() && (*f).mailbox != (*a).identity.mailbox)
         {
             fail(&raw mut (*a).exec, 11);
             return false;
@@ -65,12 +65,10 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 if (*a).last == message {
                     (*a).last = previous;
                 }
-                release(s, (*message).cost);
+                transport::release_message(s, a, (*message).cost);
                 (*message).next = null_mut();
                 (*message).value = 0;
                 (*message).cost = 0;
-                (*s).messages -= 1;
-                (*a).messages -= 1;
                 return true;
             }
             previous = message;
@@ -95,7 +93,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn morrow_managed_continue(exec: *mut Exec, frame: *mut c_void) -> i64 {
     unsafe {
-        if (*exec).actor.is_null() || !(*(*exec).actor).alive {
+        if (*exec).actor.is_null() || !(*(*exec).actor).identity.alive.load(Ordering::Acquire) {
             fail(exec, 11);
             return 3;
         }
@@ -132,11 +130,11 @@ pub unsafe extern "C" fn morrow_managed_receive(
         if (*a).waiting
             || select.is_null()
             || (*select).select.is_none()
-            || (*select).mailbox != (*a).mailbox
+            || (*select).mailbox != (*a).identity.mailbox
             || (!timeout.is_null()
                 && (after.is_null()
                     || (*after).step.is_none()
-                    || (!(*after).mailbox.is_null() && (*after).mailbox != (*a).mailbox)))
+                    || (!(*after).mailbox.is_null() && (*after).mailbox != (*a).identity.mailbox)))
         {
             fail(exec, 11);
             return 3;

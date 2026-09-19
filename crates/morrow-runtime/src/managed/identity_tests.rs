@@ -2,12 +2,100 @@
 use super::*;
 
 #[test]
+fn published_pid_validation_does_not_read_mutable_scheduler_state() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let session = (*exec).session;
+        let pid = f.spawn(exec, 41);
+        let actor = (*pid).actor;
+        let generation = (*session).next_id;
+        let slots = (*session).used_slots;
+        let identities = (*session).identities;
+        // A foreign scheduler can only consult the immutable published record.
+        // Its answer must not depend on the owner's mutable table or Exec.
+        (*session).next_id = 0;
+        (*session).used_slots = 0;
+        (*session).identities = null_mut();
+        (*actor).exec.session = null_mut();
+        let valid = valid_pid(session, pid);
+        let live = live_pid(session, pid);
+        (*session).next_id = generation;
+        (*session).used_slots = slots;
+        (*session).identities = identities;
+        (*actor).exec.session = session;
+        morrow_managed_close(exec);
+        assert!(valid, "published identity is independent of owner state");
+        assert!(
+            live,
+            "liveness is independent of owner identity-table access"
+        );
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
+fn published_pid_uses_shared_session_identity_and_atomic_retirement() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = morrow_managed_open(&mut fault, f.functions.as_ptr(), f.functions.len() as i64);
+        let session = (*exec).session;
+        let pid = f.spawn(exec, 41);
+        let actor = (*pid).actor;
+        // A second scheduler has independent mutable state but shares identity.
+        let mut peer = Session {
+            session_key: (*session).session_key,
+            ..Session::default()
+        };
+        let mut foreign = Session {
+            session_key: (*session).session_key.wrapping_add(1),
+            ..Session::default()
+        };
+        assert!(valid_pid(&mut peer, pid));
+        assert!(live_pid(&mut peer, pid));
+        assert!(!valid_pid(&mut foreign, pid));
+        let published = (
+            (*actor).identity.session_key,
+            (*actor).identity.scheduler,
+            (*actor).identity.id,
+            (*actor).identity.slot,
+            (*actor).identity.mailbox,
+            (*actor).identity.supervisor,
+        );
+        assert_eq!(dequeue(session), actor);
+        scheduler::finish(actor);
+        assert!(valid_pid(&mut peer, pid), "retirement preserves identity");
+        assert!(!live_pid(&mut peer, pid), "retirement is visible to peers");
+        assert_eq!(
+            published,
+            (
+                (*actor).identity.session_key,
+                (*actor).identity.scheduler,
+                (*actor).identity.id,
+                (*actor).identity.slot,
+                (*actor).identity.mailbox,
+                (*actor).identity.supervisor,
+            )
+        );
+        morrow_managed_close(exec);
+        assert_eq!(fault, 0);
+    }
+}
+
+#[test]
 fn ownership_metadata_preserves_the_existing_logical_byte_quota() {
     // Independent sizes of the original 64-bit runtime records, including the
     // test/simulation clock's 24-byte prefix on Session.
     assert_eq!(ACTOR_BYTES, 192);
     assert_eq!(SESSION_BYTES, 144);
     assert_eq!(std::mem::size_of::<Pid>(), 32);
+    assert_eq!(std::mem::size_of::<Exec>(), 24);
+    assert_eq!(std::mem::offset_of!(Exec, fault), 16);
+    assert_eq!(std::mem::offset_of!(Pid, actor), 8);
+    assert_eq!(std::mem::offset_of!(Pid, id), 16);
+    assert_eq!(std::mem::offset_of!(Pid, mailbox), 24);
     assert_eq!(std::mem::size_of::<supervision::Supervisor>(), 48);
 }
 
@@ -26,7 +114,7 @@ fn control_records_are_not_collected_program_values() {
             session.cast(),
             (*session).identities.cast(),
             actor.cast(),
-            (*actor).supervisor.cast(),
+            (*actor).identity.supervisor.cast(),
         ] {
             assert!(
                 !memory::heap_owns(0, control),
@@ -58,7 +146,7 @@ fn final_pid_release_reclaims_retired_actor_lineage_and_session() {
             .cast::<Pid>();
         let session = control::observe((*exec).session);
         let actor = control::observe((*pid).actor);
-        let supervisor = control::observe((*(*pid).actor).supervisor);
+        let supervisor = control::observe((*(*pid).actor).identity.supervisor);
         let slot = Box::new(pid as usize);
         let root = memory::root_range(&*slot, 1);
         morrow_managed_close(exec);
@@ -198,8 +286,8 @@ fn foreign_pid_retains_dead_identity_and_supervision_lineage_until_its_heap_dies
         let current = (*session).first;
         let current_lifetime = control::observe(current);
         assert_ne!(current, old);
-        assert_eq!((*current).slot, (*old).slot);
-        assert_ne!((*current).id, (*old).id);
+        assert_eq!((*current).identity.slot, (*old).identity.slot);
+        assert_ne!((*current).identity.id, (*old).identity.id);
         assert!(!memory::heap_owns(old_heap, old_frame));
         memory::morrow_gc_collect_precise();
         assert!(

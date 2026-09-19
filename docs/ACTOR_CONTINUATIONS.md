@@ -1,6 +1,8 @@
 # Actor continuations
 
-Morrow's native scheduler runs FIFO callbacks. The compiler emits separate actor
+Each of Morrow's native schedulers runs FIFO callbacks. Native invocations can
+opt into multiple pinned scheduler threads with `MORROW_SCHEDULERS`; see the
+[actor runtime](ACTOR_RUNTIME.md#typed-native-execution). The compiler emits separate actor
 copies of eligible functions, keeping their ordinary native ABI and synchronous
 behavior when called outside an actor. This is cooperative source-level
 suspension, not instruction-level or operating-system preemption.

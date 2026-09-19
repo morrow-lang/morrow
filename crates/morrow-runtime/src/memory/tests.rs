@@ -747,3 +747,137 @@ fn external_control_roots_reject_a_different_owner() {
         )
     };
 }
+
+#[test]
+fn fragment_transfer_adopts_storage_without_moving_or_losing_accounting() {
+    let mut sender = Domain::new();
+    let (fragment, parent, child) = {
+        let _active = sender.activate();
+        let mut fragment = Fragment::new();
+        let parent = fragment.allocate(16, false);
+        let child = fragment.allocate(40, true);
+        unsafe {
+            parent.cast::<usize>().write(child as usize);
+            child.write(91);
+        }
+        assert!(!heap_owns(0, parent.cast()));
+        assert_eq!((stats().bytes, stats().objects), (56, 2));
+        unsafe { morrow_gc_collect_precise() };
+        assert_eq!((stats().bytes, stats().objects), (56, 2));
+        (fragment, parent as usize, child as usize)
+    };
+    std::thread::spawn(move || {
+        let mut receiver = Domain::new();
+        let _active = receiver.activate();
+        let actor = fresh_actor_heap();
+        let _scope = enter_heap(actor);
+        fragment.adopt();
+        assert!(heap_owns(actor, parent as *const _));
+        assert!(heap_owns(actor, child as *const _));
+        let root = unsafe { root_range(&parent, 1) };
+        unsafe {
+            morrow_gc_collect_precise();
+            assert_eq!(*(parent as *const usize), child);
+            assert_eq!(*(child as *const u8), 91);
+        }
+        assert_eq!((stats().bytes, stats().objects), (56, 2));
+        drop(root);
+        unsafe { morrow_gc_collect_precise() };
+        assert_eq!((stats().bytes, stats().objects), (0, 0));
+    })
+    .join()
+    .unwrap();
+    assert_eq!((sender.stats().bytes, sender.stats().objects), (0, 0));
+}
+
+#[test]
+fn discarded_fragment_finalizes_values_and_controls_on_another_thread() {
+    struct Counted(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+    impl Drop for Counted {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+    }
+    let mut sender = Domain::new();
+    let (control, control_drops) = external_control();
+    let value_drops = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let fragment = {
+        let _active = sender.activate();
+        let mut fragment = Fragment::new();
+        let wrapper = fragment.allocate(8, true);
+        unsafe {
+            fragment.retain_control(wrapper, control_token(&control));
+            fragment.managed(Counted(value_drops.clone()), 4096);
+        }
+        assert_eq!(stats().bytes, 8 + std::mem::size_of::<Counted>() + 4096);
+        fragment
+    };
+    drop(control);
+    assert_eq!(control_drops.load(Ordering::SeqCst), 0);
+    std::thread::spawn(move || drop(fragment)).join().unwrap();
+    assert_eq!(control_drops.load(Ordering::SeqCst), 1);
+    assert_eq!(value_drops.load(Ordering::SeqCst), 1);
+    assert_eq!((sender.stats().bytes, sender.stats().objects), (0, 0));
+}
+
+#[test]
+fn adopted_fragment_retains_finalizers_until_receiver_collection() {
+    let mut sender = Domain::new();
+    let (control, drops) = external_control();
+    let fragment = {
+        let _active = sender.activate();
+        let mut fragment = Fragment::new();
+        let wrapper = fragment.allocate(8, true);
+        unsafe { fragment.retain_control(wrapper, control_token(&control)) };
+        fragment
+    };
+    drop(control);
+    drop(sender);
+    std::thread::spawn(move || {
+        let mut receiver = Domain::new();
+        let _active = receiver.activate();
+        fragment.adopt();
+        assert_eq!(drops.load(Ordering::SeqCst), 0);
+        assert!(verify_heap_edges().is_ok());
+        unsafe { morrow_gc_collect_precise() };
+        assert_eq!(drops.load(Ordering::SeqCst), 1);
+        assert_eq!(stats().objects, 0);
+    })
+    .join()
+    .unwrap();
+}
+
+#[test]
+fn external_control_heap_scans_only_the_selected_payload_word_range() {
+    #[repr(C)]
+    struct ControlWords {
+        excluded: std::sync::atomic::AtomicUsize,
+        payload: std::sync::atomic::AtomicUsize,
+    }
+    unsafe fn release(pointer: *const ()) {
+        drop(unsafe { std::sync::Arc::from_raw(pointer.cast::<ControlWords>()) });
+    }
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let control = std::sync::Arc::new(ControlWords {
+        excluded: std::sync::atomic::AtomicUsize::new(0),
+        payload: std::sync::atomic::AtomicUsize::new(0),
+    });
+    // SAFETY: both atomic words have stable storage and no concurrent writers.
+    // Only payload is part of the requested conservative root range.
+    let heap = unsafe {
+        let token = Control::new(std::sync::Arc::into_raw(control.clone()).cast(), release);
+        create_control_heap_at(std::sync::Arc::as_ptr(&control).cast(), 1, 1, token)
+    };
+    let scope = enter_heap(heap);
+    let excluded = alloc(16, true);
+    let payload = alloc(16, true);
+    control.excluded.store(excluded as usize, Ordering::Relaxed);
+    control.payload.store(payload as usize, Ordering::Relaxed);
+    unsafe { morrow_gc_collect_precise() };
+    assert!(!heap_owns(heap, excluded.cast()));
+    assert!(heap_owns(heap, payload.cast()));
+    drop(scope);
+    retire_heap(heap);
+    assert_eq!(stats().objects, 0);
+}

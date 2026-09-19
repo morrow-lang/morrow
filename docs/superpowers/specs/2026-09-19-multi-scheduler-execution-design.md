@@ -1,13 +1,13 @@
 # Multi-scheduler execution
 
-Status: tasks 1 and 2 adopted; tasks 3–7 proposed. Date: 2026-09-19.
+Status: all seven tasks adopted and verified (Decisions158–160). Date: 2026-09-19.
 Step 2 of 5 toward parallel actor execution.
 
 Step 1 is [sendable actor heaps](2026-09-15-sendable-actor-heaps-design.md),
 adopted as Decision156. It moved heap ownership out of thread-local storage into
 an explicit `Domain` and left the thread-local as a cursor. It produced no
 parallelism. The activation API in `crates/morrow-runtime/src/memory/heaps.rs`
-still carries `#[allow(dead_code)]`; task 6's scheduler set will use it.
+originally carried `#[allow(dead_code)]`; task 6's scheduler set will use it.
 
 ## Goal
 
@@ -170,16 +170,16 @@ implementation detail, and it should be settled before the queues are split.
    reachable from any scheduler and no longer swept by one scheduler's collector.
    PID wrappers retain controls explicitly, so task 4's message fragments can
    transfer those references without exposing collected storage. Findings 1 and 3.
-3. **Immutable actor identity header.** Split `Actor` so PID validation reads only
+3. **Immutable actor identity header.** *Implemented in Decision160.* Split `Actor` so PID validation reads only
    published, never-rewritten fields, and the retired record a stale PID follows
    stays readable. Behaviour-preserving single-threaded. Finding 3.
-4. **Message fragments.** Give `managed/copy.rs` an explicit destination and route
+4. **Message fragments.** *Implemented in Decision160.* Give `managed/copy.rs` an explicit destination and route
    `send` through a fragment the receiver adopts. Finding 4.
-5. **Budget policy.** Settle split-versus-atomic for the session counters and
+5. **Budget policy.** *Decision160 preserves one exact atomic invocation budget.* Settle split-versus-atomic for the session counters and
    record it as a decision, because it moves an observable limit. Finding 5.
-6. **Per-scheduler run queues and a scheduler set.** Only now does the FIFO list on
+6. **Per-scheduler run queues and a scheduler set.** *Implemented in Decision160.* Only now does the FIFO list on
    `Session` split, with the simulation driver running N schedulers on one thread.
-7. **OS threads.** The production driver. ThreadSanitizer becomes load-bearing here
+7. **OS threads.** *Implemented in Decision160, opt-in through `MORROW_SCHEDULERS`.* The production driver. ThreadSanitizer becomes load-bearing here
    rather than quiet.
 
 Tasks 1 to 4 change no observable behaviour and each has its own oracle. Task 5 is
@@ -218,3 +218,20 @@ question without reading mutable state.
 scheduler, so the first parallel measurements will look worse than they should on
 any workload with uneven callbacks. That is step 3, and the measurement write-up
 has to say so rather than presenting step 2 numbers as the ceiling.
+
+## Implemented execution contract
+
+The production count defaults to one and accepts `MORROW_SCHEDULERS=1..64`.
+The native host can configure before actor publication and explicitly place root
+spawns; ordinary root spawns use round-robin placement. Actor children and
+supervision stay on their spawning scheduler. Each OS worker owns a Domain and
+fault cell. Stops, including partial startup failures, join workers before the
+host releases descriptors. Queue publication rejects copies completed after
+stop, and quiescence includes active callbacks and pending transport.
+
+The feature-gated `managed::simulate_schedulers` and `scheduler_recording` APIs
+run/replay scheduler choices through those same owner operations on one thread.
+The shared limits count fragments before adoption and are independent of scheduler
+count. See [the current runtime contract](../../ACTOR_RUNTIME.md) for APIs, ordering
+and remaining limitations. The findings above retain the preimplementation
+census; they do not describe today's control allocation or send path.

@@ -1875,6 +1875,53 @@ fn actor_force_collection_before_suspension(program: &mut Program) {
 }
 
 #[test]
+fn compiled_parallel_actors_preserve_fifo_full_width_payloads_and_precise_roots() {
+    let source = r#"
+type Message:
+    Data(Int, String, List(Int))
+fn receiver():
+    for index in 0..8:
+        receive:
+            Data(number, text, values) ->
+                println(number)
+                println(String.len(text))
+                println(List.head(values))
+fn sender(target: Pid(Message)):
+    for index in 0..8:
+        let text = String.repeat("🌿", 2048)
+        match send(target, Data(index, text, [-9223372036854775808])):
+            Ok(()) -> ()
+            Err(code) -> println(code)
+fn main():
+    let first: Pid(()) = spawn(() -> ())
+    let target: Pid(Message) = spawn(receiver)
+    let source: Pid(()) = spawn(() -> sender(target))
+    ()
+"#;
+    let checked =
+        morrow_compiler::check::check(&morrow_compiler::parse::parse(source).unwrap()).unwrap();
+    let mut program = morrow_compiler::lowering::lower(&checked).unwrap();
+    actor_force_collection_before_suspension(&mut program);
+    let harness = r#"unsafe extern "C" { fn morrow_main() -> i32; }
+fn main() {
+    // No other thread exists before the native runtime starts its workers.
+    unsafe { std::env::set_var("MORROW_SCHEDULERS", "3"); }
+    assert_eq!(unsafe { morrow_main() }, 0);
+}"#;
+    let expected: String = (0..8)
+        .map(|index| format!("{index}\n8192\n-9223372036854775808\n"))
+        .collect();
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        expected.as_bytes()
+    );
+}
+
+#[test]
 fn compiled_actor_main_keeps_exec_live_across_precise_heap_zero_collection() {
     let source = "fn worker(): println(\"worker\")\nfn main():\n    let pid: Pid(()) = spawn(worker)\n    ()\n";
     let checked =

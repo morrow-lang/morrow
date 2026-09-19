@@ -12,6 +12,43 @@ pub unsafe extern "C" fn morrow_managed_new(
     count: i64,
 ) -> *mut Exec {
     unsafe {
+        let count_schedulers = match std::env::var("MORROW_SCHEDULERS") {
+            Ok(value) => match value.parse::<i64>() {
+                Ok(count @ 1..=64) => count,
+                _ => {
+                    if !fault.is_null() && *fault == 0 {
+                        *fault = 9;
+                    }
+                    return null_mut();
+                }
+            },
+            Err(std::env::VarError::NotPresent) => 1,
+            Err(_) => {
+                if !fault.is_null() && *fault == 0 {
+                    *fault = 9;
+                }
+                return null_mut();
+            }
+        };
+        let exec = new_local(fault, functions, count);
+        if !exec.is_null()
+            && count_schedulers > 1
+            && parallel::morrow_managed_parallel(exec, count_schedulers) != 0
+        {
+            morrow_managed_stop(exec);
+            return null_mut();
+        }
+        exec
+    }
+}
+
+/// Scheduler construction bypasses the root's environment configuration.
+pub(super) unsafe fn new_local(
+    fault: *mut i64,
+    functions: *const *const Function,
+    count: i64,
+) -> *mut Exec {
+    unsafe {
         if fault.is_null() {
             return null_mut();
         }
@@ -64,6 +101,7 @@ pub unsafe extern "C" fn morrow_managed_new(
             ..Session::default()
         });
         let s = session.as_ptr();
+        (*s).session_key = s as usize;
         #[cfg(test)]
         if COLLECT_NEW.with(|collect| collect.get()) {
             memory::morrow_gc_collect_precise();
@@ -110,6 +148,29 @@ pub unsafe extern "C" fn morrow_managed_spawn(
     mailbox: *const Type,
 ) -> *mut c_void {
     unsafe {
+        if !exec.is_null()
+            && !(*exec).session.is_null()
+            && (*exec).actor.is_null()
+            && shared((*exec).session).is_some()
+            && *(*exec).fault == 0
+        {
+            let target = parallel::next_target((*exec).session);
+            if target != (*(*exec).session).scheduler {
+                return transport::spawn_remote(exec, closure, mailbox, target);
+            }
+        }
+        spawn(exec, closure, mailbox, null_mut())
+    }
+}
+
+/// The supervision anchor is part of identity and must precede publication.
+pub(super) unsafe fn spawn(
+    exec: *mut Exec,
+    closure: *mut c_void,
+    mailbox: *const Type,
+    supervisor: *mut supervision::Supervisor,
+) -> *mut c_void {
+    unsafe {
         if exec.is_null() || (*exec).session.is_null() || *(*exec).fault != 0 {
             return null_mut();
         }
@@ -123,18 +184,58 @@ pub unsafe extern "C" fn morrow_managed_spawn(
             fail(exec, 11);
             return null_mut();
         }
-        let cost = cost::frame(s, closure);
-        let slot = vacant_slot(s);
-        if (*s).stopped || (*s).live >= LIVE || slot.is_none() || cost.is_none() {
+        let Some(cost) = cost::frame(s, closure) else {
             fail(exec, 9);
             return null_mut();
+        };
+        let frame = copy::frame_fragment(s, closure);
+        match create_actor(s, frame, cost, mailbox, supervisor) {
+            Ok(actor) => new_pid(actor.as_ptr()).cast(),
+            Err(code) => {
+                fail(exec, code);
+                null_mut()
+            }
         }
-        let cost = cost.unwrap();
-        if !charge(s, cost + ACTOR_BYTES + std::mem::size_of::<Pid>()) {
-            fail(exec, 9);
-            return null_mut();
+    }
+}
+
+/// Create an actor on the receiving scheduler from a preflighted copied frame.
+pub(super) unsafe fn spawn_fragment(
+    s: *mut Session,
+    frame: copy::FragmentCopy,
+    cost: usize,
+    mailbox: *const Type,
+) -> Result<transport::ActorRef, i64> {
+    unsafe { create_actor(s, frame, cost, mailbox, null_mut()) }
+}
+unsafe fn create_actor(
+    s: *mut Session,
+    frame: copy::FragmentCopy,
+    cost: usize,
+    mailbox: *const Type,
+    supervisor: *mut supervision::Supervisor,
+) -> Result<transport::ActorRef, i64> {
+    unsafe {
+        let slot = vacant_slot(s).ok_or(9)?;
+        if (*s).stopped
+            || (*s).live >= LIVE
+            || shared(s).is_some_and(|g| g.stopped.load(Ordering::Acquire))
+        {
+            return Err(9);
         }
+        let id = reserve_actor(s, cost + ACTOR_BYTES + std::mem::size_of::<Pid>()).ok_or(9)?;
         let actor = control::Owned::new(Actor {
+            identity: ActorIdentity {
+                session_key: (*s).session_key,
+                scheduler: (*s).scheduler,
+                id,
+                slot,
+                mailbox,
+                supervisor,
+                alive: AtomicBool::new(true),
+                ..ActorIdentity::default()
+            },
+            _supervisor: (!supervisor.is_null()).then(|| control::Owned::retain(supervisor)),
             _session: Some(control::Owned::retain(s)),
             ..Actor::default()
         });
@@ -144,21 +245,52 @@ pub unsafe extern "C" fn morrow_managed_spawn(
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        (*a).heap =
-            memory::create_control_heap(a.cast(), std::mem::size_of::<Actor>() / 8, actor.token());
-        (*a).alive = true;
-        (*a).mailbox = mailbox;
+        let offset = std::mem::offset_of!(Actor, exec) / 8;
+        (*a).heap = memory::create_control_heap_at(
+            a.cast(),
+            std::mem::size_of::<Actor>() / 8 - offset,
+            offset,
+            actor.token(),
+        );
         {
             let _child_scope = memory::enter_heap((*a).heap);
-            let copied = copy::frame(s, closure);
-            (*a).frame = copied.value as *mut c_void;
+            (*a).frame = frame.adopt() as *mut c_void;
         }
         (*a).frame_cost = cost;
         (*a).deadline = u64::MAX;
-        publish_actor(s, a, slot.unwrap());
-        let pid = new_pid(a);
+        publish_actor(s, a, slot);
         enqueue(a);
-        pid.cast()
+        Ok(transport::ActorRef::retain(a))
+    }
+}
+
+/// Place a root-spawned actor on a selected scheduler. Child actors stay local.
+/// # Safety
+/// The context, closure and mailbox meet `morrow_managed_spawn`'s contract.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_managed_spawn_on(
+    exec: *mut Exec,
+    closure: *mut c_void,
+    mailbox: *const Type,
+    target: i64,
+) -> *mut c_void {
+    unsafe {
+        if exec.is_null() || (*exec).session.is_null() || *(*exec).fault != 0 {
+            return null_mut();
+        }
+        let s = (*exec).session;
+        if !(*exec).actor.is_null()
+            || target < 0
+            || target as usize >= shared(s).map_or(1, |g| g.endpoints.len())
+        {
+            fail(exec, 11);
+            return null_mut();
+        }
+        if target as usize == (*s).scheduler {
+            spawn(exec, closure, mailbox, null_mut())
+        } else {
+            transport::spawn_remote(exec, closure, mailbox, target as usize)
+        }
     }
 }
 
@@ -182,43 +314,15 @@ pub unsafe extern "C" fn morrow_managed_send(
             return abi::result_err(3);
         }
         let a = (*pid).actor;
-        if (*a).messages >= MAILBOX || (*s).messages >= MESSAGES {
-            return abi::result_err(4);
-        }
-        let Some(cost) = cost::value(s, ty, value) else {
-            return abi::result_err(4);
-        };
-        let cost = cost + std::mem::size_of::<Message>();
-        if !charge(s, cost) {
-            return abi::result_err(4);
-        }
-        let Some(now) = now(s) else {
-            release(s, cost);
-            fail(exec, 12);
+        let Some(cost) =
+            cost::value(s, ty, value).and_then(|c| c.checked_add(std::mem::size_of::<Message>()))
+        else {
             return abi::result_err(4);
         };
-        {
-            let _receiver_scope = memory::enter_heap((*a).heap);
-            let copied = copy::value(s, ty, value);
-            let message = allocate::<Message>();
-            *message = Message {
-                next: null_mut(),
-                value: copied.value,
-                cost,
-                enqueued: now,
-            };
-            if (*a).last.is_null() {
-                (*a).first = message;
-            } else {
-                (*(*a).last).next = message;
-            }
-            (*a).last = message;
+        if !transport::send(exec, a, value, ty, cost) {
+            return abi::result_err(4);
         }
-        (*a).messages += 1;
-        (*s).messages += 1;
-        if (*a).waiting && ((*a).deadline == u64::MAX || now < (*a).deadline) {
-            enqueue(a);
-        }
+
         abi::result_ok(0)
     }
 }

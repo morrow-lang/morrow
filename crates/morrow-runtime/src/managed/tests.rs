@@ -267,7 +267,7 @@ fn actor_termination_reclaims_its_payload_without_collecting_other_actors() {
             "termination must reclaim the actor's physical payload heap"
         );
         assert_eq!(*(*(*second).actor).frame.cast::<i64>().add(1), 42);
-        assert!((*(*second).actor).alive);
+        assert!((*(*second).actor).identity.alive.load(Ordering::Acquire));
         morrow_managed_stop(exec);
     }
 }
@@ -278,14 +278,12 @@ fn native_range_descriptor_copies_three_full_width_words_without_json_interpreta
         kind: 10,
         ..scalar()
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&range);
     let mut fault = 0;
     let source = [i64::MIN, i64::MAX, 1];
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &range;
-        (*(*pid).actor).mailbox = &range;
         assert_eq!(
             cost::value((*exec).session, &range, source.as_ptr() as i64),
             Some(24)
@@ -306,15 +304,13 @@ fn actor_termination_finalizes_copied_json_even_with_stale_pointer_words() {
         kind: TYPE_JSON_VALUE,
         ..scalar()
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&ty);
     let mut fault = 0;
     let original = morrow_json::text_node("receiver-owned".into(), 0);
     let source = crate::json::wrap(original.clone());
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
         let result =
             morrow_managed_send(exec, pid.cast(), source as i64, &ty) as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
@@ -340,7 +336,7 @@ fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
         kind: 1,
         ..scalar()
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&ty);
     let mut fault = 0;
     unsafe {
         let exec = f.exec(&mut fault);
@@ -348,8 +344,6 @@ fn receiver_survives_sender_collection_and_termination_with_separate_heaps() {
         let receiver = f.spawn(exec, 42);
         let a = (*sender).actor;
         let b = (*receiver).actor;
-        (*receiver).mailbox = &ty;
-        (*b).mailbox = &ty;
         assert_ne!((*a).heap, (*b).heap);
         let message;
         {
@@ -450,15 +444,13 @@ fn send_copies_nested_graph_and_preserves_internal_sharing() {
         children: fields.as_ptr(),
         arities: null(),
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&pair);
     let mut fault = 0;
     let mut text = *b"hello\0";
     let mut source = [0, text.as_ptr() as i64, text.as_ptr() as i64];
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &pair;
-        (*(*pid).actor).mailbox = &pair;
         let sent = morrow_managed_send(exec, pid.cast(), source.as_ptr() as i64, &pair)
             as *const abi::ResultValue;
         assert_eq!((*sent).tag, 0);
@@ -498,13 +490,11 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
         encoded: 19,
     });
     let source = crate::json::wrap(original.clone());
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&ty);
     let mut fault = 0;
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
         let session = (*exec).session;
         let before = (*session).retained;
         let result =
@@ -535,13 +525,11 @@ fn quota_failure_does_not_copy_or_publish_message() {
         kind: 1,
         ..scalar()
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&string);
     let mut fault = 0;
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &string;
-        (*(*pid).actor).mailbox = &string;
         let session = (*exec).session;
         let original_retained = (*session).retained;
         (*session).retained = BYTES - std::mem::size_of::<Message>();
@@ -573,7 +561,7 @@ fn copy_roots_partial_lists_across_allocation_pressure() {
         children: children.as_ptr(),
         arities: null(),
     };
-    let f = Fixture::new();
+    let f = Fixture::with_mailbox(&ty);
     let mut fault = 0;
     // Distinct large strings force collection inside the transfer. Their source
     // storage is Rust-owned so only the copied graph depends on temporary roots.
@@ -588,12 +576,27 @@ fn copy_roots_partial_lists_across_allocation_pressure() {
     unsafe {
         let exec = f.exec(&mut fault);
         let pid = f.spawn(exec, 0);
-        (*pid).mailbox = &ty;
-        (*(*pid).actor).mailbox = &ty;
         let collections = memory::stats().collections;
+        // Keep the partial in-heap-copy root oracle even though send now builds
+        // a non-collecting fragment. Both destinations must preserve this graph.
+        {
+            let _heap = memory::enter_heap((*(*pid).actor).heap);
+            let copy = copy::value((*exec).session, &ty, &list as *const abi::List as i64);
+            assert!(memory::stats().collections > collections);
+            let copied = &*(copy.value as *const abi::List);
+            for (i, expected) in b"ab".iter().copied().enumerate() {
+                let text = std::ffi::CStr::from_ptr(*copied.data.add(i) as *const _).to_bytes();
+                assert_eq!(text.len(), 700_000);
+                assert!(text.iter().all(|&byte| byte == expected));
+            }
+        }
         let result = morrow_managed_send(exec, pid.cast(), &list as *const abi::List as i64, &ty)
             as *const abi::ResultValue;
         assert_eq!((*result).tag, 0);
+        {
+            let _heap = memory::enter_heap((*(*pid).actor).heap);
+            memory::morrow_gc_collect_precise();
+        }
         assert!(memory::stats().collections > collections);
         let copied = &*((*(*(*pid).actor).first).value as *const abi::List);
         assert_ne!(copied.data, list.data);
@@ -664,6 +667,11 @@ impl Fixture {
             functions,
         }
     }
+    fn with_mailbox(mailbox: *const Type) -> Self {
+        let mut fixture = Self::new();
+        fixture._step.mailbox = mailbox;
+        fixture
+    }
     unsafe fn exec(&self, fault: &mut i64) -> *mut Exec {
         unsafe { morrow_managed_new(fault, self.functions.as_ptr(), self.functions.len() as i64) }
     }
@@ -672,7 +680,7 @@ impl Fixture {
         unsafe {
             frame.write(complete as *const () as i64);
             frame.add(1).write(output);
-            morrow_managed_spawn(exec, frame.cast(), &*self.scalar).cast()
+            morrow_managed_spawn(exec, frame.cast(), self._step.mailbox).cast()
         }
     }
     unsafe fn receive(
@@ -726,7 +734,7 @@ fn receive_prefers_existing_match_before_zero_timeout_and_retires_roots() {
         TRACE.with(|t| assert_eq!(*t.borrow(), [10]));
         let a = (*pid).actor;
         assert!(
-            !(*a).alive
+            !(*a).identity.alive.load(Ordering::Acquire)
                 && (*a).frame.is_null()
                 && (*a).selector.is_null()
                 && (*a).timeout_frame.is_null()
@@ -809,7 +817,7 @@ fn clock_failure_rolls_back_send_and_foreign_pid_has_no_effect() {
         assert_eq!((*(*first).session).retained, retained);
         assert_eq!((*(*pid).actor).messages, 0);
         morrow_managed_run(first);
-        assert!(!(*(*pid).actor).alive);
+        assert!(!(*(*pid).actor).identity.alive.load(Ordering::Acquire));
     }
     CLOCK.with(|c| c.set(None));
 }

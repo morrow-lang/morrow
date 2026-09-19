@@ -7,15 +7,17 @@ application borrow checking, move syntax or lifetime annotations.
 
 ## Native ownership
 
-An invocation thread owns the runtime heap registry. Invocation control data and
-actor identities live in the invocation heap; each actor has an independently
-owned payload heap. Actor callbacks enter their heap through a scoped guard and
+A scheduler's heap `Domain` owns its program and actor payload heaps. Session,
+identity-table, actor and supervision controls live in separate reference-counted
+allocations, outside collected storage. Each actor stays on its owning scheduler
+and has an independently collected payload heap. Actor callbacks enter their heap through a scoped guard and
 restore the previous heap on return. Retiring an actor reclaims its payload heap
 after active scopes have finished. A collection traces only the active heap.
 
-Spawned captures and messages are copied into receiver-owned storage. Copying
-preserves sharing within a supported graph, roots intermediate allocations and
-publishes only a completed copy. Shape, traversal and logical resource checks
+Spawned captures and messages are copied into independently owned fragments before
+receiver adoption. Every block in an unadopted fragment stays live, and copying
+preserves sharing within the graph. In-heap continuation copies instead register
+intermediate roots. Neither path publishes a partial graph. Shape, traversal and logical resource checks
 precede publication. Rejected sends do not expose a partial payload. These bounds
 do not make host allocator exhaustion recoverable; an allocator failure can
 still terminate the process.
@@ -23,13 +25,18 @@ still terminate the process.
 The native ABI remains in `crates/morrow-runtime/src/abi.rs`. PIDs identify
 invocation-owned actors; copying a PID does not transfer actor-control storage.
 Reusable actor-table slots are separate from immutable u64 generations. A copied
-PID carries an explicit edge to its exact invocation control record. Control
-collection reads those metadata edges without tracing another actor's payload;
-sweeping the PID wrapper or retiring its heap removes the edge. A dead identity
+PID wrapper carries explicit reference ownership of its exact actor control.
+Sweeping the wrapper or retiring its heap releases that ownership; collection
+never scans another scheduler's metadata or actor payload. A dead identity
 can therefore remain valid as a value without keeping its payload alive or
 becoming a valid send target after slot reuse.
-The web host pins independent runtimes to multiple worker threads; native actor
-pointers never cross threads. Typed supervision restarts supported recoverable
+Native scheduler threads exchange retained controls and exclusively owned
+fragments. Foreign control access is restricted to immutable identity headers
+and explicitly synchronized fields; GC scans only the owning scheduler's mutable
+actor region, excluding atomic liveness and pending-message counters. Supervision
+uses synchronized weak references to resolve replacements without a cycle.
+The web host also pins independent runtime invocations to worker threads; PIDs
+cannot cross invocation groups. Typed supervision restarts supported recoverable
 actor faults from fresh captures. Callbacks remain cooperative, and arbitrary
 synchronous helpers can still occupy their worker. See
 [actor contracts](RUST_ACTORS.md) and [web workers](WEB_WORKERS.md).
@@ -38,8 +45,9 @@ synchronous helpers can still occupy their worker. See
 
 The compiler emits explicit root frames for managed values. Runtime root guards
 also protect Morrow pointers held only in Rust temporary buffers while allocations
-or callbacks can collect. Roots remember their owning heap and cannot move
-between threads. Actor control and suspended state retain their payload roots
+or callbacks can collect. Roots remember both their domain and heap and cannot
+move between threads. Dropping a root or scope while another domain is active is
+rejected rather than unrooting unrelated storage. Actor control and suspended state retain their payload roots
 through the registered ownership boundary.
 
 Ordinary collection still scans supported native stack/register state and

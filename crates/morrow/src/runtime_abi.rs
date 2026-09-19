@@ -275,6 +275,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_managed_scope_defer"
         | "morrow_managed_supervised_current"
         | "morrow_managed_poll"
+        | "morrow_managed_parallel"
         | "morrow_managed_port"
         | "morrow_managed_port_peek_len"
         | "morrow_option_map"
@@ -349,6 +350,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_managed_receive"
         | "morrow_managed_send"
         | "morrow_managed_supervise"
+        | "morrow_managed_spawn_on"
         | "morrow_managed_port_read"
         | "morrow_regex_replace_checked"
         | "morrow_regex_replace_all_checked"
@@ -485,6 +487,14 @@ mod tests {
             [I64, I64, I64, I64]
         );
         assert_eq!(signature("morrow_managed_stop").unwrap().result, None);
+        assert_eq!(
+            signature("morrow_managed_parallel").unwrap().params,
+            [I64, I64]
+        );
+        assert_eq!(
+            signature("morrow_managed_spawn_on").unwrap().params,
+            [I64, I64, I64, I64]
+        );
         assert_eq!(
             signature("morrow_alloc").unwrap(),
             Signature {

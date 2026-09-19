@@ -112,7 +112,7 @@ unsafe fn active(exec: *mut Exec) -> Option<*mut Actor> {
             return None;
         }
         let a = (*exec).actor;
-        if a.is_null() || !(*a).alive || (*a).cleaning {
+        if a.is_null() || !(*a).identity.alive.load(Ordering::Acquire) || (*a).cleaning {
             fail(exec, 11);
             return None;
         }

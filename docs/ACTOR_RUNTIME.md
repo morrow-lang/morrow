@@ -10,8 +10,9 @@ The broader target language is recorded in [DESIGN.md](../DESIGN.md).
 
 `spawn(initializer)` queues a typed, zero-argument initializer. Its captures are
 copied into a new actor heap before it runs. Sending copies the validated message
-graph into the receiving actor's heap, preserves sharing inside that graph, and
-publishes nothing when validation or admission fails. Strings, aggregates,
+graph into an independently owned fragment. The receiving scheduler adopts its
+blocks without changing their addresses. Copying preserves sharing inside that
+graph and publishes nothing when validation or admission fails. Strings, aggregates,
 full-width ranges and immutable `json.Value` graphs have owned representations;
 PID references point only to invocation-owned control records. Unsupported
 native handles cannot cross this boundary.
@@ -22,26 +23,41 @@ Native compiler frames register typed reference roots. Runtime allocation helper
 still use conservative stack/register discovery, and objects are scanned
 conservatively; this is not yet a fully precise collector.
 
-The scheduler executes FIFO continuation callbacks on one thread. That remains a
-property of the scheduler rather than of heap ownership: heaps are owned by an
-explicit `Domain` value that is `Send`, and the thread-local holds only a cursor to
-the domain currently executing (Decision156). Root and scope tokens name the domain
-that issued them, so retiring one under a different domain is rejected rather than
-unregistering a stranger's root (Decision158). Parallel schedulers are step 2 of
-that work and are not implemented. Typed return
-frames let direct receiving helpers return values and suspend through recursion,
-strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
-combinators use bounded resumable copies; their non-actor entry points retain the
-original synchronous ABI. [Logical cleanup scopes](ACTOR_CLEANUP.md) preserve
-`defer` across suspension, failure and cancellation.
+Each scheduler executes a FIFO queue of cooperative continuation callbacks.
+Workers own separate heap `Domain` values; the calling scheduler uses its current
+domain so existing program values keep their ownership. Actors stay on their
+scheduler for their lifetime.
+Root and scope tokens name their originating domain; retiring them under another
+domain is rejected. PID validation reads immutable identity fields and atomic
+liveness. Delivery checks liveness again on the receiving owner. No sender writes
+another scheduler's actor payload or mailbox links.
 
-This is cooperative source-level suspension, with explicit graph and callback
-limits. Blocking native services and arbitrary instruction preemption remain
-outside that contract. First-class actor-effect helpers remain restricted; see
-[actor continuations](ACTOR_CONTINUATIONS.md) for exact eligibility. One native
-invocation has no parallel workers. The [web host](WEB_WORKERS.md) runs independent
-room invocations on pinned threads; native PIDs never cross those threads.
-Cross-process PIDs and distributed scheduler guarantees remain unimplemented.
+Native invocations default to one scheduler. Set `MORROW_SCHEDULERS=3` to use
+three schedulers, including the calling thread; values outside 1–64 fail before
+actor admission. Root `spawn` calls distribute initial actors round-robin.
+Actors spawned by an actor, supervised children and replacements stay on their
+spawning scheduler. Worker callbacks can run while source `main` is still running;
+parallel mode therefore does not preserve a global main-before-actors order.
+Per-sender/per-recipient message order is preserved. Stop cancels all schedulers,
+drains transport and joins workers before returning borrowed descriptor ownership.
+A callback that blocks delays its scheduler and shutdown until it returns, while
+other schedulers can continue.
+
+Typed return frames let direct receiving helpers suspend through recursion,
+strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
+combinators use bounded resumable copies; ordinary calls retain their synchronous
+ABI. [Logical cleanup scopes](ACTOR_CLEANUP.md) preserve `defer` through suspension,
+failure and cancellation. This remains cooperative suspension: instruction
+preemption, actor migration and work stealing are not implemented. See
+[actor continuations](ACTOR_CONTINUATIONS.md) for eligibility.
+
+The deterministic Rust API `managed::simulate_schedulers(exec, count, seed, replay)`
+runs the same owner turns and transport across separate domains on one OS thread.
+`managed::scheduler_recording(exec)` returns the bounded scheduler-choice sequence
+for replay. These APIs require the `simulation` feature. They do not promise replay
+of physical thread timing. The [web host](WEB_WORKERS.md) also retains its separate
+room-invocation workers. PIDs cannot cross invocation groups; cross-process PIDs
+and distributed scheduler guarantees remain unimplemented.
 
 ## Typed failure and restart
 
@@ -79,7 +95,13 @@ Other retained native values need registered host root slots across calls.
 `morrow_managed_poll(exec, max_steps)` accepts 1–65,536 continuation callbacks and
 returns 0 for completion, 1 for external-input idle, 2 for a reached callback
 budget, or 3 for invocation failure. An idle persistent server is not a deadlock.
-This count does not bound the synchronous work within a helper. String ports are
+This count does not bound the synchronous work within a helper. With parallel
+execution enabled, it bounds calling-thread driver turns; background workers run
+independently. Hosts can call `morrow_managed_parallel(exec, count)` before any
+actor is admitted (0 success, 3 invalid configuration), and use
+`morrow_managed_spawn_on(exec, closure, mailbox, scheduler)` for explicit placement
+of root-spawned actors. Actor callbacks cannot remotely spawn through that API.
+String ports are
 ordinary bounded, actor-owned mailboxes with host reads: peek reports the next
 byte length; read copies UTF-8 into a host buffer and consumes exactly one message.
 A short buffer returns -2 without consuming it; -1 means empty and -3 invalid.
@@ -93,16 +115,22 @@ nonwrapping 64-bit generation. Exhausting that generation range fails admission
 without publishing an actor. Dead controls remain immutable while a PID retains
 them, so stale sends cannot reach a replacement and supervision lookup preserves
 the original lineage. Each PID in a foreign payload heap carries an explicit
-control edge. Invocation collection visits these edges without scanning foreign
-payload; sweeping the PID or retiring its heap removes the edge. Unreferenced dead
-controls then become collectible. Repeated port reads and supervision lookups do
-not consume generations. Actor and supervisor retirement release their active
-logical storage charges. The 64 MiB quota covers active controls and retained
-payload graphs; dead control records kept alive by stale PIDs remain physical
-collector storage after their active charge is released. It is not a hard bound
-on allocator bytes or collector metadata. Control collection visits allocated
-foreign block metadata linearly; it is not constant-time or a scheduler work
-budget guarantee.
+control reference. Sweeping a PID or retiring its payload heap releases that
+reference without scanning foreign payload or foreign collector metadata. The
+last reference releases a dead control. Supervision lookup uses a synchronized
+weak reference to the current actor, so stale lineage lookup remains safe through
+concurrent restart and collection without a reference cycle.
+
+All schedulers share the same 64 MiB logical byte budget, 1,024 live actors and
+65,536 queued messages; each actor retains its 4,096-message limit. Pending
+fragments count before the receiver adopts them. Atomic reservations roll back on
+failed admission. The historical control-record charges and send error 4 remain
+unchanged; adding schedulers does not divide or multiply a limit. Actor and
+supervisor retirement release active logical charges. Stale PID controls remain
+physical storage after that charge is released. The quota is not a hard bound on
+allocator bytes, thread stacks or collector metadata. External controls and
+unadopted payload fragments participate in physical accounting. Repeated port
+reads and supervision lookups do not consume generations.
 
 ## Compatibility mailbox behavior
 

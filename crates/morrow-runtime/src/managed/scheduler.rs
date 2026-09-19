@@ -2,7 +2,7 @@
 use super::*;
 pub(super) unsafe fn enqueue(a: *mut Actor) {
     unsafe {
-        if !(*a).alive || (*a).queued {
+        if !(*a).identity.alive.load(Ordering::Acquire) || (*a).queued {
             return;
         }
         let s = (*a).exec.session;
@@ -35,7 +35,7 @@ unsafe fn refresh(s: *mut Session) {
         (*s).next_deadline = u64::MAX;
         for i in 0..(*s).used_slots {
             let a = *(*s).identities.add(i);
-            if !a.is_null() && (*a).alive && (*a).waiting {
+            if !a.is_null() && (*a).identity.alive.load(Ordering::Acquire) && (*a).waiting {
                 (*s).next_deadline = (*s).next_deadline.min((*a).deadline);
             }
         }
@@ -60,10 +60,10 @@ pub(super) unsafe fn clear_receive(a: *mut Actor) {
 pub(super) unsafe fn finish(a: *mut Actor) {
     unsafe {
         let _actor = control::Owned::retain(a);
-        if !(*a).alive {
+        if !(*a).identity.alive.load(Ordering::Acquire) {
             return;
         }
-        (*a).alive = false;
+        (*a).identity.alive.store(false, Ordering::Release);
         let s = (*a).exec.session;
         // Queue links borrow live actors. Retiring an actor outside dequeue
         // (cancellation or a timer fault) must remove that borrow before release.
@@ -91,12 +91,10 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         while !(*a).first.is_null() {
             let m = (*a).first;
             (*a).first = (*m).next;
-            release(s, (*m).cost);
+            transport::release_message(s, a, (*m).cost);
             (*m).next = null_mut();
             (*m).value = 0;
             (*m).cost = 0;
-            (*s).messages -= 1;
-            (*a).messages -= 1;
         }
         (*a).last = null_mut();
         clear_receive(a);
@@ -104,7 +102,11 @@ pub(super) unsafe fn finish(a: *mut Actor) {
         (*a).frame = null_mut();
         (*a).frame_cost = 0;
         (*s).live -= 1;
-        *(*s).identities.add((*a).slot) = null_mut();
+        if let Some(group) = shared(s) {
+            group.budget.release_actor(0);
+            group.notify();
+        }
+        *(*s).identities.add((*a).identity.slot) = null_mut();
         release(s, ACTOR_BYTES + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
@@ -119,7 +121,11 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
         let mut earliest = u64::MAX;
         for i in 0..(*s).used_slots {
             let a = *(*s).identities.add(i);
-            if a.is_null() || !(*a).alive || !(*a).waiting || (*a).deadline == u64::MAX {
+            if a.is_null()
+                || !(*a).identity.alive.load(Ordering::Acquire)
+                || !(*a).waiting
+                || (*a).deadline == u64::MAX
+            {
                 continue;
             }
             if (*a).deadline <= now {
@@ -129,7 +135,7 @@ pub(super) unsafe fn wake_due(s: *mut Session, now: u64) {
                 earliest = earliest.min((*a).deadline);
             }
         }
-        due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).id));
+        due[..count].sort_unstable_by_key(|a| ((**a).deadline, (**a).identity.id));
         let mut previous: *mut Actor = null_mut();
         let mut a = (*s).first;
         while !a.is_null() {
@@ -204,6 +210,9 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
         if exec.is_null() || (*exec).session.is_null() {
             return;
         }
+        if parallel::run(exec) {
+            return;
+        }
         let s = (*exec).session;
         while (*s).live != 0 && *(*s).root.fault == 0 && !(*s).stopped {
             if (*s).next_deadline != u64::MAX {
@@ -225,7 +234,7 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
                 }
                 continue;
             }
-            if !(*a).alive {
+            if !(*a).identity.alive.load(Ordering::Acquire) {
                 continue;
             }
             step(s, a);
@@ -291,6 +300,7 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             return;
         }
         let s = (*exec).session;
+        parallel::stop(s);
         if (*s).stopped {
             return;
         }
@@ -311,5 +321,36 @@ pub unsafe extern "C" fn morrow_managed_stop(exec: *mut Exec) {
             }
             finish(a);
         }
+    }
+}
+
+/// One scheduler-owner turn shared by the deterministic and threaded drivers.
+/// Queued transports are adopted only while this scheduler's domain is active.
+pub(super) unsafe fn turn(s: *mut Session) -> bool {
+    unsafe {
+        transport::drain(s);
+        if (*s).stopped || *(*s).root.fault != 0 {
+            return false;
+        }
+        if (*s).next_deadline != u64::MAX {
+            let Some(now) = now(s) else {
+                fail(&raw mut (*s).root, 12);
+                return false;
+            };
+            if now >= (*s).next_deadline {
+                wake_due(s, now);
+            }
+            if *(*s).root.fault != 0 {
+                return false;
+            }
+        }
+        let actor = dequeue(s);
+        if actor.is_null() {
+            return false;
+        }
+        if (*actor).identity.alive.load(Ordering::Acquire) {
+            step(s, actor);
+        }
+        true
     }
 }

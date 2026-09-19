@@ -20,9 +20,29 @@ pub unsafe extern "C" fn morrow_managed_open(
     functions: *const *const Function,
     count: i64,
 ) -> *mut Exec {
+    unsafe { open_with(fault, functions, count, true) }
+}
+
+pub(super) unsafe fn open_local(
+    fault: *mut i64,
+    functions: *const *const Function,
+    count: i64,
+) -> *mut Exec {
+    unsafe { open_with(fault, functions, count, false) }
+}
+unsafe fn open_with(
+    fault: *mut i64,
+    functions: *const *const Function,
+    count: i64,
+    configured: bool,
+) -> *mut Exec {
     unsafe {
         let _control = memory::enter_heap(0);
-        let exec = morrow_managed_new(fault, functions, count);
+        let exec = if configured {
+            morrow_managed_new(fault, functions, count)
+        } else {
+            lifecycle::new_local(fault, functions, count)
+        };
         if exec.is_null() {
             return null_mut();
         }
@@ -70,6 +90,9 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             fail(exec, 9);
             return 3;
         }
+        if let Some(status) = parallel::poll(exec, max_steps) {
+            return status;
+        }
         let s = (*exec).session;
         for _ in 0..max_steps {
             if *(*s).root.fault != 0 {
@@ -97,7 +120,7 @@ pub unsafe extern "C" fn morrow_managed_poll(exec: *mut Exec, max_steps: i64) ->
             if a.is_null() {
                 return if (*s).live == 0 { 0 } else { 1 };
             }
-            if (*a).alive {
+            if (*a).identity.alive.load(Ordering::Acquire) {
                 scheduler::step(s, a);
             }
         }
@@ -128,16 +151,34 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             return null_mut();
         }
         let s = (*exec).session;
+        parallel::publish_fault(s);
+        if *(*exec).fault != 0 {
+            return null_mut();
+        }
         let slot = vacant_slot(s);
         if (*s).stopped
+            || shared(s).is_some_and(|group| group.stopped.load(Ordering::Acquire))
             || (*s).live >= LIVE
             || slot.is_none()
-            || !charge(s, ACTOR_BYTES + std::mem::size_of::<Pid>())
         {
             fail(exec, 9);
             return null_mut();
         }
+        let Some(id) = reserve_actor(s, ACTOR_BYTES + std::mem::size_of::<Pid>()) else {
+            fail(exec, 9);
+            return null_mut();
+        };
         let actor = control::Owned::new(Actor {
+            identity: ActorIdentity {
+                session_key: (*s).session_key,
+                scheduler: (*s).scheduler,
+                id,
+                slot: slot.unwrap(),
+                mailbox: string,
+                supervisor: null_mut(),
+                alive: AtomicBool::new(true),
+                ..ActorIdentity::default()
+            },
             _session: Some(control::Owned::retain(s)),
             ..Actor::default()
         });
@@ -147,11 +188,14 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             actor: a,
             fault: &raw mut (*a).fault,
         };
-        (*a).heap =
-            memory::create_control_heap(a.cast(), std::mem::size_of::<Actor>() / 8, actor.token());
-        (*a).alive = true;
+        let offset = std::mem::offset_of!(Actor, exec) / 8;
+        (*a).heap = memory::create_control_heap_at(
+            a.cast(),
+            std::mem::size_of::<Actor>() / 8 - offset,
+            offset,
+            actor.token(),
+        );
         (*a).host_port = true;
-        (*a).mailbox = string;
         (*a).deadline = u64::MAX;
         publish_actor(s, a, slot.unwrap());
         let pid = new_pid(a);
@@ -170,7 +214,11 @@ unsafe fn port_actor(exec: *mut Exec, port: *mut c_void) -> Option<*mut Actor> {
             return None;
         }
         let a = (*pid).actor;
-        ((*a).alive && (*a).host_port).then_some(a)
+        if (*a).identity.scheduler != (*s).scheduler {
+            return None;
+        }
+        transport::drain(s);
+        ((*a).identity.alive.load(Ordering::Acquire) && (*a).host_port).then_some(a)
     }
 }
 
@@ -226,9 +274,7 @@ pub unsafe extern "C" fn morrow_managed_port_read(
             (*a).last = null_mut();
         }
         let s = (*exec).session;
-        release(s, (*message).cost);
-        (*s).messages -= 1;
-        (*a).messages -= 1;
+        transport::release_message(s, a, (*message).cost);
         (*message).next = null_mut();
         (*message).value = 0;
         (*message).cost = 0;
