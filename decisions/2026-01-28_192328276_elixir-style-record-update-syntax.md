@@ -10,7 +10,14 @@ superseded_by = []
 depends_on = []
 related_to = []
 +++
-* **Status**: ✅ Adopted
-* **Decision**: I will use `%{ record | field: value }` syntax for record updates instead of `{ record | field: value }`.
-* **Context**: The original `{ record | field: value }` syntax conflicts with the "no braces" philosophy - Fern uses indentation, not braces, for control flow. Using `%{...}` for record updates matches map literal syntax `%{"key": value}` and is inspired by Elixir. This creates consistency: both maps and record updates use `%{...}`.
-* **Consequences**: Record update syntax is `%{ user | age: 31 }`. Map literals are `%{"key": value}`. Braces without `%` are not used.
+## Decision
+
+I will use `%{ record | field: value }` syntax for record updates instead of `{ record | field: value }`.
+
+## Context
+
+The original `{ record | field: value }` syntax conflicts with the "no braces" philosophy - Fern uses indentation, not braces, for control flow. Using `%{...}` for record updates matches map literal syntax `%{"key": value}` and is inspired by Elixir. This creates consistency: both maps and record updates use `%{...}`.
+
+## Consequences
+
+Record update syntax is `%{ user | age: 31 }`. Map literals are `%{"key": value}`. Braces without `%` are not used.

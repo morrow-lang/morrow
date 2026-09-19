@@ -10,10 +10,21 @@ superseded_by = []
 depends_on = []
 related_to = []
 +++
-* **Status**: Accepted; bounded native/query/WASM corpus verified
-* **Decision**: I will keep explicit grammar/query templates as editable sources, render every published grammar/query deterministically, and generate parser sources and ABI14 WASM only with pinned Tree-sitter 0.26.12 and WASI SDK 29.0. The Rust compiler and accepted source corpus remain the language authority.
-* **Context**: The old generator silently skipped the actual indentation grammar and could not derive aliases, newtypes or function clauses from C token names. Stale WASM copies and uncompiled query text did not establish editor correctness.
-* **Consequences**: The gate checks 24 accepted sources against Rust and native/WASM trees, eight bounded recovery cases, eight incremental edits, four executable queries, and scanner malformed-state/column/stack limits under sanitizers. The external scanner's explicit lifecycle exception permits Tree-sitter `ts_calloc`/`ts_free` and defensive reset/return guards instead of assertions on untrusted serialized state. All 128 indentation levels fit the 514-byte serialized state; columns are 32-bit and capped at 1 MiB. Generation checks every parser source/header plus both identical WASM copies; build output uses the canonical basename because it affects WASM metadata. Full Rust syntax parity and Zed extension registration/packaging remain open. The unavailable `/decision` skill is replaced by this established decision format.
+## Status
+
+Accepted; bounded native/query/WASM corpus verified
+
+## Decision
+
+I will keep explicit grammar/query templates as editable sources, render every published grammar/query deterministically, and generate parser sources and ABI14 WASM only with pinned Tree-sitter 0.26.12 and WASI SDK 29.0. The Rust compiler and accepted source corpus remain the language authority.
+
+## Context
+
+The old generator silently skipped the actual indentation grammar and could not derive aliases, newtypes or function clauses from C token names. Stale WASM copies and uncompiled query text did not establish editor correctness.
+
+## Consequences
+
+The gate checks 24 accepted sources against Rust and native/WASM trees, eight bounded recovery cases, eight incremental edits, four executable queries, and scanner malformed-state/column/stack limits under sanitizers. The external scanner's explicit lifecycle exception permits Tree-sitter `ts_calloc`/`ts_free` and defensive reset/return guards instead of assertions on untrusted serialized state. All 128 indentation levels fit the 514-byte serialized state; columns are 32-bit and capped at 1 MiB. Generation checks every parser source/header plus both identical WASM copies; build output uses the canonical basename because it affects WASM metadata. Full Rust syntax parity and Zed extension registration/packaging remain open. The unavailable `/decision` skill is replaced by this established decision format.
 
 The union follow-on extends this verified profile to 38 accepted sources, 12 recovery cases and 13 incremental edits. Structural assertions distinguish functions returning unions from function-valued union members, and typed binders from wildcards. Module-alias fixtures use real Rust module graphs; native/WASM trees and highlight captures agree. Both generated WASM artifacts are 110,316 bytes with SHA256 `fccdfd05b2db4117680058e3d6fe2c39bd8d13c02ed24d95486cb79b218d1f0a`. Broader syntax and extension packaging remain open.
 
@@ -44,4 +55,4 @@ malformed recovery ranges and 33 incremental edits. Binary/octal/hexadecimal
 prefixes, valid integer separators and exponent-only Floats retain exact numeric
 token kinds/text. All published parser/WASM files are generated from the authored
 template; remaining syntax and numeric semantic validation still belong to the
-compiler. This extends Decision84 without changing Fern numeric semantics.
+compiler. This extends Decision 84 without changing Fern numeric semantics.

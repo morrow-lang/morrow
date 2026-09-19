@@ -7,13 +7,20 @@ status = "accepted"
 tags = ["rust", "performance"]
 supersedes = []
 superseded_by = []
-depends_on = []
-related_to = []
+depends_on = ["01M2XHZ8C5CX1RJ31TATKP1D95"]
+related_to = ["01M2XHZ8BQVVV17FRV09VJM2NS"]
 +++
-* **Status**: ✅ Adopted
-* **Decision**: I will enforce tested MSRV-compatible lints, audit strict restrictions module by module, and measure compiler phases in an independently locked Criterion developer package.
-* **Context**: The attached review guidance calls for practical safety checks and developer tools while preserving the existing project contracts.
-* **Consequences**: Adopt eight MSRV-compatible package Clippy restrictions, production panic restrictions,
+## Decision
+
+I will enforce tested MSRV-compatible lints, audit strict restrictions module by module, and measure compiler phases in an independently locked Criterion developer package.
+
+## Context
+
+The attached review guidance calls for practical safety checks and developer tools while preserving the existing project contracts.
+
+## Consequences
+
+Adopt eight MSRV-compatible package Clippy restrictions, production panic restrictions,
 
 and a stricter audited source-directory module. Test lint names and enforcement with
 real offline negative crates. Keep validated bounded arithmetic narrowly documented.
@@ -25,8 +32,8 @@ codec validation, with independently verified fixtures and black_box. Keep compi
 production dependencies and lock unchanged. CI smoke checks behavior; statistical
 baselines are optional and cannot alone establish performance improvement.
 
-Use the Decision106 mise workflow and its tested optional tools, not Nix/devenv or
-a new Justfile. Preserve the production MSRV and exact CLI semantics (Decision108
+Use the [Decision 106](2026-09-06_192327493_reproducible-development-tasks-with-mise.md) mise workflow and its tested optional tools, not Nix/devenv or
+a new Justfile. Preserve the production MSRV and exact CLI semantics ([Decision 108](2026-09-06_192327479_preserve-common-cli-controls-during-rust-migration.md)
 owns any CLI parser change). docs/RUST_GUIDANCE.md records every attached suggestion,
 its adoption/omission rationale and remaining boundary. No unrelated product crate,
 global tool installation, native runtime changes, or automatic dependency updates.

@@ -10,7 +10,14 @@ superseded_by = []
 depends_on = []
 related_to = []
 +++
-* **Status**: ✅ Accepted
-* **Decision**: I will add a stable Perceus-style object header API (`fern_rc_alloc`, `fern_rc_dup`, `fern_rc_drop`, and metadata accessors) and tag core runtime heap allocations (`Result`, `List`, `StringList`) with explicit RC type tags.
-* **Context**: Milestone 7.7 Step B requires concrete runtime object metadata and refcount operations so later codegen work can insert dup/drop in a verifiable way. Step A only established abstraction entry points (`alloc/dup/drop`) without object header semantics or typed heap metadata.
-* **Consequences**: Runtime now exposes header-level refcount/type/flag queries and updates, and core heap constructors use RC-tagged allocations while memory reclamation remains Boehm-driven for now. Compatibility and C-ABI regression coverage are extended in `tests/test_runtime_surface.c` (`test_runtime_rc_header_and_core_type_ops`).
+## Decision
+
+I will add a stable Perceus-style object header API (`fern_rc_alloc`, `fern_rc_dup`, `fern_rc_drop`, and metadata accessors) and tag core runtime heap allocations (`Result`, `List`, `StringList`) with explicit RC type tags.
+
+## Context
+
+Milestone 7.7 Step B requires concrete runtime object metadata and refcount operations so later codegen work can insert dup/drop in a verifiable way. Step A only established abstraction entry points (`alloc/dup/drop`) without object header semantics or typed heap metadata.
+
+## Consequences
+
+Runtime now exposes header-level refcount/type/flag queries and updates, and core heap constructors use RC-tagged allocations while memory reclamation remains Boehm-driven for now. Compatibility and C-ABI regression coverage are extended in `tests/test_runtime_surface.c` (`test_runtime_rc_header_and_core_type_ops`).
