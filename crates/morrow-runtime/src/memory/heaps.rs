@@ -331,6 +331,21 @@ impl Domain {
             .next_back()
             .is_some_and(|(&base, block)| pointer as usize - base < block.layout.size())
     }
+    /// Only the current owner's top native frame grants reply-write authority.
+    /// The unsafe caller still guarantees registered storage is writable.
+    pub(crate) fn native_root_slot(&self, heap: usize, pointer: usize) -> bool {
+        let word = std::mem::size_of::<usize>();
+        if self.active != heap || !pointer.is_multiple_of(word) {
+            return false;
+        }
+        self.frames.last().is_some_and(|frame| {
+            let Some(end) = frame.words.checked_mul(word).and_then(|n| frame.pointer.checked_add(n)) else {
+                return false;
+            };
+            frame.heap == heap && pointer >= frame.pointer
+                && pointer.checked_add(word).is_some_and(|after| after <= end)
+        })
+    }
     pub(crate) fn frame_enter(&mut self, slots: *const usize, words: usize) -> usize {
         let heap = self.active;
         self.next_frame = self
@@ -588,3 +603,8 @@ const _: fn() = || {
     fn assert_send<T: Send>() {}
     assert_send::<Domain>();
 };
+
+/// Check one reply destination without accepting persistent roots or other frames.
+pub(crate) fn native_root_slot(heap: usize, pointer: *mut usize) -> bool {
+    with_current(|domain| domain.native_root_slot(heap, pointer as usize))
+}

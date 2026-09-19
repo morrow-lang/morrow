@@ -256,7 +256,7 @@ fn unresolved(ty: &Type, span: Span) -> Checked<Vec<u32>> {
                 pending.push(result);
             }
             Type::Union(args) | Type::Tuple(args) | Type::Named(_, args) => pending.extend(args),
-            Type::List(x) | Type::Option(x) => pending.push(x),
+            Type::ChildKey(x) | Type::RootFunction(x) | Type::List(x) | Type::Option(x) => pending.push(x),
             Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {
                 pending.push(a);
                 pending.push(b);

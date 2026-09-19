@@ -181,6 +181,8 @@ fn generalize(ty: &Type) -> Type {
     match ty {
         Type::Infer(id) => Type::Generic(format!("$mailbox{id}")),
         Type::Pid(t) => Type::Pid(Box::new(generalize(t))),
+        Type::ChildKey(t) => Type::ChildKey(Box::new(generalize(t))),
+        Type::RootFunction(t) => Type::RootFunction(Box::new(generalize(t))),
         Type::List(t) => Type::List(Box::new(generalize(t))),
         Type::Option(t) => Type::Option(Box::new(generalize(t))),
         Type::Result(a, b) => Type::Result(Box::new(generalize(a)), Box::new(generalize(b))),
@@ -198,9 +200,8 @@ impl Checker<'_> {
         let Some(signature) = self.signatures.get(name) else {
             return Ok(None);
         };
-        let Some(mailbox) = &signature.mailbox else {
-            return Ok(None);
-        };
+        let mailbox = signature.mailbox.as_ref().or_else(|| signature.contextual.then_some(self.mailbox.as_ref()).flatten());
+        if mailbox.is_none() && !signature.contextual { return Ok(None); }
         let values: HashMap<_, _> = signature
             .generics
             .iter()
@@ -212,7 +213,7 @@ impl Checker<'_> {
             .map(|t| nominal::substitute(t, &values))
             .collect::<Checked<Vec<_>>>()?;
         let result = returns::call_result(&mut self.inference, signature, &values, span)?;
-        let mailbox = nominal::substitute(mailbox, &values)?;
+        let mailbox = mailbox.map(|mailbox| nominal::substitute(mailbox, &values)).transpose()?;
         self.inference
             .call_names
             .insert(signature.id.0, name.into());
@@ -220,10 +221,10 @@ impl Checker<'_> {
             ir::ExprKind::FunctionValue {
                 target: ir::CallTarget::Function(signature.id),
             },
-            Type::ActorFunction(
-                Box::new(mailbox),
-                Box::new(Type::Function(params, Box::new(result))),
-            ),
+            match mailbox {
+                Some(mailbox) => Type::ActorFunction(Box::new(mailbox), Box::new(Type::Function(params, Box::new(result)))),
+                None => Type::RootFunction(Box::new(Type::Function(params, Box::new(result)))),
+            },
         )))
     }
 
@@ -337,16 +338,22 @@ impl Checker<'_> {
         let context = Type::ActorFunction(Box::new(mailbox.clone()), Box::new(function));
         let entry = if let ast::ExprKind::Lambda { body, .. } = &argument.value.kind {
             let ordinary = Type::Function(Vec::new(), Box::new(Type::Unit));
-            let expected = if self.actor_body(body) {
+            let expected = if self.actor_body(body) || self.contextual_body(body) {
                 &context
             } else {
                 &ordinary
             };
             self.expression_expected(argument, Some(expected), depth)?
         } else {
-            self.expression(argument, depth)?
+            // A fresh named entry is instantiated in the new actor's mailbox context;
+            // an already-bound root closure retains its marker and is rejected below.
+            let previous = self.mailbox.replace(mailbox.clone());
+            let entry = self.expression(argument, depth);
+            self.mailbox = previous;
+            entry?
         };
         let resolved = self.inference.resolve(&entry.ty, span)?;
+        if matches!(resolved, Type::RootFunction(_)) { return Err(Diagnostic::new(span, "root function cannot cross an actor boundary")); }
         if resolved == Type::Never {
             return Ok(entry);
         }
@@ -490,6 +497,7 @@ impl Checker<'_> {
     pub(super) fn finalize_actor(&self, actor: &mut ir::ActorExpr, span: Span) -> Checked<()> {
         match actor {
             ir::ActorExpr::Process(operation) => self.finalize_process(operation, span)?,
+            ir::ActorExpr::Supervisor(operation) => self.finalize_supervisor(operation, span)?,
             ir::ActorExpr::Lowered(_) => {
                 return Err(Diagnostic::new(
                     span,
@@ -666,9 +674,12 @@ impl Checker<'_> {
                 | Type::Native(
                     crate::runtime::NativeType::JsonValue
                     | crate::runtime::NativeType::ProcessId
-                    | crate::runtime::NativeType::MonitorRef,
+                    | crate::runtime::NativeType::MonitorRef
+                    | crate::runtime::NativeType::SupervisorHandle
+                    | crate::runtime::NativeType::ChildSpec,
                 )
                 | Type::Pid(_)
+                | Type::ChildKey(_)
                 | Type::Generic(_)
                 | Type::Infer(_) => {}
                 Type::List(item) | Type::Option(item) => pending.push(*item),
@@ -709,10 +720,10 @@ impl Checker<'_> {
 fn process_context(expr: &ast::Expr) -> bool {
     match &expr.kind {
         ast::ExprKind::Call { name, .. } | ast::ExprKind::Pipe { name, .. } => {
-            crate::processes::requires_actor(name)
+            crate::processes::requires_actor(name) || crate::supervisors::requires_actor(name)
         }
         ast::ExprKind::GlobalCall { resolved, .. } | ast::ExprKind::GlobalPipe { resolved, .. } => {
-            crate::processes::requires_actor(resolved)
+            crate::processes::requires_actor(resolved) || crate::supervisors::requires_actor(resolved)
         }
         _ => false,
     }

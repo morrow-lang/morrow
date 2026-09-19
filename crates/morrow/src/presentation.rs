@@ -358,6 +358,8 @@ impl Writer {
                 self.ty(result, depth + 1)
             }
             Type::Pid(a) => self.container("Pid", &[a], depth),
+            Type::ChildKey(a) => self.container("Supervisor.ChildKey", &[a], depth),
+            Type::RootFunction(_) => Err(error("cannot present an internal root function type")),
             Type::ActorFunction(_, _) => {
                 Err(error("cannot present an internal actor function type"))
             }

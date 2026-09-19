@@ -241,7 +241,7 @@ pub(super) fn trait_tuple_arities(
                 tuples.insert(items.len());
                 pending.extend(items);
             }
-            Type::List(a) | Type::Option(a) | Type::Pid(a) => pending.push(a),
+            Type::List(a) | Type::Option(a) | Type::Pid(a) | Type::ChildKey(a) | Type::RootFunction(a) => pending.push(a),
             Type::Map(a, b) | Type::Result(a, b) | Type::ActorFunction(a, b) => {
                 pending.extend([a.as_ref(), b.as_ref()])
             }

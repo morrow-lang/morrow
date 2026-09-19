@@ -40,6 +40,11 @@ pub const TYPE_RANGE: i64 = 10;
 pub const TYPE_JSON_VALUE: i64 = 12;
 pub const TYPE_PROCESS_ID: i64 = 13;
 pub const TYPE_MONITOR_REF: i64 = 14;
+pub const TYPE_SUPERVISOR_HANDLE: i64 = 15;
+pub const TYPE_CHILD_KEY: i64 = 16;
+pub const TYPE_CHILD_SPEC: i64 = 17;
+mod supervisor;
+pub use supervisor::registration::{RequestRegistration, morrow_supervisor_register};
 mod actions;
 #[path = "managed/controls.rs"]
 mod controls;
@@ -120,6 +125,7 @@ struct ActorIdentity {
     ingress: Option<control::Owned<transport::Ingress>>,
     isolated: bool,
     host_port: bool,
+    supervisor_process: bool,
 }
 #[repr(C)]
 #[derive(Default)]

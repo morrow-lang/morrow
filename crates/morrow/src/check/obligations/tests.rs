@@ -154,6 +154,7 @@ fn work_limit_is_charged_before_origin_or_region_allocation() {
 fn unused_result_input_rule_remains_independent_of_borrowing() {
     let ty = Type::Result(Box::new(Type::Int), Box::new(Type::String));
     let function = ir::Function {
+        root_context: false,
         mailbox: None,
         id: ir::FunctionId(0),
         name: "ignored".into(),

@@ -409,6 +409,14 @@ impl Engine<'_> {
                 }
                 self.fresh(&expr.ty, None, expr.span, depth)
             }
+            ir::ActorExpr::Supervisor(operation) => {
+                for child in operation.children() { self.expression(child, depth)?; }
+                if operation.terminal() {
+                    self.terminate(expr.span, depth)?;
+                    return self.node(Region::Empty, expr.span);
+                }
+                self.fresh(&expr.ty, None, expr.span, depth)
+            }
             ir::ActorExpr::Spawn {
                 entry,
                 max_restarts,

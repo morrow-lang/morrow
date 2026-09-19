@@ -15,7 +15,7 @@ pub(super) fn layouts(types: &[ir::TypeLayout]) -> Lowering<HashMap<Type, &ir::T
     }
     for layout in types {
         if matches!(&layout.ty, Type::Named(name, _) if name.starts_with("Process.")) {
-            let expected = crate::processes::nominal_shape(&layout.ty)
+            let expected = crate::processes::nominal_shape(&layout.ty).or_else(|| crate::supervisors::nominal_shape(&layout.ty))
                 .ok_or_else(|| invalid(Span::default(), "invalid process nominal type"))?;
             if layout.storage != ir::LayoutStorage::Tagged
                 || (layout.variants.clone(), layout.fields.clone()) != expected
@@ -124,7 +124,7 @@ pub(super) fn resolved(
                 resolved(field, layouts, span, depth + 1)?;
             }
         }
-        Type::Pid(item) | Type::List(item) | Type::Option(item) => {
+        Type::Pid(item) | Type::ChildKey(item) | Type::RootFunction(item) | Type::List(item) | Type::Option(item) => {
             resolved(item, layouts, span, depth + 1)?
         }
         Type::Map(key, value) => {

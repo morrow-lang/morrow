@@ -49,6 +49,7 @@ pub(super) fn program(
                 "invalid actor function identity",
             ));
         }
+        if function.root_context && function.mailbox.is_some() { return Err(invalid(function.body.span, "root function cannot own an actor context")); }
         if let Some(mailbox) = &function.mailbox {
             if function.name == "main" {
                 return Err(invalid(
@@ -80,6 +81,13 @@ pub(super) fn program(
             {
                 closure(expr, *id, captures, &functions)?;
             }
+            if let ExprKind::Invoke { callee, .. } = &expr.kind {
+                match &callee.ty {
+                    Type::RootFunction(_) if function.mailbox.is_some() => return Err(invalid(expr.span, "root callable cannot run in an actor context")),
+                    Type::ActorFunction(mailbox, _) if function.mailbox.as_ref() != Some(mailbox.as_ref()) => return Err(invalid(expr.span, "actor callable mailbox differs from owner")),
+                    _ => {},
+                }
+            }
             if let ExprKind::Actor(actor) = &expr.kind {
                 actor_expr(actor, expr, function.mailbox.as_ref(), &functions, layouts)?;
             }
@@ -87,7 +95,7 @@ pub(super) fn program(
                 target: CallTarget::Function(id),
                 ..
             } = expr.kind
-                && functions.get(&id.0).is_some_and(|f| f.mailbox.is_some())
+                && functions.get(&id.0).is_some_and(|f| f.mailbox.is_some() || f.root_context && function.mailbox.is_some())
             {
                 return Err(invalid(
                     expr.span,
@@ -110,6 +118,7 @@ fn actor_expr(
 ) -> Lowering<()> {
     match actor {
         ir::ActorExpr::Process(operation) => processes::validate(operation, expr, owner, layouts)?,
+        ir::ActorExpr::Supervisor(operation) => supervisors::validate(operation, expr, owner, layouts)?,
         ir::ActorExpr::Lowered(_) => {
             return Err(invalid(
                 expr.span,
@@ -230,9 +239,11 @@ fn ownership(
             | Type::Native(
                 crate::runtime::NativeType::JsonValue
                 | crate::runtime::NativeType::ProcessId
-                | crate::runtime::NativeType::MonitorRef,
+                | crate::runtime::NativeType::MonitorRef
+                | crate::runtime::NativeType::SupervisorHandle
+                | crate::runtime::NativeType::ChildSpec,
             )
-            | Type::Pid(_) => {}
+            | Type::Pid(_) | Type::ChildKey(_) => {}
             Type::List(item) | Type::Option(item) => pending.push(item),
             Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),
             Type::Map(key, value) => pending.extend([key.as_ref(), value.as_ref()]),
@@ -292,6 +303,8 @@ fn closure(
     );
     if let Some(mailbox) = &target.mailbox {
         ty = Type::ActorFunction(Box::new(mailbox.clone()), Box::new(ty));
+    } else if target.root_context {
+        ty = Type::RootFunction(Box::new(ty));
     }
     expect_type(expr.ty.clone(), ty, expr.span)
 }

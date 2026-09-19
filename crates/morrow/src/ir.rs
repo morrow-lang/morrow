@@ -32,6 +32,8 @@ pub struct TypeLayout {
 }
 #[derive(Clone, Debug)]
 pub struct Function {
+    /// Context-specialized root code cannot be disguised as an ordinary callable.
+    pub root_context: bool,
     pub mailbox: Option<Type>,
     pub id: FunctionId,
     pub name: String,
@@ -486,6 +488,7 @@ fn statement_children(stmt: &Stmt) -> Vec<&Expr> {
 #[derive(Clone, Debug)]
 pub enum ActorExpr {
     Process(crate::processes::ProcessExpr),
+    Supervisor(crate::supervisors::SupervisorExpr),
     Lowered(crate::actors::Lowered),
     Spawn {
         entry: Box<Expr>,

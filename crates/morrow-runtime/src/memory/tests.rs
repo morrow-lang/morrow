@@ -1141,3 +1141,35 @@ fn actor_heap_transfer_keeps_shared_native_json_nodes_exclusively_owned() {
     .unwrap();
     assert_eq!((source.stats().bytes, source.stats().objects), (0, 0));
 }
+
+#[test]
+fn supervisor_reply_slot_requires_current_owner_top_native_frame() {
+    let mut domain = Domain::new();
+    let slots = [0usize; 4];
+    let other = [0usize; 2];
+    let pointer = slots.as_ptr() as usize;
+    assert!(!domain.native_root_slot(0, pointer));
+    let persistent = domain.root(slots.as_ptr(), slots.len());
+    assert!(!domain.native_root_slot(0, pointer), "ordinary roots do not authorize writes");
+    let (heap, token) = (persistent.heap, persistent.id);
+    std::mem::forget(persistent);
+    domain.remove_root(heap, token);
+    let frame = domain.frame_enter(slots.as_ptr(), slots.len());
+    assert!(domain.native_root_slot(0, pointer));
+    assert!(domain.native_root_slot(0, pointer + 3 * std::mem::size_of::<usize>()));
+    assert!(!domain.native_root_slot(0, pointer + 4 * std::mem::size_of::<usize>()));
+    assert!(!domain.native_root_slot(0, pointer + 1));
+    assert!(!domain.native_root_slot(0, usize::MAX));
+    assert!(!domain.native_root_slot(1, pointer), "another owner cannot borrow this frame");
+    let nested = domain.frame_enter(other.as_ptr(), other.len());
+    assert!(!domain.native_root_slot(0, pointer), "only the top frame is authoritative");
+    assert!(domain.native_root_slot(0, other.as_ptr() as usize));
+    domain.frame_leave(nested);
+    assert!(domain.native_root_slot(0, pointer));
+    let empty = domain.frame_enter(std::ptr::null(), 0);
+    assert!(!domain.native_root_slot(0, pointer));
+    domain.frame_leave(empty);
+    domain.frame_leave(frame);
+    assert!(!domain.native_root_slot(0, pointer));
+    assert!(!Domain::new().native_root_slot(0, pointer), "another domain cannot reuse registration");
+}

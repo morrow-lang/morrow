@@ -393,7 +393,7 @@ impl Budget {
                 return Err(limit());
             }
             match ty {
-                Type::Pid(t) | Type::List(t) | Type::Option(t) => stack.push((t, depth + 1)),
+                Type::Pid(t) | Type::ChildKey(t) | Type::RootFunction(t) | Type::List(t) | Type::Option(t) => stack.push((t, depth + 1)),
                 Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {
                     stack.push((a, depth + 1));
                     stack.push((b, depth + 1));

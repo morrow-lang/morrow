@@ -20,6 +20,7 @@ fn result(value: Expr, error: Type) -> Expr {
 }
 fn emit(body: Expr, return_type: Type) -> Result<String, morrow_compiler::Diagnostic> {
     let helper = Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(1),
         name: "helper".into(),
@@ -30,6 +31,7 @@ fn emit(body: Expr, return_type: Type) -> Result<String, morrow_compiler::Diagno
         local_count: 8,
     };
     let main = Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(0),
         name: "main".into(),

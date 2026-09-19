@@ -58,6 +58,7 @@ fn emit(body: Expr, types: Vec<TypeLayout>) -> Result<String, morrow_compiler::D
     lowering::emit(&Program {
         types,
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             captures: vec![],
             id: FunctionId(0),

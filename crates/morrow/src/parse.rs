@@ -3654,7 +3654,7 @@ fn pipe(left: Parsed, right: Parsed) -> ParseResult<Parsed> {
 /// Share type-name arity and primitive identities with canonical static codec targets.
 pub(crate) fn named_type(name: String, mut arguments: Vec<Type>, span: Span) -> ParseResult<Type> {
     let arity = match name.as_str() {
-        "Pid" | "List" | "Option" => Some(1),
+        "Pid" | "Supervisor.ChildKey" | "List" | "Option" => Some(1),
         "Result" | "Map" => Some(2),
         "Int" | "Float" | "Bool" | "String" | "Unit" | "Range" => Some(0),
         _ => None,
@@ -3673,6 +3673,7 @@ pub(crate) fn named_type(name: String, mut arguments: Vec<Type>, span: Span) -> 
         "Bool" => Type::Bool,
         "String" => Type::String,
         "Pid" => Type::Pid(Box::new(arguments.remove(0))),
+        "Supervisor.ChildKey" => Type::ChildKey(Box::new(arguments.remove(0))),
         "List" => Type::List(Box::new(arguments.remove(0))),
         "Option" => Type::Option(Box::new(arguments.remove(0))),
         "Result" | "Map" => {

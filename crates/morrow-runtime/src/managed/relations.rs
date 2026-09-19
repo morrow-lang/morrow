@@ -42,6 +42,10 @@ struct Entries {
     targets: BTreeMap<u64, Vec<Weak<Monitor>>>,
 }
 impl Registry {
+    pub(super) fn next_token(&self) -> Option<u64> {
+        self.next.try_update(Ordering::AcqRel, Ordering::Acquire, |n| n.checked_add(1))
+            .ok().map(|previous| previous + 1)
+    }
     pub fn new() -> Self {
         Self {
             epoch: Arc::new(Epoch {

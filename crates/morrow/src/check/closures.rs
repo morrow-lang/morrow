@@ -29,17 +29,18 @@ impl Checker<'_> {
         let types = self.lambda_parameter_types(params, span)?;
         let result = self.inference.fresh();
         let ordinary = Type::Function(types.clone(), Box::new(result.clone()));
+        let contextual = self.contextual_body(body);
         let mailbox = expected.and_then(|t| {
             if let Type::ActorFunction(m, _) = t {
                 Some((**m).clone())
             } else {
                 None
             }
-        });
+        }).or_else(|| contextual.then(|| self.mailbox.clone()).flatten());
         let ty = mailbox
             .as_ref()
             .map(|m| Type::ActorFunction(Box::new(m.clone()), Box::new(ordinary.clone())))
-            .unwrap_or(ordinary);
+            .unwrap_or_else(|| if contextual { Type::RootFunction(Box::new(ordinary.clone())) } else { ordinary });
         if let Some(expected) = expected {
             let expected = self.inference.resolve(expected, span)?;
             if matches!(expected, Type::Union(_)) {
@@ -187,6 +188,17 @@ impl Checker<'_> {
         let ty = self.inference.resolve(&callee.ty, span)?;
         let (params, result) = match ty {
             Type::Function(params, result) => (params, *result),
+            Type::RootFunction(function) => {
+                if self.mailbox.is_some() { return Err(Diagnostic::new(span, "root function cannot run in an actor context")); }
+                let Type::Function(params, result) = *function else { return Err(Diagnostic::new(span, "invalid root function signature")); };
+                (params, *result)
+            }
+            Type::ActorFunction(mailbox, function) => {
+                let owner = self.mailbox.as_ref().ok_or_else(|| Diagnostic::new(span, "actor function requires an actor context"))?;
+                self.inference.unify(&mailbox, owner, span, "actor callable mailbox")?;
+                let Type::Function(params, result) = *function else { return Err(Diagnostic::new(span, "invalid actor function signature")); };
+                (params, *result)
+            }
             Type::Infer(_) => {
                 let params = args
                     .iter()
@@ -265,12 +277,16 @@ impl Checker<'_> {
         span: Span,
         depth: usize,
     ) -> Checked<TypedKind> {
+        if self.deferred && self.signatures.get(name).is_some_and(|s| s.contextual) { return Err(Diagnostic::new(span, "supervisor helper cannot run in deferred cleanup")); }
         if self.constant_path(name) {
             let (kind, ty) = self.global_name(name, span)?;
             return self.invoke(ir::Expr { kind, ty, span }, args, expected, span, depth);
         }
         if crate::ffi::is_api(name) {
             return self.foreign_api(name, args, expected, span, depth);
+        }
+        if crate::supervisors::is_api(name) {
+            return self.supervisor_call(name, args, expected, span, depth);
         }
         if crate::processes::is_api(name) {
             return self.process_call(name, args, expected, span, depth);
@@ -284,7 +300,7 @@ impl Checker<'_> {
         if self
             .signatures
             .get(name)
-            .is_some_and(|s| s.mailbox.is_some())
+            .is_some_and(|s| s.mailbox.is_some() || s.contextual && self.mailbox.is_some())
         {
             return self.actor_named_call(name, args, expected, span, depth);
         }

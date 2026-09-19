@@ -8,7 +8,7 @@ pub(crate) fn effects(program: &ir::Program) -> Result<BTreeSet<usize>, Diagnost
     let mut callers = BTreeMap::<usize, Vec<usize>>::new();
     let mut work = 0usize;
     for function in &program.functions {
-        if function.mailbox.is_some() {
+        if function.mailbox.is_some() || function.root_context {
             managed.insert(function.id.0);
         }
         let mut pending = vec![&function.body];
@@ -62,7 +62,7 @@ pub(crate) fn validate(program: &ir::Program) -> Result<BTreeSet<usize>, Diagnos
                 }
                 if !direct_spawn
                     && managed.contains(&id.0)
-                    && functions.get(&id.0).is_some_and(|f| f.mailbox.is_none())
+                    && functions.get(&id.0).is_some_and(|f| f.mailbox.is_none() && !f.root_context)
                 {
                     return Err(Diagnostic::new(
                         expr.span,
@@ -131,7 +131,9 @@ fn capture_type(
             Type::Native(
                 crate::runtime::NativeType::JsonValue
                 | crate::runtime::NativeType::ProcessId
-                | crate::runtime::NativeType::MonitorRef,
+                | crate::runtime::NativeType::MonitorRef
+                | crate::runtime::NativeType::SupervisorHandle
+                | crate::runtime::NativeType::ChildSpec,
             ) => {}
             Type::Native(_) | Type::Result(_, _) => {
                 return Err(Diagnostic::new(
@@ -139,6 +141,8 @@ fn capture_type(
                     "native or Result-bearing actor capture graphs are unsupported in 105A",
                 ));
             }
+            Type::RootFunction(_) => return Err(Diagnostic::new(span, "root function cannot cross an actor boundary")),
+            Type::ChildKey(_) => {},
             Type::List(item) | Type::Option(item) => pending.push(item),
             Type::Map(key, value) => pending.extend([key.as_ref(), value.as_ref()]),
             Type::Tuple(fields) | Type::Union(fields) => pending.extend(fields),

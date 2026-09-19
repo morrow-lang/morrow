@@ -15,7 +15,7 @@ mod platform;
 #[path = "memory/rc.rs"]
 mod rc;
 pub(crate) use fragment::Fragment;
-pub(crate) use heaps::Domain;
+pub(crate) use heaps::{Domain, native_root_slot};
 pub(crate) use heaps::{HeapTransfer, TransferError, adopt_heap, detach_heap};
 pub(crate) use heaps::{create_control_heap, create_control_heap_at, retain_control};
 pub(crate) use heaps::{enter as enter_heap, owns as heap_owns, retire as retire_heap};

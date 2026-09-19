@@ -1274,7 +1274,8 @@ fn module_anchor(source: &str) -> usize {
 pub(crate) fn type_text(ty: &Type) -> Result<String> {
     Ok(match ty {
         Type::Pid(value) => format!("Pid({})", type_text(value)?),
-        Type::ActorFunction(_, _) => {
+        Type::ChildKey(value) => format!("Supervisor.ChildKey({})", type_text(value)?),
+        Type::RootFunction(_) | Type::ActorFunction(_, _) => {
             return Err(Diagnostic::new(
                 Span::default(),
                 "internal actor function type cannot be formatted",

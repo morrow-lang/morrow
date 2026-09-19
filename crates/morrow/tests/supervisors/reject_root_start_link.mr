@@ -1,0 +1,8 @@
+fn leaf() -> Result(Supervisor.Handle, Supervisor.Error):
+    Supervisor.start_link(Supervisor.Flags(Supervisor.OneForOne, 0, 1, Supervisor.Never), [])
+fn middle() -> Result(Supervisor.Handle, Supervisor.Error):
+    leaf()
+fn main():
+    match middle():
+        Ok(_) -> ()
+        Err(_) -> ()

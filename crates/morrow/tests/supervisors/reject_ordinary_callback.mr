@@ -1,0 +1,6 @@
+fn mapped(handle: Supervisor.Handle) -> List(Int):
+    let key: Supervisor.ChildKey(Int) = Supervisor.child_key("worker")
+    List.map([1], (number) ->
+        match Supervisor.current(handle, key):
+            Ok(_) -> number
+            Err(_) -> 0)

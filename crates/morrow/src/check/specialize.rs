@@ -3,7 +3,11 @@ use super::{Checked, Checker, Inference, MAX_FUNCTIONS, Signature, nominal};
 use crate::{Diagnostic, Span, Type, ast, ir};
 use std::collections::HashMap;
 
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum Context { Plain, Root, Actor(Type) }
+
 struct Instance {
+    context: Context,
     template: usize,
     arguments: Vec<Type>,
 }
@@ -12,7 +16,8 @@ struct Driver<'a> {
     source: &'a ast::Program,
     signatures: &'a HashMap<String, Signature>,
     instances: Vec<Instance>,
-    seen: HashMap<(usize, Vec<Type>), ir::FunctionId>,
+    seen: HashMap<(usize, Vec<Type>, Context), ir::FunctionId>,
+    context: Context,
     codec_plans: HashMap<usize, std::rc::Rc<crate::json_codec::Plan>>,
 }
 
@@ -28,6 +33,7 @@ pub(super) fn run(
         signatures,
         instances: Vec::new(),
         seen: HashMap::new(),
+        context: Context::Root,
         codec_plans: HashMap::new(),
     };
     for (index, function) in program.functions.iter().enumerate() {
@@ -38,7 +44,8 @@ pub(super) fn run(
             continue;
         }
         if signatures[&function.name].generics.is_empty() {
-            driver.enqueue(index, Vec::new())?;
+            let context = signatures[&function.name].mailbox.clone().map(Context::Actor).unwrap_or(Context::Root);
+            driver.enqueue(index, Vec::new(), context)?;
         }
     }
     let mut functions = Vec::new();
@@ -53,8 +60,9 @@ pub(super) fn run(
             .zip(instance.arguments.iter().cloned())
             .collect();
         let function = source_instance(original, &substitutions)?;
+        let mailbox = match &instance.context { Context::Actor(mailbox) => Some(mailbox.clone()), _ => None };
         let mut checked = Checker {
-            mailbox: None,
+            mailbox,
             editor: None,
             recovery: None,
             signatures,
@@ -72,6 +80,7 @@ pub(super) fn run(
         }
         .function(&function)?;
         checked.id = ir::FunctionId(index);
+        driver.context = checked.mailbox.clone().map(Context::Actor).unwrap_or(Context::Root);
         driver.rewrite(&mut checked.body)?;
         functions.push(checked);
         index += 1;
@@ -83,8 +92,9 @@ pub(super) fn run(
 
 impl Driver<'_> {
     /// Deduplicate an instance before its body is checked so recursion terminates.
-    fn enqueue(&mut self, template: usize, arguments: Vec<Type>) -> Checked<ir::FunctionId> {
-        let key = (template, arguments.clone());
+    fn enqueue(&mut self, template: usize, arguments: Vec<Type>, context: Context) -> Checked<ir::FunctionId> {
+        let context = if self.signatures[&self.source.functions[template].name].contextual { context } else { Context::Plain };
+        let key = (template, arguments.clone(), context.clone());
         if let Some(id) = self.seen.get(&key) {
             return Ok(*id);
         }
@@ -97,6 +107,7 @@ impl Driver<'_> {
         let id = ir::FunctionId(self.instances.len());
         self.seen.insert(key, id);
         self.instances.push(Instance {
+            context,
             template,
             arguments,
         });
@@ -115,6 +126,7 @@ impl Driver<'_> {
             &args.iter().map(|a| a.ty.clone()).collect::<Vec<_>>(),
             result,
             None,
+            self.context.clone(),
         )
     }
 
@@ -124,6 +136,7 @@ impl Driver<'_> {
         args: &[Type],
         result: &Type,
         mailbox: Option<&Type>,
+        context: Context,
     ) -> Checked<ir::FunctionId> {
         let function = &self.source.functions[template];
         let signature = &self.signatures[&function.name];
@@ -140,7 +153,7 @@ impl Driver<'_> {
                 })?
                 .id
                 .0;
-            return self.target_types(target, args, result, mailbox);
+            return self.target_types(target, args, result, mailbox, context);
         }
         let mut values = HashMap::new();
         let pairs = signature
@@ -160,13 +173,19 @@ impl Driver<'_> {
                 })
             })
             .collect::<Checked<Vec<_>>>()?;
-        self.enqueue(template, arguments)
+        self.enqueue(template, arguments, context)
     }
 
     /// Replace source-template call IDs and recursively queue all reachable instances.
     fn rewrite(&mut self, expr: &mut ir::Expr) -> Checked<()> {
-        for child in super::lift::children_mut(expr) {
-            self.rewrite(child)?;
+        if let ir::ExprKind::Lambda { captures, body, .. } = &mut expr.kind {
+            for capture in captures { self.rewrite(&mut capture.value)?; }
+            let context = match &expr.ty { Type::ActorFunction(mailbox, _) => Context::Actor(*mailbox.clone()), _ => Context::Root };
+            let previous = std::mem::replace(&mut self.context, context);
+            self.rewrite(body)?;
+            self.context = previous;
+        } else {
+            for child in super::lift::children_mut(expr) { self.rewrite(child)?; }
         }
         if let ir::ExprKind::JsonCodec { plan, .. } = &mut expr.kind {
             let identity = std::rc::Rc::as_ptr(plan) as usize;
@@ -201,7 +220,7 @@ impl Driver<'_> {
                                     Box::new(Type::Native(crate::runtime::NativeType::JsonError)),
                                 );
                                 *callback = crate::json_codec::Callback::Function(
-                                    self.target_types(signature.id.0, &[input], &result, None)?,
+                                    self.target_types(signature.id.0, &[input], &result, None, Context::Root)?,
                                 );
                             }
                         }
@@ -218,7 +237,7 @@ impl Driver<'_> {
                 mailbox,
             }) => {
                 let types: Vec<_> = args.iter().map(|a| a.ty.clone()).collect();
-                *function = self.target_types(function.0, &types, &expr.ty, Some(mailbox))?;
+                *function = self.target_types(function.0, &types, &expr.ty, Some(mailbox), Context::Actor(mailbox.clone()))?;
             }
             ir::ExprKind::Call {
                 target: ir::CallTarget::Function(id),
@@ -230,7 +249,7 @@ impl Driver<'_> {
                 let Some((mailbox, params, result)) = crate::actors::function(&expr.ty) else {
                     return Err(Diagnostic::new(expr.span, "invalid function value type"));
                 };
-                *id = self.target_types(id.0, params, result, mailbox)?;
+                *id = self.target_types(id.0, params, result, mailbox, mailbox.cloned().map(Context::Actor).unwrap_or(Context::Root))?;
             }
             _ => {}
         }

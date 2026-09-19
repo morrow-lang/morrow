@@ -1,0 +1,52 @@
+type Signal:
+    Ready(Pid(Signal))
+    Release
+fn handled(value: Result((), Process.Error)) -> Unit:
+    match value:
+        Ok(()) -> ()
+        Err(_) -> println("process-error")
+fn flags() -> Supervisor.Flags:
+    Supervisor.Flags(Supervisor.OneForOne, 0, 1, Supervisor.Never)
+fn start_leaf(spec: Supervisor.ChildSpec) -> Result(Supervisor.Handle, Supervisor.Error):
+    Supervisor.start(flags(), [spec])
+fn start_chain(spec: Supervisor.ChildSpec) -> Result(Supervisor.Handle, Supervisor.Error):
+    let launch = () -> start_leaf(spec)
+    launch()
+fn worker(gate: Pid(Signal)) -> Unit:
+    let own: Pid(Signal) = Process.self()
+    let previous = Process.trap_exit(true)
+    defer println("worker-cleanup")
+    println("awaiting-release")
+    handled(send(gate, Ready(own)))
+    receive:
+        Release -> ()
+    println("acknowledging")
+    handled(Process.init_ack())
+    receive_event:
+        Process.Exit(_, Process.Shutdown) -> Process.exit(Process.Shutdown)
+fn gate() -> Unit:
+    receive:
+        Ready(worker) ->
+            println("sibling-progress")
+            handled(send(worker, Release))
+fn controller() -> Unit:
+    let own: Pid(Signal) = Process.self()
+    defer println("controller-cleanup")
+    let key: Supervisor.ChildKey(Signal) = Supervisor.child_key("worker")
+    match Process.spawn(gate):
+        Ok(gate) ->
+            match Supervisor.worker(key, () -> worker(gate), Supervisor.ChildPolicy(Supervisor.Transient, Supervisor.Infinity, false)):
+                Ok(spec) ->
+                    match start_chain(spec):
+                        Ok(handle) ->
+                            println("started")
+                            match Supervisor.stop(handle):
+                                Ok(()) -> println("stopped")
+                                Err(_) -> println("stop-error")
+                        Err(_) -> println("start-error")
+                Err(_) -> println("spec-error")
+        Err(_) -> println("spawn-error")
+fn main():
+    match Process.spawn(controller):
+        Ok(_) -> ()
+        Err(_) -> println("controller-error")

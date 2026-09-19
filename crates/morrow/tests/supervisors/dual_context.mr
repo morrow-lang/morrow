@@ -1,0 +1,46 @@
+fn flags() -> Supervisor.Flags:
+    Supervisor.Flags(Supervisor.OneForOne, 0, 1, Supervisor.Never)
+fn leaf(options: Supervisor.Flags) -> Result(Supervisor.Handle, Supervisor.Error):
+    Supervisor.start(options, [])
+fn middle(options: Supervisor.Flags) -> Result(Supervisor.Handle, Supervisor.Error):
+    leaf(options)
+fn launch(options: Supervisor.Flags) -> Result(Supervisor.Handle, Supervisor.Error):
+    let invoke = () -> middle(options)
+    invoke()
+fn stop_leaf(handle: Supervisor.Handle) -> Result((), Supervisor.Error):
+    Supervisor.stop(handle)
+fn stop_middle(handle: Supervisor.Handle) -> Result((), Supervisor.Error):
+    let invoke = () -> stop_leaf(handle)
+    invoke()
+fn actor_int() -> Unit:
+    let own: Pid(Int) = Process.self()
+    match launch(flags()):
+        Ok(handle) ->
+            println("actor-int-started")
+            match stop_middle(handle):
+                Ok(()) -> println("actor-int-stopped")
+                Err(_) -> println("stop-error")
+        Err(_) -> println("start-error")
+fn actor_string() -> Unit:
+    let own: Pid(String) = Process.self()
+    match launch(flags()):
+        Ok(handle) ->
+            println("actor-string-started")
+            match stop_middle(handle):
+                Ok(()) -> println("actor-string-stopped")
+                Err(_) -> println("stop-error")
+        Err(_) -> println("start-error")
+fn main():
+    match launch(flags()):
+        Ok(handle) ->
+            println("root-started")
+            match stop_middle(handle):
+                Ok(()) -> println("root-stopped")
+                Err(_) -> println("stop-error")
+        Err(_) -> println("start-error")
+    match Process.spawn(actor_int):
+        Ok(_) -> ()
+        Err(_) -> println("spawn-error")
+    match Process.spawn(actor_string):
+        Ok(_) -> ()
+        Err(_) -> println("spawn-error")

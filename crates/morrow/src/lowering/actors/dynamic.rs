@@ -9,7 +9,9 @@ impl Builder<'_> {
         args: &[Expr],
         next: Option<&Continuation>,
     ) -> Lowering<Expr> {
-        let Type::Function(params, result) = &callee.ty else {
+        if matches!(callee.ty, Type::RootFunction(_)) { return Err(invalid(source.span, "root callable cannot run in an actor callback")); }
+        let (actor_mailbox, signature) = match &callee.ty { Type::ActorFunction(mailbox, signature) => (Some(mailbox.as_ref()), signature.as_ref()), ty => (None, ty) };
+        let Type::Function(params, result) = signature else {
             return Err(invalid(
                 source.span,
                 "actor dynamic call requires an ordinary callable",
@@ -44,12 +46,15 @@ impl Builder<'_> {
             source.ty.clone(),
             source.span,
         );
-        let mut dispatch = self.finish(fallback, next)?;
+        let mut dispatch = if let Some(mailbox) = actor_mailbox {
+            expect_type(mailbox.clone(), self.mailbox.clone(), source.span)?;
+            operation(Operation::InvalidInvoke, source.span)
+        } else { self.finish(fallback, next)? };
         let candidates: Vec<_> = self
             .targets
             .values()
             .filter(|target| {
-                target.mailbox.is_none()
+                !target.root_context && target.mailbox.as_ref() == actor_mailbox
                     && target.return_type == **result
                     && target.params.iter().map(|p| &p.ty).eq(params.iter())
             })

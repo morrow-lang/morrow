@@ -139,6 +139,16 @@ pub(super) fn program(
         builder.plan.functions.push(step);
         builder.returning_function(function, &normalized)?;
     }
+    for function in &program.functions {
+        let mut pending = vec![&function.body];
+        while let Some(expr) = pending.pop() {
+            if let ExprKind::Actor(ir::ActorExpr::Supervisor(crate::supervisors::SupervisorExpr::Request { kind, args, mailbox: None })) = &expr.kind {
+                let record = supervisors::Registration { kind: *kind, request: crate::supervisors::request_type(*kind, args), result: expr.ty.clone(), resume: None };
+                if !builder.plan.requests.contains(&record) { builder.registration(record, expr.span)?; }
+            }
+            pending.extend(ir::children(expr));
+        }
+    }
     Ok(builder.plan)
 }
 
@@ -180,6 +190,22 @@ impl Builder<'_> {
                 expect_type(expr.ty.clone(), Type::Never, expr.span)?;
                 atomic(reason)?;
                 Ok(operation(Operation::ProcessExit(reason.clone()), expr.span))
+            }
+            ExprKind::Actor(ir::ActorExpr::Supervisor(crate::supervisors::SupervisorExpr::Request { kind, args, mailbox })) => {
+                expect_type(mailbox.clone().ok_or_else(|| invalid(expr.span, "root supervisor request reached an actor callback"))?, self.mailbox.clone(), expr.span)?;
+                for arg in args { atomic(arg)?; }
+                let registration = self.registration(supervisors::Registration { kind: *kind, request: crate::supervisors::request_type(*kind, args), result: expr.ty.clone(), resume: None }, expr.span)?;
+                let mut reply = operation(Operation::SupervisorReply { registration, ty: expr.ty.clone() }, expr.span);
+                reply.ty = expr.ty.clone();
+                let body = self.finish(reply, next)?;
+                let resume = self.closure(body, vec![], false)?;
+                let ExprKind::Closure { function, .. } = &resume.kind else { return Err(invalid(expr.span, "invalid supervisor resume")); };
+                self.plan.requests[registration].resume = Some(function.0);
+                Ok(operation(Operation::SupervisorRequest { registration, args: args.clone(), resume: Box::new(resume) }, expr.span))
+            }
+            ExprKind::Actor(ir::ActorExpr::Supervisor(operation)) if operation.terminal() => {
+                let reason = match operation { crate::supervisors::SupervisorExpr::InitFail { reason } => { atomic(reason)?; Some(reason.clone()) }, _ => None };
+                Ok(self::operation(Operation::SupervisorTerminal(reason), expr.span))
             }
             ExprKind::Invoke { callee, args } => self.dynamic_call(expr, callee, args, next),
             ExprKind::Call {
@@ -506,6 +532,7 @@ impl Builder<'_> {
             }
         }
         Ok(Function {
+            root_context: false,
             mailbox: None,
             id,
             name: format!("$actor{}", id.0),
@@ -540,6 +567,13 @@ impl Builder<'_> {
         );
         self.plan.functions.push(function);
         Ok(entry)
+    }
+
+    fn registration(&mut self, record: supervisors::Registration, span: Span) -> Lowering<usize> {
+        if self.plan.requests.len() >= 4096 { return Err(invalid(span, "supervisor registration limit exceeded")); }
+        let index = self.plan.requests.len();
+        self.plan.requests.push(record);
+        Ok(index)
     }
 
     /// Fresh compiler locals share the source function's bounded identity space.
@@ -625,7 +659,7 @@ pub(super) fn needs(expr: &Expr) -> bool {
             | ExprKind::Actor(ir::ActorExpr::Process(
                 crate::processes::ProcessExpr::Exit { .. }
             ))
-    ) || ir::children(expr).into_iter().any(needs)
+    ) || matches!(&expr.kind, ExprKind::Actor(ir::ActorExpr::Supervisor(operation)) if operation.terminal() || matches!(operation, crate::supervisors::SupervisorExpr::Request { mailbox: Some(_), .. })) || ir::children(expr).into_iter().any(needs)
 }
 /// Reject suspended strict operands until a later checkpoint provides their continuation forms.
 fn atomic(expr: &Expr) -> Lowering<()> {

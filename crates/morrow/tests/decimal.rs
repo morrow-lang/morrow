@@ -114,6 +114,7 @@ fn decimal_public_ir_rejects_forged_argument_count_and_type() {
         let program = Program {
             types: vec![],
             functions: vec![Function {
+                root_context: false,
                 mailbox: None,
                 captures: vec![],
                 id: FunctionId(0),

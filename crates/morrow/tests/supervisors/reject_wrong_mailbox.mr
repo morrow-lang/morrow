@@ -1,0 +1,2 @@
+fn wrong(handle: Supervisor.Handle, key: Supervisor.ChildKey(Int)) -> Result(Pid(String), Supervisor.Error):
+    Supervisor.current(handle, key)

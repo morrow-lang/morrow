@@ -269,7 +269,7 @@ fn compatible(a: &Type, b: &Type) -> bool {
         return true;
     }
     match (a, b) {
-        (Type::List(a), Type::List(b)) | (Type::Option(a), Type::Option(b)) => compatible(a, b),
+        (Type::ChildKey(a), Type::ChildKey(b)) | (Type::RootFunction(a), Type::RootFunction(b)) | (Type::List(a), Type::List(b)) | (Type::Option(a), Type::Option(b)) => compatible(a, b),
         (Type::Result(a, b), Type::Result(c, d)) | (Type::Map(a, b), Type::Map(c, d)) => {
             compatible(a, c) && compatible(b, d)
         }
@@ -337,7 +337,7 @@ fn contains_union(ty: &Type) -> bool {
                 pending.extend(xs);
                 pending.push(result);
             }
-            Type::List(x) | Type::Option(x) => pending.push(x),
+            Type::ChildKey(x) | Type::RootFunction(x) | Type::List(x) | Type::Option(x) => pending.push(x),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.extend([a.as_ref(), b.as_ref()])
             }

@@ -106,7 +106,7 @@ fn function_relevant(
                 | ir::ExprKind::Actor(ir::ActorExpr::Process(
                     crate::processes::ProcessExpr::Exit { .. }
                 ))
-        ) || contains(program, &expr.ty, work, expr.span)?
+        ) || matches!(&expr.kind, ir::ExprKind::Actor(ir::ActorExpr::Supervisor(operation)) if operation.terminal()) || contains(program, &expr.ty, work, expr.span)?
         {
             return Ok(true);
         }
@@ -140,7 +140,7 @@ pub(super) fn contains_mode<'a>(
         type_cost(ty, work, span)?;
         match ty {
             Type::Result(..) => return Ok(true),
-            Type::Function(..) | Type::Generic(_) if callable => return Ok(true),
+            Type::Function(..) | Type::RootFunction(_) | Type::ActorFunction(..) | Type::Generic(_) if callable => return Ok(true),
             Type::Option(inner) | Type::List(inner) => pending.push(inner),
             Type::Map(_, inner) => pending.push(inner),
             Type::Tuple(fields) | Type::Union(fields) => {
@@ -250,6 +250,7 @@ mod tests {
     #[test]
     fn concrete_publication_continues_the_template_proof_budget() {
         let function = ir::Function {
+            root_context: false,
             mailbox: None,
             id: ir::FunctionId(0),
             name: "unit".into(),

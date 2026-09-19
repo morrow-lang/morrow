@@ -50,7 +50,7 @@ pub fn lower(program: &ir::Program, exports: &[Export]) -> Result<machine::Progr
         let mut matching = program
             .functions
             .iter()
-            .filter(|f| f.name == export.function);
+            .filter(|f| f.name == export.function && f.mailbox.is_none());
         let function = matching
             .next()
             .ok_or_else(|| invalid("native library export function is absent"))?;

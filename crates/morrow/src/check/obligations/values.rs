@@ -87,7 +87,7 @@ impl Engine<'_> {
             ));
         }
         let kind = match ty {
-            Type::Function(..) => {
+            Type::Function(..) | Type::RootFunction(_) | Type::ActorFunction(..) => {
                 self.input_callable |= input.is_some();
                 Region::UnknownCallable
             }

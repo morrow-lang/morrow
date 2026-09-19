@@ -7,6 +7,7 @@ mod clauses;
 mod closures;
 mod codecs;
 mod control;
+mod contexts;
 mod coverage;
 mod dependencies;
 mod diagnostics;
@@ -24,6 +25,7 @@ mod parameters;
 mod pipes;
 mod preflight;
 mod processes;
+mod supervisors;
 pub(crate) mod recovery;
 mod returns;
 mod schemes;
@@ -59,6 +61,7 @@ type Checked<T> = Result<T, Diagnostic>;
 type TypedKind = (ir::ExprKind, Type);
 
 struct Signature {
+    contextual: bool,
     constant: bool,
     mailbox: Option<Type>,
     labels: Vec<Option<ast::ArgumentLabel>>,
@@ -318,6 +321,7 @@ fn signatures(
         signatures.insert(
             function.name.clone(),
             Signature {
+                contextual: false,
                 constant: function.syntax == ast::FunctionSyntax::Constant,
                 mailbox: None,
                 labels: labels::parameters(function),
@@ -338,13 +342,14 @@ fn signatures(
             },
         );
     }
+    contexts::attach(program, &mut signatures, inference)?;
     actors::attach(program, registry, &mut signatures, inference)?;
     Ok(signatures)
 }
 
 /// Return whether `name` denotes a builtin function, namespace, or sum constructor.
 fn reserved(name: &str) -> bool {
-    if runtime::native_type(name).is_some() || name == "Process" || name.starts_with("Process.") {
+    if runtime::native_type(name).is_some() || name == "Process" || name.starts_with("Process.") || name == "Supervisor" || name.starts_with("Supervisor.") {
         return true;
     }
     builtin(name).is_some()
@@ -472,7 +477,7 @@ fn validate_type_structure(ty: &Type, span: Span, _aliases: bool) -> Checked<()>
                     "explicit types cannot contain inference variables; generic definitions are unsupported",
                 ));
             }
-            Type::Pid(inner) | Type::List(inner) | Type::Option(inner) => {
+            Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) | Type::List(inner) | Type::Option(inner) => {
                 pending.push((inner, depth + 1))
             }
             Type::Map(key, value) => {
@@ -568,6 +573,8 @@ impl Inference {
                 Box::new(self.resolve_inner(b, span, depth + 1, budget)?),
             ),
             Type::Pid(inner) => Type::Pid(self.resolve_box(inner, span, depth, budget)?),
+            Type::ChildKey(inner) => Type::ChildKey(self.resolve_box(inner, span, depth, budget)?),
+            Type::RootFunction(inner) => Type::RootFunction(self.resolve_box(inner, span, depth, budget)?),
             Type::List(inner) => Type::List(Box::new(self.resolve_inner(
                 inner,
                 span,
@@ -638,7 +645,9 @@ impl Inference {
                     .collect();
                 self.unify_signature(&pairs, span, context)
             }
-            (Type::Pid(a), Type::Pid(b))
+            (Type::ChildKey(a), Type::ChildKey(b))
+            | (Type::RootFunction(a), Type::RootFunction(b))
+            | (Type::Pid(a), Type::Pid(b))
             | (Type::List(a), Type::List(b))
             | (Type::Option(a), Type::Option(b)) => self.unify(a, b, span, context),
             (Type::Named(a, xs), Type::Named(b, ys)) if a == b && xs.len() == ys.len() => {
@@ -683,7 +692,7 @@ impl Inference {
                         "recursive inferred type is unsupported",
                     ));
                 }
-                Type::Pid(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
+                Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
                 Type::Result(ok, err) | Type::Map(ok, err) => {
                     pending.push(ok);
                     pending.push(err);
@@ -740,7 +749,7 @@ impl Inference {
                         "cannot infer compound payload type; add a concrete type annotation",
                     ));
                 }
-                Type::Pid(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
+                Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
                 Type::Result(ok, err) | Type::Map(ok, err) => {
                     pending.push(ok);
                     pending.push(err);
@@ -787,7 +796,8 @@ impl Checker<'_> {
             .mailbox
             .as_ref()
             .map(|ty| nominal::substitute(ty, &self.inference.codec_substitutions))
-            .transpose()?;
+            .transpose()?
+            .or_else(|| self.mailbox.clone());
         if function.name == "main" && self.mailbox.is_some() {
             return Err(Diagnostic::new(
                 function.span,
@@ -832,6 +842,7 @@ impl Checker<'_> {
             reject_discard(&body, self.registry)?;
         }
         Ok(ir::Function {
+            root_context: signature.contextual && self.mailbox.is_none(),
             mailbox: self.mailbox.clone(),
             id,
             name: function.name.clone(),
@@ -2294,6 +2305,7 @@ pub(crate) fn builtin_api_names() -> Vec<&'static str> {
         .iter()
         .copied()
         .chain(crate::processes::API_NAMES.iter().copied())
+        .chain(crate::supervisors::API_NAMES.iter().copied())
         .chain(sets::API_NAMES.iter().copied())
         .chain(crate::ffi::API_NAMES.iter().copied())
         .chain(runtime::names())

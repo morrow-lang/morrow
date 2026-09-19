@@ -1,0 +1,9 @@
+fn terminal() -> Unit:
+    Process.init_ignore()
+fn owed(handle: Supervisor.Handle) -> Unit:
+    let own: Pid(Int) = Process.self()
+    let pending = Supervisor.stop(handle)
+    terminal()
+    match pending:
+        Ok(()) -> ()
+        Err(_) -> ()

@@ -50,6 +50,14 @@ impl Emitter<'_> {
         });
     }
 
+    /// Reserve a writable, initialized word in the callback's already-registered native frame.
+    pub(super) fn reply_root(&self, locals: &mut Locals, span: Span) -> Lowering<String> {
+        if locals.roots.slots.len() >= MAX_ROOTS { return Err(invalid(span, "native root slot limit exceeded")); }
+        let index = locals.roots.slots.len();
+        locals.roots.slots.insert(format!("$supervisor_reply{index}"), index);
+        Ok(format!("%gc_root{index}"))
+    }
+
     /// Reserve and zero every fixed slot before registration or any allocating body.
     pub(super) fn root_entry(&self, locals: &mut Locals, span: Span) -> Lowering<()> {
         if locals.roots.exceeded {

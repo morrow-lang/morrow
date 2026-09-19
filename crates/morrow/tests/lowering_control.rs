@@ -14,6 +14,7 @@ fn returned(value: Expr) -> Expr {
 }
 fn function(id: usize, name: &str, body: Expr, return_type: Type) -> Function {
     Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(id),
         name: name.into(),

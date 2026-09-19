@@ -54,6 +54,8 @@ impl Emitter<'_> {
         );
         if let Some(mailbox) = &function.mailbox {
             ty = Type::ActorFunction(Box::new(mailbox.clone()), Box::new(ty));
+        } else if function.root_context {
+            ty = Type::RootFunction(Box::new(ty));
         }
         let expected: Vec<_> = function.captures.iter().map(|p| p.ty.clone()).collect();
         let mut values = Vec::new();
@@ -112,7 +114,8 @@ impl Emitter<'_> {
         locals: &mut Locals,
         depth: usize,
     ) -> Lowering<(Type, String)> {
-        let Type::Function(params, result) = &callee.ty else {
+        let signature = match &callee.ty { Type::RootFunction(signature) => signature.as_ref(), ty => ty };
+        let Type::Function(params, result) = signature else {
             return Err(invalid(span, "invocation requires function value"));
         };
         if params.len() != args.len() {
@@ -127,7 +130,7 @@ impl Emitter<'_> {
             expect_type(arg.ty.clone(), param.clone(), arg.span)?;
             values.push((param.clone(), self.expr(arg, locals, depth)?));
         }
-        let value = self.invoke_values(&closure, &values, result, locals);
+        let value = self.invoke_context_values(&closure, &values, result, locals, matches!(callee.ty, Type::RootFunction(_)));
         Ok((*result.clone(), value))
     }
 
@@ -138,7 +141,9 @@ impl Emitter<'_> {
         args: &[(Type, String)],
         result: &Type,
         locals: &mut Locals,
-    ) -> String {
+    ) -> String { self.invoke_context_values(closure, args, result, locals, false) }
+
+    fn invoke_context_values(&mut self, closure: &str, args: &[(Type, String)], result: &Type, locals: &mut Locals, root: bool) -> String {
         let code = self.assign(
             locals,
             Type::Int,
@@ -148,6 +153,7 @@ impl Emitter<'_> {
             (Scalar::I64, native_operand(closure)),
             (Scalar::I64, native_operand("%fault")),
         ];
+        if root { arguments.push((Scalar::I64, native_operand("%exec"))); }
         arguments.extend(
             args.iter()
                 .map(|(ty, value)| (machine_width(self.width(ty.clone())), native_operand(value))),

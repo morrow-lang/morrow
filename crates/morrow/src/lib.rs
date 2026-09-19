@@ -66,6 +66,10 @@ pub enum Type {
     Function(Vec<Type>, Box<Type>),
     /// Invariant managed actor identity; the payload is its mailbox type.
     Pid(Box<Type>),
+    /// Opaque supervisor child identity with an invariant mailbox constraint.
+    ChildKey(Box<Type>),
+    /// Sealed root-driving callable; never an ordinary callback or actor capture.
+    RootFunction(Box<Type>),
     /// Internal receiving callable effect and its ordinary function signature.
     ActorFunction(Box<Type>, Box<Type>),
     List(Box<Type>),
@@ -96,3 +100,4 @@ mod decimal_table;
 pub(crate) mod codec_syntax;
 
 pub(crate) mod actors;
+pub mod supervisors;

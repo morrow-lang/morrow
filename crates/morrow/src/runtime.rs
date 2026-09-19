@@ -8,6 +8,8 @@ use crate::Type;
 pub enum NativeType {
     ProcessId,
     MonitorRef,
+    SupervisorHandle,
+    ChildSpec,
     Panel,
     Table,
     Tree,
@@ -23,6 +25,8 @@ impl NativeType {
         match self {
             Self::ProcessId => "ProcessId",
             Self::MonitorRef => "MonitorRef",
+            Self::SupervisorHandle => "Supervisor.Handle",
+            Self::ChildSpec => "Supervisor.ChildSpec",
             Self::Panel => "Tui.Panel",
             Self::Table => "Tui.Table",
             Self::Tree => "Tui.Tree",
@@ -44,6 +48,8 @@ pub fn native_type(name: &str) -> Option<NativeType> {
     [
         NativeType::ProcessId,
         NativeType::MonitorRef,
+        NativeType::SupervisorHandle,
+        NativeType::ChildSpec,
         NativeType::Panel,
         NativeType::Table,
         NativeType::Tree,

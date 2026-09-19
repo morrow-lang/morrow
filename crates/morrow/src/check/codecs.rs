@@ -63,7 +63,7 @@ impl<'a> Planner<'a> {
                     pending.extend(args);
                     pending.push(result);
                 }
-                Type::List(a) | Type::Option(a) => pending.push(a),
+                Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
                 Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {
                     pending.extend([a.as_ref(), b.as_ref()])
                 }
@@ -265,7 +265,7 @@ impl<'a> Planner<'a> {
                         pending.extend(args);
                         pending.push(result);
                     }
-                    Type::List(a) | Type::Option(a) => pending.push(a),
+                    Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
                     Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {
                         pending.extend([a.as_ref(), b.as_ref()])
                     }

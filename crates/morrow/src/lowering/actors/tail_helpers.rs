@@ -70,7 +70,7 @@ pub(super) fn discover(
     let mut types = BTreeMap::new();
     let mut eligible = BTreeSet::new();
     for function in &program.functions {
-        if function.mailbox.is_some() || function.name == "main" {
+        if function.mailbox.is_some() || function.root_context || function.name == "main" {
             continue;
         }
         let mut captures_owned = true;

@@ -42,7 +42,7 @@ fn closed_data_mode(
                     pending.extend(fields);
                 }
             }
-            Type::List(inner) | Type::Option(inner) | Type::Pid(inner) => pending.push(inner),
+            Type::List(inner) | Type::Option(inner) | Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) => pending.push(inner),
             Type::Result(ok, error) if results => {
                 charge(work, 2, span)?;
                 pending.extend([ok.as_ref(), error.as_ref()]);

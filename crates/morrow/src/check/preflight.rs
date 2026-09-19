@@ -52,7 +52,7 @@ impl Budget {
                     pending.push(result);
                 }
                 Type::Union(args) | Type::Tuple(args) => pending.extend(args),
-                Type::List(a) | Type::Option(a) => pending.push(a),
+                Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
                 Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                     pending.push(a);
                     pending.push(b);

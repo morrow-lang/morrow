@@ -242,6 +242,8 @@ fn scalar_width(ty: Type) -> char {
         | Type::Native(_)
         | Type::Named(_, _)
         | Type::Pid(_)
+        | Type::ChildKey(_)
+        | Type::RootFunction(_)
         | Type::ActorFunction(_, _)
         | Type::Function(_, _) => 'l',
         Type::Bool | Type::Unit => 'w',
@@ -1236,7 +1238,7 @@ fn concrete(ty: &Type, span: Span, depth: usize) -> Lowering<()> {
             }
             Ok(())
         }
-        Type::Pid(item) | Type::List(item) | Type::Option(item) => concrete(item, span, depth + 1),
+        Type::Pid(item) | Type::ChildKey(item) | Type::RootFunction(item) | Type::List(item) | Type::Option(item) => concrete(item, span, depth + 1),
         Type::ActorFunction(ok, err) | Type::Result(ok, err) | Type::Map(ok, err) => {
             concrete(ok, span, depth + 1)?;
             concrete(err, span, depth + 1)
@@ -1709,6 +1711,7 @@ mod machine_lowering_tests {
         let program = ir::Program {
             types: vec![],
             functions: vec![Function {
+                root_context: false,
                 mailbox: None,
                 captures: vec![],
                 id: ir::FunctionId(0),

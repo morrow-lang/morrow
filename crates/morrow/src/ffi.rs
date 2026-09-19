@@ -114,7 +114,7 @@ impl Declaration {
                     pending.extend(children.iter().map(|ty| (ty, depth + 1)));
                     pending.push((result, depth + 1));
                 }
-                Type::Pid(inner) | Type::List(inner) | Type::Option(inner) => {
+                Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) | Type::List(inner) | Type::Option(inner) => {
                     pending.push((inner, depth + 1))
                 }
                 Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {

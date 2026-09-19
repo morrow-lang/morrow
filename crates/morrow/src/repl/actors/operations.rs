@@ -4,6 +4,7 @@ use crate::actors::Operation;
 impl Machine {
     pub(super) fn actor_operation(&mut self, operation: &Operation) -> Eval<Value> {
         match operation {
+            Operation::InvalidInvoke | Operation::SupervisorTerminal(_) | Operation::SupervisorRequest { .. } | Operation::SupervisorReply { .. } => Err(fault("typed supervisor operations require native execution")),
             Operation::ListBuilder { capacity, .. } => {
                 let Value::Int(capacity) = self.expression(capacity)? else {
                     return Err(fault("actor list capacity must be Int"));

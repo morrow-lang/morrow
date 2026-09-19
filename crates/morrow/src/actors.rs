@@ -8,7 +8,10 @@ mod positions;
 /// Peel only the explicit actor-effect wrapper, retaining the ordinary source signature.
 pub(crate) fn function(ty: &Type) -> Option<(Option<&Type>, &[Type], &Type)> {
     match ty {
-        Type::Function(args, result) => Some((None, args, result)),
+        Type::RootFunction(function) => match function.as_ref() {
+            Type::Function(params, result) => Some((None, params, result)),
+            _ => None,
+        },        Type::Function(args, result) => Some((None, args, result)),
         Type::ActorFunction(mailbox, function) => {
             let Type::Function(args, result) = function.as_ref() else {
                 return None;
@@ -108,6 +111,7 @@ fn arm_children(arms: &[ast::MatchArm]) -> Vec<&ast::Expr> {
 pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
     match actor {
         ir::ActorExpr::Process(value) => value.children(),
+        ir::ActorExpr::Supervisor(value) => value.children(),
         ir::ActorExpr::Lowered(value) => value.children(),
         ir::ActorExpr::Spawn {
             entry,
@@ -136,6 +140,7 @@ pub(crate) fn children(actor: &ir::ActorExpr) -> Vec<&ir::Expr> {
 pub(crate) fn children_mut(actor: &mut ir::ActorExpr) -> Vec<&mut ir::Expr> {
     match actor {
         ir::ActorExpr::Process(value) => value.children_mut(),
+        ir::ActorExpr::Supervisor(value) => value.children_mut(),
         ir::ActorExpr::Lowered(value) => value.children_mut(),
         ir::ActorExpr::Spawn {
             entry,
@@ -188,6 +193,10 @@ pub(crate) enum Operation {
         index: usize,
         ty: Type,
     },
+    InvalidInvoke,
+    SupervisorTerminal(Option<Box<ir::Expr>>),
+    SupervisorRequest { registration: usize, args: Vec<ir::Expr>, resume: Box<ir::Expr> },
+    SupervisorReply { registration: usize, ty: Type },
     ScopeEnter,
     ScopeDefer(Box<ir::Expr>),
     ScopeLeave,
@@ -225,7 +234,9 @@ impl Lowered {
     /// Expose every owned child to bounded compiler publication walkers.
     fn children(&self) -> Vec<&ir::Expr> {
         match &self.operation {
-            Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::InvalidInvoke | Operation::SupervisorReply { .. } | Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::SupervisorTerminal(reason) => reason.iter().map(|r| r.as_ref()).collect(),
+            Operation::SupervisorRequest { args, resume, .. } => args.iter().chain([resume.as_ref()]).collect(),
             Operation::ListBuilder { capacity, .. } => vec![capacity],
             Operation::ListAppend { list, value } => vec![list, value],
             Operation::ScopeDefer(value)
@@ -254,7 +265,9 @@ impl Lowered {
     /// Preserve shared substitution visibility without exposing constructors to callers.
     fn children_mut(&mut self) -> Vec<&mut ir::Expr> {
         match &mut self.operation {
-            Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::InvalidInvoke | Operation::SupervisorReply { .. } | Operation::ScopeEnter | Operation::ScopeLeave => vec![],
+            Operation::SupervisorTerminal(reason) => reason.iter_mut().map(|r| r.as_mut()).collect(),
+            Operation::SupervisorRequest { args, resume, .. } => args.iter_mut().chain([resume.as_mut()]).collect(),
             Operation::ListBuilder { capacity, .. } => vec![capacity],
             Operation::ListAppend { list, value } => vec![list, value],
             Operation::ScopeDefer(value)

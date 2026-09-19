@@ -121,6 +121,85 @@ impl Copy {
             }
         }
     }
+    unsafe fn retain_control(&mut self, target: *const u8, retention: memory::Control) {
+        unsafe {
+            match &mut self.destination {
+                Destination::Heap => memory::retain_control(target, retention),
+                Destination::Fragment(fragment) => fragment.retain_control(target, retention),
+            }
+        }
+    }
+    unsafe fn supervisor_name(&mut self, name: *const std::ffi::c_char) -> *mut std::ffi::c_char {
+        unsafe {
+            let bytes = supervisor::values::name_bytes(name).expect("validated supervisor name");
+            let target = self.allocate(bytes, true).cast();
+            std::ptr::copy_nonoverlapping(name, target, bytes);
+            target
+        }
+    }
+    unsafe fn supervisor_key(&mut self, source: *const supervisor::values::ChildKey) -> i64 {
+        unsafe {
+            let target = self
+                .allocate(std::mem::size_of::<supervisor::values::ChildKey>(), false)
+                .cast::<supervisor::values::ChildKey>();
+            // Initialize every scanned word before the name allocation can collect.
+            *target = supervisor::values::ChildKey {
+                token: (*source).token,
+                name: null_mut(),
+            };
+            self.retain_control(
+                target.cast(),
+                control::Owned::retain((*source).token).token(),
+            );
+            (*target).name = self.supervisor_name((*source).name);
+            target as i64
+        }
+    }
+    unsafe fn supervisor_spec(
+        &mut self,
+        ty: *const Type,
+        source: *const supervisor::values::ChildSpec,
+    ) -> i64 {
+        unsafe {
+            let target = self
+                .allocate(std::mem::size_of::<supervisor::values::ChildSpec>(), false)
+                .cast::<supervisor::values::ChildSpec>();
+            let src = &*source;
+            *target = supervisor::values::ChildSpec {
+                kind: src.kind,
+                restart: src.restart,
+                shutdown_kind: src.shutdown_kind,
+                shutdown_ms: src.shutdown_ms,
+                significant: src.significant,
+                strategy: src.strategy,
+                intensity: src.intensity,
+                period_seconds: src.period_seconds,
+                auto_shutdown: src.auto_shutdown,
+                ..supervisor::values::ChildSpec::default()
+            };
+            self.seen
+                .insert((source as i64, ty as usize), target as i64);
+            if src.kind == 0 {
+                (*target).key = self.supervisor_key(src.key) as *mut supervisor::values::ChildKey;
+                (*target).initializer = self.frame(src.initializer) as *mut c_void;
+            } else {
+                (*target).name = self.supervisor_name(src.name);
+                if src.children_len != 0 {
+                    let children = self
+                        .allocate(src.children_len as usize * 8, false)
+                        .cast::<*mut supervisor::values::ChildSpec>();
+                    std::ptr::write_bytes(children, 0, src.children_len as usize);
+                    (*target).children = children;
+                    (*target).children_len = src.children_len;
+                    for i in 0..src.children_len as usize {
+                        *children.add(i) = self.value(ty, *src.children.add(i) as i64)
+                            as *mut supervisor::values::ChildSpec;
+                    }
+                }
+            }
+            target as i64
+        }
+    }
     // SAFETY: only reached after cost preflight validates graph shape/depth/size.
     // Descriptors and source graphs remain immutable throughout this synchronous copy.
     unsafe fn frame(&mut self, source: *const c_void) -> i64 {
@@ -225,7 +304,7 @@ impl Copy {
                     self.retain_pid(target);
                     target as i64
                 }
-                TYPE_PROCESS_ID => {
+                TYPE_PROCESS_ID | TYPE_SUPERVISOR_HANDLE => {
                     let source = source as *const process::Identity;
                     let target = self
                         .allocate(std::mem::size_of::<process::Identity>(), false)
@@ -243,6 +322,12 @@ impl Copy {
                         }
                     }
                     target as i64
+                }
+                TYPE_CHILD_KEY => {
+                    self.supervisor_key(source as *const supervisor::values::ChildKey)
+                }
+                TYPE_CHILD_SPEC => {
+                    self.supervisor_spec(ty, source as *const supervisor::values::ChildSpec)
                 }
                 TYPE_MONITOR_REF => {
                     let source = source as *const relations::Reference;
@@ -324,6 +409,22 @@ pub(super) unsafe fn frame(session: *mut Session, source: *const c_void) -> Copy
 pub(super) unsafe fn value(session: *mut Session, ty: *const Type, source: i64) -> Copy {
     let mut copy = Copy::new(session, source);
     copy.value = unsafe { copy.value(ty, source) };
+    copy
+}
+
+/// Preflight with cost::child_spec; all source payloads remain owner-rooted.
+pub(super) unsafe fn child_spec(
+    session: *mut Session,
+    source: *const supervisor::values::ChildSpec,
+) -> Copy {
+    let ty = Type {
+        kind: TYPE_CHILD_SPEC,
+        count: 0,
+        children: null(),
+        arities: null(),
+    };
+    let mut copy = Copy::new(session, source as i64);
+    copy.value = unsafe { copy.value(&ty, source as i64) };
     copy
 }
 

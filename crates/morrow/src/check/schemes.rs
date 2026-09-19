@@ -170,7 +170,7 @@ impl Inference {
                     pending.extend([key.as_ref(), value.as_ref()]);
                 }
                 Type::Result(a, b) => pending.extend([a.as_ref(), b.as_ref()]),
-                Type::List(a) | Type::Option(a) => pending.push(a),
+                Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
                 Type::Union(args) | Type::Tuple(args) | Type::Named(_, args) => {
                     pending.extend(args)
                 }
@@ -307,7 +307,7 @@ impl Checker<'_> {
                         pending.push((field, depth + 1));
                     }
                 }
-                Type::List(a) | Type::Option(a) => pending.push((*a, depth + 1)),
+                Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push((*a, depth + 1)),
                 Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                     pending.extend([(*a, depth + 1), (*b, depth + 1)])
                 }

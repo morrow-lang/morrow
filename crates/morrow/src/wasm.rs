@@ -270,6 +270,8 @@ fn type_name(ty: &Type) -> &'static str {
         Type::Tuple(_) => "Tuple",
         Type::Function(_, _) => "Function callable",
         Type::Pid(_) => "Pid",
+        Type::ChildKey(_) => "Supervisor.ChildKey",
+        Type::RootFunction(_) => "root function",
         Type::ActorFunction(_, _) => "ActorFunction",
         Type::List(_) => "List",
         Type::Map(_, _) => "Map",

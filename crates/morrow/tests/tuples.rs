@@ -80,6 +80,7 @@ fn public_ir_rejects_tuple_shape_mismatches() {
     let program = Program {
         types: vec![],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(0),
             name: "main".into(),
@@ -176,6 +177,7 @@ fn tuple_ir_cannot_impersonate_nominal_records() {
             fields: vec![],
         }],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(0),
             name: "main".into(),

@@ -117,7 +117,7 @@ fn type_work(ty: &Type, selected: bool, work: &mut usize) -> Lowering<()> {
         if matches!(ty, Type::Union(_)) {
             charge_type(ty, work)?;
         }
-        if matches!(ty, Type::ActorFunction(_, signature) if !matches!(signature.as_ref(), Type::Function(_, _)))
+        if matches!(ty, Type::RootFunction(signature) | Type::ActorFunction(_, signature) if !matches!(signature.as_ref(), Type::Function(_, _)))
         {
             return Err(invalid(
                 Span::default(),
@@ -160,7 +160,7 @@ fn type_children(ty: &Type) -> impl Iterator<Item = &Type> {
             (fields.as_slice(), None, None)
         }
         Type::Function(fields, result) => (fields.as_slice(), Some(result.as_ref()), None),
-        Type::Pid(item) | Type::List(item) | Type::Option(item) => {
+        Type::Pid(item) | Type::ChildKey(item) | Type::RootFunction(item) | Type::List(item) | Type::Option(item) => {
             (&[][..], Some(item.as_ref()), None)
         }
         Type::ActorFunction(a, b) | Type::Map(a, b) | Type::Result(a, b) => {

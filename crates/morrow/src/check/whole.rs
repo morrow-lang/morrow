@@ -168,6 +168,7 @@ fn signatures(
         signatures.insert(
             function.name.clone(),
             Signature {
+                contextual: false,
                 constant: function.syntax == ast::FunctionSyntax::Constant,
                 mailbox: None,
                 labels: labels::parameters(function),
@@ -182,6 +183,7 @@ fn signatures(
             },
         );
     }
+    contexts::attach(program, &mut signatures, inference)?;
     actors::attach(program, registry, &mut signatures, inference)?;
     Ok(signatures)
 }
@@ -331,7 +333,7 @@ fn contains(ty: &Type, needle: &Type) -> bool {
                 pending.push(result);
             }
             Type::Union(args) | Type::Tuple(args) | Type::Named(_, args) => pending.extend(args),
-            Type::List(a) | Type::Option(a) => pending.push(a),
+            Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.extend([a.as_ref(), b.as_ref()])
             }
@@ -356,6 +358,8 @@ impl Generalization<'_> {
         Ok(match ty {
             Type::Infer(_) | Type::Generic(_) => self.variable(ty),
             Type::List(a) => Type::List(Box::new(self.ty(a)?)),
+            Type::ChildKey(a) => Type::ChildKey(Box::new(self.ty(a)?)),
+            Type::RootFunction(a) => Type::RootFunction(Box::new(self.ty(a)?)),
             Type::Option(a) => Type::Option(Box::new(self.ty(a)?)),
             Type::Result(a, b) => Type::Result(Box::new(self.ty(a)?), Box::new(self.ty(b)?)),
             Type::Map(a, b) => Type::Map(Box::new(self.ty(a)?), Box::new(self.ty(b)?)),

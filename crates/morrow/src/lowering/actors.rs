@@ -9,6 +9,8 @@ mod descriptors;
 mod lower;
 #[path = "actors/processes.rs"]
 mod processes;
+#[path = "actors/supervisors.rs"]
+mod supervisors;
 #[path = "actors/tail_helpers.rs"]
 mod tail_helpers;
 #[path = "actors/validate.rs"]
@@ -19,6 +21,7 @@ pub(super) struct Plan {
     pub(super) active: bool,
     pub(super) managed: BTreeSet<usize>,
     types: BTreeMap<Type, usize>,
+    requests: Vec<supervisors::Registration>,
     functions: Vec<Function>,
     steps: BTreeMap<usize, Type>,
     selectors: BTreeMap<usize, Type>,
@@ -81,6 +84,7 @@ impl Emitter<'_> {
             return Ok(());
         }
         let string = self.actor_type(&Type::String)?;
+        if !self.actors.requests.is_empty() { self.supervisor_library(); }
         for (name, parameter, callee, args) in [
             (
                 "$morrow_library_open",
@@ -105,6 +109,7 @@ impl Emitter<'_> {
                 ],
             ),
         ] {
+            if name == "$morrow_library_open" && !self.actors.requests.is_empty() { continue; }
             self.output.begin(
                 name,
                 Some(Scalar::I64),
@@ -137,6 +142,7 @@ impl Emitter<'_> {
         depth: usize,
     ) -> Lowering<(Type, String)> {
         match actor {
+            ir::ActorExpr::Supervisor(operation) => self.supervisor_expression(operation, span, locals, depth),
             ir::ActorExpr::Process(operation) => {
                 self.process_expression(operation, span, locals, depth)
             }
@@ -408,6 +414,20 @@ impl Emitter<'_> {
                 return Ok((item.clone(), value));
             }
             Operation::Pointer(entry) => self.expr(entry, locals, depth)?,
+            Operation::InvalidInvoke => {
+                self.guard_fault(locals);
+                self.output.statement(Statement::Store { kind: LoadKind::I64, value: Operand::Int(11), address: native_operand("%fault") });
+                "3".into()
+            }
+            Operation::SupervisorReply { registration, ty } => return self.supervisor_reply(*registration, ty, locals),
+            Operation::SupervisorRequest { registration, args, resume } => self.supervisor_suspend(*registration, args, resume, locals, depth)?,
+            Operation::SupervisorTerminal(reason) => {
+                let mut args = vec![(Scalar::I64, native_operand("%exec"))];
+                if let Some(reason) = reason { args.push((Scalar::I64, native_operand(&self.expr(reason, locals, depth)?))); }
+                self.assign(locals, Type::Int, NativeOperation::Call {
+                    callee: native_operand(if reason.is_some() { "$morrow_process_init_fail" } else { "$morrow_process_init_ignore" }), args, variadic: None,
+                })
+            }
             Operation::ProcessExit(reason) => {
                 let reason = self.expr(reason, locals, depth)?;
                 self.assign(
@@ -568,6 +588,7 @@ impl Emitter<'_> {
                 variadic: None,
             },
         });
+        self.supervisor_main_registration();
         let mut arguments = vec![
             (Scalar::I64, Operand::Int(0)),
             (Scalar::I64, native_operand("%fault")),

@@ -55,6 +55,7 @@ fn emit(body: Expr) -> Result<String, morrow_compiler::Diagnostic> {
     lowering::emit(&Program {
         types: vec![],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             captures: vec![],
             id: FunctionId(0),
@@ -436,6 +437,7 @@ fn result_try_returns_original_error_and_unpacks_full_width_success() {
         types: vec![],
         functions: vec![
             Function {
+                root_context: false,
                 mailbox: None,
                 captures: vec![],
                 id: FunctionId(0),
@@ -446,6 +448,7 @@ fn result_try_returns_original_error_and_unpacks_full_width_success() {
                 local_count: 0,
             },
             Function {
+                root_context: false,
                 mailbox: None,
                 captures: vec![],
                 id: FunctionId(1),

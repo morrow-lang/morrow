@@ -366,6 +366,7 @@ mod tests {
         Rc::new(ir::Program {
             types: Vec::new(),
             functions: vec![ir::Function {
+                root_context: false,
                 mailbox: None,
                 id: ir::FunctionId(0),
                 name: "retained".into(),

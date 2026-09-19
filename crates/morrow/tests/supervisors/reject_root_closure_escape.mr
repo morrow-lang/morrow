@@ -1,0 +1,7 @@
+fn escape(handle: Supervisor.Handle) -> Result(Pid(Int), Process.Error):
+    let root_bound = () -> Supervisor.stop(handle)
+    Process.spawn(() ->
+        let own: Pid(Int) = Process.self()
+        match root_bound():
+            Ok(()) -> ()
+            Err(_) -> ())

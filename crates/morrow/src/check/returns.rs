@@ -244,7 +244,7 @@ pub(super) fn has_infer(ty: &Type) -> bool {
     while let Some(ty) = pending.pop() {
         match ty {
             Type::Infer(_) => return true,
-            Type::List(a) | Type::Option(a) => pending.push(a),
+            Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.push(a);
                 pending.push(b);
@@ -318,7 +318,7 @@ pub(super) fn charge_output(inference: &Inference, ty: &Type, span: Span) -> Che
     while let Some(ty) = pending.pop() {
         charge_work(inference, span)?;
         match ty {
-            Type::List(a) | Type::Option(a) => pending.push(a),
+            Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(a),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.push(a);
                 pending.push(b);

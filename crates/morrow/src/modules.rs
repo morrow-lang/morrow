@@ -1084,7 +1084,7 @@ fn local(scopes: &[BTreeSet<String>], name: &str) -> bool {
 fn qualify_type(ty: &mut Type, names: &Names) -> Result<(), Error> {
     match ty {
         Type::Named(name, args) => {
-            if !crate::processes::nominal_name(name) {
+            if !crate::processes::nominal_name(name) && !crate::supervisors::nominal_name(name) {
                 resolve_global(name, &names.types, false)?;
             }
             for arg in args {
@@ -1102,7 +1102,7 @@ fn qualify_type(ty: &mut Type, names: &Names) -> Result<(), Error> {
                 qualify_type(field, names)?;
             }
         }
-        Type::Pid(t) | Type::List(t) | Type::Option(t) => qualify_type(t, names)?,
+        Type::Pid(t) | Type::ChildKey(t) | Type::RootFunction(t) | Type::List(t) | Type::Option(t) => qualify_type(t, names)?,
         Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
             qualify_type(a, names)?;
             qualify_type(b, names)?;
@@ -1170,7 +1170,7 @@ fn unresolved_global(name: &str, names: &NameMap, allow_builtin: bool) -> String
 
 /// Builtin-qualified calls need no source import; arbitrary module prefixes do.
 fn builtin_path(name: &str) -> bool {
-    if crate::processes::is_api(name) || crate::processes::constructor_path(name) {
+    if crate::processes::is_api(name) || crate::processes::constructor_path(name) || crate::supervisors::is_api(name) || crate::supervisors::constructor_path(name) {
         return true;
     }
     crate::check::builtin(name).is_some()

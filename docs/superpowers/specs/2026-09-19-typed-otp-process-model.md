@@ -1,6 +1,6 @@
 # Typed process relationships and supervision
 
-Status: stage 1 implemented and accepted; stages 2–5 planned.
+Status: stages 1–2 implemented and accepted; stages 3–5 planned.
 Date: 2026-09-19.
 
 ## Goal and boundary
@@ -495,7 +495,7 @@ effect inference even without a receive. Event selectors must explicitly publish
 Event(M)'s nominal layout even though the enclosing expression's result has a
 different type. The REPL must reject unsupported process operations explicitly.
 
-### Stage 2 implementation contract (accepted design; implementation in progress)
+### Stage 2 implementation contract (implemented and accepted)
 
 Add link, unlink, atomic spawn_link, trap_exit, terminal local exit and direct
 signal_exit. Keep all existing native layouts and canonical reason/event tags.

@@ -61,6 +61,7 @@ impl Emitter<'_> {
             self.actor_callback(function, selector);
         }
         self.actor_array("actor_functions", &table);
+        self.supervisor_descriptors()?;
         Ok(())
     }
 
@@ -214,6 +215,7 @@ impl Emitter<'_> {
             Type::Union(members) => (4, members.iter().map(|ty| vec![ty.clone()]).collect()),
             // A foreign address cannot be relocated with its owning string graph.
             Type::Named(name, _) if name == "Ptr" => (11, vec![]),
+            Type::Named(_, _) if crate::supervisors::request_fields(ty).is_some() => (4, vec![crate::supervisors::request_fields(ty).expect("checked private record")]),
             Type::Named(_, _) => {
                 let layout = self
                     .layouts
@@ -229,12 +231,15 @@ impl Emitter<'_> {
                 )
             }
             Type::Pid(mailbox) => (6, vec![vec![*mailbox.clone()]]),
-            Type::Function(_, _) | Type::ActorFunction(_, _) => (7, vec![]),
+            Type::ChildKey(mailbox) => (16, vec![vec![*mailbox.clone()]]),
+            Type::Function(_, _) | Type::ActorFunction(_, _) | Type::RootFunction(_) => (7, vec![]),
             Type::Map(key, value) => (9, vec![vec![*key.clone(), *value.clone()]]),
             Type::Range => (10, vec![]),
             Type::Native(crate::runtime::NativeType::JsonValue) => (12, vec![]),
             Type::Native(crate::runtime::NativeType::ProcessId) => (13, vec![]),
             Type::Native(crate::runtime::NativeType::MonitorRef) => (14, vec![]),
+            Type::Native(crate::runtime::NativeType::SupervisorHandle) => (15, vec![]),
+            Type::Native(crate::runtime::NativeType::ChildSpec) => (17, vec![]),
             Type::Native(_) => (11, vec![]),
             _ => {
                 return Err(invalid(

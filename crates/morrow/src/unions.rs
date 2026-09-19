@@ -70,7 +70,7 @@ pub(crate) fn bound(ty: &Type, span: Span) -> Result<(), Diagnostic> {
                 pending.extend(xs.iter().map(|x| (x, depth + 1)));
                 pending.push((result, depth + 1));
             }
-            Type::List(x) | Type::Option(x) => pending.push((x, depth + 1)),
+            Type::ChildKey(x) | Type::RootFunction(x) | Type::List(x) | Type::Option(x) => pending.push((x, depth + 1)),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.push((a, depth + 1));
                 pending.push((b, depth + 1));
@@ -115,7 +115,7 @@ pub(crate) fn cost(ty: &Type, span: Span) -> Result<usize, Diagnostic> {
                 pending.extend(xs);
                 pending.push(result);
             }
-            Type::List(x) | Type::Option(x) => pending.push(x),
+            Type::ChildKey(x) | Type::RootFunction(x) | Type::List(x) | Type::Option(x) => pending.push(x),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.extend([a.as_ref(), b.as_ref()])
             }

@@ -12,6 +12,7 @@ fn expr(ty: Type, kind: ExprKind) -> Expr {
 }
 fn function(id: usize, body: Expr) -> Function {
     Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(id),
         name: if id == 0 {

@@ -43,6 +43,7 @@ fn emit(body: Expr) -> Result<String, Diagnostic> {
     lowering::emit(&Program {
         types: vec![],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(0),
             name: "main".into(),

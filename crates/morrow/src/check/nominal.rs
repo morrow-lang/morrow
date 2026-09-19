@@ -6,6 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 mod foreign;
 mod newtypes;
 mod processes;
+mod supervisors;
 mod sets;
 pub(super) use newtypes::charge_newtype_type;
 
@@ -81,6 +82,7 @@ impl Registry {
             }
         }
         result.register_processes();
+        result.register_supervisors();
         result.register_set();
         result.register_foreign();
         for decl in &declarations {
@@ -200,7 +202,7 @@ impl Registry {
                     pending.extend(args);
                 }
                 Type::Tuple(args) => pending.extend(args),
-                Type::Pid(t) | Type::List(t) | Type::Option(t) => pending.push(t),
+                Type::Pid(t) | Type::ChildKey(t) | Type::RootFunction(t) | Type::List(t) | Type::Option(t) => pending.push(t),
                 Type::Map(a, b) => {
                     super::maps::validate_key(&self.representation(a, span)?, span, true)?;
                     pending.extend([a.as_ref(), b.as_ref()]);
@@ -470,7 +472,7 @@ impl Registry {
                     pending.push(*value);
                 }
                 Type::Union(fields) | Type::Tuple(fields) => pending.extend(fields),
-                Type::List(a) | Type::Option(a) => pending.push(*a),
+                Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(*a),
                 Type::Named(..) => pending.extend(
                     self.layout(&ty, Span::default())?
                         .variants
@@ -526,7 +528,7 @@ impl Registry {
                     pending.push((**result).clone());
                 }
                 Type::Union(fields) | Type::Tuple(fields) => pending.extend(fields.iter().cloned()),
-                Type::Pid(a) | Type::List(a) | Type::Option(a) => pending.push((**a).clone()),
+                Type::Pid(a) | Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push((**a).clone()),
                 Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                     pending.push((**a).clone());
                     pending.push((**b).clone());
@@ -557,7 +559,7 @@ pub(super) fn generics(types: impl IntoIterator<Item = Type>) -> Vec<String> {
                 pending.push(*result);
             }
             Type::Union(args) | Type::Tuple(args) | Type::Named(_, args) => pending.extend(args),
-            Type::Pid(a) | Type::List(a) | Type::Option(a) => pending.push(*a),
+            Type::Pid(a) | Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(*a),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.push(*a);
                 pending.push(*b);
@@ -607,6 +609,20 @@ fn substitute_inner(
             n.clone(),
             substitute_fields(args, values, depth, budget, expand)?,
         ),
+        Type::ChildKey(a) => Type::ChildKey(Box::new(substitute_inner(
+            a,
+            values,
+            depth + 1,
+            budget,
+            expand,
+        )?)),
+        Type::RootFunction(a) => Type::RootFunction(Box::new(substitute_inner(
+            a,
+            values,
+            depth + 1,
+            budget,
+            expand,
+        )?)),
         Type::Pid(a) => Type::Pid(Box::new(substitute_inner(
             a,
             values,
@@ -700,7 +716,9 @@ pub(super) fn capture(
             }
             capture(ar, br, values, depth + 1)?;
         }
-        (Type::Pid(a), Type::Pid(b))
+        (Type::ChildKey(a), Type::ChildKey(b))
+        | (Type::RootFunction(a), Type::RootFunction(b))
+        | (Type::Pid(a), Type::Pid(b))
         | (Type::List(a), Type::List(b))
         | (Type::Option(a), Type::Option(b)) => capture(a, b, values, depth + 1)?,
         (Type::ActorFunction(a, b), Type::ActorFunction(c, d))
@@ -736,7 +754,7 @@ fn validate_layout_type(ty: &Type, span: Span) -> Checked<()> {
             Type::Union(args) | Type::Tuple(args) | Type::Named(_, args) => {
                 pending.extend(args.iter().map(|t| (t, depth + 1)))
             }
-            Type::Pid(a) | Type::List(a) | Type::Option(a) => pending.push((a, depth + 1)),
+            Type::Pid(a) | Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push((a, depth + 1)),
             Type::ActorFunction(a, b) | Type::Result(a, b) | Type::Map(a, b) => {
                 pending.push((a, depth + 1));
                 pending.push((b, depth + 1));

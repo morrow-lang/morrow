@@ -327,6 +327,11 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_tree_add"
         | "morrow_write_file"
         | "strstr" => (&[I64, I64], Some(I64), None),
+        "morrow_process_init_ack" | "morrow_process_init_ignore" => (&[I64], Some(I64), None),
+        "morrow_process_init_fail" | "morrow_managed_supervisor_id" => (&[I64, I64], Some(I64), None),
+        "morrow_managed_supervisor_child_key" | "morrow_supervisor_register" | "morrow_supervisor_take_reply" | "morrow_supervisor_root_request" => (&[I64, I64, I64], Some(I64), None),
+        "morrow_managed_supervisor_worker" | "morrow_supervisor_request" => (&[I64, I64, I64, I64], Some(I64), None),
+        "morrow_managed_supervisor_branch" => (&[I64, I64, I64, I64, I64], Some(I64), None),
         "morrow_process_cancel_token" => (&[I64], Some(I64), None),
         "morrow_process_cancel_request" | "morrow_process_cancel_release" => (&[I64], None, None),
         "morrow_process_self"

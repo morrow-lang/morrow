@@ -196,6 +196,8 @@ impl Expander<'_> {
                 self.named(name, arguments, values, span, depth, nodes)?
             }
             Type::Pid(a) => Type::Pid(Box::new(self.ty(a, values, span, depth + 1, nodes)?)),
+            Type::ChildKey(a) => Type::ChildKey(Box::new(self.ty(a, values, span, depth + 1, nodes)?)),
+            Type::RootFunction(a) => Type::RootFunction(Box::new(self.ty(a, values, span, depth + 1, nodes)?)),
             Type::List(a) => Type::List(Box::new(self.ty(a, values, span, depth + 1, nodes)?)),
             Type::Option(a) => {
                 Type::Option(Box::new(self.ty(a, values, span, depth + 1, nodes)?))

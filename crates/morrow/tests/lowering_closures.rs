@@ -18,6 +18,7 @@ fn fun(params: Vec<Type>, result: Type) -> Type {
 }
 fn function(id: usize, body: Expr) -> Function {
     Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(id),
         name: format!("helper{id}"),

@@ -27,6 +27,7 @@ fn program(body: Expr) -> ir::Program {
     ir::Program {
         types: vec![],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(0),
             name: "main".into(),
@@ -205,6 +206,7 @@ fn unused_union_signature_work_is_aggregate_bounded() {
     });
     for index in 1..32 {
         p.functions.push(Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(index),
             name: format!("unused{index}"),

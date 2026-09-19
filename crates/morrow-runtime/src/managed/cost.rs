@@ -39,7 +39,7 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
                 continue;
             }
             if seen.len() >= 4096
-                || !(0..=TYPE_MONITOR_REF).contains(&(*ty).kind)
+                || !(0..=TYPE_CHILD_SPEC).contains(&(*ty).kind)
                 || !(0..=4096).contains(&(*ty).count)
             {
                 return false;
@@ -47,7 +47,7 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
             seen.push(ty);
             let mut children = (*ty).count as usize;
             match (*ty).kind {
-                2 | 5 | 6 => {
+                2 | 5 | 6 | TYPE_CHILD_KEY => {
                     if children != 1 {
                         return false;
                     }
@@ -107,6 +107,60 @@ impl Cost {
         } else {
             self.bytes += bytes;
             true
+        }
+    }
+    unsafe fn supervisor_name(&mut self, name: *const std::ffi::c_char) -> bool {
+        let Some(bytes) = (unsafe { supervisor::values::name_bytes(name) }) else {
+            return false;
+        };
+        for _ in 0..bytes.div_ceil(64) {
+            if !work(&mut self.work) {
+                return false;
+            }
+        }
+        self.add(bytes)
+    }
+    unsafe fn supervisor_key(
+        &mut self,
+        key: *const supervisor::values::ChildKey,
+        mailbox: *const Type,
+    ) -> bool {
+        unsafe {
+            supervisor::values::valid_key(self.session, key, mailbox)
+                && self.add(
+                    std::mem::size_of::<supervisor::values::ChildKey>()
+                        + std::mem::size_of::<supervisor::values::KeyToken>(),
+                )
+                && self.supervisor_name((*key).name)
+        }
+    }
+    unsafe fn supervisor_spec(
+        &mut self,
+        ty: *const Type,
+        pointer: *const supervisor::values::ChildSpec,
+        depth: usize,
+    ) -> bool {
+        unsafe {
+            if supervisor::values::validate_header(self.session, pointer, &mut self.work).is_err()
+                || !self.add(std::mem::size_of::<supervisor::values::ChildSpec>())
+            {
+                return false;
+            }
+            let v = &*pointer;
+            if v.kind == 0 {
+                self.supervisor_key(v.key, (*(*v.key).token).mailbox)
+                    && self.frame(v.initializer, depth + 1)
+            } else {
+                if !self.supervisor_name(v.name) || !self.add(v.children_len as usize * 8) {
+                    return false;
+                }
+                for i in 0..v.children_len as usize {
+                    if !self.value(ty, *v.children.add(i) as i64, depth + 1) {
+                        return false;
+                    }
+                }
+                true
+            }
         }
     }
     unsafe fn frame(&mut self, closure: *const c_void, depth: usize) -> bool {
@@ -247,6 +301,12 @@ impl Cost {
                         && (*pid).mailbox == *(*ty).children
                         && self.add(std::mem::size_of::<Pid>())
                 }
+                TYPE_SUPERVISOR_HANDLE => {
+                    supervisor::values::valid_handle(self.session, pointer.cast())
+                        && self.add(std::mem::size_of::<supervisor::values::Handle>())
+                }
+                TYPE_CHILD_KEY => self.supervisor_key(pointer.cast(), *(*ty).children),
+                TYPE_CHILD_SPEC => self.supervisor_spec(ty, pointer.cast(), depth),
                 TYPE_PROCESS_ID => {
                     process::valid_identity(self.session, pointer.cast())
                         && self.add(std::mem::size_of::<process::Identity>())
@@ -297,6 +357,20 @@ pub(super) unsafe fn value(s: *mut Session, ty: *const Type, value: i64) -> Opti
     }
 }
 
+/// Start one graph accounting pass for an engine-owned opaque template.
+pub(super) unsafe fn child_spec(
+    s: *mut Session,
+    spec: *const supervisor::values::ChildSpec,
+) -> Option<usize> {
+    let ty = Type {
+        kind: TYPE_CHILD_SPEC,
+        count: 0,
+        children: null(),
+        arities: null(),
+    };
+    unsafe { value(s, &ty, spec as i64) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,3 +414,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "supervisor_value_tests.rs"]
+mod supervisor_value_tests;

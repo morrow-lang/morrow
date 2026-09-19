@@ -21,7 +21,7 @@ impl Engine<'_> {
                         pending.extend(fields);
                     }
                 }
-                Type::Pid(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
+                Type::Pid(inner) | Type::ChildKey(inner) | Type::RootFunction(inner) | Type::List(inner) | Type::Option(inner) => pending.push(inner),
                 Type::Map(key, value) => {
                     self.charge(2, span)?;
                     pending.extend([key.as_ref(), value.as_ref()]);

@@ -22,6 +22,7 @@ fn binary(op: BinaryOp, a: Expr, b: Expr) -> Expr {
 }
 fn function(id: usize, name: &str, body: Expr) -> Function {
     Function {
+        root_context: false,
         mailbox: None,
         id: FunctionId(id),
         name: name.into(),

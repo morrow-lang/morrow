@@ -58,7 +58,7 @@ impl Engine<'_> {
         let Some(Shape::Callable(function, shapes)) = shape else {
             return self.fresh(ty, input, span, depth);
         };
-        if !matches!(ty, Type::Function(..)) {
+        if crate::actors::function(ty).is_none() {
             return self.unsupported(span);
         }
         if self.abstract_trait(*function) && shapes.is_empty() {

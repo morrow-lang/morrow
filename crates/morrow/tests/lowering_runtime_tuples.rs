@@ -21,6 +21,7 @@ fn emit(name: &str, arguments: Vec<&str>) -> String {
     lowering::emit(&ir::Program {
         types: vec![],
         functions: vec![ir::Function {
+            root_context: false,
             mailbox: None,
             captures: vec![],
             id: ir::FunctionId(0),

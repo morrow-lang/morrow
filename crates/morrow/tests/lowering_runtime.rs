@@ -28,6 +28,7 @@ fn emit(body: Expr) -> Result<String, morrow_compiler::Diagnostic> {
     lowering::emit(&Program {
         types: vec![],
         functions: vec![Function {
+            root_context: false,
             mailbox: None,
             captures: vec![],
             id: FunctionId(0),
@@ -271,6 +272,7 @@ fn every_registered_signature_lowers_with_its_audited_result_contract() {
             .map(|param| ex(ExprKind::Local(param.id), param.ty.clone()))
             .collect();
         let helper = Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(1),
             name: "audited_runtime".into(),
@@ -281,6 +283,7 @@ fn every_registered_signature_lowers_with_its_audited_result_contract() {
             body: call(name, args, concrete(&signature.return_type)),
         };
         let main = Function {
+            root_context: false,
             mailbox: None,
             id: FunctionId(0),
             name: "main".into(),

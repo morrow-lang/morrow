@@ -76,6 +76,7 @@ impl Lifter {
         };
         let (capture_params, values) = captures.into_iter().map(|c| (c.param, c.value)).unzip();
         self.generated.push(ir::Function {
+            root_context: matches!(expr.ty, Type::RootFunction(_)),
             mailbox: mailbox.cloned(),
             id,
             name: format!("$lambda{}", id.0),
@@ -129,6 +130,7 @@ impl Lifter {
             })
             .collect();
         self.generated.push(ir::Function {
+            root_context: false,
             mailbox: None,
             id,
             name: format!("$callable{}", id.0),

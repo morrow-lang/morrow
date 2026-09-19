@@ -106,7 +106,7 @@ pub(super) fn storage(
                     pending.extend(fields.iter().map(Edge::Enter));
                 }
             }
-            Type::List(a) | Type::Option(a) => pending.push(Edge::Enter(a)),
+            Type::ChildKey(a) | Type::RootFunction(a) | Type::List(a) | Type::Option(a) => pending.push(Edge::Enter(a)),
             Type::Result(a, b) | Type::Map(a, b) => {
                 charge(work, 2, span)?;
                 pending.extend([Edge::Enter(a), Edge::Enter(b)]);
