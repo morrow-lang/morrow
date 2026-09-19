@@ -76,7 +76,58 @@ pub(super) fn prepare(program: &ir::Program) -> Lowering<Prepared<'_>> {
     })
 }
 
+/// Only private immediate matches consume an unboxed enqueue outcome.
+pub(super) enum SendResult {
+    Boxed,
+    Outcome,
+}
+
 impl Emitter<'_> {
+    /// Preserve argument evaluation, root publication and fault precedence for
+    /// both representations; only the returned enqueue Result is elided.
+    pub(super) fn send_call(
+        &mut self,
+        pid: &Expr,
+        message: &Expr,
+        span: Span,
+        result: SendResult,
+        locals: &mut Locals,
+        depth: usize,
+    ) -> Lowering<(Type, String)> {
+        expect_type(
+            pid.ty.clone(),
+            Type::Pid(Box::new(message.ty.clone())),
+            span,
+        )?;
+        let pid = self.expr(pid, locals, depth)?;
+        let value = self.expr(message, locals, depth)?;
+        let value = self.payload(locals, &message.ty, value);
+        let descriptor = self.actor_type(&message.ty)?;
+        let (ty, symbol) = match result {
+            SendResult::Boxed => (
+                Type::Result(Box::new(Type::Unit), Box::new(Type::Int)),
+                "$morrow_managed_send",
+            ),
+            SendResult::Outcome => (Type::Int, "$morrow_managed_send_outcome"),
+        };
+        let result = self.assign(
+            locals,
+            ty.clone(),
+            NativeOperation::Call {
+                callee: native_operand(symbol),
+                args: vec![
+                    (Scalar::I64, native_operand("%exec")),
+                    (Scalar::I64, native_operand(&pid)),
+                    (Scalar::I64, native_operand(&value)),
+                    (Scalar::I64, native_operand(&descriptor)),
+                ],
+                variadic: None,
+            },
+        );
+        self.guard_fault(locals);
+        Ok((ty, result))
+    }
+
     /// Export only descriptor-backed host constructors for managed libraries.
     pub(super) fn actor_library(&mut self) -> Lowering<()> {
         if !self.actors.active {
@@ -202,32 +253,7 @@ impl Emitter<'_> {
                 Ok((ty, value))
             }
             ir::ActorExpr::Send { pid, message } => {
-                expect_type(
-                    pid.ty.clone(),
-                    Type::Pid(Box::new(message.ty.clone())),
-                    span,
-                )?;
-                let pid = self.expr(pid, locals, depth)?;
-                let value = self.expr(message, locals, depth)?;
-                let value = self.payload(locals, &message.ty, value);
-                let descriptor = self.actor_type(&message.ty)?;
-                let ty = Type::Result(Box::new(Type::Unit), Box::new(Type::Int));
-                let result = self.assign(
-                    locals,
-                    ty.clone(),
-                    NativeOperation::Call {
-                        callee: native_operand("$morrow_managed_send"),
-                        args: vec![
-                            (Scalar::I64, native_operand("%exec")),
-                            (Scalar::I64, native_operand(&(pid))),
-                            (Scalar::I64, native_operand(&(value))),
-                            (Scalar::I64, native_operand(&(descriptor))),
-                        ],
-                        variadic: None,
-                    },
-                );
-                self.guard_fault(locals);
-                Ok((ty, result))
+                self.send_call(pid, message, span, SendResult::Boxed, locals, depth)
             }
             ir::ActorExpr::Lowered(value) => self.actor_operation(&value.operation, locals, depth),
             _ => Err(invalid(span, "unconverted actor suspension")),

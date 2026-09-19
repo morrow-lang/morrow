@@ -1,0 +1,59 @@
+type WideMessage:
+    Wide(Int, Float, String, Pid(String))
+
+fn evaluated_pid(port: Pid(String)) -> Pid(String):
+    println("pid")
+    port
+fn evaluated_message() -> String:
+    println("message")
+    "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ" + "-rooted-owned-message-payload"
+fn guard(label: String, result: Bool) -> Bool:
+    println(label)
+    result
+fn probe(port: Pid(String)) -> Int:
+    match send(evaluated_pid(port), evaluated_message()):
+        Ok(_) if guard("first", result: false) -> -1
+        Ok(unit) if guard("second", result: true) -> 9007199254740993
+        Ok(_) -> -2
+        Err(3) if guard("error", result: true) -> -3
+        Err(code) -> code
+fn boxed(port: Pid(String)) -> Result((), Int):
+    send(port, "boxed")
+fn aliased(port: Pid(String)) -> Int:
+    match send(port, "aliased"):
+        result ->
+            match result:
+                Ok(_) -> 31
+                Err(code) -> code
+
+fn fault_pid(port: Pid(String), phase: Int) -> Pid(String):
+    println("pid-fault")
+    if phase == 0:
+        println(1 / phase)
+    port
+fn fault_message(phase: Int) -> String:
+    println("message-fault")
+    if phase == 1:
+        println(1 / (phase - 1))
+    "owned" + "-fault-message"
+fn fault_guard(phase: Int) -> Bool:
+    println("guard-fault")
+    1 / (phase - 2) == 0
+fn faulting(port: Pid(String), phase: Int) -> Int:
+    defer println("cleanup")
+    match send(fault_pid(port, phase: phase), fault_message(phase)):
+        Ok(_) if fault_guard(phase) -> 1
+        Ok(_) -> 2
+        Err(code) -> code
+
+fn receive_wide():
+    receive:
+        Wide(value, number, text, reply) ->
+            match send(reply, "{value}|{number}|{text}"):
+                Ok(_) -> ()
+                Err(code) -> println(code)
+fn wide(port: Pid(String)):
+    let pid: Pid(WideMessage) = spawn(receive_wide)
+    match send(pid, Wide(-9223372036854775808, 1.125, "owned" + "-capture", port)):
+        Ok(_) -> ()
+        Err(code) -> println(code)

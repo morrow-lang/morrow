@@ -849,3 +849,6 @@ fn unaccounted_and_cyclic_message_graphs_are_rejected() {
         assert!(cost::value(session, &recursive, cycle.as_ptr() as i64).is_none());
     }
 }
+
+#[path = "send_outcome_tests.rs"]
+mod send_outcomes;

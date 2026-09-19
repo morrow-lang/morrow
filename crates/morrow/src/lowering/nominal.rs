@@ -1,5 +1,8 @@
 //! Concrete nominal layouts and guarded recursive matching at the backend boundary.
 use super::*;
+#[path = "nominal/send_outcome.rs"]
+mod send_outcome;
+
 #[path = "pattern_coverage.rs"]
 mod coverage;
 #[path = "sequence_patterns.rs"]
@@ -541,7 +544,7 @@ impl Emitter<'_> {
         partial: bool,
     ) -> Lowering<(Type, String)> {
         let (ty, patterns) = self.checked_match(value, arms, partial)?;
-        let scrutinee = self.expr(value, locals, depth)?;
+        let scrutinee = self.match_scrutinee(value, &patterns, partial, locals, depth)?;
         let merge = locals.label();
         let mut incoming = Vec::new();
         for (arm, pattern) in arms.iter().zip(patterns) {
@@ -554,7 +557,7 @@ impl Emitter<'_> {
                 span: arm.span,
                 depth,
             };
-            self.pattern_branch(&pattern, &value.ty, &scrutinee, &mut state, locals)?;
+            self.match_pattern(&pattern, &value.ty, &scrutinee, &mut state, locals)?;
             self.materialize_rests(&mut state, locals)?;
             let result = self.match_arm(arm, &failure, locals, depth, tail);
             for id in state.bindings {
@@ -641,6 +644,14 @@ impl Emitter<'_> {
         self.start_block(locals, &success);
     }
 
+    fn pattern_work(&mut self, state: &PatternState<'_>) -> Lowering<()> {
+        self.nodes += 1;
+        if self.nodes > MAX_NODES || state.depth > MAX_DEPTH {
+            return Err(invalid(state.span, "pattern lowering limit exceeded"));
+        }
+        Ok(())
+    }
+
     /// Check nested tags before payload reads, introducing scoped SSA bindings as found.
     fn pattern_branch(
         &mut self,
@@ -650,10 +661,7 @@ impl Emitter<'_> {
         state: &mut PatternState<'_>,
         locals: &mut Locals,
     ) -> Lowering<()> {
-        self.nodes += 1;
-        if self.nodes > MAX_NODES || state.depth > MAX_DEPTH {
-            return Err(invalid(state.span, "pattern lowering limit exceeded"));
-        }
+        self.pattern_work(state)?;
         match pattern {
             Pattern::UnionSelect { narrowed, binding } => {
                 self.union_pattern(ty, narrowed, binding.as_ref(), value, state, locals)?;

@@ -362,6 +362,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_managed_receive"
         | "morrow_managed_continue_reuse"
         | "morrow_managed_send"
+        | "morrow_managed_send_outcome"
         | "morrow_managed_supervise"
         | "morrow_managed_spawn_on"
         | "morrow_managed_port_read"

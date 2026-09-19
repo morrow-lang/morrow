@@ -342,25 +342,47 @@ pub unsafe extern "C" fn morrow_managed_send(
     value: i64,
     ty: *const Type,
 ) -> i64 {
+    // The public ABI always owns a normal RC-prefixed Result value.
+    match unsafe { morrow_managed_send_outcome(exec, identity, value, ty) } {
+        0 => abi::result_ok(0),
+        error => abi::result_err(error),
+    }
+}
+
+/// Compiler-private outcome for an immediately consumed send Result: zero is
+/// Ok(Unit), otherwise the full-width nonzero error Int (currently 3 or 4).
+/// This scalar is not a Result pointer or a scheduler callback status. Both
+/// calling conventions share all validation, copying and admission below.
+/// # Safety
+/// Nonnull pointers must be live native values; identity must be a native PID
+/// object. Exec and sender-owned values belong to the calling scheduler thread;
+/// descriptors remain immutable and all pointer payloads stay rooted for the call.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_managed_send_outcome(
+    exec: *mut Exec,
+    identity: *mut c_void,
+    value: i64,
+    ty: *const Type,
+) -> i64 {
     unsafe {
         if exec.is_null() || (*exec).session.is_null() || identity.is_null() {
-            return abi::result_err(3);
+            return 3;
         }
         let s = (*exec).session;
         let pid = identity.cast::<Pid>();
         if !live_pid(s, pid) || (*pid).mailbox != ty {
-            return abi::result_err(3);
+            return 3;
         }
         let a = (*pid).actor;
         let Some(cost) = cost::value(s, ty, value).and_then(|c| c.checked_add(MESSAGE_BYTES))
         else {
-            return abi::result_err(4);
+            return 4;
         };
         if !transport::send(exec, a, value, ty, cost) {
-            return abi::result_err(4);
+            return 4;
         }
 
-        abi::result_ok(0)
+        0
     }
 }
 
