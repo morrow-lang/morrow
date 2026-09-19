@@ -1,0 +1,386 @@
+[
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 1144.592583004851,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 312.3429999977816,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 69.49925000662915,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 1268.1646250130143,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 1281.6302079882007,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 87.97645900631323,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 85.06037501501851,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 1308.0975000048056,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 491.52295899693854,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 534.3450410000514,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 498.0471670278348,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 492.21329201827757,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 508.0754579976201,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 491.84724999940954,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 501.8691669974942,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 468.7375829962548,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 27.80170799815096,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 0,
+    "wall_ms": 28.458791988668963,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 29.345499991904944,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 1,
+    "wall_ms": 28.70212498237379,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 27.985332999378443,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 2,
+    "wall_ms": 29.25095899263397,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 27.725374995497987,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 2,
+    "turn": 3,
+    "wall_ms": 28.48820897634141,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 806.7714589997195,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 95.52145798807032,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 99.98366702347994,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 1040.2000829926692,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 1046.2781249952968,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 88.05912500247359,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 95.93208399019204,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "request-reply",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 1035.5941669840831,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 515.0171249988489,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 567.2064170066733,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 504.5387090067379,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 509.9575000058394,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 500.3855830000248,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 521.1279999930412,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 512.9417499992996,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "contention",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 546.9977920001838,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 26.90958301536739,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 0,
+    "wall_ms": 27.008999983081594,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 27.215417008846998,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 1,
+    "wall_ms": 26.798250008141622,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 37.43100000428967,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 2,
+    "wall_ms": 28.0650409986265,
+    "oracle": "pass"
+  },
+  {
+    "variant": "gc",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 28.166707983473316,
+    "oracle": "pass"
+  },
+  {
+    "variant": "before",
+    "workload": "lifecycle",
+    "schedulers": 4,
+    "turn": 3,
+    "wall_ms": 27.095166995422915,
+    "oracle": "pass"
+  }
+]

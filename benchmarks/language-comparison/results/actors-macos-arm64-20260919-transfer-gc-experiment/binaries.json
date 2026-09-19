@@ -1,0 +1,10 @@
+{
+  "before": {
+    "path": "/tmp/morrow-actors-release-20260919-fixed",
+    "sha256": "ed3dda211447c405436de91501c24921511c8dd5013f9bb9f495164dbbb81899"
+  },
+  "gc": {
+    "path": "/tmp/morrow-actors-release-20260919-gc",
+    "sha256": "9de8abc625272d941a9e42aaa7ad7a25d09fe48e08012d8c78ed66327bcd0556"
+  }
+}

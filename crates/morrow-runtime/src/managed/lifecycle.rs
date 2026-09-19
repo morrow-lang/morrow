@@ -30,7 +30,25 @@ pub unsafe extern "C" fn morrow_managed_new(
                 return null_mut();
             }
         };
+        if migration::configured().is_err() {
+            if !fault.is_null() && *fault == 0 {
+                *fault = 9;
+            }
+            return null_mut();
+        }
+        let budget = match quantum::Budget::configured() {
+            Ok(budget) => budget,
+            Err(_) => {
+                if !fault.is_null() && *fault == 0 {
+                    *fault = 9;
+                }
+                return null_mut();
+            }
+        };
         let exec = new_local(fault, functions, count);
+        if !exec.is_null() {
+            (*(*exec).session).reduction_budget = budget;
+        }
         if !exec.is_null()
             && count_schedulers > 1
             && parallel::morrow_managed_parallel(exec, count_schedulers) != 0
@@ -228,6 +246,8 @@ unsafe fn create_actor(
             identity: ActorIdentity {
                 session_key: (*s).session_key,
                 scheduler: (*s).scheduler,
+                owner: AtomicUsize::new((*s).scheduler),
+                ingress: Some(control::Owned::new(transport::Ingress::new((*s).scheduler))),
                 id,
                 slot,
                 mailbox,
@@ -236,6 +256,7 @@ unsafe fn create_actor(
                 ..ActorIdentity::default()
             },
             _supervisor: (!supervisor.is_null()).then(|| control::Owned::retain(supervisor)),
+            slot,
             _session: Some(control::Owned::retain(s)),
             ..Actor::default()
         });

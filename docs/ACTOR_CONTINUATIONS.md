@@ -1,7 +1,8 @@
 # Actor continuations
 
 Each of Morrow's native schedulers runs FIFO callbacks. Native invocations can
-opt into multiple pinned scheduler threads with `MORROW_SCHEDULERS`; see the
+opt into multiple scheduler threads with `MORROW_SCHEDULERS` and optional
+work stealing with `MORROW_WORK_STEALING=1`; see the
 [actor runtime](ACTOR_RUNTIME.md#typed-native-execution). The compiler emits separate actor
 copies of eligible functions, keeping their ordinary native ABI and synchronous
 behavior when called outside an actor. This is cooperative source-level
@@ -9,8 +10,8 @@ suspension, not instruction-level or operating-system preemption.
 
 ## Scheduling boundaries
 
-Direct and dynamically invoked ordinary helpers on recursive or iterative paths
-use managed continuation frames. This includes calls that return a
+Direct and dynamically invoked ordinary helpers on recursive, iterative or
+oversized finite paths use managed continuation frames. This includes calls that return a
 value, nested calls in strict operands, mutually recursive helpers and Unit tail
 calls. `let ... else` destructuring runs after its suspended initializer and
 preserves its failure branch. An operand is evaluated once, in source order. Boolean `and`/`or` operands
@@ -52,6 +53,19 @@ captures. Separate resumable copies leave ordinary CLI calls and callback ABIs
 unchanged. Actor-bearing programs prepare eligible recursive identities even
 when a callable reaches the actor through aliases or a function return.
 
+Straight-line prefixes count source computations, including the transitive cost
+of small finite helpers. Prefixes exceeding 32 computations split into typed
+continuations; oversized strict expressions normalize in source order before
+splitting. This bounds eligible source work, not native instruction counts.
+Small finite helpers preserve their ordinary scheduling behavior. Existing
+source-depth, normalization-node and generated-function limits still apply.
+
+`MORROW_REDUCTIONS=1..65536` controls callbacks per actor turn (default 1).
+The scheduler invokes them in a loop with a fresh native callback stack each
+time, then rotates the actor to the FIFO tail. An ordinary receive ends the turn
+even if it selects an already queued message. Larger quanta amortize scheduling
+cost at the expense of longer intervals before sibling work and timer promotion.
+
 ## Boundaries that remain synchronous
 
 A callback cannot preempt a blocking foreign or runtime call. Such calls are a
@@ -67,6 +81,8 @@ cancellation; see [Actor-owned deferred cleanup](ACTOR_CLEANUP.md). Cleanup
 callbacks run synchronously and cannot perform deferred actor effects. Helpers
 with unsupported capture/result representations,
 including foreign pointers and native handles, do not acquire resumable copies.
+`List.sort_by` comparators remain native synchronous callbacks. Collection and
+message-copying work is not charged to the callback quantum.
 Native descriptor preflight also refuses foreign pointers retained in a dynamically
 formed continuation graph. Message sendability is unchanged.
 
@@ -99,6 +115,8 @@ expected output and real runtime scheduling:
   actor while recursive callbacks yield to siblings inside an actor;
 - a dynamic callback fault unwinds every logical activation and prevents later
   collection callbacks;
+- oversized finite helpers, transitive finite call trees and strict expressions
+  yield before their final result while preserving full-width output;
 - the previous 100,000-transition tail-helper and native host polling oracles
   remain regression coverage.
 

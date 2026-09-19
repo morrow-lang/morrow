@@ -30,6 +30,7 @@ struct Builder<'a> {
     returning: BTreeMap<usize, usize>,
     return_to: Option<ir::Param>,
     scoped: bool,
+    inline_work: BTreeMap<usize, usize>,
 }
 #[derive(Clone)]
 struct Continuation {
@@ -65,8 +66,11 @@ pub(super) fn program(
         returning: BTreeMap::new(),
         return_to: None,
         scoped: false,
+        inline_work: BTreeMap::new(),
     };
-    let helpers = tail_helpers::discover(program, layouts)?;
+    let discovery = tail_helpers::discover(program, layouts)?;
+    let helpers = discovery.helpers;
+    builder.inline_work = discovery.costs;
     for function in &program.functions {
         if helpers.contains(&function.id.0) {
             if function.body.ty != Type::Never {
@@ -336,7 +340,7 @@ impl Builder<'_> {
         Ok(operation(Operation::Continue(Box::new(entry)), span))
     }
 
-    /// Split only at suspension/control boundaries; a straight-line prefix remains one step.
+    /// Bound straight-line computations, including costs of finite inline helpers.
     fn block(
         &mut self,
         stmts: &[Stmt],
@@ -345,7 +349,22 @@ impl Builder<'_> {
         depth: usize,
     ) -> Lowering<Expr> {
         let mut prefix = Vec::new();
+        let mut work = 0;
         for (index, stmt) in stmts.iter().enumerate() {
+            let cost: usize = stmt_children(stmt)
+                .into_iter()
+                .map(|value| tail_helpers::expression_work(value, &self.inline_work))
+                .sum();
+            if !prefix.is_empty() && work + cost > tail_helpers::STEP_WORK {
+                let rest = self.block(&stmts[index..], next, span, depth + 1)?;
+                let entry = self.closure(rest, vec![], false)?;
+                prefix.push(Stmt::Expr(operation(
+                    Operation::Continue(Box::new(entry)),
+                    span,
+                )));
+                return Ok(node(ExprKind::Block(prefix), Type::Int, span));
+            }
+            work += cost;
             if index + 1 == stmts.len()
                 && let Stmt::Expr(value) = stmt
             {

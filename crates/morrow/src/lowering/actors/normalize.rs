@@ -179,7 +179,9 @@ impl Builder<'_> {
         for operand in &mut operands {
             **operand = self.normalize(operand, depth + 1)?;
         }
-        if !operands.iter().any(|operand| self.needs(operand)) {
+        if !operands.iter().any(|operand| self.needs(operand))
+            && tail_helpers::expression_work(source, &self.inline_work) <= tail_helpers::STEP_WORK
+        {
             return Ok(expr);
         }
         let mut prefix = Vec::new();

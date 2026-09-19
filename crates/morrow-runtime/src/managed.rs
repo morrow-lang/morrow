@@ -4,6 +4,8 @@ use std::ffi::c_void;
 use std::ptr::{null, null_mut};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+#[path = "managed/affinity.rs"]
+mod affinity;
 #[path = "managed/budget.rs"]
 mod budget;
 #[path = "managed/control.rs"]
@@ -12,11 +14,18 @@ mod control;
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+pub use affinity::morrow_managed_pin_current;
+#[path = "managed/migration.rs"]
+mod migration;
 #[path = "managed/parallel.rs"]
 mod parallel;
+#[path = "managed/quantum.rs"]
+mod quantum;
 pub use parallel::morrow_managed_parallel;
 #[cfg(any(test, feature = "simulation"))]
-pub use parallel::{recorded as scheduler_recording, simulate as simulate_schedulers};
+pub use parallel::{
+    recorded as scheduler_recording, simulate as simulate_schedulers, simulated_work_stealing,
+};
 #[path = "managed/transport.rs"]
 mod transport;
 const LIVE: usize = 1024;
@@ -59,8 +68,9 @@ struct Message {
     cost: usize,
     enqueued: u64,
 }
-/// Published once before any PID or queue exposes its actor. Only `alive` and
-/// `pending` change atomically; the owning scheduler has every other mutable field.
+/// Published before any PID exposes its actor. Identity and ingress ownership
+/// stay immutable; alive, pending and current owner are atomic. Mutable payload
+/// fields below the header belong exclusively to the current scheduler.
 #[repr(C)]
 #[derive(Default)]
 struct ActorIdentity {
@@ -72,6 +82,8 @@ struct ActorIdentity {
     supervisor: *mut supervision::Supervisor,
     alive: AtomicBool,
     pending: AtomicUsize,
+    owner: AtomicUsize,
+    ingress: Option<control::Owned<transport::Ingress>>,
 }
 #[repr(C)]
 #[derive(Default)]
@@ -79,6 +91,11 @@ struct Actor {
     identity: ActorIdentity,
     exec: Exec,
     heap: usize,
+    slot: usize,
+    pinned: bool,
+    steal_cooldown: u16,
+    running: bool,
+    continuation_pending: bool,
     queued: bool,
     waiting: bool,
     host_port: bool,
@@ -116,6 +133,7 @@ struct Session {
     // Sessions participating in one invocation.
     session_key: usize,
     scheduler: usize,
+    reduction_budget: quantum::Budget,
     #[cfg(any(test, feature = "simulation"))]
     simulation: simulation::State,
     root: Exec,
@@ -191,7 +209,7 @@ unsafe fn publish_actor(s: *mut Session, a: *mut Actor, slot: usize) {
     unsafe {
         let id = (*a).identity.id;
         debug_assert_ne!(id, 0);
-        debug_assert_eq!((*a).identity.slot, slot);
+        debug_assert_eq!((*a).slot, slot);
         (*s).next_id = (*s).next_id.max(id);
         (*s).used_slots = (*s).used_slots.max(slot + 1);
         *(*s).identities.add(slot) = a;

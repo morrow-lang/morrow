@@ -2,6 +2,13 @@
 
 Status: proposed. Date: 2026-09-15. Step 1 of 5 toward parallel actor execution.
 
+Implementation note (2026-09-19): this proposal is retained as historical design
+context. Decisions156–161 implement domain ownership, parallel schedulers,
+bounded native continuation scheduling, optional work stealing and eligible heap
+migration, with conservative resource pinning. See the current
+[actor runtime contract](../../ACTOR_RUNTIME.md) for the synchronous native
+boundaries, pinned supervision and unsupported WASM actor execution.
+
 ## Why
 
 Morrow's actor scheduler executes on one thread. `docs/ACTOR_RUNTIME.md:25` states

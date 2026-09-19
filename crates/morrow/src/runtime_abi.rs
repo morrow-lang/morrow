@@ -48,6 +48,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_user" => (&[], Some(I64), None),
         "morrow_gc_collect"
         | "morrow_gc_collect_precise"
+        | "morrow_managed_pin_current"
         | "morrow_live_clear_line"
         | "morrow_live_done"
         | "morrow_term_clear"

@@ -881,3 +881,263 @@ fn external_control_heap_scans_only_the_selected_payload_word_range() {
     retire_heap(heap);
     assert_eq!(stats().objects, 0);
 }
+
+#[test]
+fn actor_heap_transfer_preserves_cycles_controls_and_exclusive_rc_graphs() {
+    struct Finalized(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+    impl Drop for Finalized {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let drops = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let mut source = Domain::new();
+    let (control, control_drops) = external_control();
+    let (heap, root, child, first, second, bytes) = {
+        let _active = source.activate();
+        let heap = unsafe {
+            create_control_heap(
+                std::sync::Arc::as_ptr(&control).cast(),
+                1,
+                control_token(&control),
+            )
+        };
+        let scope = enter_heap(heap);
+        let root = alloc(32, false).cast::<usize>();
+        let child = alloc(8, false).cast::<usize>();
+        let owned = Rc::new(Finalized(drops.clone()));
+        let first = unsafe { managed(owned.clone(), 2048) };
+        let second = unsafe { managed(owned, 2048) };
+        unsafe {
+            root.write(child as usize);
+            root.add(1).write(first as usize);
+            root.add(2).write(second as usize);
+            root.add(3).write(std::sync::Arc::as_ptr(&control) as usize);
+            child.write(root as usize);
+            retain_control(root.cast(), control_token(&control));
+        }
+        control.word.store(root as usize, Ordering::SeqCst);
+        let bytes = stats().bytes;
+        drop(scope);
+        (
+            heap,
+            root as usize,
+            child as usize,
+            first as usize,
+            second as usize,
+            bytes,
+        )
+    };
+    drop(control);
+    let transfer = unsafe { source.detach_heap(heap) }.unwrap();
+    assert!(!source.owns(heap, root as *const _));
+    assert_eq!((source.stats().bytes, source.stats().objects), (bytes, 4));
+    let observed = drops.clone();
+    std::thread::spawn(move || {
+        let mut destination = Domain::new();
+        let collision = {
+            let _active = destination.activate();
+            fresh_actor_heap()
+        };
+        assert_eq!(collision, heap);
+        let adopted = destination.adopt_heap(transfer);
+        assert_ne!(adopted, collision);
+        for pointer in [root, child, first, second] {
+            assert!(destination.owns(adopted, pointer as *const _));
+        }
+        let _active = destination.activate();
+        let scope = enter_heap(adopted);
+        unsafe {
+            morrow_gc_collect_precise();
+            assert_eq!(*(root as *const usize), child);
+            assert_eq!(*(child as *const usize), root);
+            assert_eq!(Rc::strong_count(&*(first as *const Rc<Finalized>)), 2);
+            assert_eq!(
+                Rc::as_ptr(&*(first as *const Rc<Finalized>)),
+                Rc::as_ptr(&*(second as *const Rc<Finalized>))
+            );
+        }
+        assert_eq!((stats().bytes, stats().objects), (bytes, 4));
+        assert_eq!(observed.load(Ordering::SeqCst), 0);
+        drop(scope);
+        retire_heap(adopted);
+        assert_eq!((stats().bytes, stats().objects), (0, 0));
+    })
+    .join()
+    .unwrap();
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert_eq!(control_drops.load(Ordering::SeqCst), 1);
+    assert_eq!((source.stats().bytes, source.stats().objects), (0, 0));
+}
+
+#[test]
+fn actor_heap_transfer_refuses_scope_frame_and_ephemeral_root_atomically() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let heap = fresh_actor_heap();
+    let scope = enter_heap(heap);
+    let pointer = alloc(32, true);
+    assert_eq!(
+        unsafe { detach_heap(heap) }.err(),
+        Some(TransferError::ActiveScope)
+    );
+    let word = pointer as usize;
+    let frame = unsafe { morrow_gc_frame_enter(&word, 1) };
+    let root = unsafe { root_range(&word, 1) };
+    drop(scope);
+    assert_eq!(
+        unsafe { detach_heap(heap) }.err(),
+        Some(TransferError::NativeFrame)
+    );
+    morrow_gc_frame_leave(frame);
+    assert_eq!(
+        unsafe { detach_heap(heap) }.err(),
+        Some(TransferError::ExternalRoot)
+    );
+    assert!(heap_owns(heap, pointer.cast()));
+    assert_eq!((stats().bytes, stats().objects), (32, 1));
+    drop(root);
+    drop(unsafe { detach_heap(heap) }.unwrap());
+    assert!(!heap_owns(heap, pointer.cast()));
+    assert_eq!((stats().bytes, stats().objects), (0, 0));
+}
+
+#[test]
+fn actor_heap_transfer_rejects_foreign_payload_edges_without_mutation() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    let foreign = alloc(16, true);
+    let heap = fresh_actor_heap();
+    let pointer = {
+        let _scope = enter_heap(heap);
+        let pointer = alloc(8, false).cast::<usize>();
+        unsafe {
+            pointer.write(foreign as usize + 3);
+        }
+        pointer
+    };
+    assert_eq!(
+        unsafe { detach_heap(heap) }.err(),
+        Some(TransferError::ForeignEdge)
+    );
+    assert!(heap_owns(heap, pointer.cast()));
+    assert!(heap_owns(0, foreign.cast()));
+    assert_eq!((stats().bytes, stats().objects), (24, 2));
+    unsafe {
+        pointer.write(0);
+    }
+    drop(unsafe { detach_heap(heap) }.unwrap());
+    assert_eq!((stats().bytes, stats().objects), (16, 1));
+}
+
+#[test]
+fn actor_heap_transfer_refuses_unbounded_scan_without_retiring_storage() {
+    let mut domain = Domain::new();
+    let _active = domain.activate();
+    assert_eq!(
+        unsafe { detach_heap(0) }.err(),
+        Some(TransferError::NotActorHeap)
+    );
+    assert_eq!(
+        unsafe { detach_heap(999) }.err(),
+        Some(TransferError::NotActorHeap)
+    );
+    let heap = fresh_actor_heap();
+    let pointer = {
+        let _scope = enter_heap(heap);
+        alloc(8 * 1_048_577, false)
+    };
+    assert_eq!(
+        unsafe { detach_heap(heap) }.err(),
+        Some(TransferError::WorkLimit)
+    );
+    assert!(heap_owns(heap, pointer.cast()));
+    retire_heap(heap);
+    assert_eq!(stats().objects, 0);
+}
+
+#[test]
+fn abandoned_actor_heap_transfer_finalizes_on_a_foreign_thread_without_a_domain() {
+    struct Finalized(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+    impl Drop for Finalized {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    let drops = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let (control, control_drops) = external_control();
+    let mut source = Domain::new();
+    let heap = {
+        let _active = source.activate();
+        let heap = unsafe {
+            create_control_heap(
+                std::sync::Arc::as_ptr(&control).cast(),
+                1,
+                control_token(&control),
+            )
+        };
+        let _scope = enter_heap(heap);
+        unsafe {
+            managed(Rc::new(Finalized(drops.clone())), 4096);
+        }
+        heap
+    };
+    drop(control);
+    let bytes = source.stats().bytes;
+    let transfer = unsafe { source.detach_heap(heap) }.unwrap();
+    assert_eq!((source.stats().bytes, source.stats().objects), (bytes, 1));
+    std::thread::spawn(move || drop(transfer)).join().unwrap();
+    assert_eq!((source.stats().bytes, source.stats().objects), (0, 0));
+    assert_eq!(drops.load(Ordering::SeqCst), 1);
+    assert_eq!(control_drops.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn actor_heap_transfer_keeps_shared_native_json_nodes_exclusively_owned() {
+    let mut source = Domain::new();
+    let (control, _) = external_control();
+    let (heap, json, duplicate) = {
+        let _active = source.activate();
+        let heap = unsafe {
+            create_control_heap(
+                std::sync::Arc::as_ptr(&control).cast(),
+                1,
+                control_token(&control),
+            )
+        };
+        let _scope = enter_heap(heap);
+        let json = crate::json::morrow_json_value_from_int(9_007_199_254_740_993);
+        let duplicate = crate::json::wrap(unsafe { crate::json::node(json) });
+        let root = alloc(16, false).cast::<usize>();
+        unsafe {
+            root.write(json as usize);
+            root.add(1).write(duplicate as usize);
+        }
+        control.word.store(root as usize, Ordering::SeqCst);
+        (heap, json as usize, duplicate as usize)
+    };
+    let transfer = unsafe { source.detach_heap(heap) }.unwrap();
+    drop(control);
+    std::thread::spawn(move || {
+        let mut destination = Domain::new();
+        let _active = destination.activate();
+        let heap = adopt_heap(transfer);
+        let scope = enter_heap(heap);
+        unsafe {
+            morrow_gc_collect_precise();
+            let node = crate::json::node(json as *const crate::json::NativeJson);
+            let copied = crate::json::node(duplicate as *const crate::json::NativeJson);
+            assert!(Rc::ptr_eq(&node, &copied));
+            assert_eq!(
+                morrow_json::stringify(&node, &mut crate::json::limits()).unwrap(),
+                "9007199254740993"
+            );
+        }
+        drop(scope);
+        retire_heap(heap);
+        assert_eq!((stats().bytes, stats().objects), (0, 0));
+    })
+    .join()
+    .unwrap();
+    assert_eq!((source.stats().bytes, source.stats().objects), (0, 0));
+}

@@ -23,10 +23,11 @@ Native compiler frames register typed reference roots. Runtime allocation helper
 still use conservative stack/register discovery, and objects are scanned
 conservatively; this is not yet a fully precise collector.
 
-Each scheduler executes a FIFO queue of cooperative continuation callbacks.
+Each scheduler executes a FIFO queue of resumable continuation callbacks.
 Workers own separate heap `Domain` values; the calling scheduler uses its current
-domain so existing program values keep their ownership. Actors stay on their
-scheduler for their lifetime.
+domain so existing program values keep their ownership. Actors initially belong
+to their spawning scheduler; optional work stealing can move eligible runnable
+actors at callback boundaries.
 Root and scope tokens name their originating domain; retiring them under another
 domain is rejected. PID validation reads immutable identity fields and atomic
 liveness. Delivery checks liveness again on the receiving owner. No sender writes
@@ -35,8 +36,8 @@ another scheduler's actor payload or mailbox links.
 Native invocations default to one scheduler. Set `MORROW_SCHEDULERS=3` to use
 three schedulers, including the calling thread; values outside 1–64 fail before
 actor admission. Root `spawn` calls distribute initial actors round-robin.
-Actors spawned by an actor, supervised children and replacements stay on their
-spawning scheduler. Worker callbacks can run while source `main` is still running;
+Actors spawned by an actor start on that actor's scheduler. Supervised children
+and replacements remain pinned to their spawning scheduler. Worker callbacks can run while source `main` is still running;
 parallel mode therefore does not preserve a global main-before-actors order.
 Per-sender/per-recipient message order is preserved. Stop cancels all schedulers,
 drains transport and joins workers before returning borrowed descriptor ownership.
@@ -47,14 +48,51 @@ Typed return frames let direct receiving helpers suspend through recursion,
 strict operands, loops, `with` and `?`. Ordinary captured callbacks and collection
 combinators use bounded resumable copies; ordinary calls retain their synchronous
 ABI. [Logical cleanup scopes](ACTOR_CLEANUP.md) preserve `defer` through suspension,
-failure and cancellation. This remains cooperative suspension: instruction
-preemption, actor migration and work stealing are not implemented. See
-[actor continuations](ACTOR_CONTINUATIONS.md) for eligibility.
+failure and cancellation. Eligible native actor code splits straight-line prefixes at a threshold of
+32 source computations, including transitive finite helper call costs. Control
+scaffolding, frame construction and dispatch add work beyond that source count. `MORROW_REDUCTIONS=1..65536` selects the maximum resumable callbacks per
+actor turn; the default is 1. An ordinary receive ends the turn even if a message
+is immediately available. A reduction counts a compiled callback, not a CPU
+instruction or elapsed-time interval.
+
+Native builtins and arbitrary foreign calls are indivisible. Receive guards,
+cleanup adapters, sort comparators and helpers carrying unsupported native
+handles still run synchronously. Collection and message copying are not charged
+to the reduction budget. These limits preclude a universal latency guarantee;
+there is no forced interruption of native stacks or new WASM actor scheduler.
+See [actor continuations](ACTOR_CONTINUATIONS.md) for eligibility.
+
+Set `MORROW_WORK_STEALING=1` with multiple schedulers to enable owner-assisted
+stealing; the default is 0. Idle schedulers request runnable work from owners
+with surplus queued actors. A moved actor or declined heap handoff waits 256
+actor turns before another automatic attempt; idle polling does not consume that
+cooldown. The calling scheduler keeps running while it has ready actors. Before
+automatic donation, the owner precisely collects the candidate heap outside
+transport locks; its retained actor root preserves the live continuation,
+mailbox, timer and cleanup graph. A handoff transfers the remaining dormant heap
+under a fresh destination-local heap ID, preserving block addresses, PID identity,
+mailbox contents and logical cleanup scopes. Messages arriving during handoff
+remain in the actor's synchronized ingress FIFO. Global admission charges stay
+unchanged; local bookkeeping and physical heap accounting move with ownership.
+Active native roots/scopes, foreign heap edges or an exhausted transfer-validation
+work bound decline the handoff without changing source ownership.
+Collection may reclaim unreachable storage even when the subsequent handoff is
+declined. The validation work limit does not bound collection time.
+
+Host ports and supervised actors remain pinned. Calling an arbitrary foreign
+function or accessing the thread-local compatibility actor API permanently pins
+the current actor before accessing that resource. The callback-affinity cursor
+is scoped and restored on return; it is not a language execution context.
+SQLite connections already use a process-wide synchronized registry. Native
+embedders must call `morrow_managed_pin_current()` before accessing other
+thread-affine state in a callback; arbitrary integer handles cannot be classified
+by the collector.
 
 The deterministic Rust API `managed::simulate_schedulers(exec, count, seed, replay)`
 runs the same owner turns and transport across separate domains on one OS thread.
 `managed::scheduler_recording(exec)` returns the bounded scheduler-choice sequence
-for replay. These APIs require the `simulation` feature. They do not promise replay
+for replay. `managed::simulated_work_stealing(exec, enabled)` selects stealing
+before any actors are admitted; scheduler choices then determine handoffs too. These APIs require the `simulation` feature. They do not promise replay
 of physical thread timing. The [web host](WEB_WORKERS.md) also retains its separate
 room-invocation workers. PIDs cannot cross invocation groups; cross-process PIDs
 and distributed scheduler guarantees remain unimplemented.
@@ -92,10 +130,11 @@ rooted until `morrow_managed_close(exec)`. The host's writable fault cell must r
 at its original address until close, and all operations run on the opening thread.
 Other retained native values need registered host root slots across calls.
 
-`morrow_managed_poll(exec, max_steps)` accepts 1–65,536 continuation callbacks and
+`morrow_managed_poll(exec, max_steps)` accepts 1–65,536 scheduler turns and
 returns 0 for completion, 1 for external-input idle, 2 for a reached callback
 budget, or 3 for invocation failure. An idle persistent server is not a deadlock.
-This count does not bound the synchronous work within a helper. With parallel
+Each actor turn can execute up to `MORROW_REDUCTIONS` resumable callbacks.
+This count does not bound indivisible native work. With parallel
 execution enabled, it bounds calling-thread driver turns; background workers run
 independently. Hosts can call `morrow_managed_parallel(exec, count)` before any
 actor is admitted (0 success, 3 invalid configuration), and use
@@ -239,8 +278,8 @@ external-event/instruction fairness remain open. Compatibility supervision
 relationships form an acyclic hierarchy and supervisor death stops descendants.
 Automatic ancestor escalation and descendant subtree recreation after supervisor
 restart remain incomplete. Linked exits are notifications rather than full
-bidirectional Erlang exit propagation. Neither contract promises parallel workers
-within one native invocation; the web host shards independent invocations.
+bidirectional Erlang exit propagation. Typed native invocations support the optional parallel scheduler group described
+above; the web host also shards independent room invocations.
 
 The compiler executes supported typed actor forms and diagnoses unsupported
 ones. The mailbox and bounded execution tests establish their stated contracts;

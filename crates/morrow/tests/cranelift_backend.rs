@@ -1707,6 +1707,97 @@ fn main() { assert_eq!(unsafe { morrow_main() }, 0); }"#;
 }
 
 #[test]
+fn actor_large_finite_helper_yields_and_preserves_its_return_value() {
+    use morrow_compiler::{check, lowering, parse};
+    let mut source = String::from("fn finite(value: Int) -> Int:\n");
+    for index in 0..128 {
+        let previous = if index == 0 {
+            "value".to_string()
+        } else {
+            format!("v{}", index - 1)
+        };
+        source.push_str(&format!("    let v{index} = {previous} + 1\n"));
+    }
+    source.push_str(
+        r#"    v127
+fn worker():
+    println(finite(9223372036854775679))
+fn sibling(): println("sibling")
+fn main():
+    let first: Pid(()) = spawn(worker)
+    let second: Pid(()) = spawn(sibling)
+    ()
+"#,
+    );
+    let program = lowering::lower(&check::check(&parse::parse(&source).unwrap()).unwrap()).unwrap();
+    let harness = r#"unsafe extern "C" { fn morrow_main() -> i32; }
+fn main() { assert_eq!(unsafe { morrow_main() }, 0); }"#;
+    assert_eq!(
+        NativeFixture::new().execute_linked(
+            &program,
+            harness,
+            &[core_runtime_archive().into_os_string()]
+        ),
+        b"sibling\n9223372036854775807\n"
+    );
+}
+
+#[test]
+fn actor_finite_helper_suspends_within_its_body() {
+    let mut setup = String::from(
+        "    let first: Pid(()) = spawn(() -> finite(reply))\n    ()\nfn finite(reply: Pid(String)):\n    let v0 = 0\n",
+    );
+    for index in 1..=256 {
+        setup.push_str(&format!("    let v{index} = v{} + 1\n", index - 1));
+    }
+    setup.push_str(
+        "    match send(reply, \"finished\"):\n        Ok(()) -> ()\n        Err(_) -> ()\n",
+    );
+    unit_tail_poll(&setup, 3);
+}
+
+#[test]
+fn actor_finite_call_tree_charges_transitive_inline_work() {
+    let mut setup = String::from(
+        "    let first: Pid(()) = spawn(() -> finite(reply))\n    ()\nfn leaf(value: Int) -> Int:\n",
+    );
+    for index in 0..16 {
+        let previous = if index == 0 {
+            "value".to_string()
+        } else {
+            format!("v{}", index - 1)
+        };
+        setup.push_str(&format!("    let v{index} = {previous} + 1\n"));
+    }
+    setup.push_str("    v15\nfn pair(value: Int) -> Int: leaf(leaf(value))\nfn finite(reply: Pid(String)):\n    let v0 = 0\n");
+    for index in 1..=32 {
+        setup.push_str(&format!("    let v{index} = pair(v{})\n", index - 1));
+    }
+    setup.push_str(
+        "    match send(reply, \"finished\"):\n        Ok(()) -> ()\n        Err(_) -> ()\n",
+    );
+    unit_tail_poll(&setup, 3);
+}
+
+#[test]
+fn actor_large_strict_operands_suspend_inside_a_statement() {
+    let mut setup = String::from(
+        "    let first: Pid(()) = spawn(() -> finite(reply))\n    ()\nfn finite(reply: Pid(String)):\n    let v0 = 0\n",
+    );
+    for index in 1..=8 {
+        setup.push_str(&format!(
+            "    let v{index} = v{}{}\n",
+            index - 1,
+            " + 1".repeat(80)
+        ));
+    }
+    setup.push_str(
+        "    match send(reply, \"finished\"):\n        Ok(()) -> ()\n        Err(_) -> ()\n",
+    );
+    unit_tail_poll(&setup, 3);
+}
+
+#[test]
 fn foreign_source_retains_borrowed_and_interior_strings_across_precise_collection() {
     let source = r#"
 foreign "C" fn suffix(value: Ptr(CUInt8)) -> Ptr(CUInt8) as "test_suffix"
@@ -1905,20 +1996,30 @@ fn main():
     let harness = r#"unsafe extern "C" { fn morrow_main() -> i32; }
 fn main() {
     // No other thread exists before the native runtime starts its workers.
-    unsafe { std::env::set_var("MORROW_SCHEDULERS", "3"); }
+    unsafe {
+        std::env::set_var("MORROW_SCHEDULERS", "3");
+        std::env::set_var("MORROW_WORK_STEALING", "@STEALING@");
+        std::env::set_var("MORROW_REDUCTIONS", "@REDUCTIONS@");
+    }
     assert_eq!(unsafe { morrow_main() }, 0);
 }"#;
     let expected: String = (0..8)
         .map(|index| format!("{index}\n8192\n-9223372036854775808\n"))
         .collect();
-    assert_eq!(
-        NativeFixture::new().execute_linked(
-            &program,
-            harness,
-            &[core_runtime_archive().into_os_string()]
-        ),
-        expected.as_bytes()
-    );
+    for (stealing, reductions) in [("0", "1"), ("1", "8")] {
+        let harness = harness
+            .replace("@STEALING@", stealing)
+            .replace("@REDUCTIONS@", reductions);
+        assert_eq!(
+            NativeFixture::new().execute_linked(
+                &program,
+                &harness,
+                &[core_runtime_archive().into_os_string()]
+            ),
+            expected.as_bytes(),
+            "stealing={stealing}, reductions={reductions}"
+        );
+    }
 }
 
 #[test]

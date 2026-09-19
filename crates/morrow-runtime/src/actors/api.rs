@@ -1,6 +1,12 @@
 //! Native compatibility entry points; Rust-owned state contains no managed pointers.
 use super::*;
 thread_local! { static STATE: RefCell<State> = RefCell::new(State::default()); }
+// Integer compatibility IDs name this thread's state. Pin a managed caller
+// before even a read, so later operations cannot silently select another table.
+fn state<T>(operation: impl FnOnce(&RefCell<State>) -> T) -> T {
+    crate::managed::morrow_managed_pin_current();
+    STATE.with(operation)
+}
 fn result(value: Result<i64, i64>) -> i64 {
     match value {
         Ok(v) => abi::result_ok(v),
@@ -8,7 +14,7 @@ fn result(value: Result<i64, i64>) -> i64 {
     }
 }
 fn with(operation: impl FnOnce(&mut State) -> Result<i64, i64>) -> i64 {
-    result(STATE.with(|s| operation(&mut s.borrow_mut())))
+    result(state(|s| operation(&mut s.borrow_mut())))
 }
 
 /// Spawn a named compatibility actor.
@@ -20,7 +26,7 @@ pub unsafe extern "C" fn morrow_actor_spawn(name: *const c_char) -> i64 {
         return 0;
     }
     let name = unsafe { abi::text(name) }.to_owned();
-    STATE.with(|s| s.borrow_mut().spawn(name, 0))
+    state(|s| s.borrow_mut().spawn(name, 0))
 }
 /// Spawn linked to the explicitly selected live current actor.
 /// # Safety
@@ -31,7 +37,7 @@ pub unsafe extern "C" fn morrow_actor_spawn_link(name: *const c_char) -> i64 {
         return 0;
     }
     let name = unsafe { abi::text(name) }.to_owned();
-    STATE.with(|s| {
+    state(|s| {
         let mut s = s.borrow_mut();
         let parent = s.current;
         if s.live(parent).is_none() {
@@ -44,7 +50,7 @@ pub unsafe extern "C" fn morrow_actor_spawn_link(name: *const c_char) -> i64 {
 /// Select the current compatibility actor; zero clears the context.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_set_current(id: i64) -> i64 {
-    STATE.with(|s| {
+    state(|s| {
         let mut s = s.borrow_mut();
         if id == 0 || s.live(id).is_some() {
             s.current = id;
@@ -57,7 +63,7 @@ pub extern "C" fn morrow_actor_set_current(id: i64) -> i64 {
 /// Read the explicit current actor context.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_self() -> i64 {
-    STATE.with(|s| s.borrow().current)
+    state(|s| s.borrow().current)
 }
 /// Set a deterministic nonnegative supervision clock.
 #[unsafe(no_mangle)]
@@ -65,7 +71,7 @@ pub extern "C" fn morrow_actor_clock_set(now: i64) -> i64 {
     if now < 0 {
         -1
     } else {
-        STATE.with(|s| s.borrow_mut().clock = Some(now));
+        state(|s| s.borrow_mut().clock = Some(now));
         0
     }
 }
@@ -75,7 +81,7 @@ pub extern "C" fn morrow_actor_clock_advance(delta: i64) -> i64 {
     if delta < 0 {
         return -1;
     }
-    STATE.with(|s| {
+    state(|s| {
         let mut s = s.borrow_mut();
         let now = s.now();
         s.clock = Some(now);
@@ -90,7 +96,7 @@ pub extern "C" fn morrow_actor_clock_advance(delta: i64) -> i64 {
 /// Read deterministic or host supervision seconds.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_clock_now() -> i64 {
-    STATE.with(|s| s.borrow().now())
+    state(|s| s.borrow().now())
 }
 /// Monitor a live worker; repeated registration is idempotent.
 #[unsafe(no_mangle)]
@@ -146,7 +152,7 @@ pub unsafe extern "C" fn morrow_actor_send(id: i64, message: *const c_char) -> i
 /// Pop a mailbox value and return a fresh managed native string.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_receive(id: i64) -> i64 {
-    match STATE.with(|s| s.borrow_mut().receive(id)) {
+    match state(|s| s.borrow_mut().receive(id)) {
         Ok(text) => abi::result_ok(abi::string(&text) as i64),
         Err(e) => abi::result_err(e),
     }
@@ -171,7 +177,7 @@ pub extern "C" fn morrow_actor_restart(id: i64) -> i64 {
 /// Number of messages in a live actor, or minus one for a dead/unknown identity.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_mailbox_len(id: i64) -> i64 {
-    STATE.with(|s| {
+    state(|s| {
         let s = s.borrow();
         s.live(id).map_or(-1, |i| s.actors[i].messages.len() as i64)
     })
@@ -179,7 +185,7 @@ pub extern "C" fn morrow_actor_mailbox_len(id: i64) -> i64 {
 /// Consume one scheduler ticket in round-robin order.
 #[unsafe(no_mangle)]
 pub extern "C" fn morrow_actor_scheduler_next() -> i64 {
-    STATE.with(|s| s.borrow_mut().next())
+    state(|s| s.borrow_mut().next())
 }
 /// Compatibility spelling for spawn.
 /// # Safety

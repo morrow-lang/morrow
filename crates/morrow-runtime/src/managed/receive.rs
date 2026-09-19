@@ -1,6 +1,6 @@
 //! Selective receive and immutable continuation publication.
 use super::*;
-unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
+unsafe fn replace(a: *mut Actor, frame: *mut c_void, ready: bool) -> bool {
     unsafe {
         let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
@@ -28,12 +28,15 @@ unsafe fn replace(a: *mut Actor, frame: *mut c_void) -> bool {
         (*a).frame = frame;
         (*a).frame_cost = cost;
         clear_receive(a);
-        enqueue(a);
+        if ready {
+            enqueue(a);
+        }
         true
     }
 }
 pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
     unsafe {
+        let _affinity = affinity::enter(a);
         let _actor_scope = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
         let selector = function(s, (*a).selector);
@@ -54,7 +57,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 return false;
             }
             if !selected.is_null() {
-                if !replace(a, selected) {
+                if !replace(a, selected, true) {
                     return false;
                 }
                 if previous.is_null() {
@@ -80,7 +83,7 @@ pub(super) unsafe fn poll(a: *mut Actor, initial: bool) -> bool {
                 return false;
             };
             if now >= (*a).deadline {
-                return replace(a, (*a).timeout_frame);
+                return replace(a, (*a).timeout_frame, true);
             }
         }
         false
@@ -97,7 +100,16 @@ pub unsafe extern "C" fn morrow_managed_continue(exec: *mut Exec, frame: *mut c_
             fail(exec, 11);
             return 3;
         }
-        if replace((*exec).actor, frame) { 0 } else { 3 }
+        let a = (*exec).actor;
+        // A running callback publishes its next frame without queueing it. The
+        // scheduler invokes it only after this native frame has returned, and
+        // enqueues it exactly once when the reduction budget is exhausted.
+        if replace(a, frame, !(*a).running) {
+            (*a).continuation_pending = (*a).running;
+            0
+        } else {
+            3
+        }
     }
 }
 

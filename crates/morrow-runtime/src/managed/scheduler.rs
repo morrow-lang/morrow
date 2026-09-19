@@ -64,6 +64,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             return;
         }
         (*a).identity.alive.store(false, Ordering::Release);
+        transport::discard_pending(a);
         let s = (*a).exec.session;
         // Queue links borrow live actors. Retiring an actor outside dequeue
         // (cancellation or a timer fault) must remove that borrow before release.
@@ -106,7 +107,7 @@ pub(super) unsafe fn finish(a: *mut Actor) {
             group.budget.release_actor(0);
             group.notify();
         }
-        *(*s).identities.add((*a).identity.slot) = null_mut();
+        *(*s).identities.add((*a).slot) = null_mut();
         release(s, ACTOR_BYTES + std::mem::size_of::<Pid>());
         memory::retire_heap((*a).heap);
         (*a).heap = 0;
@@ -245,29 +246,47 @@ pub unsafe extern "C" fn morrow_managed_run(exec: *mut Exec) {
     }
 }
 
-/// Execute one ready continuation with its exact payload allocation scope.
+/// Execute a bounded turn, returning every native callback before its successor.
 pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
     unsafe {
         let _actor = control::Owned::retain(a);
+        let _affinity = affinity::enter(a);
         if (*a).host_port {
             return;
         }
-        #[cfg(any(test, feature = "simulation"))]
-        if (*s).simulation.enabled {
-            let Some(callbacks) = (*s).simulation.callbacks.checked_add(1) else {
-                fail(&raw mut (*s).root, 9);
-                return;
-            };
-            (*s).simulation.callbacks = callbacks;
-        }
-        if (*a).waiting {
-            poll(a, false);
-        } else {
+        // Only this actor executing a scheduler turn ages its steal backoff.
+        (*a).steal_cooldown = (*a).steal_cooldown.saturating_sub(1);
+        let mut budget = (*s).reduction_budget;
+        budget.reset();
+        loop {
+            if !budget.take() {
+                enqueue(a);
+                break;
+            }
+            #[cfg(any(test, feature = "simulation"))]
+            if (*s).simulation.enabled {
+                let Some(callbacks) = (*s).simulation.callbacks.checked_add(1) else {
+                    fail(&raw mut (*s).root, 9);
+                    return;
+                };
+                (*s).simulation.callbacks = callbacks;
+            }
+            if (*a).waiting {
+                poll(a, false);
+                break;
+            }
             let f = function(s, (*a).frame);
+            (*a).running = true;
+            (*a).continuation_pending = false;
             let status = {
                 let _actor_scope = memory::enter_heap((*a).heap);
                 ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
             };
+            (*a).running = false;
+            let continuing = std::mem::take(&mut (*a).continuation_pending);
+            if status == 0 && continuing && !(*a).queued && !(*a).waiting && (*a).fault == 0 {
+                continue;
+            }
             if status == 2 && (*a).fault == 0 {
                 cleanup::unwind(a);
                 if (*a).fault == 0 {
@@ -280,6 +299,9 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             {
                 fail(&raw mut (*a).exec, 11);
             }
+            // Receive (including an immediately selected message), completion
+            // and faults end this turn even if reductions remain.
+            break;
         }
         if (*a).fault != 0 {
             cleanup::unwind(a);

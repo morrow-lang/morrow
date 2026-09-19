@@ -1,8 +1,11 @@
 //! Independent program and actor heaps with retained external control roots.
 use super::*;
+#[path = "transfer.rs"]
+mod transfer;
 use std::cell::Cell;
 use std::ptr::null_mut;
 use std::sync::atomic::{AtomicUsize, Ordering};
+pub(crate) use transfer::{HeapTransfer, TransferError, adopt_heap, detach_heap};
 
 /// Retiring a root or scope under the wrong domain is a scheduler defect, not a
 /// recoverable condition: slot and root numbering restarts in every domain, so the

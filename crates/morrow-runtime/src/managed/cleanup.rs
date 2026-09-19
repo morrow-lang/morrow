@@ -106,6 +106,26 @@ pub(super) unsafe fn unwind(a: *mut Actor) {
     }
 }
 
+/// Logical bytes belonging to an actor's admitted cleanup graph during handoff.
+/// # Safety
+/// The caller exclusively owns this live actor at a callback boundary.
+pub(super) unsafe fn retained(a: *mut Actor) -> usize {
+    unsafe {
+        let mut bytes = 0;
+        let mut scope = (*a).scopes;
+        while !scope.is_null() {
+            bytes += std::mem::size_of::<Scope>();
+            let mut node = (*scope).first;
+            while !node.is_null() {
+                bytes += (*node).cost;
+                node = (*node).next;
+            }
+            scope = (*scope).previous;
+        }
+        bytes
+    }
+}
+
 unsafe fn active(exec: *mut Exec) -> Option<*mut Actor> {
     unsafe {
         if exec.is_null() {
@@ -130,6 +150,7 @@ unsafe fn drain(a: *mut Actor, all: bool) {
         if (*a).cleaning || (*a).scopes.is_null() {
             return;
         }
+        let _affinity = affinity::enter(a);
         let _heap = memory::enter_heap((*a).heap);
         let s = (*a).exec.session;
         let mut first_fault = (*a).fault;

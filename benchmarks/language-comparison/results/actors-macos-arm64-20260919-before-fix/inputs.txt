@@ -1,0 +1,18 @@
+Arguments: ["/tmp/morrow-actor-runner-release", "/tmp/morrow-actors-release-20260919", "/tmp/morrow-actor-tools-20260919/elixir/1.20.4/bin/elixir", "/tmp/morrow-actor-beam-20260919", "benchmarks/language-comparison/results/actors-macos-arm64-20260919", "--include-tuned-32"]
+MORROW_REDUCTIONS baseline: 1
+Optional stealing reductions=32: true
+Ambient BEAM scheduler flags are replaced; ERL_FLAGS supplies explicit +S.
+938600 bytes; 6404ac0ddea9486e3fd239218f5d413d1e1d5ac80892f2bacaf774840bed4385  /private/tmp/morrow-actors-release-20260919
+6658 bytes; 5cb23d89a78f75589b06fade3097e217b77e63416d61c1800f674579748c4307  /private/tmp/morrow-actor-tools-20260919/elixir/1.20.4/lib/elixir/bin/elixir
+15060 bytes; d75d5546be6f33144236458c46a5492eee717b364285e4ef653be3317e65511d  /private/tmp/morrow-actor-beam-20260919/Elixir.ActorComparison.beam
+8892 bytes; 9f1a135ee9edad09686fec8bf23103098ddc34e83c4d63788f3170983074495b  benchmarks/language-comparison/programs/actors.mr
+8378 bytes; 648bebc86f56ed387a761100b223455e84b66599f7fd2c25eec9bd6b62bb1898  benchmarks/language-comparison/programs/actors.ex
+30412 bytes; 7dc8359c09ea8dd2ef98e80da2f236efad7f26a5c61bef7b81670c3610206f7f  benchmarks/language-comparison/src/actor_comparison.rs
+
+Elixir version:
+Erlang/OTP 29 [erts-17.0.6] [source] [64-bit] [smp:10:10] [ds:10:10:10] [async-threads:1] [jit] [dtrace]
+
+Elixir 1.20.4 (compiled with Erlang/OTP 29)
+
+Host:
+Darwin MacBook-Air-von-Niklas-1326.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:57 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8132 arm64

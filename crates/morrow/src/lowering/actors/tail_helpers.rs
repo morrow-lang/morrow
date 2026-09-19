@@ -1,12 +1,46 @@
-//! Discover bounded actor copies along recursive and iterative direct-call paths.
+//! Discover actor copies for recursive, iterative and oversized finite call paths.
 use super::*;
 
-/// Recursive and iterative paths opt into resumable copies. Finite straight-line
-/// helpers preserve scheduling; every original function retains its ordinary ABI.
+/// Count source computations rather than native instructions. Loads/literals do
+/// not execute user code; primitive runtime calls remain indivisible operations.
+pub(super) const STEP_WORK: usize = 32;
+
+pub(super) fn expression_work(expr: &Expr, costs: &BTreeMap<usize, usize>) -> usize {
+    let mut work: usize = 0;
+    let mut pending = vec![expr];
+    while let Some(expr) = pending.pop() {
+        work += match &expr.kind {
+            ExprKind::Local(_)
+            | ExprKind::Int(_)
+            | ExprKind::Float(_)
+            | ExprKind::Bool(_)
+            | ExprKind::Unit
+            | ExprKind::Block(_) => 0,
+            ExprKind::Call {
+                target: CallTarget::Function(id),
+                ..
+            } => costs.get(&id.0).copied().unwrap_or(1).max(1),
+            _ => 1,
+        };
+        if work > STEP_WORK {
+            return STEP_WORK + 1;
+        }
+        pending.extend(ir::children(expr));
+    }
+    work
+}
+
+pub(super) struct Discovery {
+    pub helpers: BTreeSet<usize>,
+    pub costs: BTreeMap<usize, usize>,
+}
+
+/// Small finite helpers preserve scheduling; larger finite paths and cycles use
+/// resumable copies. Every original function retains its ordinary native ABI.
 pub(super) fn discover(
     program: &ir::Program,
     layouts: &HashMap<Type, &ir::TypeLayout>,
-) -> Lowering<BTreeSet<usize>> {
+) -> Lowering<Discovery> {
     let functions: BTreeMap<_, _> = program.functions.iter().map(|f| (f.id.0, f)).collect();
     let mut roots = BTreeSet::new();
     let mut active = false;
@@ -28,7 +62,10 @@ pub(super) fn discover(
         }
     }
     if roots.is_empty() && !active {
-        return Ok(BTreeSet::new());
+        return Ok(Discovery {
+            helpers: BTreeSet::new(),
+            costs: BTreeMap::new(),
+        });
     }
     let mut types = BTreeMap::new();
     let mut eligible = BTreeSet::new();
@@ -96,8 +133,8 @@ pub(super) fn discover(
             pending.push(callee);
         }
     }
-    // Removing sinks also removes every finite path to a sink. What remains is
-    // exactly the nodes that can reach a cycle, without an unbounded SCC walk.
+    // Remove small finite sinks bottom-up, accumulating transitive call costs.
+    // Keep paths to a cycle or oversized finite body without an unbounded SCC walk.
     let mut degrees: BTreeMap<_, _> = edges.iter().map(|(&id, edges)| (id, edges.len())).collect();
     let mut callers = BTreeMap::<usize, Vec<usize>>::new();
     for (&caller, targets) in &edges {
@@ -110,7 +147,17 @@ pub(super) fn discover(
         .iter()
         .filter_map(|(&id, &degree)| (degree == 0).then_some(id))
         .collect();
+    let mut costs = BTreeMap::new();
     while let Some(leaf) = leaves.pop() {
+        let cost = expression_work(&functions[&leaf].body, &costs);
+        if cost > STEP_WORK && eligible.contains(&leaf) {
+            // An oversized finite helper is a scheduling boundary just like a
+            // cycle. Keep its callers so they invoke its resumable copy too.
+            selected.insert(leaf);
+            *degrees.get_mut(&leaf).unwrap() = 1;
+            continue;
+        }
+        costs.insert(leaf, cost);
         for &caller in callers.get(&leaf).into_iter().flatten() {
             charge(&mut work, Span::default())?;
             let degree = degrees.get_mut(&caller).unwrap();
@@ -136,7 +183,10 @@ pub(super) fn discover(
             }
         }
     }
-    Ok(selected)
+    Ok(Discovery {
+        helpers: selected,
+        costs,
+    })
 }
 
 /// Walk every source child before selecting a copy; normalization handles strict operands.

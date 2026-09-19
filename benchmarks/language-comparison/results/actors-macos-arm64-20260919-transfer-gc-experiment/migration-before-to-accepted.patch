@@ -1,0 +1,112 @@
+--- a/crates/morrow-runtime/src/managed/migration.rs
++++ b/crates/morrow-runtime/src/managed/migration.rs
+@@ -226,6 +226,14 @@
+                 && (*a).identity.supervisor.is_null()
+             {
+                 attempts += 1;
++                // Callback frames have returned: Actor's retained control range
++                // roots every live continuation, mailbox and cleanup value.
++                // Reclaim dead continuation storage before expensive edge checks
++                // and before either transport lock can block other schedulers.
++                {
++                    let _heap = memory::enter_heap((*a).heap);
++                    memory::morrow_gc_collect_precise();
++                }
+                 if transfer(s, a, target) {
+                     break;
+                 }
+@@ -1122,4 +1130,94 @@
+             assert_eq!(fault, 0);
+         }
+     }
++    #[test]
++    fn donation_collects_dead_payloads_before_validating_the_live_actor_graph() {
++        struct Finalized(Arc<AtomicUsize>, Arc<Mutex<()>>, Arc<AtomicUsize>);
++        impl Drop for Finalized {
++            fn drop(&mut self) {
++                self.0.fetch_add(1, Ordering::SeqCst);
++                if self.1.try_lock().is_ok() {
++                    self.2.fetch_add(1, Ordering::SeqCst);
++                }
++            }
++        }
++        unsafe extern "C" fn done(_: *mut Exec, _: *mut c_void) -> i64 {
++            2
++        }
++        let scalar = scalar();
++        let captures = [&scalar as *const Type];
++        let function = Function {
++            identity: done as *const c_void,
++            step: Some(done),
++            select: None,
++            capture_count: 1,
++            captures: captures.as_ptr(),
++            mailbox: &scalar,
++        };
++        let functions = [&function as *const Function];
++        let garbage_drops = Arc::new(AtomicUsize::new(0));
++        let live_drops = Arc::new(AtomicUsize::new(0));
++        let unlocked_drops = Arc::new(AtomicUsize::new(0));
++        let mut fault = 0;
++        unsafe {
++            let exec = host::open_local(&mut fault, functions.as_ptr(), 1);
++            assert_eq!(parallel::simulate(exec, 2, 1, None), 0);
++            assert!(parallel::simulated_work_stealing(exec, true));
++            let s = (*exec).session;
++            let activity = Arc::clone(&shared(s).unwrap().activity);
++            let mut frame = [done as *const () as usize, 0];
++            let pid =
++                morrow_managed_spawn_on(exec, frame.as_mut_ptr().cast(), &scalar, 0).cast::<Pid>();
++            let a = (*pid).actor;
++            let pinned =
++                morrow_managed_spawn_on(exec, frame.as_mut_ptr().cast(), &scalar, 0).cast::<Pid>();
++            (*(*pinned).actor).pinned = true;
++            let original_frame = (*a).frame;
++            {
++                let _heap = memory::enter_heap((*a).heap);
++                memory::managed(
++                    Finalized(
++                        Arc::clone(&garbage_drops),
++                        Arc::clone(&activity),
++                        Arc::clone(&unlocked_drops),
++                    ),
++                    4096,
++                );
++                let live = memory::managed(
++                    Finalized(
++                        Arc::clone(&live_drops),
++                        Arc::clone(&activity),
++                        Arc::clone(&unlocked_drops),
++                    ),
++                    4096,
++                );
++                // This native-word capture is an exact edge in the actor frame.
++                (*a).frame.cast::<usize>().add(1).write(live as usize);
++                memory::alloc(65536, false);
++            }
++            donate(s, 1);
++            let garbage_after_donation = garbage_drops.load(Ordering::SeqCst);
++            let live_after_donation = live_drops.load(Ordering::SeqCst);
++            let unlocked_after_donation = unlocked_drops.load(Ordering::SeqCst);
++            parallel::service_spawn(s, 1);
++            assert_eq!((*a).frame, original_frame);
++            assert_eq!((*a).identity.owner.load(Ordering::Acquire), 1);
++            morrow_managed_close(exec);
++            assert_eq!(
++                garbage_after_donation, 1,
++                "dead storage must not enter the migration validation scan"
++            );
++            assert_eq!(
++                unlocked_after_donation, 1,
++                "collection finalizers run before the shared activity lock is held"
++            );
++            assert_eq!(
++                live_after_donation, 0,
++                "the Actor root retains its complete live graph"
++            );
++            assert_eq!(garbage_drops.load(Ordering::SeqCst), 1);
++            assert_eq!(live_drops.load(Ordering::SeqCst), 1);
++            assert_eq!(fault, 0);
++        }
++    }
+ }

@@ -14,6 +14,7 @@ thread_local! {
     static BEFORE_STOP_OBSERVATION: std::cell::Cell<Option<unsafe fn(*mut Session)>> = const { std::cell::Cell::new(None) };
     static FAIL_WORKER_START: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
     static AFTER_SUPERVISED_RETIREMENT: std::cell::Cell<Option<RetirementHook>> = const { std::cell::Cell::new(None) };
+    static RUN_WAITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 #[cfg(test)]
@@ -106,7 +107,19 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
         if (*s).next_id != 0 || (*s).stopped || *(*exec).fault != 0 || (*s)._shared.is_some() {
             return 3;
         }
+        let stealing = if simulated.is_some() {
+            false
+        } else {
+            match migration::configured() {
+                Ok(enabled) => enabled,
+                Err(()) => {
+                    fail(exec, 9);
+                    return 3;
+                }
+            }
+        };
         let group = transport::Shared::new(count as usize, (*s).retained);
+        group.stealing.store(stealing, Ordering::Release);
         let idle = Arc::new(
             (0..count)
                 .map(|_| AtomicBool::new(true))
@@ -147,6 +160,7 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
                         host::open_local(&mut *fault, (*s).functions, (*s).function_count as i64);
                     if !child.is_null() {
                         attach((*child).session, Arc::clone(&group), scheduler);
+                        (*(*child).session).reduction_budget = (*s).reduction_budget;
                         (*(*child).session).simulation = simulation::State {
                             enabled: true,
                             ..Default::default()
@@ -169,6 +183,7 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
         }
         #[cfg(not(any(test, feature = "simulation")))]
         debug_assert!(simulated.is_none());
+        let reduction_budget = (*s).reduction_budget;
         let functions = (*s).functions as usize;
         let function_count = (*s).function_count;
         for scheduler in 1..count as usize {
@@ -192,10 +207,11 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
                 }
                 let local = (*exec).session;
                 attach(local, Arc::clone(&group), scheduler);
+                (*local).reduction_budget = reduction_budget;
                 let _ = ready.send(true);
                 while !group.stopped.load(Ordering::Acquire) {
                     set_idle(&group, &idle, scheduler, false);
-                    let progressed = scheduler::turn(local);
+                    let progressed = owner_turn(local);
                     publish_fault(local);
                     if !progressed {
                         set_idle(&group, &idle, scheduler, (*local).next_deadline == u64::MAX);
@@ -226,6 +242,17 @@ unsafe fn configure(exec: *mut Exec, count: i64, simulated: Option<u64>) -> i64 
             }
         }
         0
+    }
+}
+
+/// Both drivers make the same bounded migration decisions at callback boundaries.
+unsafe fn owner_turn(s: *mut Session) -> bool {
+    unsafe {
+        migration::publish_load(s);
+        migration::request(s);
+        let progressed = scheduler::turn(s);
+        migration::publish_load(s);
+        progressed
     }
 }
 
@@ -345,7 +372,7 @@ pub(super) unsafe fn poll(exec: *mut Exec, max_steps: i64) -> Option<i64> {
                 continue;
             }
             set_idle(&(*d).shared, &(*d).idle, 0, false);
-            let progressed = scheduler::turn(s);
+            let progressed = owner_turn(s);
             set_idle(
                 &(*d).shared,
                 &(*d).idle,
@@ -419,7 +446,13 @@ pub(super) unsafe fn run(exec: *mut Exec) -> bool {
                     if (*d).simulation.is_some() {
                         continue;
                     }
-                    Arc::as_ref(&(*d).shared).endpoints[0].wait(wait_duration(s));
+                    // A bounded poll can yield with local continuations ready.
+                    // Parking here adds 10ms per 64 turns to any actor on root.
+                    if (*s).first.is_null() {
+                        #[cfg(test)]
+                        RUN_WAITS.with(|count| count.set(count.get() + 1));
+                        Arc::as_ref(&(*d).shared).endpoints[0].wait(wait_duration(s));
+                    }
                 }
             }
         }
@@ -517,7 +550,7 @@ unsafe fn simulation_turn(s: *mut Session, d: *mut Driver) {
         };
         if choice == 0 {
             (*local).simulation.milliseconds = milliseconds;
-            let progressed = scheduler::turn(local);
+            let progressed = owner_turn(local);
             set_idle(
                 &(*d).shared,
                 &(*d).idle,
@@ -529,7 +562,7 @@ unsafe fn simulation_turn(s: *mut Session, d: *mut Driver) {
             let worker = &mut simulation.workers[choice - 1];
             let _active = worker.domain.activate();
             (*local).simulation.milliseconds = milliseconds;
-            let progressed = scheduler::turn(local);
+            let progressed = owner_turn(local);
             set_idle(
                 &(*d).shared,
                 &(*d).idle,
@@ -539,6 +572,30 @@ unsafe fn simulation_turn(s: *mut Session, d: *mut Driver) {
             assert!(memory::verify_heap_edges().is_ok());
         }
         publish_fault(local);
+    }
+}
+
+/// Enable owner-assisted work stealing in a deterministic invocation before
+/// actors are admitted. Scheduler choices then fully determine migrations too.
+/// # Safety
+/// Exec is a live simulation invocation on its owner thread outside callbacks.
+#[cfg(any(test, feature = "simulation"))]
+pub unsafe fn simulated_work_stealing(exec: *mut Exec, enabled: bool) -> bool {
+    unsafe {
+        if exec.is_null() || (*exec).session.is_null() {
+            return false;
+        }
+        let s = (*exec).session;
+        let Some(driver) = driver(s) else {
+            return false;
+        };
+        if (*driver).simulation.is_none() || (*s).next_id != 0 {
+            return false;
+        }
+        Arc::as_ref(&(*driver).shared)
+            .stealing
+            .store(enabled, Ordering::Release);
+        true
     }
 }
 
@@ -565,6 +622,49 @@ mod tests {
 
     unsafe extern "C" fn done(_: *mut Exec, _: *mut c_void) -> i64 {
         2
+    }
+
+    unsafe extern "C" fn root_countdown(exec: *mut Exec, frame: *mut c_void) -> i64 {
+        unsafe {
+            let left = *frame.cast::<i64>().add(1);
+            if left == 0 {
+                return 2;
+            }
+            let mut next = [root_countdown as *const () as i64, left - 1];
+            morrow_managed_continue(exec, next.as_mut_ptr().cast())
+        }
+    }
+    #[test]
+    fn runnable_root_actor_never_enters_the_remote_work_wait() {
+        let scalar = tests_scalar();
+        let captures = [&scalar as *const Type];
+        let function = Function {
+            identity: root_countdown as *const c_void,
+            step: Some(root_countdown),
+            select: None,
+            capture_count: 1,
+            captures: captures.as_ptr(),
+            mailbox: &scalar,
+        };
+        let functions = [&function as *const Function];
+        let mut fault = 0;
+        unsafe {
+            let exec = host::open_local(&mut fault, functions.as_ptr(), 1);
+            assert_eq!(morrow_managed_parallel(exec, 1), 0);
+            let mut frame = [root_countdown as *const () as i64, 128];
+            assert!(
+                !morrow_managed_spawn_on(exec, frame.as_mut_ptr().cast(), &scalar, 0).is_null()
+            );
+            RUN_WAITS.with(|count| count.set(0));
+            assert!(run(exec));
+            let waits = RUN_WAITS.with(|count| count.get());
+            morrow_managed_close(exec);
+            assert_eq!(fault, 0);
+            assert_eq!(
+                waits, 0,
+                "budget exhaustion leaves ready local work and must not park the root scheduler"
+            );
+        }
     }
 
     #[test]

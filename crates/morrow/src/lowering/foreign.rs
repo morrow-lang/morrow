@@ -40,6 +40,14 @@ impl Emitter<'_> {
             declaration: declaration.clone(),
             args: values,
         };
+        // Foreign libraries may hide thread-affine resources behind scalar
+        // handles. This also covers ordinary helpers called from actor code.
+        self.output
+            .statement(Statement::Effect(NativeOperation::Call {
+                callee: native_operand("$morrow_managed_pin_current"),
+                args: vec![],
+                variadic: None,
+            }));
         if *result == Type::Unit {
             self.output.statement(Statement::Effect(operation));
             return Ok((Type::Unit, "0".into()));

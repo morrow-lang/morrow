@@ -193,6 +193,7 @@ impl Builder<'_> {
 
     pub(super) fn needs(&self, expr: &Expr) -> bool {
         needs(expr)
+            || tail_helpers::expression_work(expr, &self.inline_work) > tail_helpers::STEP_WORK
             || matches!(expr.kind, ExprKind::Invoke { .. })
             || matches!(expr.kind, ExprKind::Call { target: CallTarget::Builtin(b), .. } if crate::lowering::higher_order::is_higher_order(b))
             || matches!(&expr.kind, ExprKind::Call { target: CallTarget::Function(id), .. } if self.returning.contains_key(&id.0))

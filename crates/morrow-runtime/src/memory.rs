@@ -16,6 +16,7 @@ mod platform;
 mod rc;
 pub(crate) use fragment::Fragment;
 pub(crate) use heaps::Domain;
+pub(crate) use heaps::{HeapTransfer, TransferError, adopt_heap, detach_heap};
 pub(crate) use heaps::{create_control_heap, create_control_heap_at, retain_control};
 pub(crate) use heaps::{enter as enter_heap, owns as heap_owns, retire as retire_heap};
 pub use heaps::{morrow_gc_frame_enter, morrow_gc_frame_leave};

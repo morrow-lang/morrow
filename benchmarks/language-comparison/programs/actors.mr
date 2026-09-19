@@ -1,0 +1,200 @@
+# Matched actor workloads for actor_comparison.rs. Runtime arguments:
+# request-reply CLIENTS REQUESTS
+# contention SCHEDULERS PROBES WORK
+# lifecycle WORKERS FAULTS
+
+type Event:
+    RequestDone(Int, Int)
+    ProbeDone(Int, Int)
+    HotDone(Int)
+    LifeDone(Int, Int)
+    Attempt(Int)
+
+type Reply:
+    Start(Pid(Reply))
+    Answer(Int)
+
+type Request:
+    Ask(Int, Pid(Reply))
+
+type ProbeReply:
+    StartProbe(Pid(ProbeReply))
+    Pong(Int)
+
+type ProbeRequest:
+    Ping(Int, Pid(ProbeReply))
+
+fn argument(index: Int) -> Int:
+    Option.unwrap_or(Int.parse(System.arg(index)), 0)
+
+fn request_collector(remaining: Int, clients: Int, requests: Int, replies: Int, checksum: Int) -> Unit:
+    receive:
+        RequestDone(count, value) ->
+            let next_replies = replies + count
+            let next_checksum = checksum + value
+            if remaining == 1:
+                println("request-reply,{clients},{requests},{next_replies},{next_checksum}")
+            else:
+                request_collector(remaining: remaining - 1, clients: clients, requests: requests, replies: next_replies, checksum: next_checksum)
+
+fn request_server(remaining: Int) -> Unit:
+    receive:
+        Ask(value, reply) ->
+            match send(reply, Answer(value * 3 + 1)):
+                Ok(_) -> ()
+                Err(_) -> ()
+            if remaining > 1:
+                request_server(remaining - 1)
+
+fn request_loop(server: Pid(Request), done: Pid(Event), reply: Pid(Reply), id: Int, requests: Int, index: Int, checksum: Int) -> Unit:
+    if index == requests:
+        match send(done, RequestDone(requests, checksum)):
+            Ok(_) -> ()
+            Err(_) -> ()
+    else:
+        match send(server, Ask(id * 100000 + index, reply)):
+            Ok(_) -> ()
+            Err(_) -> ()
+        receive:
+            Answer(value) -> request_loop(server: server, done: done, reply: reply, id: id, requests: requests, index: index + 1, checksum: checksum + value)
+
+fn request_client(server: Pid(Request), done: Pid(Event), id: Int, requests: Int) -> Unit:
+    receive:
+        Start(reply) -> request_loop(server: server, done: done, reply: reply, id: id, requests: requests, index: 0, checksum: 0)
+
+fn spawn_request_clients(index: Int, clients: Int, requests: Int, server: Pid(Request), done: Pid(Event)) -> Unit:
+    if index < clients:
+        let client: Pid(Reply) = spawn(() -> request_client(server: server, done: done, id: index, requests: requests))
+        match send(client, Start(client)):
+            Ok(_) -> ()
+            Err(_) -> ()
+        spawn_request_clients(index: index + 1, clients: clients, requests: requests, server: server, done: done)
+
+fn request_reply(clients: Int, requests: Int) -> Unit:
+    println("ready")
+    let done: Pid(Event) = spawn(() -> request_collector(remaining: clients, clients: clients, requests: requests, replies: 0, checksum: 0))
+    let server: Pid(Request) = spawn(() -> request_server(clients * requests))
+    spawn_request_clients(index: 0, clients: clients, requests: requests, server: server, done: done)
+
+fn contention_collector(remaining: Int, probes: Int, work: Int, probe_checksum: Int, hot_checksum: Int) -> Unit:
+    receive:
+        ProbeDone(_, value) ->
+            if remaining == 1:
+                println("contention,{probes},{work},{value},{hot_checksum}")
+            else:
+                contention_collector(remaining: remaining - 1, probes: probes, work: work, probe_checksum: value, hot_checksum: hot_checksum)
+        HotDone(value) ->
+            if remaining == 1:
+                println("contention,{probes},{work},{probe_checksum},{value}")
+            else:
+                contention_collector(remaining: remaining - 1, probes: probes, work: work, probe_checksum: probe_checksum, hot_checksum: value)
+
+fn probe_server(remaining: Int) -> Unit:
+    receive:
+        Ping(value, reply) ->
+            match send(reply, Pong(value * 2 + 1)):
+                Ok(_) -> ()
+                Err(_) -> ()
+            if remaining > 1:
+                probe_server(remaining - 1)
+
+fn probe_loop(server: Pid(ProbeRequest), done: Pid(Event), reply: Pid(ProbeReply), probes: Int, index: Int, checksum: Int) -> Unit:
+    if index == probes:
+        match send(done, ProbeDone(probes, checksum)):
+            Ok(_) -> ()
+            Err(_) -> ()
+    else:
+        match send(server, Ping(index, reply)):
+            Ok(_) -> ()
+            Err(_) -> ()
+        receive:
+            Pong(value) ->
+                println("sample,{index}")
+                probe_loop(server: server, done: done, reply: reply, probes: probes, index: index + 1, checksum: checksum + value)
+
+fn probe_client(server: Pid(ProbeRequest), done: Pid(Event), probes: Int) -> Unit:
+    receive:
+        StartProbe(reply) -> probe_loop(server: server, done: done, reply: reply, probes: probes, index: 0, checksum: 0)
+
+fn hot_loop(remaining: Int, value: Int, done: Pid(Event)) -> Unit:
+    if remaining == 0:
+        println("hot-done")
+        match send(done, HotDone(value)):
+            Ok(_) -> ()
+            Err(_) -> ()
+    else:
+        hot_loop(remaining: remaining - 1, value: (value * 48271) % 2147483647, done: done)
+
+fn spawn_dummies(remaining: Int) -> Unit:
+    if remaining > 0:
+        let dummy: Pid(()) = spawn(() -> ())
+        spawn_dummies(remaining - 1)
+
+fn contention(schedulers: Int, probes: Int, work: Int) -> Unit:
+    println("ready")
+    let done: Pid(Event) = spawn(() -> contention_collector(remaining: 2, probes: probes, work: work, probe_checksum: 0, hot_checksum: 0))
+    let server: Pid(ProbeRequest) = spawn(() -> probe_server(probes))
+    # Root spawns are initially round-robin. These dummies place the hot actor on
+    # the responder's initial scheduler without constraining later stealing.
+    spawn_dummies(schedulers - 1)
+    let hot: Pid(()) = spawn(() -> hot_loop(remaining: work, value: 7, done: done))
+    let client: Pid(ProbeReply) = spawn(() -> probe_client(server: server, done: done, probes: probes))
+    match send(client, StartProbe(client)):
+        Ok(_) -> ()
+        Err(_) -> ()
+
+fn lifecycle_collector(remaining: Int, workers: Int, faults: Int, completed: Int, attempts: Int, worker_checksum: Int, fault_checksum: Int) -> Unit:
+    receive:
+        LifeDone(_, value) ->
+            let next_completed = completed + 1
+            let next_checksum = worker_checksum + value
+            if remaining == 1:
+                println("lifecycle,{workers},{faults},{next_completed},{attempts},{next_checksum},{fault_checksum}")
+            else:
+                lifecycle_collector(remaining: remaining - 1, workers: workers, faults: faults, completed: next_completed, attempts: attempts, worker_checksum: next_checksum, fault_checksum: fault_checksum)
+        Attempt(id) ->
+            let next_attempts = attempts + 1
+            let next_checksum = fault_checksum + id
+            if remaining == 1:
+                println("lifecycle,{workers},{faults},{completed},{next_attempts},{worker_checksum},{next_checksum}")
+            else:
+                lifecycle_collector(remaining: remaining - 1, workers: workers, faults: faults, completed: completed, attempts: next_attempts, worker_checksum: worker_checksum, fault_checksum: next_checksum)
+
+fn lifecycle_worker(id: Int, done: Pid(Event)) -> Unit:
+    match send(done, LifeDone(id, id * 17 + 1)):
+        Ok(_) -> ()
+        Err(_) -> ()
+
+fn fragile_worker(id: Int, done: Pid(Event)) -> Unit:
+    match send(done, Attempt(id)):
+        Ok(_) ->
+            let empty: List(Int) = []
+            println(List.head(empty))
+        Err(_) -> ()
+
+fn spawn_lifecycle_workers(index: Int, workers: Int, done: Pid(Event)) -> Unit:
+    if index < workers:
+        let worker: Pid(()) = spawn(() -> lifecycle_worker(id: index, done: done))
+        spawn_lifecycle_workers(index: index + 1, workers: workers, done: done)
+
+fn spawn_faults(index: Int, faults: Int, done: Pid(Event)) -> Unit:
+    if index < faults:
+        let worker: Pid(()) = supervise(() -> fragile_worker(id: index, done: done), 1)
+        spawn_faults(index: index + 1, faults: faults, done: done)
+
+fn lifecycle(workers: Int, faults: Int) -> Unit:
+    println("ready")
+    let messages = workers + faults * 2
+    let done: Pid(Event) = spawn(() -> lifecycle_collector(remaining: messages, workers: workers, faults: faults, completed: 0, attempts: 0, worker_checksum: 0, fault_checksum: 0))
+    spawn_lifecycle_workers(index: 0, workers: workers, done: done)
+    spawn_faults(index: 0, faults: faults, done: done)
+
+fn main() -> Unit:
+    let mode = System.arg(1)
+    if String.eq(mode, "request-reply"):
+        request_reply(clients: argument(2), requests: argument(3))
+    else:
+        if String.eq(mode, "contention"):
+            contention(schedulers: argument(2), probes: argument(3), work: argument(4))
+        else:
+            lifecycle(workers: argument(2), faults: argument(3))

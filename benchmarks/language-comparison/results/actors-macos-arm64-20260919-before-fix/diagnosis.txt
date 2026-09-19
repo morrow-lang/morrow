@@ -1,0 +1,18 @@
+Source: /usr/bin/sample at 1 ms for 1.31 seconds on the same release workload.
+Captured: 2026-09-19 16:10:51 +0200, macOS 27.0 ARM64.
+
+Main thread: 1,292 / 1,310 samples in managed transport Endpoint::wait.
+Scheduler 1: 1,303 / 1,310 samples in managed transport Endpoint::wait.
+Only 17 main-thread samples reached morrow_managed_run's active polling path.
+
+Runtime source inspection found that parallel::run waited 10 ms after every
+poll(64) busy result even when the root queue remained runnable. When stealing
+moved the hot actor onto the root scheduler, two million callbacks required
+about 31,250 driver polls, adding about 312.5 seconds of waits. This explains the
+observed periodic progress and 180-second timeout; it was not a deadlock.
+
+Original release artifacts:
+morrow workload: 6404ac0ddea9486e3fd239218f5d413d1e1d5ac80892f2bacaf774840bed4385
+Rust runner:     704cf96e41056748231e1754aa4d38167cbd5a4fe3e997c78167e1fde7f2c458
+Elixir BEAM:     d75d5546be6f33144236458c46a5492eee717b364285e4ef653be3317e65511d
+beam.smp:        2a842c593da6fd981913808033e613b7c0d0310cda763beaaf840329a1a02a87

@@ -172,6 +172,8 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             identity: ActorIdentity {
                 session_key: (*s).session_key,
                 scheduler: (*s).scheduler,
+                owner: AtomicUsize::new((*s).scheduler),
+                ingress: Some(control::Owned::new(transport::Ingress::new((*s).scheduler))),
                 id,
                 slot: slot.unwrap(),
                 mailbox: string,
@@ -179,6 +181,7 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
                 alive: AtomicBool::new(true),
                 ..ActorIdentity::default()
             },
+            slot: slot.unwrap(),
             _session: Some(control::Owned::retain(s)),
             ..Actor::default()
         });
@@ -196,6 +199,7 @@ pub unsafe extern "C" fn morrow_managed_port(exec: *mut Exec, string: *const Typ
             actor.token(),
         );
         (*a).host_port = true;
+        (*a).pinned = true;
         (*a).deadline = u64::MAX;
         publish_actor(s, a, slot.unwrap());
         let pid = new_pid(a);
@@ -214,7 +218,7 @@ unsafe fn port_actor(exec: *mut Exec, port: *mut c_void) -> Option<*mut Actor> {
             return None;
         }
         let a = (*pid).actor;
-        if (*a).identity.scheduler != (*s).scheduler {
+        if (*a).identity.owner.load(Ordering::Acquire) != (*s).scheduler {
             return None;
         }
         transport::drain(s);

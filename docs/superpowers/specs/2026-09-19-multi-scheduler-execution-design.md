@@ -3,6 +3,11 @@
 Status: all seven tasks adopted and verified (Decisions158–160). Date: 2026-09-19.
 Step 2 of 5 toward parallel actor execution.
 
+Decision161 subsequently adds native continuation quanta, optional work stealing,
+eligible actor migration and resource pinning. The seven-task scope below remains
+the historical pinned-scheduler milestone; the current behavior is documented in
+the [actor runtime contract](../../ACTOR_RUNTIME.md).
+
 Step 1 is [sendable actor heaps](2026-09-15-sendable-actor-heaps-design.md),
 adopted as Decision156. It moved heap ownership out of thread-local storage into
 an explicit `Domain` and left the thread-local as a cursor. It produced no

@@ -1,0 +1,21 @@
+Arguments: ["/tmp/morrow-actor-runner-release", "/tmp/morrow-actors-release-20260919-transfer-gc-final", "/tmp/morrow-actor-tools-20260919/elixir/1.20.4/bin/elixir", "/tmp/morrow-actor-beam-20260919", "benchmarks/language-comparison/results/actors-macos-arm64-20260919", "--include-tuned-32"]
+MORROW_REDUCTIONS baseline: 1
+Optional stealing reductions=32: true
+Ambient BEAM scheduler flags are replaced; ERL_FLAGS supplies explicit +S.
+Morrow workload: 938744 bytes; 9de8abc625272d941a9e42aaa7ad7a25d09fe48e08012d8c78ed66327bcd0556; /private/tmp/morrow-actors-release-20260919-transfer-gc-final
+Elixir launcher: 6658 bytes; 5cb23d89a78f75589b06fade3097e217b77e63416d61c1800f674579748c4307; /private/tmp/morrow-actor-tools-20260919/elixir/1.20.4/lib/elixir/bin/elixir
+benchmark runner: 811784 bytes; 15d02e6885872865dd5aeccc179fff54aa20c511d21e6dd1c238dde875fff2e6; /tmp/morrow-actor-runner-release
+Morrow compiler: 10564800 bytes; 14cd80b1d6d13c10f05d94b2e2d7492b8b7c2ca4e0bb98975642df4d2b75b27c; target/release/morrow
+Morrow runtime archive: 13731768 bytes; 23b300490ee13f22f117944eb7048884afd96bcf7eb7c7cd3b299cab50c65005; target/release/libmorrow_runtime_native.a
+BEAM module: 15060 bytes; d75d5546be6f33144236458c46a5492eee717b364285e4ef653be3317e65511d; /private/tmp/morrow-actor-beam-20260919/Elixir.ActorComparison.beam
+benchmark source: 8892 bytes; 9f1a135ee9edad09686fec8bf23103098ddc34e83c4d63788f3170983074495b; benchmarks/language-comparison/programs/actors.mr
+benchmark source: 8378 bytes; 648bebc86f56ed387a761100b223455e84b66599f7fd2c25eec9bd6b62bb1898; benchmarks/language-comparison/programs/actors.ex
+benchmark source: 32488 bytes; 37d2751ba819954d5cba2cdf06185aa30d2c46d316c60667695a93aea4311098; benchmarks/language-comparison/src/actor_comparison.rs
+
+Elixir version:
+Erlang/OTP 29 [erts-17.0.6] [source] [64-bit] [smp:10:10] [ds:10:10:10] [async-threads:1] [jit] [dtrace]
+
+Elixir 1.20.4 (compiled with Erlang/OTP 29)
+
+Host:
+Darwin MacBook-Air-von-Niklas-1326.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:57 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8132 arm64
