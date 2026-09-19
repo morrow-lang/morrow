@@ -1,0 +1,9 @@
+Arguments: ["/tmp/morrow-actor-runner-request-reply-diagnostic", "--request-reply-diagnostic", "/tmp/morrow-actors-parity-checkpoint1-20260919", "/tmp/morrow-actors-adaptive-transfer-20260919", "benchmarks/language-comparison/results/actors-parity-adaptive-transfer-20260919"]
+Protocol: request-reply 32x500 then 32x5000; schedulers 1/2/4; pinned/stealing; reductions 1; one warmup plus five measured rounds; old/new and mode order rotates each round.
+old Morrow workload: 939624 bytes; 7668ab2fc66a13c51bde232fd3b56a13b161749291d896441c7f7dead77d693c; /private/tmp/morrow-actors-parity-checkpoint1-20260919
+new Morrow workload: 939864 bytes; f43d251bde234899458050c67d7582cdd031fcf2f6b29f594aad05eced066038; /private/tmp/morrow-actors-adaptive-transfer-20260919
+benchmark runner: 813088 bytes; 8a7bd9fbc0fa77575df3d529b10037a0bb2d5a9bdf1f30de23e71d82b0276ef5; /tmp/morrow-actor-runner-request-reply-diagnostic
+benchmark runner source: 42663 bytes; 66ed0cec79508a5424337707df3467b4d9fdad1efa586097a32af21074b97d83; benchmarks/language-comparison/src/actor_comparison.rs
+
+Host:
+Darwin MacBook-Air-von-Niklas-1326.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:57 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8132 arm64

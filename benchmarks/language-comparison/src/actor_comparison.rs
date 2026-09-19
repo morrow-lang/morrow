@@ -101,6 +101,83 @@ struct Inputs {
     beam: PathBuf,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiagnosticArtifact {
+    Old,
+    New,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DiagnosticMode {
+    Pinned,
+    Stealing,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct DiagnosticVariant {
+    artifact: DiagnosticArtifact,
+    mode: DiagnosticMode,
+}
+
+impl DiagnosticVariant {
+    fn label(self) -> &'static str {
+        match (self.artifact, self.mode) {
+            (DiagnosticArtifact::Old, DiagnosticMode::Pinned) => "old-pinned",
+            (DiagnosticArtifact::Old, DiagnosticMode::Stealing) => "old-stealing",
+            (DiagnosticArtifact::New, DiagnosticMode::Pinned) => "new-pinned",
+            (DiagnosticArtifact::New, DiagnosticMode::Stealing) => "new-stealing",
+        }
+    }
+
+    fn index(self) -> usize {
+        match (self.artifact, self.mode) {
+            (DiagnosticArtifact::Old, DiagnosticMode::Pinned) => 0,
+            (DiagnosticArtifact::New, DiagnosticMode::Pinned) => 1,
+            (DiagnosticArtifact::Old, DiagnosticMode::Stealing) => 2,
+            (DiagnosticArtifact::New, DiagnosticMode::Stealing) => 3,
+        }
+    }
+}
+
+const DIAGNOSTIC_VARIANTS: [DiagnosticVariant; 4] = [
+    DiagnosticVariant {
+        artifact: DiagnosticArtifact::Old,
+        mode: DiagnosticMode::Pinned,
+    },
+    DiagnosticVariant {
+        artifact: DiagnosticArtifact::New,
+        mode: DiagnosticMode::Pinned,
+    },
+    DiagnosticVariant {
+        artifact: DiagnosticArtifact::Old,
+        mode: DiagnosticMode::Stealing,
+    },
+    DiagnosticVariant {
+        artifact: DiagnosticArtifact::New,
+        mode: DiagnosticMode::Stealing,
+    },
+];
+
+fn diagnostic_order(round: usize) -> [DiagnosticVariant; 4] {
+    std::array::from_fn(|offset| DIAGNOSTIC_VARIANTS[(round + offset) % 4])
+}
+
+fn diagnostic_workloads() -> Vec<(u64, Workload)> {
+    let mut workloads = Vec::new();
+    for requests in [500, 5_000] {
+        for schedulers in [1, 2, 4] {
+            workloads.push((
+                schedulers,
+                Workload::RequestReply {
+                    clients: 32,
+                    requests,
+                },
+            ));
+        }
+    }
+    workloads
+}
+
 struct Observation {
     status: ExitStatus,
     stdout: Vec<u8>,
@@ -635,6 +712,148 @@ fn metadata(inputs: &Inputs, output: &Path, include_tuned: bool) {
     source_manifest(output);
 }
 
+fn diagnostic_metadata(old: &Path, new: &Path, output: &Path) {
+    let current_exe = env::current_exe().expect("find benchmark runner");
+    let source = Path::new(ROOT).join("src/actor_comparison.rs");
+    let mut text = format!(
+        "Arguments: {:?}\nProtocol: request-reply 32x500 then 32x5000; schedulers 1/2/4; pinned/stealing; reductions 1; one warmup plus five measured rounds; old/new and mode order rotates each round.\n",
+        env::args().collect::<Vec<_>>()
+    );
+    for (label, path) in [
+        ("old Morrow workload", old),
+        ("new Morrow workload", new),
+        ("benchmark runner", current_exe.as_path()),
+        ("benchmark runner source", source.as_path()),
+    ] {
+        text.push_str(&format!(
+            "{label}: {} bytes; {}; {}\n",
+            fs::metadata(path).unwrap().len(),
+            hash(path),
+            path.display()
+        ));
+    }
+    let host = Command::new("/usr/bin/uname")
+        .arg("-a")
+        .output()
+        .expect("read host identity");
+    assert!(host.status.success());
+    text.push_str("\nHost:\n");
+    text.push_str(&String::from_utf8_lossy(&host.stdout));
+    fs::write(output.join("inputs.txt"), text).unwrap();
+}
+
+fn diagnostic_inputs(path: &Path) -> Inputs {
+    Inputs {
+        morrow: path.to_owned(),
+        elixir: PathBuf::new(),
+        beam: PathBuf::new(),
+    }
+}
+
+fn measure_request_reply_diagnostic(old: &Path, new: &Path, output: &Path) {
+    let old_inputs = diagnostic_inputs(old);
+    let new_inputs = diagnostic_inputs(new);
+    let raw = output.join("raw");
+    fs::create_dir(&raw).unwrap();
+    let mut csv = fs::File::create(output.join("measurements.csv")).unwrap();
+    writeln!(
+        csv,
+        "artifact,mode,requests,schedulers,round,phase,operations,process_wall_ms,ready_to_summary_ms,operations_per_second"
+    )
+    .unwrap();
+    let mut summaries = Vec::new();
+    for (schedulers, workload) in diagnostic_workloads() {
+        let Workload::RequestReply { requests, .. } = workload else {
+            unreachable!("diagnostic workloads are request/reply")
+        };
+        let mut elapsed: Vec<Vec<f64>> = vec![Vec::new(); DIAGNOSTIC_VARIANTS.len()];
+        let mut throughput: Vec<Vec<f64>> = vec![Vec::new(); DIAGNOSTIC_VARIANTS.len()];
+        for round in 0..6 {
+            for diagnostic in diagnostic_order(round) {
+                let (inputs, artifact) = match diagnostic.artifact {
+                    DiagnosticArtifact::Old => (&old_inputs, "old"),
+                    DiagnosticArtifact::New => (&new_inputs, "new"),
+                };
+                let (mode, stealing) = match diagnostic.mode {
+                    DiagnosticMode::Pinned => ("pinned", false),
+                    DiagnosticMode::Stealing => ("stealing", true),
+                };
+                let variant = Variant::Morrow {
+                    label: diagnostic.label(),
+                    stealing,
+                    reductions: 1,
+                };
+                let stem = format!("{artifact}-{mode}-{schedulers}-{requests}-{round}");
+                let observation = checked(inputs, variant, schedulers, workload, output, &stem);
+                let ready = observation.ready.expect("validated ready timestamp");
+                let finished = observation.finished.expect("validated summary timestamp");
+                let workload_elapsed = finished - ready;
+                let wall_milliseconds = observation.elapsed.as_secs_f64() * 1_000.0;
+                let milliseconds = workload_elapsed.as_secs_f64() * 1_000.0;
+                let operations_per_second =
+                    workload.operations() as f64 / workload_elapsed.as_secs_f64();
+                let phase = if round == 0 { "warmup" } else { "measured" };
+                writeln!(
+                    csv,
+                    "{artifact},{mode},{requests},{schedulers},{round},{phase},{},{wall_milliseconds:.6},{milliseconds:.6},{operations_per_second:.3}",
+                    workload.operations()
+                )
+                .unwrap();
+                csv.flush().unwrap();
+                fs::write(raw.join(format!("{stem}.stdout")), &observation.stdout).unwrap();
+                fs::write(raw.join(format!("{stem}.stderr")), &observation.stderr).unwrap();
+                fs::write(
+                    raw.join(format!("{stem}.samples.csv")),
+                    format!(
+                        "event,index,observed_after_process_start_ns\nready,,{}\nsummary,,{}\nstreams-closed,,{}\n",
+                        ready.as_nanos(),
+                        finished.as_nanos(),
+                        observation.streams_closed.as_nanos()
+                    ),
+                )
+                .unwrap();
+                if round > 0 {
+                    elapsed[diagnostic.index()].push(milliseconds);
+                    throughput[diagnostic.index()].push(operations_per_second);
+                }
+            }
+        }
+        for (mode, old_index, new_index) in [("pinned", 0, 1), ("stealing", 2, 3)] {
+            let old_elapsed = median(elapsed[old_index].clone());
+            let new_elapsed = median(elapsed[new_index].clone());
+            let old_throughput = median(throughput[old_index].clone());
+            let new_throughput = median(throughput[new_index].clone());
+            summaries.push(format!(
+                "| {requests} | {schedulers} | {mode} | {old_elapsed:.3} | {new_elapsed:.3} | {old_throughput:.0} | {new_throughput:.0} | {:.3} |",
+                new_throughput / old_throughput
+            ));
+        }
+    }
+    let mut summary = String::from(
+        "| Requests/client | Schedulers | Mode | Old median ready-to-summary ms | New median ready-to-summary ms | Old median operations/s | New median operations/s | New/old throughput |\n| ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: |\n",
+    );
+    for row in summaries {
+        summary.push_str(&row);
+        summary.push('\n');
+    }
+    fs::write(output.join("summary.md"), &summary).unwrap();
+    print!("{summary}");
+}
+
+fn request_reply_diagnostic(arguments: &[String]) {
+    assert_eq!(
+        arguments.len(),
+        5,
+        "actor_comparison --request-reply-diagnostic OLD_MORROW_BINARY NEW_MORROW_BINARY NEW_OUTPUT_DIRECTORY"
+    );
+    let old = fs::canonicalize(&arguments[2]).expect("old Morrow binary must exist");
+    let new = fs::canonicalize(&arguments[3]).expect("new Morrow binary must exist");
+    let output = Path::new(&arguments[4]);
+    fs::create_dir(output).expect("new exclusive evidence directory");
+    diagnostic_metadata(&old, &new, output);
+    measure_request_reply_diagnostic(&old, &new, output);
+}
+
 fn verification(inputs: &Inputs, variants: &[Variant], output: &Path) {
     let mut count = 0;
     for schedulers in [1, 2, 4] {
@@ -798,6 +1017,10 @@ fn measure(inputs: &Inputs, variants: &[Variant], output: &Path) {
 fn main() {
     assert!(Path::new(ROOT).is_dir(), "run from the repository root");
     let arguments: Vec<_> = env::args().collect();
+    if arguments.get(1).map(String::as_str) == Some("--request-reply-diagnostic") {
+        request_reply_diagnostic(&arguments);
+        return;
+    }
     assert!(
         (5..=7).contains(&arguments.len()),
         "actor_comparison MORROW_BINARY ELIXIR COMPILED_BEAM_DIRECTORY NEW_OUTPUT_DIRECTORY [--smoke] [--include-tuned-32]"
@@ -902,6 +1125,38 @@ mod tests {
             b"ready\nhot-done\nsample,0\nsample,1\nsample,2\ncontention,3,2,9,1278240558\n",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn diagnostic_rotation_covers_each_variant_once() {
+        for round in 0..12 {
+            let order = diagnostic_order(round);
+            for variant in DIAGNOSTIC_VARIANTS {
+                assert_eq!(
+                    order
+                        .iter()
+                        .filter(|candidate| **candidate == variant)
+                        .count(),
+                    1
+                );
+            }
+            assert_eq!(order[0], DIAGNOSTIC_VARIANTS[round % 4]);
+        }
+    }
+
+    #[test]
+    fn diagnostic_plan_is_short_then_long_and_bounded() {
+        let workloads = diagnostic_workloads();
+        assert_eq!(workloads.len(), 6);
+        assert_eq!(workloads.len() * 6 * DIAGNOSTIC_VARIANTS.len(), 144);
+        for (index, (schedulers, workload)) in workloads.into_iter().enumerate() {
+            let Workload::RequestReply { clients, requests } = workload else {
+                panic!("diagnostic includes a non-request/reply workload")
+            };
+            assert_eq!(clients, 32);
+            assert_eq!(schedulers, [1, 2, 4][index % 3]);
+            assert_eq!(requests, if index < 3 { 500 } else { 5_000 });
+        }
     }
 
     #[cfg(unix)]

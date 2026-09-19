@@ -78,33 +78,76 @@ impl Domain {
             remaining = remaining.checked_sub(1).ok_or(TransferError::WorkLimit)?;
             Ok(())
         };
-        // Index foreign allocation intervals once instead of probing every heap
-        // for every candidate word. Allocations cannot overlap, so the greatest
-        // base not exceeding a word is its only possible foreign owner.
-        // Work units count visited slots, allocation records and candidate words;
-        // bounded BTreeMap operations are logarithmic, not individual CPU steps.
-        // This temporary index neither retains nor mutates any payload storage.
-        let mut foreign = BTreeMap::new();
+        // A precise collection can leave only a few candidate words while other
+        // heaps still own thousands of allocations. Count metadata first and use
+        // the cheaper bounded lookup plan rather than always building an index.
+        let mut candidate_words = 0usize;
+        for &(_, words) in slot.heap.roots.values() {
+            charge()?;
+            candidate_words = candidate_words.saturating_add(words);
+        }
+        for block in slot.heap.blocks.values() {
+            charge()?;
+            candidate_words = candidate_words.saturating_add(1);
+            if !block.atomic {
+                candidate_words = candidate_words.saturating_add(block.layout.size() / 8);
+            }
+        }
+        let mut foreign_allocations = 0usize;
         for (&other, other_slot) in &self.slots {
             charge()?;
-            if other == id {
-                continue;
+            if other != id {
+                foreign_allocations =
+                    foreign_allocations.saturating_add(other_slot.heap.blocks.len());
             }
-            for (&address, block) in &other_slot.heap.blocks {
+        }
+        let direct_probes = candidate_words.saturating_mul(self.slots.len());
+        let indexed = foreign_allocations < direct_probes;
+        let mut foreign = BTreeMap::new();
+        if indexed {
+            // Allocations cannot overlap, so the greatest base not exceeding a
+            // word is its only possible owner. Work counts metadata and probes;
+            // bounded tree operations are logarithmic, not individual CPU steps.
+            for (&other, other_slot) in &self.slots {
                 charge()?;
-                let end = address
-                    .checked_add(block.layout.size())
-                    .expect("live allocation cannot wrap the address space");
-                foreign.insert(address, end);
+                if other == id {
+                    continue;
+                }
+                for (&address, block) in &other_slot.heap.blocks {
+                    charge()?;
+                    let end = address
+                        .checked_add(block.layout.size())
+                        .expect("live allocation cannot wrap the address space");
+                    foreign.insert(address, end);
+                }
             }
         }
         let mut check_word = |word: usize| {
             charge()?;
-            if foreign
-                .range(..=word)
-                .next_back()
-                .is_some_and(|(_, &end)| word < end)
-            {
+            let foreign_edge = if indexed {
+                foreign
+                    .range(..=word)
+                    .next_back()
+                    .is_some_and(|(_, &end)| word < end)
+            } else {
+                let mut found = false;
+                for (&other, other_slot) in &self.slots {
+                    charge()?;
+                    if other != id
+                        && other_slot
+                            .heap
+                            .blocks
+                            .range(..=word)
+                            .next_back()
+                            .is_some_and(|(&base, block)| word - base < block.layout.size())
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                found
+            };
+            if foreign_edge {
                 return Err(TransferError::ForeignEdge);
             }
             Ok(())
@@ -200,6 +243,78 @@ mod tests {
             )
         };
         (heap, root)
+    }
+
+    #[test]
+    fn tiny_candidate_does_not_index_thousands_of_unrelated_allocations() {
+        let mut domain = Domain::new();
+        for _ in 0..4096 {
+            domain.slots.get_mut(&0).unwrap().heap.allocate(16, true);
+        }
+        let (heap, root) = actor_heap(&mut domain);
+        let payload = domain.slots.get_mut(&heap).unwrap().heap.allocate(8, false);
+        root.store(payload as usize, Ordering::Relaxed);
+        // SAFETY: isolated initialized graph, with no scopes or external roots.
+        // The candidate has only three words to inspect and one foreign heap;
+        // unrelated allocation cardinality must not force an index construction.
+        let transfer = unsafe { domain.detach_heap_with_work(heap, 32) };
+        assert!(
+            transfer.is_ok(),
+            "tiny graph must validate within 32 units: {:?}",
+            transfer.err()
+        );
+    }
+
+    #[test]
+    fn direct_probe_preserves_interior_edge_and_exhaustion_rejection() {
+        let mut domain = Domain::new();
+        let mut foreign = 0usize;
+        for index in 0..4096 {
+            let address = domain.slots.get_mut(&0).unwrap().heap.allocate(32, true);
+            if index == 2048 {
+                foreign = address as usize;
+            }
+        }
+        let (heap, root) = actor_heap(&mut domain);
+        let payload = domain
+            .slots
+            .get_mut(&heap)
+            .unwrap()
+            .heap
+            .allocate(8, false)
+            .cast::<usize>();
+        for root_edge in [true, false] {
+            root.store(
+                if root_edge {
+                    foreign + 17
+                } else {
+                    payload as usize
+                },
+                Ordering::Relaxed,
+            );
+            // SAFETY: initialized exclusively owned candidate word.
+            unsafe { payload.write(if root_edge { 0 } else { foreign + 31 }) };
+            let before = domain.stats();
+            // SAFETY: deliberate foreign edge is readable and must be rejected.
+            assert_eq!(
+                unsafe { domain.detach_heap_with_work(heap, 32) }.err(),
+                Some(TransferError::ForeignEdge)
+            );
+            assert!(domain.owns(heap, payload.cast()));
+            assert_eq!(domain.stats().bytes, before.bytes);
+            assert_eq!(domain.stats().objects, before.objects);
+            assert_eq!(domain.slots[&heap].heap.roots.len(), 1);
+        }
+        root.store(payload as usize, Ordering::Relaxed);
+        // SAFETY: erase the foreign edge before testing finite probe exhaustion.
+        unsafe { payload.write(0) };
+        assert_eq!(
+            unsafe { domain.detach_heap_with_work(heap, 8) }.err(),
+            Some(TransferError::WorkLimit)
+        );
+        assert!(domain.owns(heap, payload.cast()));
+        assert_eq!(domain.slots[&heap].heap.roots.len(), 1);
+        assert!(unsafe { domain.detach_heap_with_work(heap, 32) }.is_ok());
     }
 
     #[test]

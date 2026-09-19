@@ -76,6 +76,10 @@ remain in the actor's synchronized ingress FIFO. Global admission charges stay
 unchanged; local bookkeeping and physical heap accounting move with ownership.
 Active native roots/scopes, foreign heap edges or an exhausted transfer-validation
 work bound decline the handoff without changing source ownership.
+Validation chooses direct foreign-heap lookups for tiny graphs and an allocation
+interval index when it avoids more probes. Metadata counting, index construction
+and probes all consume the existing validation bound; neither path weakens
+foreign-interior-pointer rejection.
 Collection may reclaim unreachable storage even when the subsequent handoff is
 declined. The validation work limit does not bound collection time.
 

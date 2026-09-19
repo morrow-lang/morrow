@@ -1,0 +1,34 @@
+{
+  "protocol": "1 warmup plus 5 measured rounds; variant order rotates each round",
+  "timeout_seconds": 30,
+  "clients": 32,
+  "request_counts": [
+    500,
+    5000
+  ],
+  "schedulers": [
+    1,
+    2,
+    4
+  ],
+  "reductions": 1,
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "artifacts": {
+    "old": {
+      "path": "/tmp/morrow-actors-release-20260919-transfer-gc-final",
+      "sha256": "9de8abc625272d941a9e42aaa7ad7a25d09fe48e08012d8c78ed66327bcd0556"
+    },
+    "checkpoint": {
+      "path": "/tmp/morrow-actors-parity-checkpoint1-20260919",
+      "sha256": "7668ab2fc66a13c51bde232fd3b56a13b161749291d896441c7f7dead77d693c"
+    },
+    "unchanged_runner": {
+      "path": "/tmp/morrow-actor-runner-release",
+      "sha256": "15d02e6885872865dd5aeccc179fff54aa20c511d21e6dd1c238dde875fff2e6"
+    },
+    "orchestration": {
+      "path": "/tmp/morrow-rr-regression-diagnostic-20260919-run.py",
+      "sha256": "ae8c79bc8bc6412e3c1351df9237f0e9bbd7de46389a9fcbca724d2d79ec4546"
+    }
+  }
+}

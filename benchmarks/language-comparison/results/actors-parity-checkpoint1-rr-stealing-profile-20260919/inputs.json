@@ -1,0 +1,24 @@
+{
+  "purpose": "checkpoint 1 request/reply two-scheduler stealing diagnosis",
+  "host": "macOS 27.0 (26A428), arm64",
+  "artifact": {
+    "path_at_capture": "/tmp/morrow-actors-parity-checkpoint1-20260919",
+    "sha256": "7668ab2fc66a13c51bde232fd3b56a13b161749291d896441c7f7dead77d693c"
+  },
+  "environment": {
+    "MORROW_SCHEDULERS": "2",
+    "MORROW_REDUCTIONS": "1",
+    "MORROW_WORK_STEALING": "1"
+  },
+  "arguments": ["request-reply", "32", "20000"],
+  "sample": {
+    "command": "/usr/bin/sample PID 2 1 -file sample.txt",
+    "requested_seconds": 2,
+    "interval_milliseconds": 1,
+    "observed_ticks_per_thread": 1415
+  },
+  "oracle": {
+    "replies": 640000,
+    "checksum": 2995199680000
+  }
+}
