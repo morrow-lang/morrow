@@ -14,6 +14,8 @@ mod control;
 mod copy;
 #[path = "managed/cost.rs"]
 mod cost;
+#[path = "managed/descriptor_cache.rs"]
+mod descriptor_cache;
 pub use affinity::morrow_managed_pin_current;
 #[path = "managed/migration.rs"]
 mod migration;
@@ -141,6 +143,8 @@ struct Session {
     root: Exec,
     functions: *const *const Function,
     function_count: usize,
+    // Descriptors are immutable for the invocation; only this scheduler accesses the cache.
+    function_cache: descriptor_cache::Cache,
     live: usize,
     next_id: u64,
     used_slots: usize,
@@ -327,12 +331,25 @@ unsafe fn function_work(
             return null();
         }
         let identity = *closure.cast::<*const c_void>();
+        if let Some((descriptor, index)) = (*s).function_cache.get(identity) {
+            // Preserve the old registry-position charge and exact failure point,
+            // even though the physical comparison loop is now unnecessary.
+            if index + 1 > WORK - *work {
+                *work = WORK + 1;
+                return null();
+            }
+            *work += index + 1;
+            return descriptor;
+        }
         for i in 0..(*s).function_count {
             if !cost::work(work) {
                 return null();
             }
             let f = *(*s).functions.add(i);
+            #[cfg(test)]
+            descriptor_cache::compared();
             if (*f).identity == identity {
+                (*s).function_cache.insert(identity, f, i);
                 return f;
             }
         }

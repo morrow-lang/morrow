@@ -1,0 +1,9 @@
+Arguments: ["/tmp/morrow-actor-runner-request-reply-diagnostic", "--request-reply-diagnostic", "/tmp/morrow-actors-reuse-sweep-20260919", "/tmp/morrow-actors-descriptor-cache-20260919", "benchmarks/language-comparison/results/actors-parity-descriptor-cache-20260919"]
+Protocol: request-reply 32x500 then 32x5000; schedulers 1/2/4; pinned/stealing; reductions 1; one warmup plus five measured rounds; old/new and mode order rotates each round.
+old Morrow workload: 940136 bytes; 56e72093114fbe17655074093f1d91b46e208f251da9821264e57534d1d2e419; /private/tmp/morrow-actors-reuse-sweep-20260919
+new Morrow workload: 940136 bytes; c5c175164aa1ee39f5272e3688fcffdd34b132449a968142c26ae5c208ad2f52; /private/tmp/morrow-actors-descriptor-cache-20260919
+benchmark runner: 813088 bytes; 8a7bd9fbc0fa77575df3d529b10037a0bb2d5a9bdf1f30de23e71d82b0276ef5; /tmp/morrow-actor-runner-request-reply-diagnostic
+benchmark runner source: 42663 bytes; 66ed0cec79508a5424337707df3467b4d9fdad1efa586097a32af21074b97d83; benchmarks/language-comparison/src/actor_comparison.rs
+
+Host:
+Darwin MacBook-Air-von-Niklas-1326.local 27.0.0 Darwin Kernel Version 27.0.0: Tue Aug 11 21:02:57 PDT 2026; root:xnu-13432.1.9~1/RELEASE_ARM64_T8132 arm64
