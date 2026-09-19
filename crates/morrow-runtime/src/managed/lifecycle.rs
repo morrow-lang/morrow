@@ -353,8 +353,7 @@ pub unsafe extern "C" fn morrow_managed_send(
             return abi::result_err(3);
         }
         let a = (*pid).actor;
-        let Some(cost) =
-            cost::value(s, ty, value).and_then(|c| c.checked_add(std::mem::size_of::<Message>()))
+        let Some(cost) = cost::value(s, ty, value).and_then(|c| c.checked_add(MESSAGE_BYTES))
         else {
             return abi::result_err(4);
         };

@@ -511,7 +511,7 @@ fn sent_json_owns_an_independent_graph_and_charges_its_storage() {
         assert!(matches!(&children[0].kind, Kind::String(text) if text == "shared"));
         assert_eq!(
             (*session).retained - before,
-            std::mem::size_of::<Message>()
+            MESSAGE_BYTES
                 + std::mem::size_of::<crate::json::NativeJson>()
                 + morrow_json::retained_bytes(&original)
         );
@@ -532,12 +532,12 @@ fn quota_failure_does_not_copy_or_publish_message() {
         let pid = f.spawn(exec, 0);
         let session = (*exec).session;
         let original_retained = (*session).retained;
-        (*session).retained = BYTES - std::mem::size_of::<Message>();
+        (*session).retained = BYTES - MESSAGE_BYTES;
         let objects = memory::stats().objects;
         let result = morrow_managed_send(exec, pid.cast(), c"hello".as_ptr() as i64, &string)
             as *const abi::ResultValue;
         assert_eq!(((*result).tag, (*result).value), (1, 4));
-        assert_eq!((*session).retained, BYTES - std::mem::size_of::<Message>());
+        assert_eq!((*session).retained, BYTES - MESSAGE_BYTES);
         // Only the Result allocation is allowed on a rejected transfer.
         assert_eq!(memory::stats().objects, objects + 1);
         assert!((*(*pid).actor).first.is_null());

@@ -188,6 +188,9 @@ struct Session {
 // Retained-byte limits are a language-visible logical quota. The trailing Rust
 // ownership fields replace GC bookkeeping and do not change its historical
 // record charges; quota policy is a separate multi-scheduler decision.
+// Logical message admission stays stable when internal control metadata grows.
+// The collector separately accounts for the actual Message allocation size.
+const MESSAGE_BYTES: usize = 32;
 const ACTOR_BYTES: usize = 192;
 #[cfg(any(test, feature = "simulation"))]
 const SESSION_BYTES: usize = 144;
