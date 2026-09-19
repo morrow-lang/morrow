@@ -1,0 +1,49 @@
+{
+  "baseline_commit": "11e6ad5b8bb6058dd61e22d25ef94440b5c5a2b2",
+  "workload_binary": {
+    "path_at_capture": "/tmp/morrow-actors-release-20260919-transfer-gc-final",
+    "sha256": "9de8abc625272d941a9e42aaa7ad7a25d09fe48e08012d8c78ed66327bcd0556"
+  },
+  "profiles": [
+    {
+      "directory": "contention-32m",
+      "environment": {
+        "MORROW_SCHEDULERS": "1",
+        "MORROW_REDUCTIONS": "1",
+        "MORROW_WORK_STEALING": "0"
+      },
+      "arguments": ["contention", "1", "257", "32000000"],
+      "sample_duration_seconds": 2,
+      "sample_interval_milliseconds": 1,
+      "expected_summary": "contention,257,32000000,66049,536197235",
+      "context": "Focused CPU profile; full observed wall includes sampling and shutdown."
+    },
+    {
+      "directory": "request-reply-32x20000-pinned",
+      "environment": {
+        "MORROW_SCHEDULERS": "1,2,4 in separate runs",
+        "MORROW_REDUCTIONS": "1",
+        "MORROW_WORK_STEALING": "0"
+      },
+      "arguments": ["request-reply", "32", "20000"],
+      "sample_duration_seconds": 1,
+      "sample_interval_milliseconds": 1,
+      "process_timeout_seconds": 10,
+      "expected_summary": "request-reply,32,20000,640000,2995199680000",
+      "context": "Pinned control profiles; observed wall includes sampling overhead."
+    },
+    {
+      "directory": "lifecycle-1000-500",
+      "environment": {
+        "MORROW_SCHEDULERS": "2 pinned, 2 stealing, and 4 stealing in separate runs",
+        "MORROW_REDUCTIONS": "1",
+        "MORROW_WORK_STEALING": "0 or 1 as named"
+      },
+      "arguments": ["lifecycle", "1000", "500"],
+      "sample_duration_seconds": 1,
+      "sample_interval_milliseconds": 1,
+      "expected_summary": "lifecycle,1000,500,1000,1000,8492500,249500",
+      "context": "Lifecycle transfer profiles; observed wall includes sampling overhead."
+    }
+  ]
+}

@@ -12,6 +12,8 @@ mod loops;
 mod normalize;
 #[path = "sums.rs"]
 mod sums;
+#[path = "tail_batches.rs"]
+mod tail_batches;
 #[path = "with.rs"]
 mod with;
 
@@ -109,7 +111,8 @@ pub(super) fn program(
         builder.next_local = function.local_count;
         builder.source_return_type = function.return_type.clone();
         builder.scoped = owns_cleanup(&function.body);
-        let normalized = builder.normalize(&function.body, 0)?;
+        let batched = builder.batch_body(function)?;
+        let normalized = builder.normalize(&batched, 0)?;
         let body = builder.expression(&normalized, None, 0)?;
         let body = builder.enter_scope(body);
         let mut step = builder.function(body, vec![], false)?;

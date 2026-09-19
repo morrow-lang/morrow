@@ -1,0 +1,381 @@
+Analysis of sampling morrow-actors-release-20260919-transfer-gc-final (pid 16064) every 1 millisecond
+Process:         morrow-actors-release-20260919-transfer-gc-final [16064]
+Path:            /private/tmp/morrow-actors-release-20260919-transfer-gc-final
+Load Address:    0x100b8c000
+Identifier:      morrow-actors-release-20260919-transfer-gc-final
+Version:         0
+Code Type:       ARM64
+Platform:        macOS
+Parent Process:  Python [16063]
+Target Type:     live task
+
+Date/Time:       2026-09-19 16:59:54.768 +0200
+Launch Time:     2026-09-19 16:59:54.728 +0200
+OS Version:      macOS 27.0 (26A428)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         8224K
+Physical footprint (peak):  8224K
+Idle exit:                  untracked
+----
+
+Call graph:
+    1577 Thread_4397423   DispatchQueue_1: com.apple.main-thread  (serial)
+      1577 start  (in dyld) + 6688  [0x182fefe80]
+        1577 main  (in morrow-actors-release-20260919-transfer-gc-final) + 20  [0x100bcc838]
+          1577 morrow_main  (in morrow-actors-release-20260919-transfer-gc-final) + 188  [0x100b9b600]
+            1573 morrow_managed_run  (in morrow-actors-release-20260919-transfer-gc-final) + 544  [0x100bcb954]
+            + 1392 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final) + 228  [0x100bc45f8]
+            + ! 1385 actor_callback52  (in morrow-actors-release-20260919-transfer-gc-final) + 52  [0x100b8d21c]
+            + ! : 702 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 268  [0x100b963e8]
+            + ! : | 698 morrow_managed_continue  (in morrow-actors-release-20260919-transfer-gc-final) + 52  [0x100bca8a8]
+            + ! : | + 358 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 272  [0x100bc23f4]
+            + ! : | + ! 140 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4cost5frame  (in morrow-actors-release-20260919-transfer-gc-final) + 68,60,...  [0x100bc1218,0x100bc1210,...]
+            + ! : | + ! 119 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4cost5frame  (in morrow-actors-release-20260919-transfer-gc-final) + 116  [0x100bc1248]
+            + ! : | + ! : 72 _xzm_free_main  (in libsystem_malloc.dylib) + 736  [0x1831e919c]
+            + ! : | + ! : | 70 mach_absolute_time  (in libsystem_kernel.dylib) + 108,112,...  [0x1833810f8,0x1833810fc,...]
+            + ! : | + ! : | 2 DYLD-STUB$$mach_absolute_time  (in libsystem_malloc.dylib) + 12  [0x1832028ac]
+            + ! : | + ! : 31 _xzm_free_main  (in libsystem_malloc.dylib) + 392,684,...  [0x1831e9044,0x1831e9168,...]
+            + ! : | + ! : 14 _free  (in libsystem_malloc.dylib) + 0,36,...  [0x1831ed110,0x1831ed134,...]
+            + ! : | + ! : 2 DYLD-STUB$$free  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b30]
+            + ! : | + ! 89 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4cost5frame  (in morrow-actors-release-20260919-transfer-gc-final) + 232  [0x100bc12bc]
+            + ! : | + ! : 44 _RNvMNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4costNtB2_4Cost5value  (in morrow-actors-release-20260919-transfer-gc-final) + 940  [0x100bb28ac]
+            + ! : | + ! : | 42 _RNvMs4_NtCs8B0rgHCZPyS_5alloc7raw_vecINtB5_6RawVecINtNtNtCsdYmm3x5mFrB_3std6thread11join_handle10JoinHandleuEE8grow_oneCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final) + 60  [0x100c01d3c]
+            + ! : | + ! : | + 37 _RNvMs5_NtCs8B0rgHCZPyS_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final) + 256  [0x100c02134]
+            + ! : | + ! : | + ! 22 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 176,88,...  [0x1831e0afc,0x1831e0aa4,...]
+            + ! : | + ! : | + ! 9 _malloc_zone_malloc  (in libsystem_malloc.dylib) + 12,80,...  [0x1831ec4fc,0x1831ec540,...]
+            + ! : | + ! : | + ! 5 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 144,92,...  [0x1831e7898,0x1831e7864,...]
+            + ! : | + ! : | + ! 1 DYLD-STUB$$malloc  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b60]
+            + ! : | + ! : | + 5 _RNvMs5_NtCs8B0rgHCZPyS_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final) + 44,4,...  [0x100c02060,0x100c02038,...]
+            + ! : | + ! : | 2 _RNvMs4_NtCs8B0rgHCZPyS_5alloc7raw_vecINtB5_6RawVecINtNtNtCsdYmm3x5mFrB_3std6thread11join_handle10JoinHandleuEE8grow_oneCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final) + 0,60  [0x100c01d00,0x100c01d3c]
+            + ! : | + ! : 38 _RNvMNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4costNtB2_4Cost5value  (in morrow-actors-release-20260919-transfer-gc-final) + 768,88,...  [0x100bb2800,0x100bb2558,...]
+            + ! : | + ! : 6 _RNvMNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4costNtB2_4Cost5value  (in morrow-actors-release-20260919-transfer-gc-final) + 756  [0x100bb27f4]
+            + ! : | + ! : | 6 _RNvNtCsfyfLHRjGU9u_14morrow_runtime7managed9valid_pid  (in morrow-actors-release-20260919-transfer-gc-final) + 20,0,...  [0x100bbed4c,0x100bbed38,...]
+            + ! : | + ! : 1 _RNvMs4_NtCs8B0rgHCZPyS_5alloc7raw_vecINtB5_6RawVecINtNtNtCsdYmm3x5mFrB_3std6thread11join_handle10JoinHandleuEE8grow_oneCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final) + 80  [0x100c01d50]
+            + ! : | + ! 7 _RNvMNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4costNtB2_4Cost5value  (in morrow-actors-release-20260919-transfer-gc-final) + 168,160  [0x100bb25a8,0x100bb25a0]
+            + ! : | + ! 3 _xzm_free_main  (in libsystem_malloc.dylib) + 1072  [0x1831e92ec]
+            + ! : | + 171 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 500  [0x100bc24d8]
+            + ! : | + ! 165 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps4owns  (in morrow-actors-release-20260919-transfer-gc-final) + 172  [0x100bbf778]
+            + ! : | + ! : 165 _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain4owns  (in morrow-actors-release-20260919-transfer-gc-final) + 508,480,...  [0x100bb9a94,0x100bb9a78,...]
+            + ! : | + ! 4 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps4owns  (in morrow-actors-release-20260919-transfer-gc-final) + 128,140  [0x100bbf74c,0x100bbf758]
+            + ! : | + ! 2 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps4owns  (in morrow-actors-release-20260919-transfer-gc-final) + 40  [0x100bbf6f4]
+            + ! : | + !   2 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + ! : | + 105 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 108,96,...  [0x100bc2350,0x100bc2344,...]
+            + ! : | + 33 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 228  [0x100bc23c8]
+            + ! : | + ! 19 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 168  [0x100bc8ad8]
+            + ! : | + ! : 11 _RNCNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB7_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop0Bb_  (in morrow-actors-release-20260919-transfer-gc-final) + 144,152,...  [0x100bb1fb4,0x100bb1fbc,...]
+            + ! : | + ! : 8 _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain14remove_retired  (in morrow-actors-release-20260919-transfer-gc-final) + 120,16  [0x100bb891c,0x100bb88b4]
+            + ! : | + ! 8 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 40,0,...  [0x100bc8a58,0x100bc8a30,...]
+            + ! : | + ! 4 _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain14remove_retired  (in morrow-actors-release-20260919-transfer-gc-final) + 408  [0x100bb8a3c]
+            + ! : | + ! 2 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 124  [0x100bc8aac]
+            + ! : | + !   2 _tlv_get_addr  (in libdyld.dylib) + 12,20  [0x182f9ee54,0x182f9ee5c]
+            + ! : | + 23 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 52  [0x100bc2318]
+            + ! : | + ! 21 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 24,304,...  [0x100bbf808,0x100bbf920,...]
+            + ! : | + ! 2 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 32  [0x100bbf810]
+            + ! : | + !   2 _tlv_get_addr  (in libdyld.dylib) + 12,20  [0x182f9ee54,0x182f9ee5c]
+            + ! : | + 7 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final) + 716  [0x100bc25b0]
+            + ! : | + ! 7 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler13clear_receive  (in morrow-actors-release-20260919-transfer-gc-final) + 20,32,...  [0x100bc4224,0x100bc4230,...]
+            + ! : | + 1 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 184  [0x100bc8ae8]
+            + ! : | 4 morrow_managed_continue  (in morrow-actors-release-20260919-transfer-gc-final) + 12,108  [0x100bca880,0x100bca8e0]
+            + ! : 632 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 160  [0x100b9637c]
+            + ! : | 624 morrow_alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 16  [0x100bc9908]
+            + ! : | + 373 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 472  [0x100bbe640]
+            + ! : | + ! 228 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final) + 268,248,...  [0x100bb8000,0x100bb7fec,...]
+            + ! : | + ! 66 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final) + 484  [0x100bb80d8]
+            + ! : | + ! : 20 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 48,80,...  [0x100ba39d4,0x100ba39f4,...]
+            + ! : | + ! : 11 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 196  [0x100ba3a68]
+            + ! : | + ! : | 4 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x1831e20f8]
+            + ! : | + ! : | + 2 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 860  [0x1831e2bec]
+            + ! : | + ! : | + ! 1 _xzm_reclaim_mark_used  (in libsystem_malloc.dylib) + 204  [0x1831c0368]
+            + ! : | + ! : | + ! 1 xzm_chunk_mark_used  (in libsystem_malloc.dylib) + 160  [0x1831c0268]
+            + ! : | + ! : | + !   1 _xzm_reclaim_mark_used  (in libsystem_malloc.dylib) + 124  [0x1831c0318]
+            + ! : | + ! : | + !     1 _xzm_reclaim_mark_used_locked  (in libsystem_malloc.dylib) + 60  [0x1831c2e24]
+            + ! : | + ! : | + !       1 mach_vm_reclaim_try_cancel  (in libsystem_kernel.dylib) + 260  [0x1833946b8]
+            + ! : | + ! : | + !         1 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x1833810f8]
+            + ! : | + ! : | + 1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 160  [0x1831e2930]
+            + ! : | + ! : | + ! 1 _xzm_chunk_list_pop  (in libsystem_malloc.dylib) + 0  [0x1831e31d4]
+            + ! : | + ! : | + 1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 788  [0x1831e2ba4]
+            + ! : | + ! : | +   1 _xzm_chunk_list_pop  (in libsystem_malloc.dylib) + 48  [0x1831e3204]
+            + ! : | + ! : | 4 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 176,320,...  [0x1831e0afc,0x1831e0b8c,...]
+            + ! : | + ! : | 2 _malloc_zone_malloc  (in libsystem_malloc.dylib) + 12,56  [0x1831ec4fc,0x1831ec528]
+            + ! : | + ! : | 1 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 192  [0x1831e78c8]
+            + ! : | + ! : 9 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 464  [0x100ba3b74]
+            + ! : | + ! : | 8 _platform_memmove  (in libsystem_platform.dylib) + 676,484,...  [0x1833d0004,0x1833cff44,...]
+            + ! : | + ! : | 1 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b84]
+            + ! : | + ! : 9 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 504  [0x100ba3b9c]
+            + ! : | + ! : | 7 _platform_memmove  (in libsystem_platform.dylib) + 624,0,...  [0x1833cffd0,0x1833cfd60,...]
+            + ! : | + ! : | 2 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 0,4  [0x100c06b80,0x100c06b84]
+            + ! : | + ! : 6 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 288  [0x100ba3ac4]
+            + ! : | + ! : | 6 _platform_memmove  (in libsystem_platform.dylib) + 428,0,...  [0x1833cff0c,0x1833cfd60,...]
+            + ! : | + ! : 4 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 304  [0x100ba3ad4]
+            + ! : | + ! : | 3 _platform_memmove  (in libsystem_platform.dylib) + 180,204  [0x1833cfe14,0x1833cfe2c]
+            + ! : | + ! : | 1 DYLD-STUB$$memcpy  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b78]
+            + ! : | + ! : 4 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 428  [0x100ba3b50]
+            + ! : | + ! : | 3 _platform_memmove  (in libsystem_platform.dylib) + 464  [0x1833cff30]
+            + ! : | + ! : | 1 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 0  [0x100c06b80]
+            + ! : | + ! : 3 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 384  [0x100ba3b24]
+            + ! : | + ! :   2 _platform_memmove  (in libsystem_platform.dylib) + 464,676  [0x1833cff30,0x1833d0004]
+            + ! : | + ! :   1 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b84]
+            + ! : | + ! 48 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final) + 72  [0x100bb7f3c]
+            + ! : | + ! : 24 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 236,268,...  [0x1831e0b38,0x1831e0b58,...]
+            + ! : | + ! : 9 _malloc_zone_calloc  (in libsystem_malloc.dylib) + 12,44,...  [0x1831ec72c,0x1831ec74c,...]
+            + ! : | + ! : 7 <deduplicated_symbol>  (in libsystem_malloc.dylib) + 92,288,...  [0x1831e7864,0x1831e7928,...]
+            + ! : | + ! : 5 DYLD-STUB$$calloc  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06aac]
+            + ! : | + ! : 2 xzm_malloc_zone_malloc_type_calloc_main  (in libsystem_malloc.dylib) + 8  [0x1831e7324]
+            + ! : | + ! : 1 _xzm_xzone_malloc_freelist_outlined  (in libsystem_malloc.dylib) + 324  [0x1831e20f8]
+            + ! : | + ! :   1 _xzm_xzone_find_and_malloc_from_freelist_chunk  (in libsystem_malloc.dylib) + 860  [0x1831e2bec]
+            + ! : | + ! :     1 xzm_chunk_mark_used  (in libsystem_malloc.dylib) + 160  [0x1831c0268]
+            + ! : | + ! :       1 _xzm_reclaim_mark_used  (in libsystem_malloc.dylib) + 124  [0x1831c0318]
+            + ! : | + ! :         1 _xzm_reclaim_mark_used_locked  (in libsystem_malloc.dylib) + 60  [0x1831c2e24]
+            + ! : | + ! :           1 mach_vm_reclaim_try_cancel  (in libsystem_kernel.dylib) + 260  [0x1833946b8]
+            + ! : | + ! :             1 mach_absolute_time  (in libsystem_kernel.dylib) + 108  [0x1833810f8]
+            + ! : | + ! 17 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final) + 596  [0x100bb8148]
+            + ! : | + ! : 12 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 756,88,...  [0x100ba3fbc,0x100ba3d20,...]
+            + ! : | + ! : 1 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 216  [0x100ba3da0]
+            + ! : | + ! : | 1 _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib) + 404  [0x1831e0be0]
+            + ! : | + ! : 1 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 312  [0x100ba3e00]
+            + ! : | + ! : | 1 _platform_memmove  (in libsystem_platform.dylib) + 436  [0x1833cff14]
+            + ! : | + ! : 1 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 396  [0x100ba3e54]
+            + ! : | + ! : | 1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x1833cff0c]
+            + ! : | + ! : 1 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 628  [0x100ba3f3c]
+            + ! : | + ! : | 1 _platform_memmove  (in libsystem_platform.dylib) + 684  [0x1833d000c]
+            + ! : | + ! : 1 _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 728  [0x100ba3fa0]
+            + ! : | + ! :   1 _platform_memmove  (in libsystem_platform.dylib) + 468  [0x1833cff34]
+            + ! : | + ! 14 _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final) + 684,676,...  [0x100ba3c50,0x100ba3c48,...]
+            + ! : | + 197 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 44  [0x100bbe494]
+            + ! : | + ! 197 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory7collect  (in morrow-actors-release-20260919-transfer-gc-final) + 44  [0x100bbe710]
+            + ! : | + !   197 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect  (in morrow-actors-release-20260919-transfer-gc-final) + 160  [0x100bbfd50]
+            + ! : | + !     133 _RNCNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect0B7_  (in morrow-actors-release-20260919-transfer-gc-final) + 3836  [0x100bb0f84]
+            + ! : | + !     : 52 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 308  [0x100ba4574]
+            + ! : | + !     : | 17 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 440  [0x100ba3190]
+            + ! : | + !     : | + 14 _xzm_free_main  (in libsystem_malloc.dylib) + 332,268,...  [0x1831e9008,0x1831e8fc8,...]
+            + ! : | + !     : | + 2 _free  (in libsystem_malloc.dylib) + 0,44  [0x1831ed110,0x1831ed13c]
+            + ! : | + !     : | + 1 _xzm_chunk_list_slot_push  (in libsystem_malloc.dylib) + 96  [0x1831e5ac0]
+            + ! : | + !     : | 15 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 160  [0x100ba3078]
+            + ! : | + !     : | + 14 _platform_memmove  (in libsystem_platform.dylib) + 24,428,...  [0x1833cfd78,0x1833cff0c,...]
+            + ! : | + !     : | + 1 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b84]
+            + ! : | + !     : | 6 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 268  [0x100ba30e4]
+            + ! : | + !     : | + 5 _platform_memmove  (in libsystem_platform.dylib) + 180,0,...  [0x1833cfe14,0x1833cfd60,...]
+            + ! : | + !     : | + 1 DYLD-STUB$$memcpy  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b78]
+            + ! : | + !     : | 6 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 224,32,...  [0x100ba30b8,0x100ba2ff8,...]
+            + ! : | + !     : | 3 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 224  [0x100ba30b8]
+            + ! : | + !     : | + 3 _platform_memmove  (in libsystem_platform.dylib) + 372  [0x1833cfed4]
+            + ! : | + !     : | 3 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 292  [0x100ba30fc]
+            + ! : | + !     : | + 2 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x1833cff0c]
+            + ! : | + !     : | + 1 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 0  [0x100c06b80]
+            + ! : | + !     : | 2 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 192  [0x100ba3098]
+            + ! : | + !     : |   2 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x1833cff0c]
+            + ! : | + !     : 24 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 132  [0x100ba44c4]
+            + ! : | + !     : | 20 _platform_memmove  (in libsystem_platform.dylib) + 372,24,...  [0x1833cfed4,0x1833cfd78,...]
+            + ! : | + !     : | 4 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b84]
+            + ! : | + !     : 24 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 88,144,...  [0x100ba4498,0x100ba44d0,...]
+            + ! : | + !     : 22 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 88  [0x100ba4498]
+            + ! : | + !     : | 19 _platform_memmove  (in libsystem_platform.dylib) + 428,460,...  [0x1833cff0c,0x1833cff2c,...]
+            + ! : | + !     : | 3 DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b84]
+            + ! : | + !     : 7 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 396  [0x100ba45cc]
+            + ! : | + !     : | 3 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final) + 456,536  [0x100ba4370,0x100ba43c0]
+            + ! : | + !     : | 2 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final) + 96  [0x100ba4208]
+            + ! : | + !     : | + 2 _xzm_free_main  (in libsystem_malloc.dylib) + 332  [0x1831e9008]
+            + ! : | + !     : | 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final) + 420  [0x100ba434c]
+            + ! : | + !     : | + 1 _platform_memmove  (in libsystem_platform.dylib) + 180  [0x1833cfe14]
+            + ! : | + !     : | 1 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final) + 444  [0x100ba4364]
+            + ! : | + !     : |   1 _platform_memmove  (in libsystem_platform.dylib) + 428  [0x1833cff0c]
+            + ! : | + !     : 3 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final) + 68,60  [0x100ba41ec,0x100ba41e4]
+            + ! : | + !     : 1 _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final) + 484  [0x100ba31bc]
+            + ! : | + !     32 _RNCNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect0B7_  (in morrow-actors-release-20260919-transfer-gc-final) + 3564  [0x100bb0e74]
+            + ! : | + !     : 18 _xzm_free_main  (in libsystem_malloc.dylib) + 684,40,...  [0x1831e9168,0x1831e8ee4,...]
+            + ! : | + !     : 13 _free  (in libsystem_malloc.dylib) + 0,44,...  [0x1831ed110,0x1831ed13c,...]
+            + ! : | + !     : 1 DYLD-STUB$$free  (in morrow-actors-release-20260919-transfer-gc-final) + 4  [0x100c06b30]
+            + ! : | + !     18 _RNCNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect0B7_  (in morrow-actors-release-20260919-transfer-gc-final) + 3940,3540,...  [0x100bb0fec,0x100bb0e5c,...]
+            + ! : | + !     7 _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final) + 508,504  [0x100ba463c,0x100ba4638]
+            + ! : | + !     5 _xzm_free_main  (in libsystem_malloc.dylib) + 1080  [0x1831e92f4]
+            + ! : | + !     2 _RNCNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect0B7_  (in morrow-actors-release-20260919-transfer-gc-final) + 236  [0x100bb0174]
+            + ! : | + !       2 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap4mark  (in morrow-actors-release-20260919-transfer-gc-final) + 428  [0x100bb845c]
+            + ! : | + 24 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 32  [0x100bbe488]
+            + ! : | + ! 19 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps14should_collect  (in morrow-actors-release-20260919-transfer-gc-final) + 344,24,...  [0x100bbf1ec,0x100bbf0ac,...]
+            + ! : | + ! 3 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps14should_collect  (in morrow-actors-release-20260919-transfer-gc-final) + 32  [0x100bbf0b4]
+            + ! : | + ! : 3 _tlv_get_addr  (in libdyld.dylib) + 12,0  [0x182f9ee54,0x182f9ee48]
+            + ! : | + ! 2 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps14should_collect  (in morrow-actors-release-20260919-transfer-gc-final) + 224  [0x100bbf174]
+            + ! : | + !   2 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + ! : | + 22 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 60,404,...  [0x100bbe4a4,0x100bbe5fc,...]
+            + ! : | + 5 _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final) + 432  [0x100bb80a4]
+            + ! : | + 2 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 284  [0x100bbe584]
+            + ! : | + ! 2 _tlv_get_addr  (in libdyld.dylib) + 12,20  [0x182f9ee54,0x182f9ee5c]
+            + ! : | + 1 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps14should_collect  (in morrow-actors-release-20260919-transfer-gc-final) + 484  [0x100bbf278]
+            + ! : | 4 _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 492  [0x100bbe654]
+            + ! : | 4 morrow_alloc  (in morrow-actors-release-20260919-transfer-gc-final) + 16  [0x100bc9908]
+            + ! : 15 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 128,244,...  [0x100b9635c,0x100b963d0,...]
+            + ! : 13 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 96  [0x100b9633c]
+            + ! : | 7 morrow_gc_frame_enter  (in morrow-actors-release-20260919-transfer-gc-final) + 56,236,...  [0x100bc9ae8,0x100bc9b9c,...]
+            + ! : | 3 morrow_gc_frame_enter  (in morrow-actors-release-20260919-transfer-gc-final) + 64  [0x100bc9af0]
+            + ! : | + 3 _tlv_get_addr  (in libdyld.dylib) + 20  [0x182f9ee5c]
+            + ! : | 3 morrow_gc_frame_enter  (in morrow-actors-release-20260919-transfer-gc-final) + 204  [0x100bc9b7c]
+            + ! : |   3 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + ! : 9 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 528  [0x100b964ec]
+            + ! : | 7 morrow_gc_frame_leave  (in morrow-actors-release-20260919-transfer-gc-final) + 360,28,...  [0x100bc9e18,0x100bc9ccc,...]
+            + ! : | 1 morrow_gc_frame_leave  (in morrow-actors-release-20260919-transfer-gc-final) + 36  [0x100bc9cd4]
+            + ! : | + 1 _tlv_get_addr  (in libdyld.dylib) + 20  [0x182f9ee5c]
+            + ! : | 1 morrow_gc_frame_leave  (in morrow-actors-release-20260919-transfer-gc-final) + 172  [0x100bc9d5c]
+            + ! : |   1 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + ! : 5 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 508  [0x100b964d8]
+            + ! : | 5 morrow_rs_run_defers  (in morrow-actors-release-20260919-transfer-gc-final) + 32  [0x100b9b188]
+            + ! : 5 morrow_gc_frame_leave  (in morrow-actors-release-20260919-transfer-gc-final) + 372  [0x100bc9e24]
+            + ! : 3 morrow_rs_run_defers  (in morrow-actors-release-20260919-transfer-gc-final) + 64  [0x100b9b1a8]
+            + ! : 1 morrow_managed_continue  (in morrow-actors-release-20260919-transfer-gc-final) + 112  [0x100bca8e4]
+            + ! 4 actor_callback52  (in morrow-actors-release-20260919-transfer-gc-final) + 16  [0x100b8d1f8]
+            + ! 3 f52  (in morrow-actors-release-20260919-transfer-gc-final) + 560  [0x100b9650c]
+            + 110 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final) + 168,180,...  [0x100bc45bc,0x100bc45c8,...]
+            + 38 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final) + 240  [0x100bc4604]
+            + ! 24 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 168  [0x100bc8ad8]
+            + ! : 16 _RNCNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB7_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop0Bb_  (in morrow-actors-release-20260919-transfer-gc-final) + 144,172,...  [0x100bb1fb4,0x100bb1fd0,...]
+            + ! : 8 _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain14remove_retired  (in morrow-actors-release-20260919-transfer-gc-final) + 120,16,...  [0x100bb891c,0x100bb88b4,...]
+            + ! 11 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 40,116,...  [0x100bc8a58,0x100bc8aa4,...]
+            + ! 1 _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain14remove_retired  (in morrow-actors-release-20260919-transfer-gc-final) + 408  [0x100bb8a3c]
+            + ! 1 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 48  [0x100bc8a60]
+            + ! : 1 _tlv_get_addr  (in libdyld.dylib) + 20  [0x182f9ee5c]
+            + ! 1 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 124  [0x100bc8aac]
+            + !   1 _tlv_get_addr  (in libdyld.dylib) + 20  [0x182f9ee5c]
+            + 29 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final) + 208  [0x100bc45e4]
+            + ! 23 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 24,260,...  [0x100bbf808,0x100bbf8f4,...]
+            + ! 3 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 32  [0x100bbf810]
+            + ! : 3 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + ! 3 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 256  [0x100bbf8f0]
+            + !   3 _tlv_get_addr  (in libdyld.dylib) + 12  [0x182f9ee54]
+            + 2 _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final) + 184  [0x100bc8ae8]
+            + 1 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final) + 464  [0x100bbf9c0]
+            + 1 actor_callback52  (in morrow-actors-release-20260919-transfer-gc-final) + 60  [0x100b8d224]
+            2 _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final) + 584  [0x100bc475c]
+            2 morrow_managed_run  (in morrow-actors-release-20260919-transfer-gc-final) + 368,544  [0x100bcb8a4,0x100bcb954]
+
+Total number in stack (recursive counted multiple, when >=5):
+        19       _platform_memmove  (in libsystem_platform.dylib) + 0  [0x1833cfd60]
+        14       _tlv_get_addr  (in libdyld.dylib) + 0  [0x182f9ee48]
+        8       DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final) + 0  [0x100c06b80]
+        6       _xzm_free_main  (in libsystem_malloc.dylib) + 0  [0x1831e8ebc]
+
+Sort by top of stack, same collapsed (when >= 5):
+        _RNvMs3_NtCsfyfLHRjGU9u_14morrow_runtime6memoryNtB5_4Heap15allocate_layout  (in morrow-actors-release-20260919-transfer-gc-final)        233
+        _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain4owns  (in morrow-actors-release-20260919-transfer-gc-final)        165
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4cost5frame  (in morrow-actors-release-20260919-transfer-gc-final)        140
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler4step  (in morrow-actors-release-20260919-transfer-gc-final)        112
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed7receive7replace  (in morrow-actors-release-20260919-transfer-gc-final)        105
+        _platform_memmove  (in libsystem_platform.dylib)        100
+        _xzm_free_main  (in libsystem_malloc.dylib)        73
+        mach_absolute_time  (in libsystem_kernel.dylib)        72
+        _xzm_xzone_malloc_tiny  (in libsystem_malloc.dylib)        51
+        _RNvMNtNtCsfyfLHRjGU9u_14morrow_runtime7managed4costNtB2_4Cost5value  (in morrow-actors-release-20260919-transfer-gc-final)        45
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps5enter  (in morrow-actors-release-20260919-transfer-gc-final)        45
+        _RINvMsK_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_4LeafENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final)        34
+        _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree6removeINtNtB7_4node6HandleINtBY_7NodeRefNtNtBY_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1v_4LeafENtB1v_2KVE14remove_leaf_kvNCINvMsV_NtB7_3mapINtB3i_14ExtractIfInnerjB1M_NtNtNtCsPrbHjRAjl2_4core3ops5range9RangeFullE4nextNCINvMsi_B3i_INtB3i_8BTreeMapjB1M_E6retainNCINvMs3_B1O_NtB1O_4Heap12trace_rangesINtNtNtNtB3Z_4iter7sources5empty5EmptyTjjEEE0E0NtNtBb_5alloc6GlobalE0B6K_EB1Q_  (in morrow-actors-release-20260919-transfer-gc-final)        31
+        _free  (in libsystem_malloc.dylib)        29
+        _tlv_get_addr  (in libdyld.dylib)        29
+        _RNCNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB7_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop0Bb_  (in morrow-actors-release-20260919-transfer-gc-final)        27
+        _RNvNtCsfyfLHRjGU9u_14morrow_runtime6memory5alloc  (in morrow-actors-release-20260919-transfer-gc-final)        26
+        _RNvXs3_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB5_5ScopeNtNtNtCsPrbHjRAjl2_4core3ops4drop4Drop4drop  (in morrow-actors-release-20260919-transfer-gc-final)        22
+        _RNvMs_NtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heapsNtB4_6Domain14remove_retired  (in morrow-actors-release-20260919-transfer-gc-final)        21
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps14should_collect  (in morrow-actors-release-20260919-transfer-gc-final)        20
+        _RNCNvNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5heaps7collect0B7_  (in morrow-actors-release-20260919-transfer-gc-final)        18
+        f52  (in morrow-actors-release-20260919-transfer-gc-final)        18
+        DYLD-STUB$$memmove  (in morrow-actors-release-20260919-transfer-gc-final)        14
+        <deduplicated_symbol>  (in libsystem_malloc.dylib)        13
+        _RINvMsM_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB6_6HandleINtB6_7NodeRefNtNtB6_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1n_8InternalENtB1n_4EdgeE6insertNtNtBc_5alloc6GlobalEB1I_  (in morrow-actors-release-20260919-transfer-gc-final)        12
+        morrow_gc_frame_leave  (in morrow-actors-release-20260919-transfer-gc-final)        12
+        _malloc_zone_malloc  (in libsystem_malloc.dylib)        11
+        _malloc_zone_calloc  (in libsystem_malloc.dylib)        9
+        morrow_rs_run_defers  (in morrow-actors-release-20260919-transfer-gc-final)        8
+        _RINvMs10_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree4nodeINtB7_16BalancingContextjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockE25merge_tracking_child_edgeNtNtBd_5alloc6GlobalEB1o_  (in morrow-actors-release-20260919-transfer-gc-final)        7
+        _RNvNtNtCsfyfLHRjGU9u_14morrow_runtime7managed9scheduler13clear_receive  (in morrow-actors-release-20260919-transfer-gc-final)        7
+        morrow_gc_frame_enter  (in morrow-actors-release-20260919-transfer-gc-final)        7
+        _RINvMs_NtNtNtCs8B0rgHCZPyS_5alloc11collections5btree3fixINtNtB7_4node7NodeRefNtNtBV_6marker3MutjNtNtCsfyfLHRjGU9u_14morrow_runtime6memory5BlockNtB1f_14LeafOrInternalE31fix_node_and_affected_ancestorsNtNtBb_5alloc6GlobalEB1A_  (in morrow-actors-release-20260919-transfer-gc-final)        6
+        _RNvNtCsfyfLHRjGU9u_14morrow_runtime7managed9valid_pid  (in morrow-actors-release-20260919-transfer-gc-final)        6
+        DYLD-STUB$$calloc  (in morrow-actors-release-20260919-transfer-gc-final)        5
+        _RNvMs5_NtCs8B0rgHCZPyS_5alloc7raw_vecNtB5_11RawVecInner11finish_growCsfyfLHRjGU9u_14morrow_runtime  (in morrow-actors-release-20260919-transfer-gc-final)        5
+        actor_callback52  (in morrow-actors-release-20260919-transfer-gc-final)        5
+        morrow_managed_continue  (in morrow-actors-release-20260919-transfer-gc-final)        5
+
+Binary Images:
+       0x100b8c000 -        0x100c20e87 +morrow-actors-release-20260919-transfer-gc-final (0) <75CF0EA1-4204-3F36-ACCF-57ABAEB64BC2> /tmp/morrow-actors-release-20260919-transfer-gc-final
+       0x182f3c000 -        0x182f8b5f7  libobjc.A.dylib (973.1) <C0680DF6-9900-3C29-A071-95A031686EF8> /usr/lib/libobjc.A.dylib
+       0x182f8c000 -        0x182f9623f  libsharedcache.dylib (0) <117C1ED6-AE11-3D9E-B05B-844F35395552> /usr/lib/libsharedcache.dylib
+       0x182f97000 -        0x182fbdd3b  libdyld.dylib (27062) <62863BCA-DD60-3D32-A9DB-89099BA6F3D7> /usr/lib/system/libdyld.dylib
+       0x182fbe000 -        0x18307d6e3  dyld (1.0.0 - 27062) <D341DDCB-7969-3A9C-8E03-0CF4751398A9> /usr/lib/dyld
+       0x18307e000 -        0x18308101f  libsystem_blocks.dylib (98.1) <6F304731-D95D-3501-B4AD-F2934F7F2446> /usr/lib/system/libsystem_blocks.dylib
+       0x183082000 -        0x1830d70df  libxpc.dylib (3298.1.1) <0791121F-B5FC-3F84-BF04-115E86D2D882> /usr/lib/system/libxpc.dylib
+       0x1830d8000 -        0x1830f7c13  libsystem_trace.dylib (1966.1.1) <B48A8E3E-A12A-3342-8321-428B555E965E> /usr/lib/system/libsystem_trace.dylib
+       0x1830f8000 -        0x1831acf27  libcorecrypto.dylib (2109.0.22) <807AA6C9-5D8A-3CA5-B4CE-FACE5296EF6A> /usr/lib/system/libcorecrypto.dylib
+       0x1831ad000 -        0x183202c5f  libsystem_malloc.dylib (886.0.8) <2339CB57-FE5A-3154-A206-A76059C749EB> /usr/lib/system/libsystem_malloc.dylib
+       0x183203000 -        0x18324919f  libdispatch.dylib (1605.0.2) <022BF08F-0B3A-3225-9E65-16D1553CE90D> /usr/lib/system/libdispatch.dylib
+       0x18324a000 -        0x18324cd2b  libsystem_featureflags.dylib (108) <20C1CAB2-1F13-3426-8146-9CAE9FF2A33D> /usr/lib/system/libsystem_featureflags.dylib
+       0x18324d000 -        0x1832cfca3  libsystem_c.dylib (1786.0.3) <FBA7B23E-AA60-3A90-9AA4-A7A2E0AD63EE> /usr/lib/system/libsystem_c.dylib
+       0x1832d0000 -        0x183365033  libc++.1.dylib (2200.27) <1E9BA4AA-B5DA-3CF3-80AC-4B880049573F> /usr/lib/libc++.1.dylib
+       0x183366000 -        0x18337feff  libc++abi.dylib (2200.27) <A21743EE-6E1C-3E74-97EA-7AF793DE4BDF> /usr/lib/libc++abi.dylib
+       0x183380000 -        0x1833be9ab  libsystem_kernel.dylib (13432.1.9) <F63BF418-8F75-34A4-AAF1-8CAF2B9B6A05> /usr/lib/system/libsystem_kernel.dylib
+       0x1833bf000 -        0x1833cb91b  libsystem_pthread.dylib (553.0.1) <5A1828C3-CBC2-3B85-BD07-C8ED10021A41> /usr/lib/system/libsystem_pthread.dylib
+       0x1833cc000 -        0x1833d54f3  libsystem_platform.dylib (402.0.1.0.1) <080E4444-A0FB-3913-9756-4E470015F32F> /usr/lib/system/libsystem_platform.dylib
+       0x1833d6000 -        0x183404903  libsystem_info.dylib (603) <BC387AEB-1CEF-3513-92D7-D7F913596711> /usr/lib/system/libsystem_info.dylib
+       0x18752e000 -        0x187537b13  libsystem_darwin.dylib (1786.0.3) <4E66C888-993C-3E6A-A8DA-A949C01C5B67> /usr/lib/system/libsystem_darwin.dylib
+       0x187988000 -        0x187999b8b  libsystem_notify.dylib (368) <58FD36D8-37A7-311C-80F2-8E64DD8710CF> /usr/lib/system/libsystem_notify.dylib
+       0x189ae5000 -        0x189affd93  libsystem_networkextension.dylib (2340.1.2) <22E1D190-486F-324F-ABA4-F36AB841BFE9> /usr/lib/system/libsystem_networkextension.dylib
+       0x189b8d000 -        0x189ba4247  libsystem_asl.dylib (409) <B4D449B7-A821-3A9A-8019-E917B291F10A> /usr/lib/system/libsystem_asl.dylib
+       0x18ab38000 -        0x18ab38f2f  libobjcMsgSend.dylib (973.1) <41179EDE-DC97-3BBE-8848-6400D12C1436> /usr/lib/objc/libobjcMsgSend.dylib
+       0x18bc84000 -        0x18bc8bedf  libsystem_symptoms.dylib (2394.0.4) <60EE7884-9F4E-3184-A6AC-FA40A7A0297D> /usr/lib/system/libsystem_symptoms.dylib
+       0x19001c000 -        0x190056aeb  libsystem_containermanager.dylib (833.0.8.0.1) <08A57205-555D-3792-8931-9D5B585AF326> /usr/lib/system/libsystem_containermanager.dylib
+       0x19166f000 -        0x191673317  libsystem_configuration.dylib (1446) <F3EB66A7-7A24-3AE5-B6E8-9A37BB00F119> /usr/lib/system/libsystem_configuration.dylib
+       0x191674000 -        0x19167ae03  libsystem_sandbox.dylib (3051.0.52) <1E892B56-092E-3832-BDE3-DCE356D7A4FA> /usr/lib/system/libsystem_sandbox.dylib
+       0x192b38000 -        0x192b38f2f  libobjcMsgSend1.dylib (973.1) <B40D9B2A-E1EE-37ED-8004-711A1F263DE1> /usr/lib/objc/libobjcMsgSend1.dylib
+       0x193258000 -        0x19325af93  libquarantine.dylib (217.0.4) <7FD4AE22-86EF-382B-83F5-ADF9336C1160> /usr/lib/system/libquarantine.dylib
+       0x19396a000 -        0x1939701e7  libsystem_coreservices.dylib (203) <57248E07-11A5-3857-918E-4A3A63B69FE8> /usr/lib/system/libsystem_coreservices.dylib
+       0x193f32000 -        0x193f6fb27  libsystem_m.dylib (3326.0.1) <A3FB340F-3ED5-30F4-8B64-9D5860F64D35> /usr/lib/system/libsystem_m.dylib
+       0x193f70000 -        0x193f70b47  libcharset.1.dylib (121) <3C9B584E-740A-3664-A1B0-52E561EA4B0B> /usr/lib/libcharset.1.dylib
+       0x193f71000 -        0x193f744f7  libmacho.dylib (27062) <50DEADEC-3E99-3519-AFC3-4A3FEB3F14C3> /usr/lib/system/libmacho.dylib
+       0x193f8e000 -        0x193f9a707  libcommonCrypto.dylib (600041) <41C99F45-C5E6-39DB-B1F2-A1BEA9D242A4> /usr/lib/system/libcommonCrypto.dylib
+       0x193f9b000 -        0x193fa4c87  libunwind.dylib (2200.5) <3070AB81-B082-39E8-8A00-EF88DDE9AC47> /usr/lib/system/libunwind.dylib
+       0x193fac000 -        0x193fb67eb  libcopyfile.dylib (260.0.3) <72D95AF9-BF5E-3A84-81A6-BCC5BDB99857> /usr/lib/system/libcopyfile.dylib
+       0x193fb7000 -        0x193fba8bf  libcompiler_rt.dylib (103.4) <DFB5CE7F-A36E-36AA-BECE-1392D3D43607> /usr/lib/system/libcompiler_rt.dylib
+       0x193fbb000 -        0x193fc0077  libsystem_collections.dylib (1786.0.3) <1E8022D4-5A37-3A7A-8936-603E6FA88358> /usr/lib/system/libsystem_collections.dylib
+       0x193fc1000 -        0x193fc3f1f  libsystem_secinit.dylib (182) <DE037464-4C5D-3E96-A33F-2A4557CC6A20> /usr/lib/system/libsystem_secinit.dylib
+       0x193fc4000 -        0x193fc697f  libremovefile.dylib (96) <E6E6DFCF-6B2C-3F30-A59D-816CAB1190CE> /usr/lib/system/libremovefile.dylib
+       0x193fc7000 -        0x193fc7e27  libkeymgr.dylib (31) <5EC997EF-3ADA-360B-9FCD-5F940C83FA4E> /usr/lib/system/libkeymgr.dylib
+       0x193fc8000 -        0x193fd0af7  libsystem_dnssd.dylib (3111.0.5.0.1) <DE22096F-1E5B-3D6E-8164-771582DD6391> /usr/lib/system/libsystem_dnssd.dylib
+       0x193fd1000 -        0x193fd5f1b  libcache.dylib (95) <80BAE197-E285-3F6E-A1EE-B77FE37D7E5D> /usr/lib/system/libcache.dylib
+       0x193fd6000 -        0x193fd78f3  libSystem.B.dylib (1359) <4FDC9AA6-B344-37FE-B8C6-A4C94A038F57> /usr/lib/libSystem.B.dylib
+       0x194010000 -        0x1940170a3  libiconv.2.dylib (121) <C343D6F7-6932-30E8-8E8F-F756946D8413> /usr/lib/libiconv.2.dylib
+       0x19ab38000 -        0x19ab38f2f  libobjcMsgSend2.dylib (973.1) <BD27A84B-C9AE-3282-BBEA-3B6119837B5A> /usr/lib/objc/libobjcMsgSend2.dylib
+       0x1a2b38000 -        0x1a2b38f2f  libobjcMsgSend3.dylib (973.1) <C0860D68-DDFC-3BD7-8B06-DB0645CBBED4> /usr/lib/objc/libobjcMsgSend3.dylib
+       0x1aab38000 -        0x1aab38f2f  libobjcMsgSend4.dylib (973.1) <A6153BF5-622B-3B01-81B6-F64A365EF613> /usr/lib/objc/libobjcMsgSend4.dylib
+       0x1b2b38000 -        0x1b2b38f2f  libobjcMsgSend5.dylib (973.1) <3913A71C-B29A-3AEA-820B-BEC40AC1861A> /usr/lib/objc/libobjcMsgSend5.dylib
+       0x1bab38000 -        0x1bab38f2f  libobjcMsgSend6.dylib (973.1) <9BC523A3-E167-3F6C-8CAE-0F3EBA671791> /usr/lib/objc/libobjcMsgSend6.dylib
+       0x1c2b38000 -        0x1c2b38f2f  libobjcMsgSend7.dylib (973.1) <248B7BCE-5B4C-34C7-A340-43D5228628C5> /usr/lib/objc/libobjcMsgSend7.dylib
+       0x1cab38000 -        0x1cab38f2f  libobjcMsgSend8.dylib (973.1) <3E041BAD-A8E8-3069-B741-78CD1A45B176> /usr/lib/objc/libobjcMsgSend8.dylib
+       0x1d2b38000 -        0x1d2b38f2f  libobjcMsgSend9.dylib (973.1) <34A67969-21A0-39D6-BB81-8FDA5A2409DB> /usr/lib/objc/libobjcMsgSend9.dylib
+       0x1dab38000 -        0x1dab38f2f  libobjcMsgSend10.dylib (973.1) <678186C0-8EAD-3B35-8CBB-00285B41E4A0> /usr/lib/objc/libobjcMsgSend10.dylib
+       0x1e2b38000 -        0x1e2b38f2f  libobjcMsgSend11.dylib (973.1) <E05CB08C-E956-36FA-8967-AE8E346A8D2C> /usr/lib/objc/libobjcMsgSend11.dylib
+       0x20ab38000 -        0x20ab38f2f  libobjcMsgSend12.dylib (973.1) <10AB03AA-FF1F-3FDC-9DFB-BFC40042C501> /usr/lib/objc/libobjcMsgSend12.dylib
+       0x212b38000 -        0x212b38f2f  libobjcMsgSend13.dylib (973.1) <ABF53427-FA6F-3D0D-8F9D-7AD795CA5C92> /usr/lib/objc/libobjcMsgSend13.dylib
+       0x21ab38000 -        0x21ab38f2f  libobjcMsgSend14.dylib (973.1) <9A844C46-A6DA-34D4-8EBF-2AD775C30684> /usr/lib/objc/libobjcMsgSend14.dylib
+       0x222b38000 -        0x222b38f2f  libobjcMsgSend15.dylib (973.1) <7C995666-2B2D-3284-AA0A-EBF7C922838E> /usr/lib/objc/libobjcMsgSend15.dylib
+       0x22ab38000 -        0x22ab38f2f  libobjcMsgSend16.dylib (973.1) <B6C0E14B-53AE-3E22-9ED5-1729C49F46F2> /usr/lib/objc/libobjcMsgSend16.dylib
+       0x232b38000 -        0x232b38f2f  libobjcMsgSend17.dylib (973.1) <07B4CF85-251B-301B-832B-20B315A59E19> /usr/lib/objc/libobjcMsgSend17.dylib
+       0x23ab38000 -        0x23ab38f2f  libobjcMsgSend18.dylib (973.1) <43E575B7-04DB-3999-A633-1A3B638BA6E3> /usr/lib/objc/libobjcMsgSend18.dylib
+       0x242b38000 -        0x242b38f2f  libobjcMsgSend19.dylib (973.1) <736F4D85-76F7-3B28-8D87-C07E8F7A0EF4> /usr/lib/objc/libobjcMsgSend19.dylib
+       0x24ab38000 -        0x24ab38f2f  libobjcMsgSend20.dylib (973.1) <74E67C8B-6BCA-3184-A18E-A97F370052C6> /usr/lib/objc/libobjcMsgSend20.dylib
+       0x252b38000 -        0x252b38f2f  libobjcMsgSend21.dylib (973.1) <CC0D732F-98E7-3888-9E15-70984DA2FB04> /usr/lib/objc/libobjcMsgSend21.dylib
+       0x25ab38000 -        0x25ab38f2f  libobjcMsgSend22.dylib (973.1) <85A60286-5DE3-32BA-B18C-2A498B065C88> /usr/lib/objc/libobjcMsgSend22.dylib
+       0x262b38000 -        0x262b38f2f  libobjcMsgSend23.dylib (973.1) <5452A0D2-6B19-39BE-ADDD-80B7BCDE3A98> /usr/lib/objc/libobjcMsgSend23.dylib
+       0x26ab38000 -        0x26ab38f2f  libobjcMsgSend24.dylib (973.1) <94BBF2D6-722B-350D-8557-4D25A8E8D53A> /usr/lib/objc/libobjcMsgSend24.dylib
+       0x272b38000 -        0x272b38f2f  libobjcMsgSend25.dylib (973.1) <35481387-5A8E-3AE4-86A6-94CEB3CC8726> /usr/lib/objc/libobjcMsgSend25.dylib
+       0x28ab38000 -        0x28ab38f2f  libobjcMsgSend26.dylib (973.1) <9E0C8664-E7F4-39D1-AAFC-BD92B255E4E8> /usr/lib/objc/libobjcMsgSend26.dylib
+       0x292b38000 -        0x292b38f2f  libobjcMsgSend27.dylib (973.1) <FD424935-55A9-3650-955A-EED3441A1D19> /usr/lib/objc/libobjcMsgSend27.dylib
+       0x29ab38000 -        0x29ab38f2f  libobjcMsgSend28.dylib (973.1) <09BA7B97-7DF7-3C7F-932A-B6847662FC49> /usr/lib/objc/libobjcMsgSend28.dylib
+       0x2a2b38000 -        0x2a2b38f2f  libobjcMsgSend29.dylib (973.1) <36D5BA3F-2139-30B0-8558-556764BE9813> /usr/lib/objc/libobjcMsgSend29.dylib
+       0x2aab38000 -        0x2aab38f2f  libobjcMsgSend30.dylib (973.1) <9F05564A-9D12-372C-98FC-E9F0E6BE4F04> /usr/lib/objc/libobjcMsgSend30.dylib
+       0x2af852000 -        0x2af858fe5  libRosetta.dylib (385) <E359944B-D230-33F9-A04E-0C3B17C3326E> /usr/lib/libRosetta.dylib
+       0x2b0241000 -        0x2b024475b  libsystem_darwindirectory.dylib (129.0.1) <61264923-2AA5-3658-B8C4-550C71E9D4B3> /usr/lib/system/libsystem_darwindirectory.dylib
+       0x2b0245000 -        0x2b024fd9b  libsystem_eligibility.dylib (446.1.3) <EDDE8E9C-A2CF-3931-BBB3-321CB852EB30> /usr/lib/system/libsystem_eligibility.dylib
+       0x2b0250000 -        0x2b025942b  libsystem_sanitizers.dylib (32) <7138ED99-7AA0-34EA-B35B-20EF6ADB1EED> /usr/lib/system/libsystem_sanitizers.dylib
+       0x2b025a000 -        0x2b025aa13  libsystem_trial.dylib (511) <6AE48824-EC44-3A8C-B501-BE57DBE892E7> /usr/lib/system/libsystem_trial.dylib
+       0x2b2b38000 -        0x2b2b38f2f  libobjcMsgSend31.dylib (973.1) <0985E20F-78C3-3466-A2B2-DBB95F7104A3> /usr/lib/objc/libobjcMsgSend31.dylib
+       0x2bab38000 -        0x2bab38f2f  libobjcMsgSend32.dylib (973.1) <0D309D58-D576-3E5D-AD4B-6D55AB491702> /usr/lib/objc/libobjcMsgSend32.dylib
+       0x2c2b38000 -        0x2c2b38f2f  libobjcMsgSend33.dylib (973.1) <346E0484-48FA-369B-8A64-93B5F5341CFE> /usr/lib/objc/libobjcMsgSend33.dylib
+       0x2cab38000 -        0x2cab38f2f  libobjcMsgSend34.dylib (973.1) <6A31F809-BCBE-3E01-A367-E91FDACCE324> /usr/lib/objc/libobjcMsgSend34.dylib

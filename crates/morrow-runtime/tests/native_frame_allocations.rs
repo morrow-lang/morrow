@@ -72,3 +72,84 @@ fn repeated_callback_frames_do_not_allocate_after_depth_warmup() {
         "steady callback depth must reuse bookkeeping"
     );
 }
+
+thread_local! {
+    static CONTINUATIONS: Cell<usize> = const { Cell::new(0) };
+    static VALIDATION_ALLOCATIONS: Cell<usize> = const { Cell::new(0) };
+}
+
+unsafe extern "C" fn continue_with_pid(
+    exec: *mut morrow_runtime::managed::Exec,
+    frame: *mut std::ffi::c_void,
+) -> i64 {
+    let turn = CONTINUATIONS.with(|count| {
+        let next = count.get() + 1;
+        count.set(next);
+        next
+    });
+    if turn == 129 {
+        return 2;
+    }
+    ALLOCATIONS.with(|count| count.set(Some(0)));
+    // SAFETY: the scheduler supplies this actor's live, already owned frame;
+    // its PID capture keeps the port control alive throughout the invocation.
+    let status = unsafe { morrow_runtime::managed::morrow_managed_continue(exec, frame) };
+    let allocations = ALLOCATIONS.with(|count| count.replace(None).unwrap());
+    VALIDATION_ALLOCATIONS.with(|count| count.set(count.get() + allocations));
+    status
+}
+
+#[test]
+fn publishing_an_owned_pid_continuation_needs_no_temporary_heap_storage() {
+    use morrow_runtime::managed::{self, Function, Type};
+    use std::ptr::null;
+
+    let string = Type {
+        kind: 1,
+        count: 0,
+        children: null(),
+        arities: null(),
+    };
+    let pid = Type {
+        kind: 6,
+        count: 1,
+        children: &(&string as *const Type),
+        arities: null(),
+    };
+    let captures = [&pid as *const Type];
+    let function = Function {
+        identity: continue_with_pid as *const std::ffi::c_void,
+        step: Some(continue_with_pid),
+        select: None,
+        capture_count: 1,
+        captures: captures.as_ptr(),
+        mailbox: null(),
+    };
+    let functions = [&function as *const Function];
+    let mut fault = 0;
+    CONTINUATIONS.with(|count| count.set(0));
+    VALIDATION_ALLOCATIONS.with(|count| count.set(0));
+    // SAFETY: descriptors, function table and fault stay live until close;
+    // every host operation executes on this thread outside actor callbacks.
+    unsafe {
+        let exec = managed::morrow_managed_open(&mut fault, functions.as_ptr(), 1);
+        assert!(!exec.is_null());
+        let port = managed::morrow_managed_port(exec, &string);
+        assert!(!port.is_null());
+        let rooted_port = port as usize;
+        let _root = morrow_runtime::memory::root_range(&rooted_port, 1);
+        let mut frame = [continue_with_pid as *const () as usize, port as usize];
+        assert!(!managed::morrow_managed_spawn(exec, frame.as_mut_ptr().cast(), &string).is_null());
+        assert_eq!(managed::morrow_managed_poll(exec, 256), 1);
+        managed::morrow_managed_close(exec);
+    }
+    assert_eq!(fault, 0);
+    CONTINUATIONS.with(|count| assert_eq!(count.get(), 129));
+    VALIDATION_ALLOCATIONS.with(|count| {
+        assert_eq!(
+            count.get(),
+            0,
+            "small live graphs must validate without allocator traffic"
+        );
+    });
+}

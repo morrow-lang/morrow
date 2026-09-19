@@ -1,5 +1,8 @@
 //! Bounded semantic ownership accounting; never infers graph shape from pointer width.
 use super::*;
+#[path = "cost_scratch.rs"]
+mod scratch;
+use scratch::Scratch;
 pub(super) fn work(work: &mut usize) -> bool {
     *work += 1;
     *work <= WORK
@@ -15,14 +18,15 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
         if root.is_null() {
             return nullable;
         }
-        let mut pending = vec![root];
-        let mut seen = Vec::new();
+        let mut pending = Scratch::default();
+        pending.push(root);
+        let mut seen = Scratch::default();
         while let Some(ty) = pending.pop() {
             if ty.is_null() || !self::work(work) {
                 return false;
             }
             let mut known = false;
-            for &prior in &seen {
+            for &prior in seen.iter() {
                 if !self::work(work) {
                     return false;
                 }
@@ -92,7 +96,7 @@ pub(super) unsafe fn descriptor(root: *const Type, nullable: bool, work: &mut us
 }
 struct Cost {
     session: *mut Session,
-    seen: Vec<(*const c_void, *const Type, bool)>,
+    seen: Scratch<(*const c_void, *const Type, bool)>,
     work: usize,
     bytes: usize,
 }
@@ -207,7 +211,7 @@ impl Cost {
             if pointer.is_null() {
                 return false;
             }
-            for &(prior, prior_type, active) in &self.seen {
+            for &(prior, prior_type, active) in self.seen.iter() {
                 if !work(&mut self.work) {
                     return false;
                 }
@@ -267,7 +271,7 @@ impl Cost {
 pub(super) unsafe fn frame(s: *mut Session, closure: *const c_void) -> Option<usize> {
     let mut cost = Cost {
         session: s,
-        seen: Vec::new(),
+        seen: Scratch::default(),
         work: 0,
         bytes: 0,
     };
@@ -276,11 +280,55 @@ pub(super) unsafe fn frame(s: *mut Session, closure: *const c_void) -> Option<us
 pub(super) unsafe fn value(s: *mut Session, ty: *const Type, value: i64) -> Option<usize> {
     let mut cost = Cost {
         session: s,
-        seen: Vec::new(),
+        seen: Scratch::default(),
         work: 0,
         bytes: 0,
     };
     unsafe {
         (descriptor(ty, false, &mut cost.work) && cost.value(ty, value, 0)).then_some(cost.bytes)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wide_graph_validation_preserves_cost_and_shared_value_accounting() {
+        let string = Type {
+            kind: 1,
+            count: 0,
+            children: null(),
+            arities: null(),
+        };
+        let children = [&string as *const Type; 32];
+        let tuple = Type {
+            kind: 3,
+            count: children.len() as i64,
+            children: children.as_ptr(),
+            arities: null(),
+        };
+        let strings = [[b'a', 0]; 32];
+        let mut fields = [0i64; 33];
+        for (field, text) in fields[1..].iter_mut().zip(&strings) {
+            *field = text.as_ptr() as i64;
+        }
+        let mut session = Session::default();
+        let mut work = 0;
+        // SAFETY: all descriptors and distinct string/tuple payloads are
+        // initialized stack storage retained until both validations complete.
+        unsafe {
+            assert!(descriptor(&tuple, false, &mut work));
+            assert_eq!(work, 129, "descriptor traversal charges are unchanged");
+            assert_eq!(
+                value(&mut session, &tuple, fields.as_ptr() as i64),
+                Some(328)
+            );
+            fields[17] = fields[1];
+            assert_eq!(
+                value(&mut session, &tuple, fields.as_ptr() as i64),
+                Some(326)
+            );
+        }
     }
 }

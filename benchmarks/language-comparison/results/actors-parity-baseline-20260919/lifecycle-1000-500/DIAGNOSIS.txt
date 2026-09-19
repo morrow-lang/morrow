@@ -1,0 +1,11 @@
+Lifecycle profiling, 2026-09-19
+Binary: /tmp/morrow-actors-release-20260919-transfer-gc-final
+Workload: lifecycle 1000 500; MORROW_REDUCTIONS=1. These sampled runs are diagnostic, not benchmark timings.
+
+Two schedulers with stealing: root98/126 sampled stacks in detach_heap; worker123/126 waiting. Within detach, most stacks are Domain::owns. Supervision recovery accounts for13/126 root stacks,12 in create_control_heap_at/retain_control all-heaps ownership assertions.
+Four schedulers with stealing: root74/97 stacks in detach_heap. Workers spend most samples in condition waits or activity mutex contention (31,26,39 samples respectively in set_idle mutex lock).
+Pinned sample finished before the sampler captured stacks; it cannot support a CPU breakdown. All three runs exited successfully and printed lifecycle,1000,500,1000,1000,8492500,249500.
+
+Source explanation: foreign-edge validation previously tested every candidate root/payload word against every Domain slot, doing a slot lookup plus allocation predecessor search for each. Hundreds of live actor and supervisor heaps multiply the cost even after unreachable payload GC. Validation holds Shared.activity during this work, also delaying other schedulers.
+
+Implemented separately: a transient bounded foreign allocation interval BTreeMap replaces repeated per-heap probes, retaining interior-pointer checks. The old256foreignheaps/5000scalarwords case first failed WorkLimit and then passed after indexing. Timing improvement remains to be measured on rebuilt artifacts.

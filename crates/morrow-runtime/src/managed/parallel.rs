@@ -14,7 +14,13 @@ thread_local! {
     static BEFORE_STOP_OBSERVATION: std::cell::Cell<Option<unsafe fn(*mut Session)>> = const { std::cell::Cell::new(None) };
     static FAIL_WORKER_START: std::cell::Cell<Option<usize>> = const { std::cell::Cell::new(None) };
     static AFTER_SUPERVISED_RETIREMENT: std::cell::Cell<Option<RetirementHook>> = const { std::cell::Cell::new(None) };
+    static ACTIVITY_LOCKS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static RUN_WAITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub(super) fn record_activity_lock() {
+    ACTIVITY_LOCKS.with(|count| count.set(count.get() + 1));
 }
 
 #[cfg(test)]
@@ -402,6 +408,13 @@ pub(super) unsafe fn poll(exec: *mut Exec, max_steps: i64) -> Option<i64> {
 }
 
 fn set_idle(group: &transport::Shared, states: &[AtomicBool], scheduler: usize, idle: bool) {
+    // Only this scheduler writes its flag. An unchanged state cannot affect the
+    // locked quiescence decision; actual transitions still serialize with it.
+    if states[scheduler].load(Ordering::Acquire) == idle {
+        return;
+    }
+    #[cfg(test)]
+    record_activity_lock();
     let _activity = group.activity.lock().unwrap();
     states[scheduler].store(idle, Ordering::Release);
 }
@@ -411,6 +424,13 @@ fn set_idle(group: &transport::Shared, states: &[AtomicBool], scheduler: usize, 
 /// schedulers are idle and all queues are empty under the activity lock.
 unsafe fn quiescent_status(s: *mut Session, d: *mut Driver) -> Option<i64> {
     unsafe {
+        // An optimistic busy observation may postpone completion. Only the
+        // definitive check below can report quiescence, under activity.
+        if !(*s).first.is_null() || (*d).idle.iter().any(|idle| !idle.load(Ordering::Acquire)) {
+            return None;
+        }
+        #[cfg(test)]
+        record_activity_lock();
         let _activity = Arc::as_ref(&(*d).shared).activity.lock().unwrap();
         let idle = (*s).first.is_null()
             && (*d).idle.iter().all(|idle| idle.load(Ordering::Acquire))
@@ -634,6 +654,48 @@ mod tests {
             morrow_managed_continue(exec, next.as_mut_ptr().cast())
         }
     }
+    #[test]
+    fn useful_local_turns_do_not_reacquire_global_activity() {
+        let scalar = tests_scalar();
+        let captures = [&scalar as *const Type];
+        let function = Function {
+            identity: root_countdown as *const c_void,
+            step: Some(root_countdown),
+            select: None,
+            capture_count: 1,
+            captures: captures.as_ptr(),
+            mailbox: &scalar,
+        };
+        let functions = [&function as *const Function];
+        let mut fault = 0;
+        unsafe {
+            let exec = host::open_local(&mut fault, functions.as_ptr(), 1);
+            assert_eq!(morrow_managed_parallel(exec, 1), 0);
+            let mut frame = [root_countdown as *const () as i64, 256];
+            assert!(
+                !morrow_managed_spawn_on(exec, frame.as_mut_ptr().cast(), &scalar, 0).is_null()
+            );
+            // The first turn legitimately transitions this owner from idle.
+            assert_eq!(poll(exec, 1), Some(2));
+            ACTIVITY_LOCKS.with(|count| count.set(0));
+            assert_eq!(poll(exec, 64), Some(2));
+            let locks = ACTIVITY_LOCKS.with(|count| count.get());
+            let actor = (*(*exec).session).first;
+            assert!(!actor.is_null());
+            assert_eq!(
+                *(*actor).frame.cast::<i64>().add(1),
+                191,
+                "all 64 callbacks must execute their continuation"
+            );
+            morrow_managed_close(exec);
+            assert_eq!(fault, 0);
+            assert_eq!(
+                locks, 0,
+                "local runnable work must not contend on global activity"
+            );
+        }
+    }
+
     #[test]
     fn runnable_root_actor_never_enters_the_remote_work_wait() {
         let scalar = tests_scalar();

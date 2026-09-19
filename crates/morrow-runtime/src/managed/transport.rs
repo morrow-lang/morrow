@@ -11,7 +11,11 @@ thread_local! { static BEFORE_ROUTE: std::cell::Cell<Option<RouteHook>> = const 
 #[cfg(test)]
 type DrainHook = (usize, unsafe fn(usize));
 #[cfg(test)]
-thread_local! { pub(super) static AFTER_COMMAND: std::cell::Cell<Option<DrainHook>> = const { std::cell::Cell::new(None) }; }
+thread_local! {
+    pub(super) static AFTER_COMMAND: std::cell::Cell<Option<DrainHook>> = const { std::cell::Cell::new(None) };
+    static AFTER_EMPTY: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) };
+    static BEFORE_DRAIN_LOCK: std::cell::Cell<Option<RouteHook>> = const { std::cell::Cell::new(None) };
+}
 
 pub(super) struct Shared {
     pub budget: budget::Budget,
@@ -346,7 +350,26 @@ pub(super) unsafe fn drain(s: *mut Session) {
             return;
         };
         loop {
+            // A producer arriving after this observation leaves a queued command
+            // and signals this endpoint. Quiescence rechecks queues under activity;
+            // publication and actual removal retain their existing lock order.
+            // After stop, even an empty final drain must acquire activity to
+            // fence producers admitted before stop but not yet enqueued.
+            if !group.stopped.load(Ordering::Acquire) && group.endpoints[(*s).scheduler].is_empty()
+            {
+                #[cfg(test)]
+                if let Some((context, hook)) = AFTER_EMPTY.with(|hook| hook.take()) {
+                    hook(context);
+                }
+                break;
+            }
             let command = {
+                #[cfg(test)]
+                parallel::record_activity_lock();
+                #[cfg(test)]
+                if let Some((context, hook)) = BEFORE_DRAIN_LOCK.with(|hook| hook.take()) {
+                    hook(context);
+                }
                 let _activity = group.activity.lock().unwrap();
                 group.endpoints[(*s).scheduler]
                     .queue
@@ -450,6 +473,156 @@ pub(super) unsafe fn spawn_remote(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stopped_final_drain_fences_an_already_admitted_spawn() {
+        struct Pause {
+            release: std::sync::Barrier,
+            published: std::sync::Barrier,
+            released: AtomicBool,
+        }
+        fn release(context: usize) {
+            let pause = unsafe { &*(context as *const Pause) };
+            if !pause.released.swap(true, Ordering::AcqRel) {
+                pause.release.wait();
+                pause.published.wait();
+            }
+        }
+        let group = Shared::new(1, 0);
+        let mut session = Session {
+            _shared: Some(control::Owned::new(Arc::clone(&group))),
+            ..Session::default()
+        };
+        let pause = Arc::new(Pause {
+            release: std::sync::Barrier::new(2),
+            published: std::sync::Barrier::new(2),
+            released: AtomicBool::new(false),
+        });
+        let string = Type {
+            kind: 1,
+            count: 0,
+            children: null(),
+            arities: null(),
+        };
+        let before = memory::stats();
+        // The rejected spawn owns a real detached allocation. Its source's
+        // physical counters must return to baseline when shutdown discards it.
+        let frame =
+            unsafe { copy::value_fragment(null_mut(), &string, c"pending spawn".as_ptr() as i64) };
+        assert_eq!(memory::stats().objects, before.objects + 1);
+        let (reply, result) = mpsc::sync_channel(1);
+        let (admitted, admission) = mpsc::sync_channel(1);
+        let remote_group = Arc::clone(&group);
+        let remote_pause = Arc::clone(&pause);
+        let sender = std::thread::spawn(move || {
+            let _activity = remote_group.activity.lock().unwrap();
+            assert!(!remote_group.stopped.load(Ordering::Acquire));
+            admitted.send(()).unwrap();
+            remote_pause.release.wait();
+            remote_group.endpoints[0].push_locked(Command::Spawn {
+                frame,
+                cost: 14,
+                mailbox: 0,
+                reply,
+            });
+            remote_pause.published.wait();
+        });
+        admission.recv().unwrap();
+        group.stopped.store(true, Ordering::Release);
+        let context = Arc::as_ptr(&pause) as usize;
+        // Release the admitted producer at either old early return or the
+        // restored lock fence; no sleep or timeout determines the interleaving.
+        AFTER_EMPTY.with(|hook| hook.set(Some((context, release))));
+        BEFORE_DRAIN_LOCK.with(|hook| hook.set(Some((context, release))));
+        unsafe { drain(&mut session) };
+        AFTER_EMPTY.with(|hook| hook.set(None));
+        BEFORE_DRAIN_LOCK.with(|hook| hook.set(None));
+        sender.join().unwrap();
+        assert!(
+            group.endpoints[0].is_empty(),
+            "final drain must consume already admitted publication"
+        );
+        assert!(matches!(result.try_recv(), Ok(Err(9))));
+        assert!(matches!(
+            result.try_recv(),
+            Err(mpsc::TryRecvError::Disconnected)
+        ));
+        assert_eq!(memory::stats().objects, before.objects);
+        assert_eq!(memory::stats().bytes, before.bytes);
+    }
+
+    #[test]
+    fn publication_after_empty_observation_remains_queued_for_the_owner() {
+        struct Pause {
+            observed: std::sync::Barrier,
+            published: std::sync::Barrier,
+        }
+        fn pause(context: usize) {
+            let state = unsafe { &*(context as *const Pause) };
+            state.observed.wait();
+            state.published.wait();
+        }
+        let group = Shared::new(1, 0);
+        let mut session = Session {
+            _shared: Some(control::Owned::new(Arc::clone(&group))),
+            ..Session::default()
+        };
+        let actor = control::Owned::new(Actor {
+            identity: ActorIdentity {
+                alive: AtomicBool::new(true),
+                ingress: Some(control::Owned::new(Ingress::new(0))),
+                ..ActorIdentity::default()
+            },
+            ..Actor::default()
+        });
+        let a = actor.as_ptr();
+        let scalar = Type {
+            kind: 0,
+            count: 0,
+            children: null(),
+            arities: null(),
+        };
+        let cost = std::mem::size_of::<Message>();
+        let state = Arc::new(Pause {
+            observed: std::sync::Barrier::new(2),
+            published: std::sync::Barrier::new(2),
+        });
+        unsafe {
+            group
+                .budget
+                .try_reserve_message(&(*a).identity.pending, cost)
+                .unwrap()
+                .commit();
+            let envelope = Envelope {
+                actor: ActorRef::retain(a),
+                payload: Some(copy::value_fragment(null_mut(), &scalar, i64::MIN)),
+                cost,
+                enqueued: 0,
+                shared: Arc::clone(&group),
+            };
+            let remote = Arc::clone(&state);
+            let sender = std::thread::spawn(move || {
+                remote.observed.wait();
+                assert!(publish(1, envelope.actor.as_ptr(), envelope));
+                remote.published.wait();
+            });
+            AFTER_EMPTY.with(|hook| hook.set(Some((Arc::as_ptr(&state) as usize, pause))));
+            drain(&mut session);
+            sender.join().unwrap();
+            assert_eq!((*a).messages, 0);
+            assert!(
+                !group.endpoints[0].is_empty(),
+                "late publication prevents quiescence"
+            );
+            drain(&mut session);
+            assert!(group.endpoints[0].is_empty());
+            assert_eq!((*a).messages, 1);
+            assert_eq!((*(*a).first).value, i64::MIN);
+            release_message(&mut session, a, cost);
+            assert_eq!(group.budget.messages(), 0);
+            assert_eq!(group.budget.retained(), 0);
+        }
+    }
 
     #[test]
     fn retirement_between_publication_and_route_lock_cannot_strand_ingress() {

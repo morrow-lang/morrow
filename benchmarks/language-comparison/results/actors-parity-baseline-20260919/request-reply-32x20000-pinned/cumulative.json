@@ -1,0 +1,50 @@
+{
+  "1": {
+    "allocate_layout": 173,
+    "fragment_adopt": 53,
+    "gc": 158,
+    "cost_frame": 73,
+    "descriptor": 37,
+    "domain_owns": 26,
+    "transport_send": 155,
+    "transport_drain": 0,
+    "transport_drain_actor": 0,
+    "wait_mutex": 0,
+    "wait_condvar": 0,
+    "heap_enter": 39,
+    "receive_replace": 99,
+    "btree": 204
+  },
+  "2": {
+    "allocate_layout": 187,
+    "fragment_adopt": 69,
+    "gc": 98,
+    "cost_frame": 54,
+    "descriptor": 43,
+    "domain_owns": 29,
+    "transport_send": 215,
+    "transport_drain": 159,
+    "transport_drain_actor": 173,
+    "wait_mutex": 164,
+    "wait_condvar": 366,
+    "heap_enter": 29,
+    "receive_replace": 80,
+    "btree": 156
+  },
+  "4": {
+    "allocate_layout": 183,
+    "fragment_adopt": 43,
+    "gc": 100,
+    "cost_frame": 63,
+    "descriptor": 51,
+    "domain_owns": 26,
+    "transport_send": 241,
+    "transport_drain": 207,
+    "transport_drain_actor": 128,
+    "wait_mutex": 332,
+    "wait_condvar": 1032,
+    "heap_enter": 22,
+    "receive_replace": 84,
+    "btree": 129
+  }
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "schedulers": 1,
+    "seconds": 2.582062292000046,
+    "checksum": 2995199680000,
+    "sample_exit": 0
+  },
+  {
+    "schedulers": 2,
+    "seconds": 3.1066143750213087,
+    "checksum": 2995199680000,
+    "sample_exit": 0
+  },
+  {
+    "schedulers": 4,
+    "seconds": 3.603235707996646,
+    "checksum": 2995199680000,
+    "sample_exit": 0
+  }
+]
