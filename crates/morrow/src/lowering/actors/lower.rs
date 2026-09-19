@@ -23,6 +23,7 @@ struct Builder<'a> {
     plan: Plan,
     next_function: usize,
     source_count: usize,
+    current_source: usize,
     next_local: usize,
     mailbox: Type,
     generic: bool,
@@ -59,6 +60,7 @@ pub(super) fn program(
         plan: Plan::default(),
         next_function: next,
         source_count: program.functions.len(),
+        current_source: 0,
         next_local: 0,
         mailbox: Type::Unit,
         generic: false,
@@ -106,6 +108,7 @@ pub(super) fn program(
         if function.mailbox.is_none() && !helpers.contains(&function.id.0) {
             continue;
         }
+        builder.current_source = function.id.0;
         builder.generic = function.mailbox.is_none();
         builder.mailbox = function.mailbox.clone().unwrap_or(Type::Unit);
         builder.next_local = function.local_count;
@@ -302,7 +305,16 @@ impl Builder<'_> {
             Type::Function(vec![], Box::new(Type::Int)),
             span,
         );
-        Ok(operation(Operation::Continue(Box::new(entry)), span))
+        // Only this private Unit helper path has no return factory or owned
+        // cleanup activation. Its generated frame is not a language value and
+        // only its owning actor can observe it. Ordinary closures stay immutable.
+        let continuation =
+            if function.0 == self.current_source && !self.scoped && self.return_to.is_none() {
+                Operation::ContinueReusable(Box::new(entry))
+            } else {
+                Operation::Continue(Box::new(entry))
+            };
+        Ok(operation(continuation, span))
     }
 
     /// Evaluate tail-call arguments before publishing the exact receiving entry's parameter frame.

@@ -1,4 +1,4 @@
-//! Selective receive and immutable continuation publication.
+//! Selective receive, immutable publication and private helper frame reuse.
 use super::*;
 unsafe fn replace(a: *mut Actor, frame: *mut c_void, ready: bool) -> bool {
     unsafe {
@@ -113,6 +113,86 @@ pub unsafe extern "C" fn morrow_managed_continue(exec: *mut Exec, frame: *mut c_
     }
 }
 
+/// Commit a compiler-private self-tail frame without changing its owned graph.
+/// Returns 4 to request ordinary frame publication when reuse is inapplicable.
+///
+/// # Safety
+/// Exec is the current callback context; `current` is its exclusive, nonescaping
+/// compiler-generated helper frame. `staged` has an initialized identity word
+/// followed by `captures` readable full-width words, rooted through any fallback.
+/// Argument evaluation and checked faults must finish before this call. Ordinary
+/// source closures, return factories and cleanup-owned frames cannot use this ABI.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn morrow_managed_continue_reuse(
+    exec: *mut Exec,
+    current: *mut c_void,
+    staged: *const i64,
+    captures: i64,
+) -> i64 {
+    unsafe {
+        if exec.is_null() {
+            return 3;
+        }
+        if *(*exec).fault != 0 {
+            return 3;
+        }
+        let a = (*exec).actor;
+        if a.is_null()
+            || !(*a).identity.alive.load(Ordering::Acquire)
+            || !(*a).running
+            || (*a).waiting
+            || current.is_null()
+            || current != (*a).frame
+            || staged.is_null()
+            || !(0..=4096).contains(&captures)
+        {
+            fail(exec, 11);
+            return 3;
+        }
+        // This descriptor came from the registered table, never from the staged
+        // frame. A continuation reached through a different generated callback
+        // falls back to normal validation and copying before any mutation.
+        let f = (*a).running_function;
+        if f.is_null() || *current.cast::<*const c_void>() != (*f).identity {
+            fail(exec, 11);
+            return 3;
+        }
+        if *staged as *const c_void != (*f).identity {
+            return 4;
+        }
+        if captures != (*f).capture_count {
+            fail(exec, 11);
+            return 3;
+        }
+        for index in 0..captures as usize {
+            // Scalar semantic cost is independent of its bits. All other graph
+            // roots must remain exactly unchanged, preserving sharing and cost.
+            if (**(*f).captures.add(index)).kind != 0
+                && *staged.add(index + 1) != *current.cast::<i64>().add(index + 1)
+            {
+                return 4;
+            }
+        }
+        let s = (*a).exec.session;
+        let cost = (*a).frame_cost;
+        // Preserve ordinary publication's transient quota admission. Failure
+        // leaves the old frame and continuation state completely untouched.
+        if !charge(s, cost) {
+            fail(exec, 9);
+            return 3;
+        }
+        std::ptr::copy(
+            staged.add(1),
+            current.cast::<i64>().add(1),
+            captures as usize,
+        );
+        release(s, cost);
+        clear_receive(a);
+        (*a).continuation_pending = true;
+        0
+    }
+}
+
 /// Register selective receive; existing messages win before even a zero timeout.
 /// # Safety
 /// Exec and closures must remain valid invocation-owned native objects.
@@ -211,3 +291,7 @@ pub unsafe extern "C" fn morrow_managed_receive(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "receive_reuse_tests.rs"]
+mod reuse_tests;

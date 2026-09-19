@@ -25,6 +25,9 @@ pub use rc::{
     morrow_rc_set_flags, morrow_rc_type_tag,
 };
 #[cfg(test)]
+#[path = "memory/sweep_tests.rs"]
+mod sweep_tests;
+#[cfg(test)]
 #[path = "memory/tests.rs"]
 mod tests;
 
@@ -190,17 +193,18 @@ impl Heap {
         );
         pointer
     }
-    fn mark(&mut self, candidate: usize, pending: &mut Vec<usize>) {
+    fn mark(&mut self, candidate: usize, pending: &mut Vec<usize>) -> bool {
         let Some((&base, block)) = self.blocks.range_mut(..=candidate).next_back() else {
-            return;
+            return false;
         };
         if candidate - base >= block.layout.size() || block.marked {
-            return;
+            return false;
         }
         block.marked = true;
         if !block.atomic {
             pending.push(base);
         }
+        true
     }
     fn trace(&mut self, roots: &[usize]) -> Stats {
         self.trace_ranges(roots, std::iter::empty())
@@ -211,25 +215,29 @@ impl Heap {
         frames: impl Iterator<Item = (usize, usize)>,
     ) -> Stats {
         let mut pending = Vec::new();
+        let mut marked = 0;
         for &root in roots {
-            self.mark(root, &mut pending);
+            marked += usize::from(self.mark(root, &mut pending));
         }
         let ranges: Vec<_> = self.roots.values().copied().collect();
         for (start, words) in ranges.into_iter().chain(frames) {
             for offset in 0..words {
                 // SAFETY: Root and native-frame registration contracts guarantee
                 // this range remains readable on the collecting thread.
-                self.mark(unsafe { platform::word(start + offset * 8) }, &mut pending);
+                marked += usize::from(
+                    self.mark(unsafe { platform::word(start + offset * 8) }, &mut pending),
+                );
             }
         }
         while let Some(base) = pending.pop() {
             let size = self.blocks[&base].layout.size();
             for offset in (0..size.saturating_sub(7)).step_by(8) {
                 // SAFETY: each complete word lies inside a still-owned allocation.
-                self.mark(unsafe { platform::word(base + offset) }, &mut pending);
+                marked +=
+                    usize::from(self.mark(unsafe { platform::word(base + offset) }, &mut pending));
             }
         }
-        self.blocks.retain(|&address, block| {
+        let mut keep = |address, block: &mut Block| {
             if block.marked {
                 block.marked = false;
                 true
@@ -241,7 +249,27 @@ impl Heap {
                 }
                 false
             }
-        });
+        };
+        // Consume sparse maps without rebalancing the old tree for every dead
+        // entry. Both iterators visit allocation addresses in the same order;
+        // finalizers and control releases remain paired before the next entry.
+        // Small or dense heaps retain their existing tree and metadata capacity.
+        if self.blocks.len() >= 64 && marked <= self.blocks.len() / 4 {
+            for (address, mut block) in std::mem::take(&mut self.blocks) {
+                if keep(address, &mut block) {
+                    self.blocks.insert(address, block);
+                }
+            }
+        } else {
+            self.blocks.retain(|&address, block| {
+                let retained = keep(address, block);
+                #[cfg(test)]
+                if !retained {
+                    sweep_tests::record_in_place_removal();
+                }
+                retained
+            });
+        }
         self.collections += 1;
         self.threshold = self.bytes.saturating_mul(2).max(1024 * 1024);
         self.stats()

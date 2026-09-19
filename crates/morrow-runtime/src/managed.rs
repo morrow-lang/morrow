@@ -95,6 +95,8 @@ struct Actor {
     pinned: bool,
     steal_cooldown: u16,
     running: bool,
+    // Registered descriptor resolved by the scheduler for this physical callback.
+    running_function: *const Function,
     continuation_pending: bool,
     queued: bool,
     waiting: bool,

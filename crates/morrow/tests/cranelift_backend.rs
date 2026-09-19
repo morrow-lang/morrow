@@ -2820,3 +2820,6 @@ mod bounded_lists_backend;
 mod callback_inlining_backend;
 #[path = "support/constant_arithmetic_backend.rs"]
 mod constant_arithmetic_backend;
+
+#[path = "actor_frame_reuse/native.rs"]
+mod actor_frame_reuse;

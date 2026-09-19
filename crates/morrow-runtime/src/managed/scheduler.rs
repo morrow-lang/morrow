@@ -277,12 +277,14 @@ pub(super) unsafe fn step(s: *mut Session, a: *mut Actor) {
             }
             let f = function(s, (*a).frame);
             (*a).running = true;
+            (*a).running_function = f;
             (*a).continuation_pending = false;
             let status = {
                 let _actor_scope = memory::enter_heap((*a).heap);
                 ((*f).step.unwrap())(&raw mut (*a).exec, (*a).frame)
             };
             (*a).running = false;
+            (*a).running_function = null();
             let continuing = std::mem::take(&mut (*a).continuation_pending);
             if status == 0 && continuing && !(*a).queued && !(*a).waiting && (*a).fault == 0 {
                 continue;

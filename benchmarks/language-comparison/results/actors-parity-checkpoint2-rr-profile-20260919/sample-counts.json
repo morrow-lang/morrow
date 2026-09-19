@@ -1,0 +1,8 @@
+{
+  "thread_samples": 2916,
+  "condition_wait": 345,
+  "fragment_adoption": 164,
+  "heap_detach": 55,
+  "heap_allocate_layout": 607,
+  "copy_finish": 46
+}

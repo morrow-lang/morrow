@@ -204,6 +204,8 @@ pub(crate) enum Operation {
         item: Type,
     },
     Continue(Box<ir::Expr>),
+    /// Private nonescaping Unit helper self-tail frame; never authored IR.
+    ContinueReusable(Box<ir::Expr>),
     Pointer(Box<ir::Expr>),
     Register {
         selector: Box<ir::Expr>,
@@ -225,6 +227,7 @@ impl Lowered {
             Operation::ScopeDefer(value)
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
+            | Operation::ContinueReusable(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }
@@ -252,6 +255,7 @@ impl Lowered {
             Operation::ScopeDefer(value)
             | Operation::CleanupInvoke { closure: value, .. }
             | Operation::Continue(value)
+            | Operation::ContinueReusable(value)
             | Operation::Pointer(value)
             | Operation::IterateField { value, .. }
             | Operation::ClosureIdentity { value, .. }

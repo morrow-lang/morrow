@@ -7,6 +7,8 @@ mod control_types;
 mod descriptors;
 #[path = "actors/lower.rs"]
 mod lower;
+#[path = "actors/reuse.rs"]
+mod reuse;
 #[path = "actors/tail_helpers.rs"]
 mod tail_helpers;
 #[path = "actors/validate.rs"]
@@ -375,6 +377,7 @@ impl Emitter<'_> {
                 return Ok((item.clone(), value));
             }
             Operation::Pointer(entry) => self.expr(entry, locals, depth)?,
+            Operation::ContinueReusable(entry) => self.reuse_actor_frame(entry, locals, depth)?,
             Operation::Continue(entry) => {
                 let entry = self.expr(entry, locals, depth)?;
                 self.assign(

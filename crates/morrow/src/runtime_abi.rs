@@ -349,6 +349,7 @@ pub fn signature(symbol: &str) -> Option<Signature> {
         | "morrow_actor_supervise_one_for_all"
         | "morrow_actor_supervise_rest_for_one"
         | "morrow_managed_receive"
+        | "morrow_managed_continue_reuse"
         | "morrow_managed_send"
         | "morrow_managed_supervise"
         | "morrow_managed_spawn_on"

@@ -1,0 +1,17 @@
+{
+  "command": [
+    "/tmp/morrow-actors-reuse-sweep-20260919",
+    "request-reply",
+    "32",
+    "20000"
+  ],
+  "environment": {
+    "MORROW_SCHEDULERS": "2",
+    "MORROW_REDUCTIONS": "1",
+    "MORROW_WORK_STEALING": "1"
+  },
+  "binary_sha256": "56e72093114fbe17655074093f1d91b46e208f251da9821264e57534d1d2e419",
+  "host": "macOS-27.0-arm64-arm-64bit-Mach-O",
+  "expected_stdout": "ready\nrequest-reply,32,20000,640000,2995199680000\n",
+  "note": "Diagnostic profile captured while unrelated stage1 correctness builds may run. Not an acceptance timing observation."
+}

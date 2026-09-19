@@ -94,7 +94,7 @@ impl Machine {
             }
 
             Operation::Pointer(value) => self.expression(value),
-            Operation::Continue(value) => {
+            Operation::Continue(value) | Operation::ContinueReusable(value) => {
                 let value = self.expression(value)?;
                 let actor = self
                     .current_actor
