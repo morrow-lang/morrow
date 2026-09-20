@@ -51,9 +51,9 @@ What the configuration guarantees, and what it does not:
   the volume is root-owned. There is no shell, package manager or other
   executable in the image.
 
-The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` shows uptime, memory,
-workers, rooms and connections for the running demo after the application has
-opened a session.
+The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` is omitted on the public
+demo. Local loopback servers still show uptime, memory, workers, rooms and
+connections after the application has opened a session.
 
 ## The documentation site
 

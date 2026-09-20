@@ -106,10 +106,11 @@ measured example, not a general size budget or a static Linux CLI claim.
 ## Offline and reconnect behavior
 
 The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` shows the running server’s
-workers, room and connection counts, uptime, platform and admission limits.
+workers, room and connection counts, uptime, platform and admission limits when
+the browser origin is loopback. Public origins omit the page and its footer link.
 It uses the current application session and offers `/admin/status` JSON snapshots.
-All preview users who can load the origin can read it; there is no separate
-administrator role. System responses are not stored in the offline cache.
+When the page is served, any session that can load the origin can read it; there
+is no separate administrator role. System responses are not stored in the offline cache.
 
 After a successful online visit caches the assets, the Rust service worker can
 reload the application offline. Service-worker availability requires a supported

@@ -103,4 +103,5 @@ fn help_describes_cluster_provisioning_and_runtime_settings() {
     assert!(output.contains("--cluster-init"));
     assert!(output.contains("MORROW_WEB_CLUSTER"));
     assert!(output.contains("GET /session issues an HttpOnly session cookie"));
+    assert!(output.contains("The /admin dashboard is served for loopback origins"));
 }

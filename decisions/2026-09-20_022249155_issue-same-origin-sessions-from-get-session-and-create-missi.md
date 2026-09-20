@@ -8,7 +8,7 @@ tags = ["web", "docs"]
 supersedes = []
 superseded_by = []
 depends_on = []
-related_to = ["01M2Y64439F6Z441PY2FET65SP"]
+related_to = ["01M2Y64439F6Z441PY2FET65SP", "01M2YB3X69VEV1YE93DWP8WGSF"]
 +++
 ## Decision
 
@@ -26,4 +26,4 @@ The documentation workflow failed because `destination()` canonicalized the pare
 
 ## Consequences
 
-Anyone who can load the origin can edit the shared room and read `/admin` after the application has opened a session. Treat the public URL as a shared whiteboard. CSRF, exact Origin, cookie flags and admission bounds remain the client-side controls. Do not present a login form in the checklist UI. See `docs/WEB_PREVIEW.md` and `docs/DEPLOY.md`.
+Anyone who can load the origin can edit the shared room. Public origins omit `/admin`; loopback servers still show it after the application opens a session. CSRF, exact Origin, cookie flags and admission bounds remain the client-side controls. Do not present a login form in the checklist UI. See `docs/WEB_PREVIEW.md` and `docs/DEPLOY.md`.

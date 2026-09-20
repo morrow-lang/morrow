@@ -52,11 +52,12 @@ MORROW_WEB_BIND=127.0.0.1:4102 MORROW_WEB_DATA_DIR=./morrow-data-c \
 
 Open two gateway addresses and edit the shared checklist. The browser
 connects automatically to its own origin's WebSocket endpoint. Its gateway opens
-an authenticated connection to the configured room owner when needed. `/admin`
-shows configured versus connected nodes, stream admission and message counters,
-alongside the existing process and native memory observations. Configured nodes
-include this server; connected nodes count distinct remote node IDs with admitted
-streams. Zero connected peers can simply mean no remote rooms are open.
+an authenticated connection to the configured room owner when needed. On loopback
+origins, `/admin` shows configured versus connected nodes, stream admission and
+message counters, alongside the existing process and native memory observations.
+Public origins omit the dashboard. Configured nodes include this server;
+connected nodes count distinct remote node IDs with admitted streams. Zero
+connected peers can simply mean no remote rooms are open.
 
 For separate machines, initialize reachable private IP addresses, distribute only
 the appropriate node bundle to each machine, and use a separate data directory

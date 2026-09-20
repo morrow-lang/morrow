@@ -34,7 +34,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args == ["--help"] || args == ["-h"] {
         println!(
-            "morrow-web: compiled Morrow collaborative application\n\nBuild: cargo xtask web-build\nRun: morrow-web\nLicenses: morrow-web --licenses\nCluster: morrow-web --cluster-init <NEW_DIR> <CLUSTER_ID> <NODE=IP:PEERPORT>...\n\nMORROW_WEB_BIND defaults to 127.0.0.1:3000.\nMORROW_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nGET /session issues an HttpOnly session cookie so the browser connects without a shared key.\nMORROW_WEB_ACCESS_KEY is optional; when set to 16–256 bytes, POST /session still accepts it.\nMORROW_WEB_WORKERS selects 1–32 pinned actor workers; default is CPU count capped at 4.\nMORROW_WEB_DATA_DIR enables durable room checkpoints; omit it for ephemeral state.\nMORROW_WEB_CLUSTER selects a generated node.json for authenticated server connections.\nCluster init accepts 1–16 nodes and requires a new directory inside a trusted parent.\nEach node uses its own bundle, browser bind/origin and data directory.\nAuthentication and command namespaces restart with the server. HTTPS requires a TLS terminator."
+            "morrow-web: compiled Morrow collaborative application\n\nBuild: cargo xtask web-build\nRun: morrow-web\nLicenses: morrow-web --licenses\nCluster: morrow-web --cluster-init <NEW_DIR> <CLUSTER_ID> <NODE=IP:PEERPORT>...\n\nMORROW_WEB_BIND defaults to 127.0.0.1:3000.\nMORROW_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nGET /session issues an HttpOnly session cookie so the browser connects without a shared key.\nMORROW_WEB_ACCESS_KEY is optional; when set to 16–256 bytes, POST /session still accepts it.\nThe /admin dashboard is served for loopback origins and omitted in production; MORROW_WEB_ADMIN=0 or 1 overrides that.\nMORROW_WEB_WORKERS selects 1–32 pinned actor workers; default is CPU count capped at 4.\nMORROW_WEB_DATA_DIR enables durable room checkpoints; omit it for ephemeral state.\nMORROW_WEB_CLUSTER selects a generated node.json for authenticated server connections.\nCluster init accepts 1–16 nodes and requires a new directory inside a trusted parent.\nEach node uses its own bundle, browser bind/origin and data directory.\nAuthentication and command namespaces restart with the server. HTTPS requires a TLS terminator."
         );
         return Ok(());
     }
@@ -70,6 +70,17 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     config.cluster = std::env::var_os("MORROW_WEB_CLUSTER")
         .map(|path| morrow_cluster::NodeSettings::load(std::path::Path::new(&path)))
         .transpose()?;
+    match std::env::var("MORROW_WEB_ADMIN") {
+        Ok(value) => {
+            config.admin = match value.as_str() {
+                "1" | "true" => true,
+                "0" | "false" => false,
+                _ => return Err("MORROW_WEB_ADMIN must be 1, true, 0 or false".into()),
+            };
+        }
+        Err(std::env::VarError::NotPresent) => {}
+        Err(_) => return Err("MORROW_WEB_ADMIN must be valid UTF-8".into()),
+    }
     let listener = BoundedListener::new(
         listener,
         config.max_tcp_connections,

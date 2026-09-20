@@ -30,6 +30,8 @@ pub struct Config {
     pub origin: String,
     /// Optional shared login secret. Empty disables POST `/session`; GET still issues a cookie.
     pub access_key: String,
+    /// Serve `/admin` and the footer link. Loopback origins default on; public origins default off.
+    pub admin: bool,
     pub max_sessions: usize,
     pub session_ttl: std::time::Duration,
     pub write_timeout: std::time::Duration,
@@ -39,12 +41,14 @@ pub struct Config {
 }
 impl Config {
     pub fn new(origin: String, access_key: String) -> Self {
+        let admin = loopback_origin(&origin);
         Self {
             cluster: None,
             workers: std::thread::available_parallelism().map_or(1, |count| count.get().min(4)),
             data_dir: None,
             origin,
             access_key,
+            admin,
             max_sessions: 256,
             session_ttl: std::time::Duration::from_secs(3600),
             write_timeout: std::time::Duration::from_secs(2),
@@ -53,6 +57,12 @@ impl Config {
             limits: Default::default(),
         }
     }
+}
+fn loopback_origin(origin: &str) -> bool {
+    let Ok(uri) = origin.parse::<Uri>() else {
+        return false;
+    };
+    matches!(uri.host(), Some("localhost" | "127.0.0.1" | "::1"))
 }
 /// Compile-time browser assets. An empty collection explicitly serves build instructions.
 pub type Assets = &'static [(&'static str, &'static [u8])];
@@ -107,6 +117,7 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
         }
         None => (None, None),
     };
+    let admin = config.admin;
     let app = App {
         config: Arc::new(config),
         requests,
@@ -117,15 +128,19 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
         cluster,
         _cluster_stop: cluster_stop,
     };
-    Ok(Router::new()
+    let mut router = Router::new()
         .route("/session", get(session).post(login))
         .route("/logout", post(logout))
         .route("/ws", get(upgrade))
-        .route("/health", get(|| async { "morrow-web preview\n" }))
-        .route("/admin", get(admin::page))
-        .route("/admin/", get(admin::page))
-        .route("/admin/status", get(admin::status))
-        .route("/admin/style.css", get(admin::stylesheet))
+        .route("/health", get(|| async { "morrow-web preview\n" }));
+    if admin {
+        router = router
+            .route("/admin", get(admin::page))
+            .route("/admin/", get(admin::page))
+            .route("/admin/status", get(admin::status))
+            .route("/admin/style.css", get(admin::stylesheet));
+    }
+    Ok(router
         .fallback(asset)
         .layer(DefaultBodyLimit::max(1024))
         .layer(middleware::from_fn_with_state(app.clone(), admission))
@@ -392,16 +407,40 @@ async fn asset(State(app): State<App>, uri: Uri) -> Response {
             StatusCode::NOT_FOUND.into_response()
         };
     };
-    let mut response = (
-        [
-            (header::CONTENT_TYPE, content_type),
-            (header::CACHE_CONTROL, "no-cache"),
-        ],
-        *bytes,
+    if name == "index.html" && !app.config.admin {
+        let body = match std::str::from_utf8(bytes) {
+            Ok(html) => html
+                .replace(" <a href=\"/admin\">System dashboard</a>", "")
+                .into_bytes(),
+            Err(_) => bytes.to_vec(),
+        };
+        return asset_headers(
+            (
+                [
+                    (header::CONTENT_TYPE, content_type),
+                    (header::CACHE_CONTROL, "no-cache"),
+                ],
+                body,
+            )
+                .into_response(),
+            false,
+        );
+    }
+    asset_headers(
+        (
+            [
+                (header::CONTENT_TYPE, content_type),
+                (header::CACHE_CONTROL, "no-cache"),
+            ],
+            *bytes,
+        )
+            .into_response(),
+        name == "worker.js",
     )
-        .into_response();
+}
+fn asset_headers(mut response: Response, worker: bool) -> Response {
     response.headers_mut().insert(header::CONTENT_SECURITY_POLICY, HeaderValue::from_static("default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"));
-    if name == "worker.js" {
+    if worker {
         response
             .headers_mut()
             .insert("service-worker-allowed", HeaderValue::from_static("/"));
