@@ -2,10 +2,9 @@
 
 > Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
 
-Open `/admin` on a loopback Morrow web server, or follow **System dashboard** in
-the application footer. Public origins omit the dashboard: the footer link is not
-shown and `/admin` is not served. `MORROW_WEB_ADMIN=1` re-enables it; `=0` hides
-it on loopback. Open the application first so it can issue a session;
+Open `/admin` on a running Morrow web server, or follow **System dashboard** in
+the application footer. `MORROW_WEB_ADMIN=0` hides the page and the footer link.
+Open the application first so it can issue a session;
 the dashboard reuses that session automatically. **Refresh snapshot** obtains a new observation;
 **JSON status** exposes the same data at `/admin/status` (schema version 1).
 
@@ -55,9 +54,8 @@ on the page, never a fabricated zero.
 ## Access and caching
 
 The preview has no shared access key. Every valid preview session can read the
-dashboard when it is enabled; there is no separate administrator role. Public
-deployments hide the page. Applications needing operator access on a public
-origin must set `MORROW_WEB_ADMIN=1` and add their own policy.
+dashboard; there is no separate administrator role. The public demo shows the
+page. Applications that should not expose it set `MORROW_WEB_ADMIN=0`.
 
 The HTML and JSON routes reject missing, expired or revoked sessions and explicit
 foreign origins. Neither endpoint displays session/CSRF tokens, room

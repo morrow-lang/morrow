@@ -3,10 +3,10 @@ schema_version = 1
 id = "01M2YB3X69VEV1YE93DWP8WGSF"
 title = "Hide the system dashboard on public origins"
 date = "2026-09-20"
-status = "accepted"
+status = "superseded"
 tags = ["web"]
 supersedes = []
-superseded_by = []
+superseded_by = ["01M2ZAR3SQ5AFRQEW9KNSFTBDW"]
 depends_on = []
 related_to = ["01M2Y9Z4A32Z1E805G8YQJGJKN"]
 +++

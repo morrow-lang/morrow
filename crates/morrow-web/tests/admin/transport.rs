@@ -67,21 +67,38 @@ async fn dashboard_requires_a_live_session_and_never_caches_system_information()
 }
 
 #[tokio::test]
-async fn production_does_not_display_or_serve_the_dashboard() {
+async fn public_origins_display_and_serve_the_dashboard() {
     assert!(
-        !morrow_web::Config::new(
+        morrow_web::Config::new(
             "https://morrow-demo.fly.dev".into(),
             "a-long-test-access-key".into()
         )
         .admin
     );
-    assert!(
-        morrow_web::Config::new(
-            "http://127.0.0.1:3000".into(),
-            "a-long-test-access-key".into()
-        )
-        .admin
-    );
+    let server = Server::configured_with_assets(|_| {}, BRAND_ASSETS).await;
+    let index = server.http("GET", "/", "", "").await;
+    assert!(index.starts_with("HTTP/1.1 200"), "{index}");
+    assert!(index.contains("/admin"), "{index}");
+    assert!(index.contains("System dashboard"), "{index}");
+    let opened = server.http("GET", "/session", "", "").await;
+    assert!(opened.starts_with("HTTP/1.1 200"), "{opened}");
+    let cookie = opened
+        .lines()
+        .find_map(|line| line.strip_prefix("set-cookie: "))
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap();
+    for path in ["/admin", "/admin/", "/admin/status", "/admin/style.css"] {
+        let served = server
+            .http("GET", path, &format!("Cookie: {cookie}\r\n"), "")
+            .await;
+        assert!(served.starts_with("HTTP/1.1 200"), "{path}: {served}");
+    }
+}
+
+#[tokio::test]
+async fn disabled_admin_omits_the_dashboard() {
     let server = Server::configured_with_assets(
         |config| {
             config.admin = false;
@@ -93,7 +110,7 @@ async fn production_does_not_display_or_serve_the_dashboard() {
     assert!(index.starts_with("HTTP/1.1 200"), "{index}");
     assert!(
         !index.contains("/admin"),
-        "production must not advertise the dashboard: {index}"
+        "disabled admin must not advertise the dashboard: {index}"
     );
     assert!(!index.contains("System dashboard"), "{index}");
     let opened = server.http("GET", "/session", "", "").await;

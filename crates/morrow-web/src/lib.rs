@@ -30,7 +30,7 @@ pub struct Config {
     pub origin: String,
     /// Optional shared login secret. Empty disables POST `/session`; GET still issues a cookie.
     pub access_key: String,
-    /// Serve `/admin` and the footer link. Loopback origins default on; public origins default off.
+    /// Serve `/admin` and the footer link. Defaults on; `MORROW_WEB_ADMIN=0` hides it.
     pub admin: bool,
     pub max_sessions: usize,
     pub session_ttl: std::time::Duration,
@@ -41,14 +41,13 @@ pub struct Config {
 }
 impl Config {
     pub fn new(origin: String, access_key: String) -> Self {
-        let admin = loopback_origin(&origin);
         Self {
             cluster: None,
             workers: std::thread::available_parallelism().map_or(1, |count| count.get().min(4)),
             data_dir: None,
             origin,
             access_key,
-            admin,
+            admin: true,
             max_sessions: 256,
             session_ttl: std::time::Duration::from_secs(3600),
             write_timeout: std::time::Duration::from_secs(2),
@@ -57,12 +56,6 @@ impl Config {
             limits: Default::default(),
         }
     }
-}
-fn loopback_origin(origin: &str) -> bool {
-    let Ok(uri) = origin.parse::<Uri>() else {
-        return false;
-    };
-    matches!(uri.host(), Some("localhost" | "127.0.0.1" | "::1"))
 }
 /// Compile-time browser assets. An empty collection explicitly serves build instructions.
 pub type Assets = &'static [(&'static str, &'static [u8])];
