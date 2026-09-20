@@ -40,7 +40,13 @@ What the configuration guarantees, and what it does not:
   checkpointed there and recovered after a restart. Sessions and command
   namespaces still restart with the process, as documented in the
   [web guide](WEB_PREVIEW.md).
-- **Always-on machine.** Fly Machines are not Kubernetes pods. `auto_stop_machines = "off"` and `min_machines_running = 1` keep the one process running even with no visitors, so live presence and WebSocket rooms survive idle periods. The volume already recovers room contents after a restart; sessions and in-memory occupancy do not.
+- **Idle suspend.** Fly Machines are not Kubernetes pods.
+  `auto_stop_machines = "suspend"` and `min_machines_running = 0` let Fly Proxy
+  pause the Machine after several minutes with no traffic. A later request
+  resumes it in a few hundred milliseconds, or cold-starts after a deploy.
+  Volume checkpoints survive; the 1 GB volume is still billed while suspended.
+  Live sessions, WebSockets and viewer counts only exist while the process is
+  up, and a discarded snapshot starts them over.
 - **Open rooms.** The demo has no accounts and no shared access key. Anyone
   who can load the origin can edit the shared room within the server's bounds:
   100 tasks per room, 256-byte labels, admission and connection limits. Treat

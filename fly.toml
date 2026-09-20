@@ -18,10 +18,11 @@ primary_region = "ams"
 [http_service]
   internal_port = 8080
   force_https = true
-  # Presence counts and WebSocket rooms need the process to stay up.
-  auto_stop_machines = "off"
+  # Idle: Fly Proxy suspends this Machine after several minutes with no traffic.
+  # The next request resumes it (or cold-starts after a deploy). Volume billing remains.
+  auto_stop_machines = "suspend"
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = "15s"
