@@ -967,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "morrow"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "cranelift-codegen",
  "cranelift-frontend",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "morrow-browser"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "js-sys",
  "morrow-web-protocol",
@@ -999,7 +999,7 @@ dependencies = [
 
 [[package]]
 name = "morrow-browser-worker"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -1009,7 +1009,7 @@ dependencies = [
 
 [[package]]
 name = "morrow-cluster"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "morrow-web-protocol",
  "rcgen",
@@ -1025,11 +1025,11 @@ dependencies = [
 
 [[package]]
 name = "morrow-json"
-version = "0.1.0"
+version = "0.2.0"
 
 [[package]]
 name = "morrow-runtime"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "morrow-json",
@@ -1039,14 +1039,14 @@ dependencies = [
 
 [[package]]
 name = "morrow-runtime-native"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "morrow-runtime",
 ]
 
 [[package]]
 name = "morrow-sim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
  "morrow",
@@ -1060,14 +1060,14 @@ dependencies = [
 
 [[package]]
 name = "morrow-test-supervisor"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "libc",
 ]
 
 [[package]]
 name = "morrow-web"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "futures-util",
@@ -1084,7 +1084,7 @@ dependencies = [
 
 [[package]]
 name = "morrow-web-app"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "ar_archive_writer",
  "libc",
@@ -1097,7 +1097,7 @@ dependencies = [
 
 [[package]]
 name = "morrow-web-protocol"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "serde",
@@ -2254,7 +2254,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.23.1",
  "flate2",
