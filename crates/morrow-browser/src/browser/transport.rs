@@ -1,20 +1,13 @@
 use super::*;
+use serde::Deserialize;
 
-pub(super) fn authenticate(weak: Weak<RefCell<App>>, access_key: Option<String>) {
+pub(super) fn authenticate(weak: Weak<RefCell<App>>) {
     let Some(app) = weak.upgrade() else {
         return;
     };
     let request_generation = {
         let mut state = app.borrow_mut();
-        if state.auth_pending || (!state.auth_enabled && access_key.is_none()) {
-            return;
-        }
-        if access_key
-            .as_ref()
-            .is_some_and(|key| key.len() > 256 || key.is_empty())
-        {
-            state.status = "Enter the server access key (at most 256 bytes)".into();
-            let _ = state.render();
+        if state.auth_pending {
             return;
         }
         state.auth_enabled = true;
@@ -23,7 +16,7 @@ pub(super) fn authenticate(weak: Weak<RefCell<App>>, access_key: Option<String>)
         state.request_generation
     };
     spawn_local(async move {
-        let result = session(access_key).await;
+        let result = session().await;
         let Some(app) = weak.upgrade() else {
             return;
         };
@@ -65,36 +58,24 @@ pub(super) fn authenticate(weak: Weak<RefCell<App>>, access_key: Option<String>)
     });
 }
 
-async fn session(access_key: Option<String>) -> Result<String, (bool, String)> {
-    async fn fetch_session(access_key: Option<String>) -> Result<(Response, Deadline), JsValue> {
+async fn session() -> Result<String, (bool, String)> {
+    async fn fetch_session() -> Result<(Response, Deadline), JsValue> {
         let options = RequestInit::new();
         let deadline = Deadline::new(&options)?;
         options.set_credentials(RequestCredentials::SameOrigin);
-        if let Some(access_key) = access_key {
-            options.set_method("POST");
-            options.set_body(&JsValue::from_str(
-                &serde_json::json!({"access_key": access_key}).to_string(),
-            ));
-            let headers = web_sys::Headers::new()?;
-            headers.set("Content-Type", "application/json")?;
-            options.set_headers(&headers);
-        }
         let response = JsFuture::from(window()?.fetch_with_str_and_init("/session", &options))
             .await?
             .dyn_into()?;
         Ok((response, deadline))
     }
-    let (response, _deadline) = fetch_session(access_key).await.map_err(|_| {
+    let (response, _deadline) = fetch_session().await.map_err(|_| {
         (
             false,
             "Offline · your draft remains editable on this device".into(),
         )
     })?;
     if response.status() == 401 || response.status() == 403 {
-        return Err((
-            true,
-            "Sign in with the server access key to sync this garden".into(),
-        ));
+        return Err((true, "Couldn't start a session · tap Reconnect".into()));
     }
     if !response.ok() {
         return Err((
@@ -300,7 +281,7 @@ fn schedule(app: &Rc<RefCell<App>>) {
     let callback = Closure::wrap(Box::new(move || {
         // The retained closure is replaced after the asynchronous session response,
         // never dropped while it is executing.
-        authenticate(weak.clone(), None);
+        authenticate(weak.clone());
     }) as Box<dyn FnMut()>);
     if let Ok(window) = window()
         && let Ok(id) = window.set_timeout_with_callback_and_timeout_and_arguments_0(

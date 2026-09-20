@@ -102,4 +102,5 @@ fn help_describes_cluster_provisioning_and_runtime_settings() {
     let output = String::from_utf8(result.stdout).unwrap();
     assert!(output.contains("--cluster-init"));
     assert!(output.contains("MORROW_WEB_CLUSTER"));
+    assert!(output.contains("GET /session issues an HttpOnly session cookie"));
 }

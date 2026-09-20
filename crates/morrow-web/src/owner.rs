@@ -24,6 +24,9 @@ struct Subscription {
     snapshots: watch::Sender<Option<Snapshot>>,
 }
 pub(crate) enum Request {
+    Open {
+        reply: Reply<Authentication>,
+    },
     Login {
         key: String,
         reply: Reply<Authentication>,

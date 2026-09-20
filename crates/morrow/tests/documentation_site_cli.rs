@@ -114,6 +114,71 @@ fn site_writes_pages_guides_assets_and_replaces_previous_output_atomically() {
 }
 
 #[test]
+fn site_creates_missing_parent_directories() {
+    let project = Project::new();
+    let result = project.run(&["doc", "lib", "--site", "dist/docs"]);
+    assert!(result.status.success(), "{result:?}");
+    assert!(project.0.join("dist/docs/index.html").is_file());
+    assert!(project.0.join("dist/docs/morrow-docs.css").is_file());
+}
+
+#[test]
+fn site_directory_extras_omit_readme_files_so_collections_can_share_the_name() {
+    let project = Project::new();
+    fs::write(
+        project.0.join("docs/README.md"),
+        "# Catalog\n\nGuides live here.\n",
+    )
+    .unwrap();
+    fs::create_dir(project.0.join("more")).unwrap();
+    fs::write(project.0.join("more/README.md"), "# Collection notes\n").unwrap();
+    fs::write(
+        project.0.join("more/extra.md"),
+        "# Extra\n\nAnother guide.\n",
+    )
+    .unwrap();
+    let result = project.run(&[
+        "doc",
+        "lib",
+        "--site",
+        "site",
+        "--extras",
+        "README.md",
+        "--extras",
+        "docs",
+        "--extras",
+        "more",
+    ]);
+    assert!(result.status.success(), "{result:?}");
+    assert!(project.0.join("site/index.html").is_file());
+    assert!(project.0.join("site/guide.html").is_file());
+    assert!(project.0.join("site/extra.html").is_file());
+    assert!(!project.0.join("site/readme.html").exists());
+    let explicit = project.run(&[
+        "doc",
+        "lib",
+        "--site",
+        "site",
+        "--extras",
+        "README.md",
+        "--extras",
+        "docs/README.md",
+        "--extras",
+        "docs",
+        "--extras",
+        "more",
+    ]);
+    assert!(explicit.status.success(), "{explicit:?}");
+    assert!(
+        project
+            .read("site/readme.html")
+            .contains("Guides live here."),
+        "{}",
+        project.read("site/readme.html")
+    );
+}
+
+#[test]
 fn site_fails_before_publishing_when_any_input_is_invalid() {
     let project = Project::new();
     assert!(

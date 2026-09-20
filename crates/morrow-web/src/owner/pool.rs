@@ -70,9 +70,10 @@ impl Pool {
     }
     pub fn try_send(&self, request: Request) -> Result<(), ()> {
         let sender = match &request {
-            Request::Login { .. } | Request::Authenticate { .. } | Request::Logout { .. } => {
-                &self.auth
-            }
+            Request::Open { .. }
+            | Request::Login { .. }
+            | Request::Authenticate { .. }
+            | Request::Logout { .. } => &self.auth,
             Request::Join { room, .. } => &self.workers[self.route(room).0],
             Request::Command { route, .. } | Request::Disconnect { route, .. } => {
                 self.workers.get(route.0).ok_or(())?

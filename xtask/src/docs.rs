@@ -12,6 +12,7 @@ use std::{
 /// Guides rendered in sidebar order; the root README becomes the landing page.
 pub const EXTRAS: &[&str] = &[
     "README.md",
+    "docs/README.md",
     "docs",
     "docs/language",
     "DESIGN.md",

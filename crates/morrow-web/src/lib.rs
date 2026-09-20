@@ -28,6 +28,7 @@ pub struct Config {
     /// Optional single-writer checkpoint directory. Omit for ephemeral rooms.
     pub data_dir: Option<std::path::PathBuf>,
     pub origin: String,
+    /// Optional shared login secret. Empty disables POST `/session`; GET still issues a cookie.
     pub access_key: String,
     pub max_sessions: usize,
     pub session_ttl: std::time::Duration,
@@ -69,9 +70,9 @@ pub(crate) struct App {
     _cluster_stop: Option<Arc<tokio::sync::watch::Sender<()>>>,
 }
 /// Build a router inside a Tokio runtime. Serve it through [`BoundedListener`]
-/// (as [`serve`] does) to enforce admission before HTTP parsing. Authentication
-/// authorizes all preview rooms under one shared access key; applications need
-/// their own resource policy.
+/// (as [`serve`] does) to enforce admission before HTTP parsing. GET `/session`
+/// issues a same-origin cookie; POST `/session` remains available when an access
+/// key is configured. Applications need their own resource policy.
 pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> {
     let origin: Uri = config.origin.parse().map_err(std::io::Error::other)?;
     if !matches!(origin.scheme_str(), Some("http" | "https"))
@@ -81,7 +82,7 @@ pub fn router(config: Config, assets: Assets) -> Result<Router, std::io::Error> 
             .is_some_and(|path| path.as_str() != "/")
         || config.origin.ends_with('/')
         || config.origin.contains('@')
-        || !(16..=256).contains(&config.access_key.len())
+        || !(config.access_key.is_empty() || (16..=256).contains(&config.access_key.len()))
         || !(1..=1024).contains(&config.max_sessions)
         || config.session_ttl.is_zero()
         || config.session_ttl > Duration::from_secs(86_400)
@@ -176,20 +177,24 @@ fn origin(headers: &HeaderMap, app: &App) -> Result<(), StatusCode> {
         Ok(())
     }
 }
-fn cookie(headers: &HeaderMap) -> Result<String, StatusCode> {
-    let values = headers
-        .get(header::COOKIE)
-        .and_then(|v| v.to_str().ok())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+fn session_cookie(headers: &HeaderMap) -> Result<Option<String>, StatusCode> {
+    let Some(values) = headers.get(header::COOKIE).and_then(|v| v.to_str().ok()) else {
+        return Ok(None);
+    };
     let mut found = values
         .split(';')
         .filter_map(|v| v.trim().strip_prefix("morrow_session="));
-    let token = found.next().ok_or(StatusCode::UNAUTHORIZED)?;
+    let Some(token) = found.next() else {
+        return Ok(None);
+    };
     if found.next().is_some() || token.len() != 64 || !token.bytes().all(|b| b.is_ascii_hexdigit())
     {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    Ok(token.into())
+    Ok(Some(token.into()))
+}
+fn cookie(headers: &HeaderMap) -> Result<String, StatusCode> {
+    session_cookie(headers)?.ok_or(StatusCode::UNAUTHORIZED)
 }
 async fn response<T>(
     app: &App,
@@ -223,22 +228,7 @@ fn session_response(authentication: owner::Authentication) -> Response {
         .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
     response
 }
-async fn login(
-    State(app): State<App>,
-    headers: HeaderMap,
-    Json(credentials): Json<Credentials>,
-) -> Result<Response, StatusCode> {
-    origin(&headers, &app)?;
-    let (reply, rx) = oneshot::channel();
-    let auth = response(
-        &app,
-        owner::Request::Login {
-            key: credentials.access_key,
-            reply,
-        },
-        rx,
-    )
-    .await?;
+fn issued_session(app: &App, auth: owner::Authentication) -> Result<Response, StatusCode> {
     let cookie = format!(
         "morrow_session={}; HttpOnly; SameSite=Strict; Path=/; Max-Age={}{}",
         auth.token,
@@ -258,25 +248,57 @@ async fn login(
     );
     Ok(response)
 }
+async fn open_session(app: &App) -> Result<owner::Authentication, StatusCode> {
+    let (reply, rx) = oneshot::channel();
+    response(app, owner::Request::Open { reply }, rx).await
+}
+async fn login(
+    State(app): State<App>,
+    headers: HeaderMap,
+    Json(credentials): Json<Credentials>,
+) -> Result<Response, StatusCode> {
+    origin(&headers, &app)?;
+    let (reply, rx) = oneshot::channel();
+    issued_session(
+        &app,
+        response(
+            &app,
+            owner::Request::Login {
+                key: credentials.access_key,
+                reply,
+            },
+            rx,
+        )
+        .await?,
+    )
+}
 async fn session(State(app): State<App>, headers: HeaderMap) -> Result<Response, StatusCode> {
     // Same-origin fetch may omit Origin for GET. No CORS response is provided;
     // cross-origin callers cannot read the nonce. Explicit foreign origins fail.
     if headers.contains_key(header::ORIGIN) {
         origin(&headers, &app)?;
     }
-    let (reply, rx) = oneshot::channel();
-    Ok(session_response(
-        response(
-            &app,
-            owner::Request::Authenticate {
-                token: cookie(&headers)?,
-                csrf: None,
-                reply,
-            },
-            rx,
-        )
-        .await?,
-    ))
+    match session_cookie(&headers)? {
+        Some(token) => {
+            let (reply, rx) = oneshot::channel();
+            match response(
+                &app,
+                owner::Request::Authenticate {
+                    token,
+                    csrf: None,
+                    reply,
+                },
+                rx,
+            )
+            .await
+            {
+                Ok(auth) => Ok(session_response(auth)),
+                Err(StatusCode::UNAUTHORIZED) => issued_session(&app, open_session(&app).await?),
+                Err(status) => Err(status),
+            }
+        }
+        None => issued_session(&app, open_session(&app).await?),
+    }
 }
 async fn logout(State(app): State<App>, headers: HeaderMap) -> Result<Response, StatusCode> {
     origin(&headers, &app)?;

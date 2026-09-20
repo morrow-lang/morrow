@@ -18,7 +18,6 @@ One-time setup, from a machine with `flyctl` signed in:
 ```sh
 fly apps create morrow-demo
 fly volumes create morrow_data --app morrow-demo --region ams --size 1
-fly secrets set --app morrow-demo MORROW_WEB_ACCESS_KEY="$(openssl rand -hex 24)"
 fly tokens create deploy --app morrow-demo   # store as the FLY_API_TOKEN secret
 ```
 
@@ -41,10 +40,10 @@ What the configuration guarantees, and what it does not:
   checkpointed there and recovered after a restart. Sessions and command
   namespaces still restart with the process, as documented in the
   [web guide](WEB_PREVIEW.md).
-- **Shared access key.** The demo has one access key and no accounts. Anyone
-  with the key can edit the shared room within the server's bounds: 100 tasks
-  per room, 256-byte labels, admission and connection limits. Publish the key
-  only if that is acceptable for a demo, and rotate it with `fly secrets set`.
+- **Open rooms.** The demo has no accounts and no shared access key. Anyone
+  who can load the origin can edit the shared room within the server's bounds:
+  100 tasks per room, 256-byte labels, admission and connection limits. Treat
+  the public URL as a shared whiteboard.
 - **TLS at the edge.** Fly terminates HTTPS and forwards plain HTTP to port
   8080. The server marks its session cookie `Secure` because the configured
   origin is `https://`.
@@ -53,7 +52,8 @@ What the configuration guarantees, and what it does not:
   executable in the image.
 
 The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` shows uptime, memory,
-workers, rooms and connections for the running demo after signing in.
+workers, rooms and connections for the running demo after the application has
+opened a session.
 
 ## The documentation site
 

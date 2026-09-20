@@ -115,6 +115,55 @@ impl Server {
 }
 
 #[tokio::test]
+async fn get_session_issues_a_cookie_without_an_access_key() {
+    let server = Server::configured(|config| config.access_key.clear()).await;
+    let foreign = server
+        .http("GET", "/session", "Origin: https://foreign.example\r\n", "")
+        .await;
+    assert!(foreign.starts_with("HTTP/1.1 403"), "{foreign}");
+    let response = server.http("GET", "/session", "", "").await;
+    assert!(response.starts_with("HTTP/1.1 200"), "{response}");
+    assert!(
+        response
+            .to_ascii_lowercase()
+            .contains("set-cookie: morrow_session="),
+        "{response}"
+    );
+    let csrf = serde_json::from_str::<serde_json::Value>(response_body(&response)).unwrap()["csrf"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    assert_eq!(csrf.len(), 64);
+    let cookie = response
+        .lines()
+        .find_map(|line| line.strip_prefix("set-cookie: "))
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap();
+    let resumed = server
+        .http("GET", "/session", &format!("Cookie: {cookie}\r\n"), "")
+        .await;
+    assert!(resumed.starts_with("HTTP/1.1 200"), "{resumed}");
+    assert!(resumed.contains(&csrf));
+    assert!(
+        !resumed
+            .to_ascii_lowercase()
+            .contains("set-cookie: morrow_session="),
+        "{resumed}"
+    );
+    let denied = server
+        .http(
+            "POST",
+            "/session",
+            &format!("Origin: http://{}\r\n", server.address),
+            r#"{"access_key":""}"#,
+        )
+        .await;
+    assert!(denied.starts_with("HTTP/1.1 401"), "{denied}");
+}
+
+#[tokio::test]
 async fn logout_revokes_open_sockets_and_csrf_cannot_be_omitted() {
     let server = Server::start().await;
     let (cookie, csrf) = server.session().await;
@@ -154,10 +203,17 @@ async fn logout_revokes_open_sockets_and_csrf_cannot_be_omitted() {
             break;
         }
     }
-    let denied = server
+    let replaced = server
         .http("GET", "/session", &format!("Cookie: {cookie}\r\n"), "")
         .await;
-    assert!(denied.starts_with("HTTP/1.1 401"));
+    assert!(replaced.starts_with("HTTP/1.1 200"), "{replaced}");
+    assert!(!replaced.contains(&csrf), "{replaced}");
+    assert!(
+        replaced
+            .to_ascii_lowercase()
+            .contains("set-cookie: morrow_session="),
+        "{replaced}"
+    );
 }
 
 #[tokio::test]

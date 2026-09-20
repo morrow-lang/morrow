@@ -128,7 +128,7 @@ pub(super) async fn page(State(app): State<App>, headers: HeaderMap) -> Response
         Err(code) => {
             let content = match code {
                 StatusCode::UNAUTHORIZED => {
-                    "<h1>Sign in to see your system.</h1><p>The dashboard uses the application’s current session.</p><a class=button href=/>Open the application</a>"
+                    "<h1>Open the application to see your system.</h1><p>The dashboard uses the session the application opens automatically.</p><a class=button href=/>Open the application</a>"
                 }
                 StatusCode::FORBIDDEN => {
                     "<h1>This request is not allowed.</h1><p>Open the dashboard from the application’s own address.</p><a class=button href=/>Open the application</a>"
@@ -288,6 +288,6 @@ fn render(status: &Status) -> String {
             escape(&value)
         );
     }
-    body.push_str("</dl></section></div><footer><p>Read-only snapshot · Refresh to observe changes.</p><p>The preview shares one access key for the application and dashboard. Counts are independent observations, not a globally atomic snapshot. No room contents or credentials are displayed.</p></footer></main>");
+    body.push_str("</dl></section></div><footer><p>Read-only snapshot · Refresh to observe changes.</p><p>The dashboard uses the same session the application opens automatically. Counts are independent observations, not a globally atomic snapshot. No room contents or credentials are displayed.</p></footer></main>");
     shell(&body)
 }

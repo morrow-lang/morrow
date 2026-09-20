@@ -3,8 +3,8 @@
 > Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
 
 Open `/admin` on the running Morrow web server, or follow **System dashboard** in
-the application footer. Sign in to the application first; the dashboard reuses
-that session automatically. **Refresh snapshot** obtains a new observation;
+the application footer. Open the application first so it can issue a session;
+the dashboard reuses that session automatically. **Refresh snapshot** obtains a new observation;
 **JSON status** exposes the same data at `/admin/status` (schema version 1).
 
 The page is rendered by Rust and embedded in the server binary. It requires no
@@ -52,11 +52,11 @@ on the page, never a fabricated zero.
 
 ## Access and caching
 
-The preview has one shared access key. Every valid preview session can read the
+The preview has no shared access key. Every valid preview session can read the
 dashboard; there is no separate administrator role. Applications needing separate
-operator access must add that policy before sharing their normal application key.
+operator access must add that policy before sharing the origin.
 The HTML and JSON routes reject missing, expired or revoked sessions and explicit
-foreign origins. Neither endpoint displays access keys, session/CSRF tokens, room
+foreign origins. Neither endpoint displays session/CSRF tokens, room
 identifiers, task contents or checkpoint paths.
 
 Dashboard responses, including denials, use `Cache-Control: no-store`. The offline

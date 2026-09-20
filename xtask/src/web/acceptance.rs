@@ -243,7 +243,7 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
                 .env_remove("MORROW_WEB_ORIGIN")
                 .env_remove("MORROW_WEB_CLUSTER")
                 .env_remove("MORROW_WEB_DATA_DIR")
-                .env("MORROW_WEB_ACCESS_KEY", "morrow-browser-test-key")
+                .env_remove("MORROW_WEB_ACCESS_KEY")
                 .stdout(Stdio::null())
                 .stderr(fs::File::create(&server_log).map_err(|error| error.to_string())?),
         )?);
@@ -293,11 +293,6 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         browser.wait(&first, "document.querySelector('#draft') !== null")?;
         return integrity::run(&mut browser, &first);
     }
-    browser.wait(
-        &first,
-        "document.querySelector('#status')?.textContent.includes('access key') === true",
-    )?;
-    browser.eval(&first, "document.querySelector('#access-key').value='morrow-browser-test-key'; document.querySelector('#login-form').requestSubmit(); true")?;
     browser.wait(
         &first,
         "document.querySelector('#connection')?.getAttribute('data-online') === 'true'",

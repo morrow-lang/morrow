@@ -102,9 +102,16 @@ impl AuthenticationOwner {
     }
     pub fn login(&mut self, key: &str) -> Result<Authentication, StatusCode> {
         self.expire();
-        if !same_secret(key, &self.config.access_key) {
+        if self.config.access_key.is_empty() || !same_secret(key, &self.config.access_key) {
             return Err(StatusCode::UNAUTHORIZED);
         }
+        self.admit()
+    }
+    pub fn open(&mut self) -> Result<Authentication, StatusCode> {
+        self.expire();
+        self.admit()
+    }
+    fn admit(&mut self) -> Result<Authentication, StatusCode> {
         if self.sessions.len() >= self.config.max_sessions {
             return Err(StatusCode::TOO_MANY_REQUESTS);
         }
@@ -130,6 +137,13 @@ impl AuthenticationOwner {
     pub fn handle(&mut self, request: Request) {
         self.expire();
         match request {
+            Request::Open { reply } => {
+                if let Err(Ok(authentication)) = reply.send(self.open()) {
+                    // A timed-out requester cannot use credentials it never
+                    // received; do not retain its admission slot until expiry.
+                    self.sessions.remove(&authentication.token);
+                }
+            }
             Request::Login { key, reply } => {
                 if let Err(Ok(authentication)) = reply.send(self.login(&key)) {
                     // A timed-out requester cannot use credentials it never
@@ -189,5 +203,20 @@ mod tests {
             "the client cannot use an unpublished credential"
         );
         assert!(owner.login("long-enough-test-key").is_ok());
+    }
+    #[tokio::test]
+    async fn cancelled_open_does_not_retain_an_unpublished_session() {
+        let mut config = Config::new("http://localhost".into(), String::new());
+        config.max_sessions = 1;
+        let mut owner = AuthenticationOwner::new(config);
+        let (reply, response) = oneshot::channel();
+        drop(response);
+        owner.handle(Request::Open { reply });
+        assert_eq!(
+            owner.sessions.len(),
+            0,
+            "the client cannot use an unpublished credential"
+        );
+        assert!(owner.open().is_ok());
     }
 }

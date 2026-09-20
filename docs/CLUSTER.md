@@ -35,22 +35,22 @@ Run each command in a separate terminal:
 ```sh
 MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-0/node.json \
 MORROW_WEB_BIND=127.0.0.1:4100 MORROW_WEB_DATA_DIR=./morrow-data-a \
-MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
+./dist/morrow-web
 ```
 
 ```sh
 MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-1/node.json \
 MORROW_WEB_BIND=127.0.0.1:4101 MORROW_WEB_DATA_DIR=./morrow-data-b \
-MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
+./dist/morrow-web
 ```
 
 ```sh
 MORROW_WEB_CLUSTER=./morrow-cluster-demo/node-2/node.json \
 MORROW_WEB_BIND=127.0.0.1:4102 MORROW_WEB_DATA_DIR=./morrow-data-c \
-MORROW_WEB_ACCESS_KEY='choose-a-long-local-demo-key' ./dist/morrow-web
+./dist/morrow-web
 ```
 
-Open two gateway addresses, sign in, and edit the shared checklist. The browser
+Open two gateway addresses and edit the shared checklist. The browser
 connects automatically to its own origin's WebSocket endpoint. Its gateway opens
 an authenticated connection to the configured room owner when needed. `/admin`
 shows configured versus connected nodes, stream admission and message counters,
@@ -63,7 +63,7 @@ the appropriate node bundle to each machine, and use a separate data directory
 per node. Set each node's exact public `MORROW_WEB_ORIGIN` when binding its browser
 HTTP listener outside loopback. Browser HTTPS/WSS still uses a TLS terminator;
 peer TLS is built in. Cluster members are trusted gateways under the preview's
-shared-key authorization model, not isolated tenants.
+shared-session authorization model, not isolated tenants.
 
 ## Ownership and delivery
 

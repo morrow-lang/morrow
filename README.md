@@ -124,7 +124,7 @@ assets and a Rust service worker for offline reload.
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 cargo xtask web-build
-MORROW_WEB_ACCESS_KEY='replace-with-a-long-random-secret' ./dist/morrow-web
+./dist/morrow-web
 ```
 
 Open <http://127.0.0.1:3000> in two windows. The header shows how many browsers

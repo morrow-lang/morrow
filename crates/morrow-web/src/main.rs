@@ -34,7 +34,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
     if args == ["--help"] || args == ["-h"] {
         println!(
-            "morrow-web: compiled Morrow collaborative application\n\nBuild: cargo xtask web-build\nRun: MORROW_WEB_ACCESS_KEY=<at least 16 characters> morrow-web\nLicenses: morrow-web --licenses\nCluster: morrow-web --cluster-init <NEW_DIR> <CLUSTER_ID> <NODE=IP:PEERPORT>...\n\nMORROW_WEB_BIND defaults to 127.0.0.1:3000.\nMORROW_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nMORROW_WEB_WORKERS selects 1–32 pinned actor workers; default is CPU count capped at 4.\nMORROW_WEB_DATA_DIR enables durable room checkpoints; omit it for ephemeral state.\nMORROW_WEB_CLUSTER selects a generated node.json for authenticated server connections.\nCluster init accepts 1–16 nodes and requires a new directory inside a trusted parent.\nEach node uses its own bundle, browser bind/origin, access key and data directory.\nAuthentication and command namespaces restart with the server. HTTPS requires a TLS terminator."
+            "morrow-web: compiled Morrow collaborative application\n\nBuild: cargo xtask web-build\nRun: morrow-web\nLicenses: morrow-web --licenses\nCluster: morrow-web --cluster-init <NEW_DIR> <CLUSTER_ID> <NODE=IP:PEERPORT>...\n\nMORROW_WEB_BIND defaults to 127.0.0.1:3000.\nMORROW_WEB_ORIGIN is the exact public http(s) origin; required for non-loopback binds.\nBrowser files are embedded; no asset directory is required at runtime.\nGET /session issues an HttpOnly session cookie so the browser connects without a shared key.\nMORROW_WEB_ACCESS_KEY is optional; when set to 16–256 bytes, POST /session still accepts it.\nMORROW_WEB_WORKERS selects 1–32 pinned actor workers; default is CPU count capped at 4.\nMORROW_WEB_DATA_DIR enables durable room checkpoints; omit it for ephemeral state.\nMORROW_WEB_CLUSTER selects a generated node.json for authenticated server connections.\nCluster init accepts 1–16 nodes and requires a new directory inside a trusted parent.\nEach node uses its own bundle, browser bind/origin and data directory.\nAuthentication and command namespaces restart with the server. HTTPS requires a TLS terminator."
         );
         return Ok(());
     }
@@ -44,8 +44,11 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     if EMBEDDED_ASSETS.is_empty() {
         return Err("browser assets are not embedded; run cargo xtask web-build".into());
     }
-    let access_key = std::env::var("MORROW_WEB_ACCESS_KEY")
-        .map_err(|_| "set MORROW_WEB_ACCESS_KEY to a secret of at least 16 characters")?;
+    let access_key = match std::env::var("MORROW_WEB_ACCESS_KEY") {
+        Ok(key) => key,
+        Err(std::env::VarError::NotPresent) => String::new(),
+        Err(_) => return Err("MORROW_WEB_ACCESS_KEY must be valid UTF-8".into()),
+    };
     let bind: std::net::SocketAddr = std::env::var("MORROW_WEB_BIND")
         .unwrap_or_else(|_| "127.0.0.1:3000".into())
         .parse()?;
@@ -103,7 +106,7 @@ fn initialize_cluster(args: &[String]) -> Result<(), Box<dyn std::error::Error>>
     for node in provisioned.nodes {
         println!("Node {}: {}", node.node.as_str(), node.settings.display());
         println!(
-            "  MORROW_WEB_CLUSTER={} MORROW_WEB_ACCESS_KEY='<at least 16 characters>' morrow-web",
+            "  MORROW_WEB_CLUSTER={} morrow-web",
             shell_quote(&node.settings.to_string_lossy())
         );
     }

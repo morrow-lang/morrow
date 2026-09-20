@@ -17,14 +17,14 @@ in [BUILD.md](../BUILD.md). Install the browser target and matching binding tool
 rustup target add wasm32-unknown-unknown
 cargo install wasm-bindgen-cli --version 0.2.128 --locked
 cargo xtask web-build
-MORROW_WEB_ACCESS_KEY='replace-with-a-long-random-secret' ./dist/morrow-web
+./dist/morrow-web
 ```
 
-Choose your own random access key of 16–256 bytes. Open
-**http://127.0.0.1:3000**, enter the key and connect a second window to the same
-address. Both clients use the `garden` room. Add a task, toggle its checkbox and
-change the local filter. All users of this preview key have the same room access;
-there is no account or tenant administration system.
+Open **http://127.0.0.1:3000** in two windows. The page connects by itself.
+Both clients use the `garden` room. Add a task, toggle its checkbox and
+change the local filter. Anyone who can load the origin can edit the shared
+room within the server's bounds; there is no account or tenant administration
+system.
 
 `web-build` compiles the Morrow example, the Rust browser host and the Rust service
 worker, runs the pinned `wasm-bindgen`, and embeds the generated assets in the
@@ -81,7 +81,6 @@ Copy the appropriate binary to a Linux host and configure the public origin:
 ```sh
 MORROW_WEB_BIND=0.0.0.0:3000 \
 MORROW_WEB_ORIGIN=https://morrow.example.com \
-MORROW_WEB_ACCESS_KEY='replace-with-a-long-random-secret' \
 ./morrow-web-linux-arm64
 ```
 
@@ -109,7 +108,7 @@ measured example, not a general size budget or a static Linux CLI claim.
 The [system dashboard](ADMIN_DASHBOARD.md) at `/admin` shows the running server’s
 workers, room and connection counts, uptime, platform and admission limits.
 It uses the current application session and offers `/admin/status` JSON snapshots.
-All preview users with the shared access key can read it; there is no separate
+All preview users who can load the origin can read it; there is no separate
 administrator role. System responses are not stored in the offline cache.
 
 After a successful online visit caches the assets, the Rust service worker can
@@ -188,10 +187,10 @@ connections. See the defaults in
 [`morrow-web-protocol`](../crates/morrow-web-protocol/src/lib.rs) and
 [`morrow-web`](../crates/morrow-web/src/lib.rs).
 
-Sign-in exchanges the access key for an HttpOnly, SameSite=Strict cookie and a
-CSRF nonce. WebSocket upgrades check the exact Origin, session and CSRF protocol;
-operations recheck session validity. Public deployment needs HTTPS. This shared
-key mechanism is deliberately a preview authentication model; per-user resource
+GET `/session` issues an HttpOnly, SameSite=Strict cookie and a
+CSRF nonce so the browser can connect without a shared password. WebSocket upgrades check the exact Origin, session and CSRF protocol;
+operations recheck session validity. Public deployment needs HTTPS. This automatic
+session is deliberately a preview admission model; per-user resource
 authorization and operational administration remain application work.
 
 ## What executes where

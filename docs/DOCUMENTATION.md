@@ -112,12 +112,14 @@ morrow doc src --site docs-site \
     --inferred --open
 ```
 
-- `--site <directory>` writes the site there. The directory is created, or
-  replaced atomically when it already holds a generated site. Directories that
-  contain anything else, symbolic links, files, the documented sources or their
-  ancestors are refused, so a stray `--site .` cannot delete a project.
+- `--site <directory>` writes the site there. Missing parent directories are
+  created. The directory is created, or replaced atomically when it already
+  holds a generated site. Directories that contain anything else, symbolic
+  links, files, the documented sources or their ancestors are refused, so a
+  stray `--site .` cannot delete a project.
 - `--extras <path>` adds Markdown guides: a file, or the `.md` files directly
-  inside a directory. Repeat the option to add more. The first `README.md`
+  inside a directory except `README.md`. Pass a README as its own `--extras`
+  file to publish it. Repeat the option to add more. The first `README.md`
   becomes `index.html`; other guides take their file stem as page name. A
   leading `# Heading` (or a raw `<h1>`) becomes the page title.
 - `--link label=url` adds sidebar links. Destinations follow the same safety

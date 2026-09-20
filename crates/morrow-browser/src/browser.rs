@@ -118,7 +118,7 @@ async fn mount_inner(document: Document) -> Result<(), JsValue> {
     App::install(&app)?;
     app.borrow_mut().render()?;
     APP.with(|root| *root.borrow_mut() = Some(app.clone()));
-    transport::authenticate(Rc::downgrade(&app), None);
+    transport::authenticate(Rc::downgrade(&app));
     let registration = window()?
         .navigator()
         .service_worker()
@@ -209,7 +209,6 @@ impl App {
         for (id, name) in [
             ("draft", "input"),
             ("add-form", "submit"),
-            ("login-form", "submit"),
             ("tasks", "click"),
             ("filters", "click"),
             ("logout", "click"),
@@ -221,27 +220,12 @@ impl App {
                 let Some(app) = weak.upgrade() else {
                     return;
                 };
-                if id == "login-form" {
-                    event.prevent_default();
-                    let key = element(&app.borrow().document, "access-key")
-                        .ok()
-                        .and_then(|e| e.dyn_into::<HtmlInputElement>().ok())
-                        .map(|input| {
-                            let key = input.value();
-                            input.set_value("");
-                            key
-                        });
-                    if let Some(key) = key {
-                        transport::authenticate(Rc::downgrade(&app), Some(key));
-                    }
-                    return;
-                }
                 if id == "logout" {
                     transport::logout(Rc::downgrade(&app));
                     return;
                 }
                 if id == "retry" {
-                    transport::authenticate(Rc::downgrade(&app), None);
+                    transport::authenticate(Rc::downgrade(&app));
                     return;
                 }
                 let mut state = app.borrow_mut();
@@ -259,7 +243,7 @@ impl App {
                     return;
                 };
                 if name == "online" {
-                    transport::authenticate(Rc::downgrade(&app), None);
+                    transport::authenticate(Rc::downgrade(&app));
                 } else {
                     let mut state = app.borrow_mut();
                     state.offline("Offline · keep writing, reconnect to submit");
@@ -335,7 +319,7 @@ impl App {
         let client = self
             .client
             .as_mut()
-            .ok_or_else(|| js_error("Sign in before submitting"))?;
+            .ok_or_else(|| js_error("Connect before submitting"))?;
         let command = client.submit(mutation).map_err(js_error)?;
         if clears_draft {
             self.policy.action("event_admitted", None)?;
@@ -430,8 +414,9 @@ impl App {
                     return Ok(true);
                 }
                 if error == Error::Unauthorized {
-                    self.auth_enabled = false;
-                    self.offline("Session revoked · sign in again");
+                    self.namespace = None;
+                    self.offline("Session ended · reconnecting");
+                    return Ok(true);
                 }
             }
         }

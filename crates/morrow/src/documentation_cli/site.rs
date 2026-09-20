@@ -144,9 +144,13 @@ fn guides(extras: &[PathBuf]) -> Result<Vec<(PathBuf, Guide)>, String> {
                 let entry = entry.map_err(|error| error.to_string())?;
                 let kind = entry.file_type().map_err(|error| error.to_string())?;
                 let path = entry.path();
+                let name = entry.file_name();
                 if kind.is_file()
                     && path.extension().is_some_and(|extension| extension == "md")
-                    && !entry.file_name().to_string_lossy().starts_with('.')
+                    && !name.to_string_lossy().starts_with('.')
+                    && !Path::new(&name)
+                        .file_stem()
+                        .is_some_and(|stem| stem.eq_ignore_ascii_case("readme"))
                 {
                     files.push(path);
                 }
@@ -219,7 +223,12 @@ fn destination(output: &Path) -> Result<PathBuf, String> {
     let parent = output
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."))
+        .unwrap_or_else(|| Path::new("."));
+    if !parent.exists() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("site destination directory: {error}"))?;
+    }
+    let parent = parent
         .canonicalize()
         .map_err(|error| format!("site destination directory: {error}"))?;
     Ok(parent.join(name))
