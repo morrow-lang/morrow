@@ -63,11 +63,14 @@ reference into one site, and pushes the result to the
 [`morrow-lang/morrow-lang.github.io`](https://github.com/morrow-lang/morrow-lang.github.io)
 repository's `main` branch.
 
-Setup: create a fine-grained personal access token with **Contents: write** on
-the site repository, store it as the `DOCS_DEPLOY_TOKEN` secret, and set the
-repository variable `DOCS_PUBLISH` to `true`. The site then updates on every
-push to `main`. The workflow does not write a `CNAME` file; add one once the
-`morrow-lang.org` domain is registered and its DNS points at GitHub Pages.
+Setup: create a fine-grained personal access token with **Contents: write**
+on **morrow-lang/morrow-lang.github.io** (not only the source repository),
+store it as the `DOCS_DEPLOY_TOKEN` secret, and set the
+repository variable `DOCS_PUBLISH` to `true`. A token that can read Morrow
+but cannot write the site repository will fail the publish step with 403.
+The site then updates on every push to `main`. The workflow does not write a
+`CNAME` file; add one once the `morrow-lang.org` domain is registered and its
+DNS points at GitHub Pages.
 
 ## Building the same artifacts locally
 
