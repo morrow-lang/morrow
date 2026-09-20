@@ -44,6 +44,7 @@ message Snapshot {
   optional string incarnation = 3;
   optional sint64 revision = 4;
   optional TaskList tasks = 5;
+  optional sint64 viewers = 6;
 }
 message TaskList { repeated Task items = 1; }
 message Task {

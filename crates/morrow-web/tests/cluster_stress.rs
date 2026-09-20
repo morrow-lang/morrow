@@ -6,6 +6,15 @@ use morrow_web_protocol::*;
 use std::time::{Duration, Instant};
 use support::cluster::{Client, Fixture, OWNER_ROOMS};
 
+/// Convergence compares authoritative state. Live viewer counts depend on join
+/// order and reconnects and have their own dedicated presence oracles.
+fn state(snapshot: &Snapshot) -> Snapshot {
+    Snapshot {
+        viewers: Decimal(0),
+        ..snapshot.clone()
+    }
+}
+
 #[tokio::test]
 async fn cluster_child() {
     support::cluster::child().await;
@@ -68,8 +77,12 @@ async fn committed_command_with_lost_response_is_never_replayed_on_reconnect() {
             label: "committed while reply is lost".into(),
             done: false,
         }],
+        viewers: Decimal(0),
     };
-    assert_eq!(committed, ServerMessage::Snapshot(expected.clone()));
+    let ServerMessage::Snapshot(committed) = committed else {
+        panic!("expected the committed snapshot, received {committed:?}");
+    };
+    assert_eq!(state(&committed), expected);
     // Independent direct-owner observation proves the mutation was committed;
     // the opaque relay held its response before this real socket partition.
     fixture.partition_owner(true).await;
@@ -81,7 +94,7 @@ async fn committed_command_with_lost_response_is_never_replayed_on_reconnect() {
     let connected = fresh.join("room-28", Some(initial.namespace.clone())).await;
     assert!(!connected.resumed);
     assert_ne!(connected.namespace, initial.namespace);
-    assert_eq!(connected.snapshot, expected);
+    assert_eq!(state(&connected.snapshot), expected);
     assert_eq!(browser.reconnect(connected).unwrap(), None);
     assert!(browser.uncertain());
     assert!(browser.pending().is_none());
@@ -133,8 +146,11 @@ async fn mutate(
         let mut saw_outcome = index != writer;
         while !saw_snapshot || !saw_outcome {
             match client.read().await {
+                ServerMessage::Snapshot(snapshot) if snapshot.revision < expected.revision => {
+                    // Presence-only republication of an older revision.
+                }
                 ServerMessage::Snapshot(snapshot) => {
-                    assert_eq!(snapshot, *expected, "client {index} state diverged");
+                    assert_eq!(state(&snapshot), *expected, "client {index} state diverged");
                     saw_snapshot = true;
                 }
                 ServerMessage::Outcome(outcome) => {
@@ -167,11 +183,14 @@ struct RoomRun {
 
 async fn exercise_room(mut clients: Vec<Client>, count: usize) -> RoomRun {
     let mut latencies = Vec::with_capacity(count + 3);
-    let mut expected = clients[0].connected.as_ref().unwrap().snapshot.clone();
+    let mut expected = state(&clients[0].connected.as_ref().unwrap().snapshot);
     assert_eq!(expected.revision, Decimal(0));
     assert!(expected.tasks.is_empty());
     for client in &clients {
-        assert_eq!(client.connected.as_ref().unwrap().snapshot, expected);
+        assert_eq!(
+            state(&client.connected.as_ref().unwrap().snapshot),
+            expected
+        );
     }
     let mut sequences: Vec<_> = clients
         .iter()
@@ -293,7 +312,7 @@ async fn ten_thousand_mutations_converge_across_processes_and_survive_partition_
         fixture.partition_owner(true).await;
         // Known independent a/b placement must remain live during c's partition.
         let mut healthy = vec![fixture.client(1, "room-6").await];
-        let mut healthy_snapshot = healthy[0].connected.as_ref().unwrap().snapshot.clone();
+        let mut healthy_snapshot = state(&healthy[0].connected.as_ref().unwrap().snapshot);
         let mut healthy_sequences = vec![healthy[0].connected.as_ref().unwrap().next_sequence.0];
         mutate(&mut healthy, 0, &mut healthy_sequences, &mut healthy_snapshot, Mutation::Add { label: "still live".into() }, vec![Task { id: Decimal(1), label: "still live".into(), done: false }]).await;
         active[0].closed().await;

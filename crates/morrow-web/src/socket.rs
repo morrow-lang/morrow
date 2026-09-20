@@ -273,6 +273,7 @@ mod tests {
             incarnation: incarnation.into(),
             revision: Decimal(revision),
             tasks: vec![],
+            viewers: Decimal(0),
         }
     }
     fn connected(incarnation: &str) -> Connected {

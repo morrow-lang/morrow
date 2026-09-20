@@ -273,6 +273,16 @@ async fn read(socket: &mut Socket) -> ServerMessage {
         }
     }
 }
+/// Membership changes republish the room snapshot at an unchanged revision.
+/// Skip those presence-only publications when a test awaits a state change.
+async fn read_change(socket: &mut Socket, after: Decimal) -> ServerMessage {
+    loop {
+        match read(socket).await {
+            ServerMessage::Snapshot(snapshot) if snapshot.revision <= after => continue,
+            other => return other,
+        }
+    }
+}
 async fn join(socket: &mut Socket, resume: Option<String>) -> Connected {
     send(
         socket,
@@ -310,8 +320,8 @@ async fn two_real_clients_observe_one_snapshot_and_reconnect_without_reapplying(
     send(&mut first, ClientMessage::Command(command.clone())).await;
     let mut acknowledged = false;
     let mut snapshot = None;
-    for _ in 0..2 {
-        match read(&mut first).await {
+    while !acknowledged || snapshot.is_none() {
+        match read_change(&mut first, Decimal(0)).await {
             ServerMessage::Outcome(outcome) => {
                 assert_eq!(outcome.status, Status::Applied);
                 acknowledged = true;
@@ -320,8 +330,8 @@ async fn two_real_clients_observe_one_snapshot_and_reconnect_without_reapplying(
             other => panic!("unexpected {other:?}"),
         }
     }
-    assert!(acknowledged);
     let snapshot = snapshot.unwrap();
+    assert_eq!(snapshot.viewers, Decimal(2));
     assert_eq!(
         read(&mut second).await,
         ServerMessage::Snapshot(snapshot.clone())

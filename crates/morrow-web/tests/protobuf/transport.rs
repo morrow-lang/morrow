@@ -139,14 +139,14 @@ async fn binary_and_legacy_clients_share_state_resume_deduplicate_and_revoke() {
         }]
     );
     assert_eq!(
-        read(&mut legacy).await,
+        read_change(&mut legacy, Decimal(0)).await,
         ServerMessage::Snapshot(snapshot.clone())
     );
 
     // A retry republishes the same snapshot, but must never advance state.
     assert_eq!(committed(&mut socket, command).await, snapshot);
     assert_eq!(
-        read(&mut legacy).await,
+        read_change(&mut legacy, Decimal(0)).await,
         ServerMessage::Snapshot(snapshot.clone())
     );
     socket.close(None).await.unwrap();
@@ -172,7 +172,10 @@ async fn binary_and_legacy_clients_share_state_resume_deduplicate_and_revoke() {
     .await;
     assert_eq!(changed.revision, Decimal(2));
     assert!(changed.tasks[0].done);
-    assert_eq!(read(&mut legacy).await, ServerMessage::Snapshot(changed));
+    assert_eq!(
+        read_change(&mut legacy, Decimal(1)).await,
+        ServerMessage::Snapshot(changed)
+    );
     let response = server
         .http(
             "POST",

@@ -31,8 +31,9 @@ async fn applied(client: &mut Client, label: &str, revision: i64) {
                 assert_eq!(outcome.status, Status::Applied);
                 return;
             }
+            // Presence republication can precede the committed revision.
             ServerMessage::Snapshot(snapshot) => {
-                assert_eq!(snapshot.revision, Decimal(revision + 1))
+                assert!(snapshot.revision <= Decimal(revision + 1), "{snapshot:?}")
             }
             event => panic!("unexpected completion: {event:?}"),
         }
@@ -91,9 +92,15 @@ async fn logout_revokes_its_remote_stream_without_revoking_another_gateway() {
             match revoked.socket.next().await {
                 None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
                 Some(Ok(Message::Binary(bytes))) => {
-                    assert_eq!(
-                        morrow_web_protocol::binary::decode_server(&bytes).unwrap(),
-                        ServerMessage::Error(Error::Unauthorized)
+                    // A presence snapshot published when the survivor joined may
+                    // still drain before revocation closes this socket.
+                    let message = morrow_web_protocol::binary::decode_server(&bytes).unwrap();
+                    assert!(
+                        matches!(
+                            message,
+                            ServerMessage::Error(Error::Unauthorized) | ServerMessage::Snapshot(_)
+                        ),
+                        "{message:?}"
                     );
                 }
                 Some(Ok(Message::Text(text))) => panic!("legacy data on a protobuf socket: {text}"),
@@ -162,9 +169,15 @@ async fn logout_during_held_peer_handshake_cannot_publish_connected() {
             match revoked.socket.next().await {
                 None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
                 Some(Ok(Message::Binary(bytes))) => {
-                    assert_eq!(
-                        morrow_web_protocol::binary::decode_server(&bytes).unwrap(),
-                        ServerMessage::Error(Error::Unauthorized)
+                    // A presence snapshot published when the survivor joined may
+                    // still drain before revocation closes this socket.
+                    let message = morrow_web_protocol::binary::decode_server(&bytes).unwrap();
+                    assert!(
+                        matches!(
+                            message,
+                            ServerMessage::Error(Error::Unauthorized) | ServerMessage::Snapshot(_)
+                        ),
+                        "{message:?}"
                     );
                 }
                 Some(Ok(Message::Text(text))) => panic!("legacy data on a protobuf socket: {text}"),

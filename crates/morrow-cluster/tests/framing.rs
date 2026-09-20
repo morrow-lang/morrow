@@ -187,6 +187,7 @@ async fn large_valid_snapshots_stay_within_the_frame_buffer_budget() {
             room: "room".into(),
             incarnation: "boot".into(),
             revision: Decimal(1),
+            viewers: Decimal(0),
             tasks: (1..=100)
                 .map(|id| Task {
                     id: Decimal(id),

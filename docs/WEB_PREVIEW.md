@@ -141,6 +141,22 @@ are browser-local data, not evidence of a still-valid server session.
 
 ## Protocol and limits
 
+### Live viewers
+
+Every room snapshot carries `viewers`, the room's current number of physical
+WebSocket connections on its owner. The owner republishes the snapshot to the
+room's other browsers when a connection joins, leaves, expires or is revoked;
+the joining browser already receives the count in its handshake. A presence
+update does not advance the revision, so browsers accept it at the same
+revision and it never affects command ordering or conflict detection. The
+compiled Morrow function `presence_text` produces `N viewing` while connected
+and blank while offline, because a cached count is stale; the host writes that
+string onto the existing header element so a full room's 511-node view stays
+inside the WebAssembly list bound. Cluster
+gateways forward the owner's snapshots unchanged, so remote browsers see the
+same count. Counts are not persisted and start at one on every fresh join.
+
+
 The live standard uses a versioned, closed protobuf schema over binary WebSocket
 subprotocol `morrow.live.protobuf.v1`. An explicitly negotiated `morrow.live.v1`
 compatibility connection uses text JSON and canonical decimal strings for i64.

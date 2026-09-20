@@ -120,15 +120,39 @@ impl Owner {
         }
     }
     fn disconnect(&mut self, id: &str) {
-        self.subscriptions.remove(id);
+        let room = self.subscriptions.remove(id).map(|s| s.room);
         self.hub.disconnect(id);
+        if let Some(room) = room {
+            self.publish_presence(&room, None);
+        }
     }
     fn revoke(&mut self, token: &str) {
         self.hub.revoke(token);
         self.capabilities
             .retain(|_, capability| capability.principal != token);
-        self.subscriptions
-            .retain(|_, subscription| subscription.principal != token);
+        let mut rooms = std::collections::BTreeSet::new();
+        self.subscriptions.retain(|_, subscription| {
+            let kept = subscription.principal != token;
+            if !kept {
+                rooms.insert(subscription.room.clone());
+            }
+            kept
+        });
+        for room in rooms {
+            self.publish_presence(&room, None);
+        }
+    }
+    /// Republish the room snapshot so remaining browsers observe the live viewer
+    /// count. The watch channel coalesces; the copy is always the latest state.
+    fn publish_presence(&self, room: &str, except: Option<&str>) {
+        let Ok(snapshot) = self.hub.snapshot(room) else {
+            return;
+        };
+        for (id, subscription) in &self.subscriptions {
+            if subscription.room == room && except != Some(id.as_str()) {
+                subscription.snapshots.send_replace(Some(snapshot.clone()));
+            }
+        }
     }
     fn handle(&mut self, request: Request) {
         self.expire();
@@ -159,15 +183,18 @@ impl Owner {
                         connected.connection.clone(),
                         Subscription {
                             principal,
-                            room,
+                            room: room.clone(),
                             namespace: connected.namespace.clone(),
                             outcomes,
                             snapshots,
                         },
                     );
                 }
+                let joined = result.as_ref().ok().map(|c| (c.connection.clone(), room));
                 if let Err(Ok(connected)) = reply.send(result) {
                     self.disconnect(&connected.connection);
+                } else if let Some((connection, room)) = joined {
+                    self.publish_presence(&room, Some(&connection));
                 }
             }
             Request::Command {
@@ -268,6 +295,84 @@ impl Owner {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn join(
+        owner: &mut Owner,
+        auth: &Authentication,
+        room: &str,
+    ) -> (
+        mpsc::Receiver<ServerMessage>,
+        watch::Receiver<Option<Snapshot>>,
+        Connected,
+    ) {
+        let (outcomes, outcome_rx) = mpsc::channel(OUTCOMES);
+        let (snapshots, snapshot_rx) = watch::channel(None);
+        let (reply, response) = oneshot::channel();
+        owner.handle(Request::Join {
+            capability: auth.capability(),
+            room: room.into(),
+            resume: None,
+            outcomes,
+            snapshots,
+            reply,
+        });
+        let connected = response
+            .now_or_never()
+            .expect("owner replies synchronously")
+            .unwrap()
+            .unwrap();
+        (outcome_rx, snapshot_rx, connected)
+    }
+    use futures_util::FutureExt as _;
+    #[tokio::test]
+    async fn joins_and_disconnects_publish_live_viewer_counts_to_room_subscribers() {
+        let config = Config::new("http://localhost".into(), "long-enough-test-key".into());
+        let mut authentication = auth::AuthenticationOwner::new(config.clone());
+        let mut owner = Owner {
+            hub: Hub::new("boot".into(), config.limits.clone()).unwrap(),
+            started: Instant::now(),
+            capabilities: BTreeMap::new(),
+            subscriptions: BTreeMap::new(),
+        };
+        let auth = authentication.login("long-enough-test-key").unwrap();
+        let (_first_outcomes, mut first, connected) = join(&mut owner, &auth, "room");
+        assert_eq!(connected.snapshot.viewers, morrow_web_protocol::Decimal(1));
+        assert!(!first.has_changed().unwrap());
+        let (_second_outcomes, second, connected) = join(&mut owner, &auth, "room");
+        assert_eq!(connected.snapshot.viewers, morrow_web_protocol::Decimal(2));
+        // The joining browser already holds the count in its handshake.
+        assert!(!second.has_changed().unwrap());
+        assert!(first.has_changed().unwrap());
+        let published = first.borrow_and_update().clone().unwrap();
+        assert_eq!(published.viewers, morrow_web_protocol::Decimal(2));
+        assert_eq!(published.revision, morrow_web_protocol::Decimal(0));
+        let (_other_outcomes, other, connected) = join(&mut owner, &auth, "other");
+        assert_eq!(connected.snapshot.viewers, morrow_web_protocol::Decimal(1));
+        assert!(!first.has_changed().unwrap());
+        assert!(!other.has_changed().unwrap());
+        let second_connection = published_connection(&owner, "room", 1);
+        owner.handle(Request::Disconnect {
+            route: Route(0),
+            connection: second_connection,
+            reply: None,
+        });
+        assert!(first.has_changed().unwrap());
+        assert_eq!(
+            first.borrow_and_update().clone().unwrap().viewers,
+            morrow_web_protocol::Decimal(1)
+        );
+        assert!(!other.has_changed().unwrap());
+        owner.revoke(&auth.token);
+        assert!(first.has_changed().is_err() || !first.has_changed().unwrap());
+    }
+    fn published_connection(owner: &Owner, room: &str, index: usize) -> String {
+        owner
+            .subscriptions
+            .iter()
+            .filter(|(_, s)| s.room == room)
+            .map(|(id, _)| id.clone())
+            .nth(index)
+            .expect("subscription exists")
+    }
     #[tokio::test(start_paused = true)]
     async fn resumed_subscription_closes_at_original_namespace_expiry() {
         let mut config = Config::new("http://localhost".into(), "long-enough-test-key".into());

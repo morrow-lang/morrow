@@ -71,12 +71,14 @@ pub type Model:
     status: String
     online: Bool
     pending: Bool
+    viewers: Int
 
 pub type Event:
     Draft(String)
     Filter(Int)
     Snapshot(List(Task))
     Connection(Bool, Bool, String)
+    Presence(Int)
     Submit
     Admitted
     Toggle(Int)
@@ -87,33 +89,37 @@ pub type Change:
     effect: Option(Mutation)
 
 pub fn model_init(draft: String) -> Model:
-    Model([], draft, 0, "Offline · your draft stays on this device", false, false)
+    Model([], draft, 0, "Offline · your draft stays on this device", false, false, 0)
 
 fn unchanged(model: Model) -> Change: Change(model, None)
 fn queued(model: Model, mutation: Mutation) -> Change:
-    Change(Model(model.tasks, model.draft, model.filter, "Saving · awaiting server confirmation", model.online, true), Some(mutation))
+    Change(Model(model.tasks, model.draft, model.filter, "Saving · awaiting server confirmation", model.online, true, model.viewers), Some(mutation))
 
 pub fn update(model: Model, event: Event) -> Change:
     match event:
         Draft(text) ->
             if String.len(text) <= 256:
-                unchanged(Model(model.tasks, text, model.filter, model.status, model.online, model.pending))
+                unchanged(Model(model.tasks, text, model.filter, model.status, model.online, model.pending, model.viewers))
             else:
-                unchanged(Model(model.tasks, model.draft, model.filter, "Draft limit: 256 UTF-8 bytes. Shorten it before submitting.", model.online, model.pending))
+                unchanged(Model(model.tasks, model.draft, model.filter, "Draft limit: 256 UTF-8 bytes. Shorten it before submitting.", model.online, model.pending, model.viewers))
         Filter(selected) ->
             if selected >= 0 and selected <= 2:
-                unchanged(Model(model.tasks, model.draft, selected, model.status, model.online, model.pending))
+                unchanged(Model(model.tasks, model.draft, selected, model.status, model.online, model.pending, model.viewers))
             else: unchanged(model)
         Snapshot(tasks) ->
             if List.len(tasks) <= 100:
-                unchanged(Model(tasks, model.draft, model.filter, model.status, model.online, model.pending))
+                unchanged(Model(tasks, model.draft, model.filter, model.status, model.online, model.pending, model.viewers))
             else: unchanged(model)
-        Connection(online, pending, status) -> unchanged(Model(model.tasks, model.draft, model.filter, status, online, pending))
+        Connection(online, pending, status) -> unchanged(Model(model.tasks, model.draft, model.filter, status, online, pending, model.viewers))
+        Presence(viewers) ->
+            if viewers >= 0:
+                unchanged(Model(model.tasks, model.draft, model.filter, model.status, model.online, model.pending, viewers))
+            else: unchanged(model)
         Submit ->
             if can_submit(String.len(model.draft), online: model.online, pending: model.pending):
                 queued(model, Add(model.draft))
             else: unchanged(model)
-        Admitted -> unchanged(Model(model.tasks, "", model.filter, model.status, model.online, model.pending))
+        Admitted -> unchanged(Model(model.tasks, "", model.filter, model.status, model.online, model.pending, model.viewers))
         Toggle(id) ->
             if model.online and not model.pending:
                 match find_task(model.tasks, id: id, index: 0):
@@ -202,6 +208,7 @@ pub fn event_draft(text: String) -> Event: Draft(text)
 pub fn event_filter(filter: Int) -> Event: Filter(filter)
 pub fn event_snapshot(tasks: List(Task)) -> Event: Snapshot(tasks)
 pub fn event_connection(online: Bool, pending: Bool, status: String) -> Event: Connection(online, pending, status)
+pub fn event_presence(viewers: Int) -> Event: Presence(viewers)
 pub fn event_submit() -> Event: Submit
 pub fn event_admitted() -> Event: Admitted
 pub fn event_toggle(id: Int) -> Event: Toggle(id)
@@ -259,6 +266,10 @@ pub fn completion_percent(done: Int, total: Int) -> Int:
             # The protocol bounds each room to 100 tasks, so multiplication
             # cannot overflow for the accepted application state.
             done * 100 / total
+
+# Presence is only meaningful while connected; a cached offline count is stale.
+pub fn presence_text(online: Bool, viewers: Int) -> String:
+    if online and viewers > 0: "{viewers} viewing" else: ""
 
 pub fn can_submit(label_bytes: Int, online: Bool, pending: Bool) -> Bool:
     online and not pending and label_bytes > 0 and label_bytes <= 256

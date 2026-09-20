@@ -35,6 +35,19 @@ impl Saved {
         self.validate()?;
         String::from_utf8(morrow_web_protocol::encode(self)?).map_err(|_| Error::Malformed)
     }
+    /// Origin-local storage is shared by every tab. A snapshot persist from a tab
+    /// whose draft is empty must not erase another tab's in-progress draft.
+    pub fn keep_existing_draft(&mut self, stored: Option<&str>) {
+        if !self.draft.is_empty() {
+            return;
+        }
+        if let Some(text) = stored
+            && let Ok(existing) = Self::decode(text)
+            && !existing.draft.is_empty()
+        {
+            self.draft = existing.draft;
+        }
+    }
     fn validate(&self) -> Result<(), Error> {
         if self.draft.len() > MAX_LABEL_BYTES {
             return Err(Error::InvalidLabel);

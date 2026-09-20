@@ -188,7 +188,7 @@ fn validate_snapshot(snapshot: &Snapshot) -> Result<(), Error> {
     }
     wire::identity(&snapshot.room)?;
     wire::identity(&snapshot.incarnation)?;
-    if snapshot.revision.0 < 0 || snapshot.tasks.len() > 100 {
+    if snapshot.revision.0 < 0 || snapshot.viewers.0 < 0 || snapshot.tasks.len() > 100 {
         return Err(Error::Malformed);
     }
     let mut ids = BTreeSet::new();

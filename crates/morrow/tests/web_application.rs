@@ -87,7 +87,7 @@ pub fn local_trace(which: Int) -> Int:
 
 pub fn full_view_trace() -> Int:
     let state = fill_domain(domain_init(), 100)
-    let model = Model(state.tasks, "", 0, "ready", true, false)
+    let model = Model(state.tasks, "", 0, "ready", true, false, 0)
     let first = view(model)
     let second = view(update(model, Filter(2)).model)
     List.len(first) + List.len(second)
@@ -150,7 +150,7 @@ fn local_feedback_and_authoritative_loading_have_expected_wasm_values() {
     let trace = instance
         .get_typed_func::<i64, i64>(&store, "feedback_trace")
         .unwrap();
-    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 11]
+    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 1, 1, 0, 11]
         .into_iter()
         .enumerate()
     {

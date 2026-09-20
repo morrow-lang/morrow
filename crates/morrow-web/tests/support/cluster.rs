@@ -512,7 +512,21 @@ impl Client {
                 match self.socket.next().await {
                     None | Some(Err(_)) | Some(Ok(Message::Close(_))) => break,
                     Some(Ok(message @ (Message::Text(_) | Message::Binary(_)))) => {
-                        panic!("unexpected event while awaiting closure: {message:?}")
+                        // Presence republication may still drain before peer loss
+                        // closes the browser transport; state changes may not.
+                        let event = match (self.format, message) {
+                            (ClientFormat::Protobuf, Message::Binary(bytes)) => {
+                                binary::decode_server(&bytes).unwrap()
+                            }
+                            (ClientFormat::Json, Message::Text(text)) => {
+                                decode(text.as_bytes()).unwrap()
+                            }
+                            (format, other) => panic!("unexpected frame for {format:?}: {other:?}"),
+                        };
+                        assert!(
+                            matches!(event, ServerMessage::Snapshot(_)),
+                            "unexpected event while awaiting closure: {event:?}"
+                        );
                     }
                     Some(Ok(_)) => {}
                 }

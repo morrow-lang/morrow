@@ -1,0 +1,58 @@
+name: Deploy web demo
+
+# Builds the static x86-64 server exactly as CI does, then deploys it to Fly.io.
+# Enable by setting the repository variable FLY_DEPLOY=true and the secret
+# FLY_API_TOKEN (a deploy token for the app named in fly.toml).
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "crates/**"
+      - "examples/web/**"
+      - "xtask/**"
+      - "Cargo.lock"
+      - "fly.toml"
+      - "deploy/fly/**"
+      - ".github/workflows/deploy-web.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build static server and deploy
+    if: vars.FLY_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      MORROW_WEB_TARGET: x86_64-unknown-linux-musl
+      CC_x86_64_unknown_linux_musl: musl-gcc
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.9.1
+          install: true
+      - name: Install browser build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends musl-tools
+          rustup target add wasm32-unknown-unknown x86_64-unknown-linux-musl
+          cargo install wasm-bindgen-cli --version 0.2.128 --locked
+      - name: Build self-contained static Linux executable
+        run: cargo xtask web-build
+      - name: Install flyctl
+        uses: superfly/flyctl-actions/setup-flyctl@ed8efb33836e8b2096c7fd3ba1c8afe303ebbff1 # master 2026-09
+      - name: Deploy one machine
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: flyctl deploy --remote-only --ha=false --config fly.toml

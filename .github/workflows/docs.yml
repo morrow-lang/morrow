@@ -1,0 +1,46 @@
+name: Publish documentation
+
+# Renders the repository's documentation site with the staged compiler and
+# publishes it to the morrow-lang.github.io repository. Enable by setting the
+# repository variable DOCS_PUBLISH=true and the secret DOCS_DEPLOY_TOKEN, a
+# fine-grained token with contents write access to that site repository.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: docs-publish
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Build and publish the site
+    if: vars.DOCS_PUBLISH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          version: 2026.9.1
+          install: true
+      - name: Render guides, examples and the Rust API reference
+        run: cargo xtask docs dist/docs
+      - name: Publish to the site repository
+        uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4
+        with:
+          personal_token: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+          external_repository: morrow-lang/morrow-lang.github.io
+          publish_branch: main
+          publish_dir: dist/docs
+          force_orphan: true
+          commit_message: "docs: publish ${{ github.sha }}"

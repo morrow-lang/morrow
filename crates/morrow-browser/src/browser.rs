@@ -448,11 +448,16 @@ impl App {
         self.persist();
     }
 
-    fn persist(&self) {
-        if let (Ok(Some(storage)), Ok(text)) = (
-            window().and_then(|w| w.local_storage()),
-            self.saved.encode(),
-        ) {
+    fn persist(&mut self) {
+        if let Ok(draft) = self.policy.draft_text() {
+            self.saved.draft = draft;
+        }
+        let Ok(Some(storage)) = window().and_then(|w| w.local_storage()) else {
+            return;
+        };
+        self.saved
+            .keep_existing_draft(storage.get_item(STORAGE_KEY).ok().flatten().as_deref());
+        if let Ok(text) = self.saved.encode() {
             let _ = storage.set_item(STORAGE_KEY, &text);
         }
     }
@@ -463,6 +468,17 @@ impl App {
             .as_ref()
             .is_some_and(|client| client.pending().is_some());
         self.policy.connection(self.online, pending, &self.status)?;
+        let viewers = if self.online {
+            self.saved
+                .snapshot
+                .as_ref()
+                .map_or(0, |snapshot| snapshot.viewers.0)
+        } else {
+            0
+        };
+        self.policy.presence(viewers)?;
+        element(&self.document, "viewers")?
+            .set_text_content(Some(&self.policy.presence_label(self.online, viewers)?));
         self.policy.snapshot(
             self.saved
                 .snapshot

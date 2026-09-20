@@ -2,7 +2,7 @@
 
 > Fern was renamed to Morrow on 2026-09-15; historical measurements and acceptance records below retain their original names, paths and results.
 
-Last updated: 2026-09-19
+Last updated: 2026-09-20
 
 This file is the only active roadmap. Historical context is in [`docs/HISTORY.md`](docs/HISTORY.md).
 
@@ -22,6 +22,7 @@ This file is the only active roadmap. Historical context is in [`docs/HISTORY.md
 - [x] Update active documentation, public introductions, canonical URLs, editor settings and `MORROW_STYLE.md`. The full macOS ARM64 `cargo xtask check` and generated documentation site build pass. Forty-five historical Markdown records gain only a rename note; preserved data and earlier decision entries remain byte-for-byte unchanged.
 - [x] Replace old logo usage with a Morrow text mark and update browser/preview branding. The served-page regression fails before and passes after the change; the full macOS ARM64 `cargo xtask check`, WASM-target Clippy, preview build and real Edge acceptance pass. Desktop and mobile screenshots confirm the text identity and layout; offline restart, reconnect and asset-integrity checks pass.
 - [x] Transfer and rename the public GitHub repository to [`morrow-lang/morrow`](https://github.com/morrow-lang/morrow), preserving repository identity and default branch `main`. Set the Morrow description, canonical homepage and SSH origin; create public [`morrow-lang/morrow-lang.github.io`](https://github.com/morrow-lang/morrow-lang.github.io) for the docs site. GitHub metadata and local build are verified. Docs deployment and custom-domain setup remain separate follow-up work.
+- [x] Carry live room viewer counts on the existing snapshot (Decision172). Independent protocol, owner, application and WASM feedback oracles pass; presence updates do not advance the revision. Real Edge acceptance covers two clients, the live count and offline reload. Fly.io and documentation workflows are enabled; first production deploys follow landing on `main`. A public playground that runs visitor code remains out of scope.
 - Owner follow-ups: register both domains, configure the `.dev` → `.org` redirect, complete the EUIPO/DPMA classes 9/42 check.
 
 - Morrow-owned implementation: Rust throughout the compiler, native runtime, language server, supervisor and repository tooling. The old C/QBE/bootstrap setup and Tree-sitter integration are removed. The recorded migration passed complete debug quality gates, selected optimized runtime/ABI checks and actual release archive/installation workflows on macOS/Linux ARM64. [Migration scope and evidence](docs/RUST_WORKSPACE.md); new actor/web work has separate validation below.

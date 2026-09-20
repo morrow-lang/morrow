@@ -76,6 +76,8 @@ pub struct Snapshot {
     pub revision: Option<i64>,
     #[prost(message, optional, tag = "5")]
     pub tasks: Option<TaskList>,
+    #[prost(sint64, optional, tag = "6")]
+    pub viewers: Option<i64>,
 }
 #[derive(Clone, PartialEq, prost::Message)]
 pub struct TaskList {

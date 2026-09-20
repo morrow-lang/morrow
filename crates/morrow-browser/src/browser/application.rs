@@ -127,6 +127,7 @@ pub(super) struct Application {
     module: Rc<Module>,
     model: Handle,
     confirmed: Vec<Task>,
+    viewers: i64,
 }
 impl Application {
     pub fn new(exports: JsValue, draft: &str) -> Result<Self, JsValue> {
@@ -157,6 +158,7 @@ impl Application {
             module,
             model,
             confirmed: Vec::new(),
+            viewers: 0,
         })
     }
     fn update(&mut self, event: Handle) -> Result<Option<Mutation>, JsValue> {
@@ -217,6 +219,27 @@ impl Application {
             ],
         )?;
         self.update(event).map(|_| ())
+    }
+    /// Live room viewers as the server last published them; zero while offline.
+    pub fn presence(&mut self, viewers: i64) -> Result<(), JsValue> {
+        if viewers == self.viewers {
+            return Ok(());
+        }
+        let event = self
+            .module
+            .handle("event_presence", &[JsValue::from(viewers)])?;
+        self.update(event)?;
+        self.viewers = viewers;
+        Ok(())
+    }
+    /// Compiled chrome label for the live count; empty while offline or at zero.
+    pub fn presence_label(&self, online: bool, viewers: i64) -> Result<String, JsValue> {
+        self.module
+            .handle(
+                "presence_text",
+                &[JsValue::from(i32::from(online)), JsValue::from(viewers)],
+            )?
+            .text()
     }
     pub fn snapshot(&mut self, tasks: &[Task]) -> Result<(), JsValue> {
         // Transport deduplication is host work. Rebuilding an unchanged snapshot

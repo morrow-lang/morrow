@@ -38,6 +38,7 @@ fn snapshot(id: i64, tasks: Vec<Task>) -> Snapshot {
         incarnation: "i".into(),
         revision: Decimal(id),
         tasks,
+        viewers: Decimal(3),
     }
 }
 fn snapshot_bytes(id: i64, tasks: &[Vec<u8>]) -> Vec<u8> {
@@ -53,6 +54,7 @@ fn snapshot_bytes(id: i64, tasks: &[Vec<u8>]) -> Vec<u8> {
                 .flat_map(|task| field(1, task))
                 .collect::<Vec<_>>(),
         ),
+        signed(6, 3),
     ]
     .concat()
 }

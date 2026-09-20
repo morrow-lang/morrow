@@ -29,4 +29,7 @@ pub fn feedback_trace(which: Int) -> Int:
         8 -> String.len(oversized.model.draft)
         9 -> if feedback_node(view(offline.model), "draft", 0).flags == 8: 1 else: 0
         10 -> String.len(confirmed.model.draft)
+        11 -> if presence_text(online: true, viewers: 3) == "3 viewing": 1 else: 0
+        12 -> if presence_text(online: false, viewers: 3) == "": 1 else: 0
+        13 -> update(confirmed.model, Presence(-1)).model.viewers
         _ -> List.len(view(confirmed.model))

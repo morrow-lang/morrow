@@ -1217,7 +1217,7 @@ unsafe extern "C" {
 }
 fn main() {
     let mut fault = 0;
-    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 11].into_iter().enumerate() {
+    for (index, expected) in [1, 1, 0, 1, 1, 1, 1, 256, 256, 1, 16, 1, 1, 0, 11].into_iter().enumerate() {
         assert_eq!(unsafe { morrow_export_feedback_trace(&mut fault, 0, index as i64) }, expected, "feedback trace {index}");
         assert_eq!(fault, 0);
     }

@@ -133,7 +133,7 @@ fn command_bounds(command: &Command) -> Result<(), Error> {
 fn snapshot_bounds(snapshot: &Snapshot) -> Result<(), Error> {
     identity(&snapshot.room)?;
     identity(&snapshot.incarnation)?;
-    if snapshot.tasks.len() > MAX_TASKS {
+    if snapshot.tasks.len() > MAX_TASKS || snapshot.viewers.0 < 0 {
         return Err(Error::Malformed);
     }
     for task in &snapshot.tasks {

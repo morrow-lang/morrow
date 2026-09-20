@@ -227,6 +227,7 @@ impl Hub {
                         tasks: restored
                             .as_ref()
                             .map_or_else(Vec::new, |state| state.tasks.clone()),
+                        viewers: Decimal(0),
                     },
                     next_task: restored.map_or(1, |state| state.next_id),
                     failed: false,
@@ -414,17 +415,30 @@ impl Hub {
     }
 
     /// Copy one bounded room snapshot for broadcasting to authorized subscribers.
+    /// The copy carries the room's current live connection count.
     pub fn snapshot(&self, room: &str) -> Result<Snapshot, Error> {
-        self.rooms
-            .get(room)
-            .ok_or(Error::IncarnationMismatch)
-            .and_then(|room| {
-                if room.failed {
-                    Err(Error::ResyncRequired)
-                } else {
-                    Ok(room.snapshot.clone())
-                }
+        let state = self.rooms.get(room).ok_or(Error::IncarnationMismatch)?;
+        if state.failed {
+            return Err(Error::ResyncRequired);
+        }
+        let mut snapshot = state.snapshot.clone();
+        snapshot.viewers = Decimal(self.viewers(room));
+        Ok(snapshot)
+    }
+
+    /// Live physical connections currently joined to one room. Connections are
+    /// bounded by `Limits::max_connections`, so the count always fits.
+    pub fn viewers(&self, room: &str) -> i64 {
+        let count = self
+            .connections
+            .values()
+            .filter(|connection| {
+                self.namespaces
+                    .get(&connection.namespace)
+                    .is_some_and(|namespace| namespace.room == room)
             })
+            .count();
+        i64::try_from(count).unwrap_or(i64::MAX)
     }
 
     /// Reset one ephemeral domain incarnation. Existing namespace high-water marks

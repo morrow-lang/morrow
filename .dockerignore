@@ -1,0 +1,3 @@
+# Only the finished static server enters the image build context.
+*
+!dist/morrow-web-linux-x86_64

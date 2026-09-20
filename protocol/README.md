@@ -12,7 +12,8 @@ profile. Generated general-purpose protobuf decoders alone do not enforce it.
 - An envelope has its explicit `kind` and exactly one corresponding payload.
   Unknown fields, duplicate non-repeated fields, unknown kinds/statuses/errors and
   irrelevant variant fields are rejected. Declared repeated task fields may recur.
-- Every selected payload field is required, including scalar `false` and `0`.
+- Every selected payload field is required, including scalar `false` and `0`,
+  and `Snapshot.viewers` (field 6, the room's live connection count).
   `Join.resume_namespace` is the exception: absence means no resume request. Empty
   task lists must still have a present `TaskList` message, which may be zero bytes.
   Optional protobuf declarations retain presence rather than inventing defaults.

@@ -30,7 +30,7 @@ const SCHEMAS: &[&[Field]] = &[
     &[Unsigned, ID, ID, Signed, Signed, Message(3)],
     &[Unsigned, LABEL, Signed, Bool],
     &[Unsigned, ID, ID, Signed, Message(5), Bool],
-    &[Unsigned, ID, ID, Signed, Message(6)],
+    &[Unsigned, ID, ID, Signed, Message(6), Signed],
     &[Repeated(7)],
     &[Signed, LABEL, Bool],
     &[Unsigned, ID, ID, Signed, Signed, Unsigned],

@@ -16,6 +16,59 @@ fn offline_record_preserves_unicode_draft_without_credentials_or_replay() {
 }
 
 #[test]
+fn offline_record_roundtrips_a_snapshot_with_live_viewers() {
+    let saved = Saved {
+        draft: "My offline draft".into(),
+        snapshot: Some(Snapshot {
+            version: VERSION,
+            room: "garden".into(),
+            incarnation: "boot".into(),
+            revision: Decimal(1),
+            tasks: vec![Task {
+                id: Decimal(1),
+                label: "Grow a lasting language".into(),
+                done: false,
+            }],
+            viewers: Decimal(2),
+        }),
+        had_pending: false,
+    };
+    let restored = Saved::decode(&saved.encode().unwrap()).unwrap();
+    assert_eq!(restored.draft, "My offline draft");
+    let snapshot = restored.snapshot.unwrap();
+    assert_eq!(snapshot.viewers, Decimal(2));
+    assert_eq!(snapshot.tasks[0].label, "Grow a lasting language");
+}
+
+#[test]
+fn an_empty_draft_does_not_erase_another_tabs_stored_draft() {
+    let stored = Saved {
+        draft: "My offline draft".into(),
+        snapshot: None,
+        had_pending: false,
+    }
+    .encode()
+    .unwrap();
+    let mut incoming = Saved {
+        draft: String::new(),
+        snapshot: Some(Snapshot {
+            version: VERSION,
+            room: "garden".into(),
+            incarnation: "boot".into(),
+            revision: Decimal(1),
+            tasks: vec![],
+            viewers: Decimal(2),
+        }),
+        had_pending: false,
+    };
+    incoming.keep_existing_draft(Some(&stored));
+    assert_eq!(incoming.draft, "My offline draft");
+    incoming.draft = "typed here".into();
+    incoming.keep_existing_draft(Some(&stored));
+    assert_eq!(incoming.draft, "typed here");
+}
+
+#[test]
 fn damaged_or_oversized_storage_is_rejected_before_mount() {
     assert!(Saved::decode(&"x".repeat(MAX_SAVED_BYTES + 1)).is_err());
     assert!(

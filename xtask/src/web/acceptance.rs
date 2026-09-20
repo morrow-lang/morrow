@@ -307,6 +307,13 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
         &second,
         "document.querySelector('#connection')?.getAttribute('data-online') === 'true'",
     )?;
+    // Presence is computed by the server and rendered by the compiled Morrow view.
+    for page in [&first, &second] {
+        browser.wait(
+            page,
+            "document.querySelector('#viewers')?.textContent === '2 viewing'",
+        )?;
+    }
     browser.eval(&first, "document.querySelector('#draft').value='   '; document.querySelector('#draft').dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('#add-form').requestSubmit(); true")?;
     browser.wait(
         &first,
@@ -376,6 +383,13 @@ fn run_mode(server: &Path, integrity_only: bool) -> Result<()> {
     browser.call(Some(&first), "ServiceWorker.stopAllWorkers", json!({}))?;
     browser.call(Some(&first), "Page.reload", json!({}))?;
     browser.wait(&first, "document.querySelector('#draft')?.value === 'My offline draft' && document.querySelector('#tasks')?.textContent.includes('Grow a lasting language') === true && document.querySelector('#status')?.textContent.includes('Offline') === true")?;
+    if browser.eval(
+        &first,
+        "document.querySelector('#viewers')?.textContent === ''",
+    )? != true
+    {
+        return Err("offline reload kept a stale live viewer count".into());
+    }
     if browser.eval(&first, "[...document.querySelectorAll('#add, #tasks input, #tasks button')].every(control => control.disabled)")? != true {
         return Err("offline mutation submission was enabled".into());
     }

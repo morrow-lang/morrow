@@ -9,7 +9,7 @@ pub const MAX_FRAME_BYTES: usize = 65_536;
 pub const MAX_LABEL_BYTES: usize = 256;
 
 /// Full-width Morrow integer represented by a canonical JSON decimal string.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Decimal(pub i64);
 impl Serialize for Decimal {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -135,6 +135,8 @@ pub struct Task {
 }
 
 /// Complete authoritative state. Complete snapshots may skip revisions.
+/// `viewers` is the room's live physical connection count at publication; it
+/// changes without a revision step and is absent from older persisted records.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Snapshot {
@@ -143,6 +145,8 @@ pub struct Snapshot {
     pub incarnation: String,
     pub revision: Decimal,
     pub tasks: Vec<Task>,
+    #[serde(default)]
+    pub viewers: Decimal,
 }
 
 /// Command results retained independently from replaceable snapshots.

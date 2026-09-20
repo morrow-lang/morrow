@@ -110,6 +110,7 @@ impl From<&p::Snapshot> for w::Snapshot {
                     })
                     .collect(),
             }),
+            viewers: Some(v.viewers.0),
         }
     }
 }
@@ -233,6 +234,7 @@ impl TryFrom<w::Snapshot> for p::Snapshot {
                     })
                 })
                 .collect::<Checked<_>>()?,
+            viewers: decimal(v.viewers)?,
         })
     }
 }

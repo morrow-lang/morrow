@@ -10,19 +10,12 @@
 <p align="center"><strong>Readable code. Native programs. Isolated actors.</strong><br>
 A statically typed, functional language with Python-like syntax.</p>
 
-[Project home](https://morrow-lang.org) · [Documentation](docs/README.md)
-
-Morrow is interesting because readable source, native binaries and isolated
-processes usually live in different languages. Python-like syntax, Gleam-style
-type safety and Go-style single binaries share a toolchain with Erlang-style
-isolated processes — compiled by Rust and Cranelift, not a virtual machine.
-The same typed program can run as native server actors and as a reactive
-WebAssembly browser client, with WebSocket updates and offline continuity.
-
-The actor runtime is measured against OTP/BEAM rather than advertised as a
-replacement for it. Native sequential work is already in a serious range; actor
-throughput, scheduler scaling and OTP-style supervision are the remaining hard
-problem, and the measurements say so.
+<p align="center">
+  <a href="https://morrow-lang.org">Project home</a> ·
+  <a href="docs/README.md">Documentation</a> ·
+  <a href="docs/LANGUAGE_GUIDE.md">Language guide</a> ·
+  <a href="ROADMAP.md">Roadmap</a>
+</p>
 
 ```morrow
 fn greet(name: String) -> String:
@@ -32,74 +25,100 @@ fn main():
     println(greet("Morrow"))
 ```
 
-**Early preview, with a working Rust implementation.** The compiler, runtime,
-language server and repository tools are Rust. Native execution and release
-installation are verified on **macOS ARM64 and Linux ARM64**. The native actor
-runtime already runs isolated heaps, copied messages, multiple scheduler threads,
-cooperative preemption, optional work stealing, and typed monitors and links.
-OTP-style supervisor trees and BEAM actor-throughput parity are still open.
-Syntax and APIs are still evolving; see [what is verified](docs/RUST_WORKSPACE.md)
-and [what remains](docs/RELEASE_READINESS.md), or compare the
-[implemented language across targets](docs/LANGUAGE_STATUS.md).
-The [roadmap](ROADMAP.md) is the dated implementation record; the
-[actor comparison](benchmarks/language-comparison/ACTORS.md) is the latest
-BEAM measurement.
+Morrow combines things that usually live in different languages: Python-like
+syntax, Gleam-style type safety, Go-style single binaries and Erlang-style
+isolated processes. The compiler, runtime, language server and tooling are Rust;
+Cranelift generates machine code, so there is no virtual machine to ship. The same
+typed program can run as native server actors and as a reactive WebAssembly
+browser client.
 
-## Why Morrow?
+> **Early preview.** Native execution and release installation are verified on
+> macOS ARM64 and Linux ARM64. Syntax and APIs are still evolving. Native
+> sequential code is already fast; matching the BEAM's actor throughput and
+> OTP-style supervision is the open hard problem, and the
+> [measurements](benchmarks/language-comparison/ACTORS.md) say so.
 
-- **Code that reads clearly.** Significant indentation, inferred types, immutable
-  bindings and expressions that return values keep everyday programs direct.
-- **Errors you can see.** `Option`, `Result` and exhaustive pattern matching make
-  absence and failure explicit. The compiler checks that results are handled.
-- **Native programs.** Cranelift generates machine code and the Rust runtime
-  supplies memory management and services. Running a compiled program does not
-  require the Morrow compiler; platform system libraries still apply.
-- **Isolated actors without a VM.** Each actor owns its heap; messages are copied,
-  not shared. Several OS scheduler threads, cooperative preemption and optional
-  work stealing are implemented. Typed monitors and links are in;
-  [OTP-style supervisors are not](docs/PROCESS_MODEL.md).
-- **Useful tools together.** A formatter, REPL, source tests, documentation
-  generator and language server ship with the compiler.
-- **A growing full-stack path.** Compile Morrow functions to WebAssembly and try
-  a collaborative checklist with local browser interaction, WebSocket updates
-  and cached offline viewing. Its Rust server can ship as one static Linux binary.
+## Why Morrow
 
-The direction is a practical language for command-line tools and applications:
-readable code, predictable behavior, a useful standard library and fault-tolerant
-native concurrency. The [design](DESIGN.md) describes that larger vision; the
-[roadmap](ROADMAP.md) tracks its implementation. The full-stack direction combines
-native actors with a reactive Morrow WebAssembly client over typed WebSocket
-connections. The [working web preview](docs/WEB_PREVIEW.md) proves the first
-integration; the [architecture](docs/FULL_STACK_ARCHITECTURE.md) defines the
-remaining language, supervision and scaling work.
+- **Code that reads clearly.** Significant indentation, inferred types,
+  immutable bindings and expressions that return values.
+- **Errors you can see.** `Option`, `Result`, `?` and exhaustive pattern
+  matching. The compiler checks that results are handled.
+- **Native programs.** Machine code plus a Rust runtime for memory management
+  and services. Running a compiled program does not require the compiler.
+- **Isolated actors without a VM.** Every actor owns its heap; messages are
+  copied, never shared. Multiple scheduler threads, cooperative preemption,
+  optional work stealing, and typed [monitors and links](docs/PROCESS_MODEL.md).
+- **Batteries included.** Formatter, REPL, source tests, documentation generator
+  and language server ship with the compiler.
+- **A full-stack path.** Compile Morrow to WebAssembly and run the same typed
+  model in the browser, connected to native actors over WebSockets, with
+  offline continuity. The [web preview](docs/WEB_PREVIEW.md) shows it working.
 
 ## Try it
 
-You need **rustup** and a **host compiler/linker**: Xcode command-line tools on
-macOS, or GCC/Clang with the platform development libraries on Linux.
+You need **rustup** and a host compiler/linker (Xcode command-line tools on macOS,
+GCC/Clang with platform development libraries on Linux). The pinned Rust nightly
+and dependency lock are selected automatically.
 
 ```sh
 git clone https://github.com/morrow-lang/morrow.git
 cd morrow
 cargo xtask build --release
-./bin/morrow run examples/tiny_cli.mr
-./bin/morrow build examples/tiny_cli.mr -o hello
-./hello
+./bin/morrow run examples/tiny_cli.mr          # prints: hello, morrow
+./bin/morrow build examples/tiny_cli.mr -o hello && ./hello
 ./bin/morrow run examples/language_tour.mr
 ```
 
-The example prints `hello, morrow`. `run` compiles and executes in one step;
-`build` leaves an executable you can run directly.
-The [language tour](examples/language_tour.mr) combines traits, compile-time
-constants, immutable sets, typed JSON and deferred cleanup in one small program.
+To install `morrow` into `~/.local/bin`:
 
-The repository selects its pinned Rust nightly automatically through
-`rust-toolchain.toml`; Cargo uses the checked-in dependency lock. Mise is optional.
-See the [build guide](BUILD.md) for prerequisites and platform details.
+```sh
+cargo xtask install "$HOME/.local"
+```
 
-## Try the web preview
+More in the [build guide](BUILD.md). The [language tour](examples/language_tour.mr)
+shows traits, compile-time constants, immutable sets, typed JSON and deferred
+cleanup in one small program; the [examples](examples) directory has more.
 
-With the Rust prerequisites above, install the browser build tools once:
+## What works today
+
+- Immutable bindings, inferred types, closures, modules and generic functions.
+- Integers, floats, strings, collections, records, tagged sums, newtypes and
+  finite unions, with exhaustive matching.
+- [Static traits](docs/TRAITS.md) with defaults, bounds and derivation;
+  derived and [custom JSON codecs](docs/CUSTOM_JSON.md); immutable
+  [sets](docs/SETS.md); [compile-time constants](docs/COMPTIME.md); checked
+  [native FFI](docs/FFI.md).
+- Native services for files, processes, HTTP clients, SQLite and terminal
+  widgets; see the [standard library reference](docs/STDLIB_API_REFERENCE.md).
+- Isolated native actors with copied messages, typed `Process` monitors, links
+  and exit signals, [suspended cleanup](docs/ACTOR_CLEANUP.md) and
+  [deterministic replay in the REPL](docs/REPL_ACTORS.md).
+
+Compare the implemented language across native, REPL and WebAssembly targets in
+[language status](docs/LANGUAGE_STATUS.md).
+
+## Tools
+
+```sh
+morrow check source.mr        # typecheck
+morrow fmt source.mr          # format
+morrow test source.mr         # run source tests and doc examples
+morrow doc src --site site    # searchable documentation site
+morrow repl                   # interactive session
+morrow lsp                    # language server over stdio
+```
+
+Documentation lives next to the code in `@moduledoc` and `@doc`, and its examples
+run as tests. See the [compiler guide](crates/morrow/README.md) and
+[writing documentation](docs/DOCUMENTATION.md).
+
+## The web preview
+
+A collaborative checklist whose domain model, local updates and keyed view are
+one shared Morrow program compiled to WebAssembly, with a native room actor owning
+authoritative state. The server is a single static Linux binary that embeds the
+assets and a Rust service worker for offline reload.
 
 ```sh
 rustup target add wasm32-unknown-unknown
@@ -108,258 +127,59 @@ cargo xtask web-build
 MORROW_WEB_ACCESS_KEY='replace-with-a-long-random-secret' ./dist/morrow-web
 ```
 
-Open **http://127.0.0.1:3000**, sign in with your chosen key and try two browser
-windows. Add tasks, toggle completion and filter locally. After the first online
-visit has cached the application, offline reload preserves the last confirmed
-list and your draft. Shared changes require a connection.
+Open <http://127.0.0.1:3000> in two windows. The header shows how many browsers
+are in the room. Publishing this demo to Fly.io and the documentation site is
+in the [deployment guide](docs/DEPLOY.md). The [web guide](docs/WEB_PREVIEW.md)
+covers durable checkpoints, worker threads, the
+[three-node cluster](docs/CLUSTER.md), the [protobuf wire protocol](docs/NETWORK_PROTOCOL.md)
+and the [system dashboard](docs/ADMIN_DASHBOARD.md). Reproducible fault injection
+under virtual time is in the [simulation guide](docs/DETERMINISTIC_SIMULATION.md).
 
-The binary embeds the HTML, CSS, browser WASM, generated bindings and Rust service
-worker. [The shared Morrow application](examples/web/checklist.mr) owns the domain
-model, local model, event updates and keyed view. Its [native room actor](examples/web/server.mr)
-owns authoritative state. Rust provides the DOM, storage, authenticated transport
-and a rooted native embedding boundary; the shipped server contains no compiler
-or interpreter.
+## Performance, honestly
 
-Set `MORROW_WEB_DATA_DIR=./morrow-data` to checkpoint acknowledged room changes and
-recover them after a restart. Authentication and command namespaces start fresh;
-uncertain commands are never blindly replayed into a new incarnation.
+- **Sequential native code** is within roughly 16% of optimized Rust on the
+  measured arithmetic workload and about 3× faster than Elixir on immutable
+  updates. See [arithmetic](benchmarks/language-comparison/ARITHMETIC.md) and
+  [BEAM](benchmarks/language-comparison/BEAM.md) comparisons.
+- **Actors** are measured against Elixir/OTP at one, two and four schedulers.
+  The latest checkpoint passes zero of nine strict parity cells; one-scheduler
+  contention reaches 0.785× BEAM and request/reply 0.304×. See the
+  [actor comparison](benchmarks/language-comparison/ACTORS.md).
 
-Rooms run on independent actor worker threads: by default, up to four available
-CPU cores. Set `MORROW_WEB_WORKERS=1` through `32` to choose the worker count.
-Authentication stays responsive while a room executes, and admission limits
-remain shared across workers. See the [worker contract](docs/WEB_WORKERS.md)
-for room placement, revocation and durable-write behavior.
+These are specific whole-process experiments, not a language ranking. The
+[benchmark guide](benchmarks/README.md) has the commands to rerun them.
 
-**Connect multiple servers:** `morrow-web --cluster-init` creates private node
-bundles; `MORROW_WEB_CLUSTER` enables authenticated TLS routing to fixed room
-owners. Browsers keep their normal automatic WebSocket connection to a gateway.
-The [three-node guide](docs/CLUSTER.md) includes setup, delivery guarantees and
-the 10,000-mutation stress scenario. Membership is fixed; partitions do not
-trigger ownership takeover or replay uncertain mutations.
+## Status
 
-The live wire standard is **protobuf over binary WebSocket**, with protobuf over
-mutual TLS between servers. The [measured protocol comparison](docs/NETWORK_PROTOCOL.md)
-explains the choice, the explicit legacy JSON browser path and migration gates.
-HTTP APIs, offline records and checkpoints keep their separate JSON formats.
+The Rust implementation is complete within its
+[recorded acceptance](docs/RUST_WORKSPACE.md): thousands of Rust tests, hundreds of
+native-output fixtures, fuzzing, and real archive installation on both ARM64
+hosts. Formatting and Clippy are part of the required gate.
 
-See the [web guide](docs/WEB_PREVIEW.md) for Linux static builds, authentication,
-offline behavior and the exact preview boundary.
+Still open: OTP-style supervisor trees, BEAM actor-throughput parity, dynamic
+cluster membership and replicated failover, x86-64 native acceptance, source
+debugging and broader SQL and HTTP-serving APIs. The [roadmap](ROADMAP.md) is the
+dated record of what is verified; [release readiness](docs/RELEASE_READINESS.md)
+lists what remains.
 
-Open **`/admin`** after signing in to inspect uptime, resident memory, workers, rooms,
-connections and resource limits. The [system dashboard](docs/ADMIN_DASHBOARD.md)
-also provides authenticated JSON snapshots and configured versus connected peers.
-
-## Explore resilience
-
-Run the actual protocol and native Morrow actors under reproducible faults and
-virtual time, then replay the result:
+## Contributing
 
 ```sh
-cargo xtask simulate --seed 42 --steps 3000 --days 30 --json > scenario.json
-cargo xtask simulate --replay scenario.json
-cargo xtask simulate --actors --seed 42 --steps 5000
+cargo xtask check      # build, format check, Clippy, Rust tests, native acceptance
+cargo xtask package    # verified host archive in dist/
 ```
 
-The [demo and simulation guide](docs/DETERMINISTIC_SIMULATION.md) combines native
-supervision, the offline WASM draft preview and deterministic failure testing.
-Simulated time measures the scenario's clock; it is not a production-uptime claim.
-
-## Available today
-
-- Immutable bindings, inferred types and functions that return their last expression.
-- Integers, floating-point values, strings, collections, records,
-  tagged sums, newtypes and finite unions.
-- Exhaustive pattern matching, `Option`, `Result`, `?` and checked error handling.
-- Modules, closures, generic functions and [static traits](docs/TRAITS.md) with
-  defaults, explicit bounds and structural derivation.
-- Derived and [custom JSON codecs](docs/CUSTOM_JSON.md), including nested union
-  discrimination, precise error paths and shared resource limits.
-- Immutable [Sets](docs/SETS.md), [compile-time constants](docs/COMPTIME.md), and
-  explicit [native foreign functions](docs/FFI.md) with checked ABI types.
-- Native services for files, processes, HTTP clients, SQLite, terminal widgets
-  and bounded actor execution with [suspended cleanup](docs/ACTOR_CLEANUP.md).
-- Isolated native actors with copied messages. Default execution uses one
-  scheduler; `MORROW_SCHEDULERS`, `MORROW_REDUCTIONS` and `MORROW_WORK_STEALING=1`
-  opt into parallel workers, turn preemption and work stealing.
-- Typed [`Process`](docs/PROCESS_MODEL.md) monitors, links and exit signals.
-  Existing `spawn` / `supervise` keep their established behavior; OTP supervisor
-  strategies remain unfinished.
-- [Interactive actors and deterministic replay](docs/REPL_ACTORS.md) for testing
-  mailboxes, timeouts, restarts and cancellation without real-time sleeps.
-
-Follow the [language guide](docs/LANGUAGE_GUIDE.md), explore
-[examples](examples), or read the [standard-library reference](docs/STDLIB_API_REFERENCE.md).
-
-## What the experiments show
-
-The [paired list-optimization measurements](benchmarks/language-comparison/NATIVE_OPTIMIZATION.md)
-show a **2.98–3.71×** improvement through bounded callback inlining, direct list
-loops and optimized native emission, following the earlier
-[GC bookkeeping improvement](benchmarks/language-comparison/IMMUTABLE.md).
-The [latest native run](benchmarks/language-comparison/ARITHMETIC.md) on one Apple
-M4 measures 10,000 immutable updates of a 256-entry model at **8.37 ms**, and
-100,000 at **60.31 ms**. Optimized Rust takes **3.37 / 11.54 ms**.
-Immutable aliases and checked fault behavior are preserved.
-
-The model uses approximately **3.5 MiB RSS**; its macOS executable is **567,656
-bytes**. A subsequent [arithmetic optimization](benchmarks/language-comparison/ARITHMETIC.md)
-reduces twenty million scalar steps from **76.60 to 66.57 ms**, against Rust's
-**57.35 ms** in the same run. Exposing safe constant divisors and keeping integer
-tail-loop parameters in registers work together; the measured arithmetic gap to
-Rust falls from about **34% to 16%**. Building the small source takes **42.48 ms**.
-Native programs use Cranelift `opt_level=speed`,
-independently of the compiler's own Rust build profile. Rust remains faster on
-these workloads; broader inlining, collection layout and allocation remain work.
-
-These measurements were recorded under the name Fern before the 2026-09-15
-rename. See the [current benchmark commands](benchmarks/README.md) for new runs.
-
-The [original Fern/Rust/TypeScript comparison](benchmarks/language-comparison/README.md)
-also measures Bun 1.4.2 and TypeScript 6.0.2, retaining the earlier unoptimized
-Fern baseline. Bun was not rerun for the latest optimization. These are specific
-whole-process experiments, not a universal language ranking.
-
-A fresh [Elixir/BEAM comparison](benchmarks/language-comparison/BEAM.md) uses
-Elixir 1.20.4 and OTP 29.0.6 with JIT enabled. For 100,000 immutable updates,
-Morrow takes **63.29 ms** per workload in a ten-repeat process; Elixir takes
-**184.27 ms** with tuples or **207.23 ms** with structs even when VM startup is
-excluded. Fresh-process CLI startup is also much lower. This supports Morrow's
-native sequential direction; it is not an actor-system ranking.
-
-The later [actor comparison](benchmarks/language-comparison/ACTORS.md) measures
-request/reply, contention and lifecycle against the same Elixir/OTP at one, two
-and four schedulers. The latest checkpoint still passes **zero of nine** strict
-parity cells. One-scheduler contention reaches **0.785×** BEAM; one-scheduler
-request/reply is **0.304×**. Two- and four-scheduler cells remain further behind.
-Those ratios are the current public claim: native code generation is working,
-matching OTP's scheduler is not.
-
-The compiler experiments show useful defaults: required Result handling,
-exhaustive matches and labels for ambiguous arguments. Rust and configured
-TypeScript provide strong alternatives. They do not establish a developer
-productivity advantage. Morrow's current `List.get` still faults out of bounds;
-typed errors do not yet cover every runtime failure. The report retains raw
-samples, first-launch outliers, configuration details and runnable sources.
-
-## Compiler tools
-
-```sh
-./bin/morrow check source.mr
-./bin/morrow fmt source.mr
-./bin/morrow test source.mr
-./bin/morrow doc source.mr --html
-./bin/morrow doc src --site docs-site --extras README.md --open
-./bin/morrow repl
-./bin/morrow lsp
-```
-
-Replace `source.mr` with your program. The language server provides diagnostics,
-completion, navigation, formatting, rename and more over standard input/output.
-Configure your editor to launch `morrow lsp` using the installed executable or its
-absolute path. See the [compiler guide](crates/morrow/README.md) for command details
-and the inspection tools.
-
-Documentation is written next to the code with `@moduledoc` and `@doc`, and
-examples inside it run as tests. `morrow doc --site` renders modules and Markdown
-guides into a searchable site with cross-references; `cargo xtask docs` builds
-this repository's own site, including the Rust API reference. See
-[writing and publishing documentation](docs/DOCUMENTATION.md).
-
-## Our implementation stance
-
-Morrow-owned implementation and development tooling stay in **Rust**, organized as
-a Cargo workspace. We prefer safe ownership, explicit resource limits and small,
-documented unsafe boundaries where native ABI and operating-system access require
-them. A Rust-owned tracing collector manages native Morrow values, with isolated
-actor payload heaps and copied messages. Compiler root frames are explicit;
-conservative scanning remains while precise-root coverage is completed.
-Ordinary Morrow code does not require borrow checking or lifetime annotations.
-
-We prefer native Rust dependencies and permit maintained Rust wrappers around
-third-party native libraries. SQLite uses `rusqlite`; the native HTTP client uses `ureq` and
-`rustls`. A Rust implementation does not imply that every transitive dependency
-is Rust. [Dependency notices](THIRD_PARTY_NOTICES.md) document the shipped libraries.
-
-Editor support uses the Rust LSP and the compiler's parser. Tree-sitter integration
-has been removed. Cargo and `xtask` own the build, checks and distribution workflow.
-Browser interop JavaScript is generated during the build; the browser host,
-service worker and build pipeline are authored in Rust.
-
-## Status and next steps
-
-The [2026-09-12 Rust migration acceptance record](docs/RUST_WORKSPACE.md) covers both ARM64 hosts:
-over 1,750 Rust tests per platform, 305 native-output fixtures, compatibility and
-fuzz checks, optimized runtime/ABI tests, and real archive relocation,
-installation and source-test execution. Formatting and Clippy are part of the
-required quality gate.
-That record predates the actor-heap, web, scheduler and process-model work.
-Later macOS ARM64 gates on those features exceeded 2,400 Rust tests and 317
-native fixtures; see the [roadmap](ROADMAP.md). Fresh macOS ARM64 checks
-passed; Linux ARM64 completed equivalent coverage across resumed runs after a
-storage interruption. The [web guide](docs/WEB_PREVIEW.md#verification) records
-the exact native scope and real-browser checks, including offline worker restart,
-cache integrity, mobile layout and static ARM64 server execution.
-The [application and worker acceptance record](docs/WEB_APPLICATION_ACCEPTANCE.md)
-adds the complete 1,890-test gate, actor lifecycle/progress checks and measured
-static servers of 2.75 MiB (ARM64) and 3.06 MiB (x86-64).
-
-Morrow is ready to explore, build small programs with and contribute to. It remains
-an early preview: OTP-style supervisor trees, BEAM actor-throughput parity,
-dynamic cluster membership, replicated failover, remote language PIDs and a
-general application packaging API remain open. Cooperative preemption and
-optional work stealing are implemented and measured; they are not yet enough.
-The current checklist executes its complete typed model/update/view and native
-actor path, with optional durable room checkpoints. WASM supports bounded
-records, tagged sums, lists, tuples, Option/Result, UTF-8 strings, closures,
-maps, sets, ranges, iteration, deferred cleanup and structural unions with precise
-tracing and rooted host handles; see [portable language support](docs/WASM_LANGUAGE.md).
-Native services remain separate capabilities. [Static traits](docs/TRAITS.md),
-[custom JSON codecs](docs/CUSTOM_JSON.md), compile-time constants and Sets work
-through the checked language pipeline. Broader SQL APIs, x86-64 native-language
-acceptance and source debugging remain open. The REPL supports a smaller host
-service surface than native programs.
-The Rust rewrite is complete;
-the [language roadmap](ROADMAP.md) continues.
-
-## Install or contribute
-
-```sh
-cargo xtask install "$HOME/.local"
-```
-
-Add `$HOME/.local/bin` to your `PATH` to use `morrow` directly. Installation builds
-release components. To remove them, run `cargo xtask uninstall "$HOME/.local"`.
-
-For development and packaging:
-
-```sh
-cargo xtask check
-cargo xtask package
-```
-
-`check` builds the components and runs formatting, linting, Rust tests and native
-acceptance. `package` creates a verified host archive and checksum in `dist/`.
-The release bundle includes `morrow`, the Rust test supervisor, the Rust runtime
-archive, its package marker and license notices. Keep these components together
-when moving an installation.
+Morrow-owned code is Rust: safe ownership, explicit resource limits and small,
+documented unsafe boundaries at the native ABI and OS edges. Behavior changes
+need a failing test first; see the [contributor guide](CLAUDE.md) and
+[style guide](MORROW_STYLE.md).
 
 | Directory | Responsibility |
 | --- | --- |
 | [`crates/morrow`](crates/morrow) | Compiler, CLI, formatter, REPL, docs and LSP |
-| [`crates/morrow-runtime`](crates/morrow-runtime) | Native values, collector and services |
-| [`crates/morrow-runtime-native`](crates/morrow-runtime-native) | Compiled-program startup |
-| [`crates/morrow-json`](crates/morrow-json) | Shared bounded JSON implementation |
-| [`crates/morrow-web-protocol`](crates/morrow-web-protocol) | Authenticated command/revision contracts and application transitions |
-| [`crates/morrow-web-app`](crates/morrow-web-app) | Compiled Morrow actor embedding and durable room checkpoints |
-| [`crates/morrow-web`](crates/morrow-web) | Authenticated HTTP/WebSocket preview server and embedded assets |
-| [`crates/morrow-browser`](crates/morrow-browser) | Rust browser host, generic keyed DOM and Morrow model handles |
-| [`crates/morrow-browser-worker`](crates/morrow-browser-worker) | Rust service worker for cached offline loading |
-| [`crates/morrow-test-supervisor`](crates/morrow-test-supervisor) | Native test capture and process cleanup |
+| [`crates/morrow-runtime`](crates/morrow-runtime) | Native values, collector, actors and services |
+| [`crates/morrow-web*`](crates) | Web protocol, application host and preview server |
+| [`crates/morrow-browser*`](crates) | Rust browser host and offline service worker |
 | [`xtask`](xtask) | Build, checks, packaging and installation |
-
-The [contribution guide](CLAUDE.md) requires tests before behavior changes.
-See [MORROW_STYLE.md](MORROW_STYLE.md) for Rust safety and resource-bound conventions.
-The [documentation index](docs/README.md) connects language references, contracts
-and acceptance reports.
 
 Released under the [MIT License](LICENSE).
