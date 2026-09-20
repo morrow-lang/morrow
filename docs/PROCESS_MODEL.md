@@ -4,9 +4,11 @@ The native `Process` API adds isolated actor failures, independent monitors,
 links and typed exit signals.
 It shares the existing typed `Pid(M)` mailboxes, scheduler owners and copied
 messages. Existing `spawn` and `supervise` keep their established behavior.
-These are the first two stages of the [local OTP plan](superpowers/specs/2026-09-19-typed-otp-process-model.md);
-the new supervisor strategies, startup protocol and management policies remain pending.
-Stage acceptance is recorded in [the roadmap](../ROADMAP.md).
+These are the first two stages of the [local OTP plan](superpowers/specs/2026-09-19-typed-otp-process-model.md).
+A pure supervisor engine now implements the pinned OTP strategies, restart
+window and management policies as a driver-owned state machine; Morrow programs
+still cannot start a typed `Supervisor`. Stage acceptance is recorded in
+[the roadmap](../ROADMAP.md).
 
 ## Creating and observing a process
 

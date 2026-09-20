@@ -3,8 +3,11 @@
 Paused at the user's request to conserve tokens. Accepted main work is committed
 and pushed. Do not claim performance parity or complete OTP supervision.
 The public [README](../README.md) now states the current runtime, the typed
-process model, and the measured BEAM gap. Unfinished supervisor work remains on
-`task/typed-supervision`; wrap-up logs are archived in that branch.
+process model, and the measured BEAM gap. A pure supervisor engine later landed
+on `main`; language, compiler and live-actor driver integration remain open.
+The unfinished compiler-and-runtime attempt on `task/typed-supervision` still
+does not compile and must not be merged. Wrap-up logs are archived in that
+branch.
 
 ## Repository and branches
 

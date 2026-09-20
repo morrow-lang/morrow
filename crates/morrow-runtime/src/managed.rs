@@ -28,6 +28,8 @@ pub use parallel::morrow_managed_parallel;
 pub use parallel::{
     recorded as scheduler_recording, simulate as simulate_schedulers, simulated_work_stealing,
 };
+#[path = "managed/supervisor/mod.rs"]
+pub mod supervisor;
 #[path = "managed/transport.rs"]
 mod transport;
 const LIVE: usize = 1024;
