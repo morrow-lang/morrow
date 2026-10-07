@@ -37,6 +37,12 @@ run = "cargo xtask native"
 [tasks.package]
 run = "cargo xtask package"
 
+[tasks.clean]
+run = ["cargo clean", "rm -rf dist"]
+
+[tasks.clean-debug]
+run = "cargo clean --profile dev"
+
 [tasks.rust-check]
 run = "cargo xtask check"
 

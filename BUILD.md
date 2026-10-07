@@ -54,8 +54,9 @@ focused tests first while developing, then the complete check before committing.
 
 The workspace disables incremental compilation and debug symbols in development
 and test profiles to bound artifacts from the large test suite. Keep the Cargo
-target and temporary directories on a disk with adequate free space. Use
-`cargo clean` only when a deliberate generated-artifact reset is needed.
+target and temporary directories on a disk with adequate free space.
+`mise run clean-debug` removes debug builds and test binaries but keeps release
+builds; `mise run clean` removes all of `target/` and packaged archives in `dist/`.
 
 ## Install and relocate
 
