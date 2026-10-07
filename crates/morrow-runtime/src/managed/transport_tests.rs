@@ -4,7 +4,7 @@ use std::sync::atomic::Ordering;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
-const TRANSFER_TEXT: &str = "copied across domains: fern";
+const TRANSFER_TEXT: &str = "copied across domains: morrow";
 
 #[derive(Debug, PartialEq, Eq)]
 struct TransferObservation {

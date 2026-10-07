@@ -28,8 +28,8 @@ fn inferred_capabilities_and_stored_closures_survive_failed_entries() {
     session.evaluate("let saved = make_adder(40)").unwrap();
     assert_eq!(session.evaluate("saved(2)").unwrap(), "42 : Int\n");
     assert_eq!(
-        session.evaluate("make_adder(\"Fer\")(\"n\")").unwrap(),
-        "\"Fern\" : String\n"
+        session.evaluate("make_adder(\"Mor\")(\"row\")").unwrap(),
+        "\"Morrow\" : String\n"
     );
     assert!(session.evaluate("make_adder(true)(false)").is_err());
     assert!(session.evaluate("fn grow(value) -> grow([value])").is_err());
