@@ -110,7 +110,9 @@ impl From<&p::Snapshot> for w::Snapshot {
                     })
                     .collect(),
             }),
-            viewers: Some(v.viewers.0),
+            // Absent means zero, matching JSON's default for snapshots that
+            // predate the live viewer count, so those bytes stay unchanged.
+            viewers: (v.viewers.0 != 0).then_some(v.viewers.0),
         }
     }
 }
@@ -234,7 +236,7 @@ impl TryFrom<w::Snapshot> for p::Snapshot {
                     })
                 })
                 .collect::<Checked<_>>()?,
-            viewers: decimal(v.viewers)?,
+            viewers: p::Decimal(v.viewers.unwrap_or_default()),
         })
     }
 }

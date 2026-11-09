@@ -232,6 +232,29 @@ fn independent_snapshots_connected_outcomes_and_error_goldens() {
 }
 
 #[test]
+fn absent_viewer_count_is_zero_like_the_json_default() {
+    // Snapshots encoded before the live viewer count have no field 6. They must
+    // still decode, as JSON's `#[serde(default)]` allows, and a zero count keeps
+    // those exact bytes so measured protobuf fixtures stay comparable.
+    let state = Snapshot {
+        viewers: Decimal(0),
+        ..snapshot(7, Vec::new())
+    };
+    let wire = [
+        scalar(1, 1),
+        field(2, b"r"),
+        field(3, b"i"),
+        signed(4, 7),
+        field(5, &[]),
+    ]
+    .concat();
+    let bytes = envelope(4, 5, &wire);
+    let value = ServerMessage::Snapshot(state);
+    assert_eq!(binary::decode_server(&bytes).unwrap(), value);
+    assert_eq!(binary::encode_server(&value).unwrap(), bytes);
+}
+
+#[test]
 fn closed_schema_rejects_ambiguous_and_malformed_wire_values() {
     for bytes in [
         vec![],

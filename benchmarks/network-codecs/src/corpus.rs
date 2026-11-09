@@ -61,6 +61,7 @@ pub fn fixtures() -> Vec<(String, Message)> {
                         done: i % 2 == 0,
                     })
                     .collect(),
+                viewers: Decimal::default(),
             };
             out.push((
                 format!("snapshot-{count}-{labels}"),
