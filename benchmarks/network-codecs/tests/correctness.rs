@@ -13,6 +13,7 @@ fn snapshot(id: i64) -> Message {
             label: "こんにちは 🌿\"\\".into(),
             done: false,
         }],
+        viewers: Decimal::default(),
     }))
 }
 #[test]

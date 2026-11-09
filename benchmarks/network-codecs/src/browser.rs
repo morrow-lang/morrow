@@ -136,6 +136,7 @@ fn acceptance(codec: Codec) -> Result<(), String> {
                 label: "こんにちは 🌿\"\\".into(),
                 done: false,
             }],
+            viewers: Decimal::default(),
         }));
         let bytes = encode(codec, &value)?;
         if decode(codec, &bytes, false)? != value {

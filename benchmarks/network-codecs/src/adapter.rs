@@ -241,6 +241,8 @@ impl TryFrom<w::Snapshot> for p::Snapshot {
                     })
                 })
                 .collect::<Checked<_>>()?,
+            // The frozen measured schema predates the live viewer count.
+            viewers: p::Decimal::default(),
         })
     }
 }
