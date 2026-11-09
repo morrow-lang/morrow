@@ -310,7 +310,7 @@ pub unsafe extern "C" fn morrow_managed_send(
         // Outstanding until the receiving scheduler adopts it. Without this a
         // scheduler with an empty queue could call the invocation terminated
         // while a message was mid-delivery.
-        quiesce(s).message_sent();
+        quiesce(s).work_posted();
         // Park pressure mode probes the window a real thread could park in: the
         // message is charged, and its receiver is not yet enqueued below. A park
         // here must never conclude termination.

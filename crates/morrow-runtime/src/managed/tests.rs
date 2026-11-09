@@ -1283,6 +1283,10 @@ fn every_invariant_holds_across_a_seed_sweep_at_every_scheduler_count() {
                 report.final_live, 0,
                 "seed {seed}/{schedulers}: an actor leaked"
             );
+            assert_eq!(
+                report.outstanding_work, 0,
+                "seed {seed}/{schedulers}: outstanding work accounting did not return to zero"
+            );
         }
     }
 }
@@ -1450,5 +1454,32 @@ fn a_timer_scan_leaves_another_schedulers_deadline_alone() {
             "a timer scan must not hand one scheduler another's deadline"
         );
         CLOCK.with(|c| c.set(None));
+    }
+}
+
+#[test]
+fn cancelling_an_actor_with_an_undelivered_message_retires_its_accounting() {
+    let f = Fixture::new();
+    let mut fault = 0;
+    unsafe {
+        let exec = f.exec(&mut fault);
+        let s = (*exec).session;
+        let pid = f.spawn(exec, 1);
+        let sent = morrow_managed_send(exec, pid.cast(), 7, &*f.scalar) as *const abi::ResultValue;
+        assert_eq!((*sent).tag, 0);
+        assert_eq!(
+            quiesce(s).outstanding().1,
+            1,
+            "the message is charged and not yet adopted"
+        );
+        morrow_managed_stop(exec);
+        // Outstanding work is what a parked scheduler consults before calling an
+        // invocation finished. A count that never retires cannot be distinguished
+        // from a delivery still on its way.
+        assert_eq!(
+            quiesce(s).outstanding(),
+            (0, 0),
+            "cancelling the receiver must retire the message's outstanding count"
+        );
     }
 }

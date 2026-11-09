@@ -49,6 +49,11 @@ pub struct Report {
     pub fragments_outstanding: usize,
     pub parks_with_inflight: u64,
     pub spurious_deadlocks: usize,
+    /// Work charged on one scheduler and never taken up by another. Every
+    /// increment is matched by exactly one decrement, so a non-zero value at
+    /// the end is unretired accounting -- and, once schedulers park on it,
+    /// a termination decision that can no longer be reached.
+    pub outstanding_work: usize,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -426,6 +431,7 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         fragments_outstanding: 0,
         parks_with_inflight: 0,
         spurious_deadlocks: 0,
+        outstanding_work: 0,
     };
     let mut random = Random(config.seed);
     unsafe {
@@ -640,6 +646,7 @@ unsafe fn drive(config: Config, expected_timer: fn(i64) -> i64) -> Result<Report
         report.parks_with_inflight = parks;
         report.spurious_deadlocks = spurious;
         morrow_managed_stop(exec);
+        report.outstanding_work = quiesce(s).outstanding_in_flight();
         let state = snapshot(exec).unwrap();
         report.switches = state.switches;
         report.cross_scheduler_sends = state.cross_scheduler_sends;

@@ -162,6 +162,10 @@ pub(super) unsafe fn finish(a: *mut Actor) {
                 release(s, delivery.cost);
                 (*s).messages.fetch_sub(1, Ordering::AcqRel);
                 inbox.consume();
+                // Discarding a delivery settles it just as adopting one does.
+                // A count left outstanding here is indistinguishable, to a
+                // parked scheduler, from a delivery still on its way.
+                quiesce(s).work_settled();
             }
         }
         while !(*a).first.is_null() {

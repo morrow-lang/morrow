@@ -444,7 +444,7 @@ unsafe fn adopt_inbox(s: *mut Session, a: *mut Actor) {
             }
             (*a).last = message;
             (*a).messages += 1;
-            quiesce(s).message_adopted();
+            quiesce(s).work_settled();
         }
     }
 }

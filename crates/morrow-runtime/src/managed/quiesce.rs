@@ -31,12 +31,14 @@ pub(super) enum Parked {
 }
 
 impl Quiesce {
-    /// A message is outstanding from charge until adoption.
-    pub(super) fn message_sent(&self) {
+    /// Work is outstanding from the moment one scheduler charges it until the
+    /// scheduler that owns it takes it up: a message from charge until adoption,
+    /// a spawn from admission until its actor exists.
+    pub(super) fn work_posted(&self) {
         self.in_flight.fetch_add(1, Ordering::AcqRel);
     }
 
-    pub(super) fn message_adopted(&self) {
+    pub(super) fn work_settled(&self) {
         self.in_flight.fetch_sub(1, Ordering::AcqRel);
     }
 

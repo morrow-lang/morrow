@@ -3,13 +3,13 @@ use super::quiesce::{Parked, Quiesce};
 #[test]
 fn an_in_flight_message_prevents_termination_even_with_no_runnable_actors() {
     let q = Quiesce::default();
-    q.message_sent();
+    q.work_posted();
     assert_eq!(
         q.park(1),
         Parked::Waiting,
         "a charged but unadopted message is outstanding work"
     );
-    q.message_adopted();
+    q.work_settled();
     q.actor_runnable();
     assert_eq!(q.park(1), Parked::Work);
 }
