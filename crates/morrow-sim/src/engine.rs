@@ -5,8 +5,8 @@ use crate::{
 };
 use morrow_web_app::NativeDomain;
 use morrow_web_protocol::{
-    Client, ClientMessage, Command, Error, Hub, Limits, Mutation, ServerMessage, Status, decode,
-    encode,
+    Client, ClientMessage, Command, Error, Hub, Limits, Mutation, ServerMessage, Snapshot, Status,
+    decode, encode,
 };
 use serde::Serialize;
 use std::{
@@ -16,6 +16,29 @@ use std::{
 };
 
 const QUEUED: usize = 4096;
+/// Whether two snapshots differ in authoritative room state. `viewers` is live
+/// presence: the hub stamps the current connection count on every copy, and it
+/// changes without a revision step, for example when a command's expiry pass
+/// closes connections. Exhaustive destructuring makes a new snapshot field fail
+/// to compile here until it is classified as authoritative or not.
+fn authoritative_state_differs(left: &Snapshot, right: &Snapshot) -> bool {
+    let Snapshot {
+        version,
+        room,
+        incarnation,
+        revision,
+        tasks,
+        viewers: _,
+    } = left;
+    (version, room, incarnation, revision, tasks)
+        != (
+            &right.version,
+            &right.room,
+            &right.incarnation,
+            &right.revision,
+            &right.tasks,
+        )
+}
 #[derive(Clone, Serialize)]
 enum Body {
     ToServer(Command),
@@ -399,7 +422,7 @@ impl Engine {
             if after.revision.0 != before.revision.0 + 1 {
                 return Err("commit did not advance revision exactly once".into());
             }
-        } else if after != before {
+        } else if authoritative_state_differs(&after, &before) {
             return Err("rejected or duplicate command changed authoritative state".into());
         }
         match result {
@@ -553,7 +576,8 @@ impl Engine {
             let room = self.peers[id].room.clone();
             let server = self.checked_snapshot(&room)?;
             let client = self.peers[id].client.as_ref().unwrap();
-            if client.snapshot() != &server || client.pending().is_some() {
+            if authoritative_state_differs(client.snapshot(), &server) || client.pending().is_some()
+            {
                 return Err("clients did not converge after fault-free delivery".into());
             }
         }
@@ -598,6 +622,7 @@ impl Engine {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use morrow_web_protocol::Decimal;
     #[test]
     fn injected_native_output_corruption_is_caught_by_an_independent_oracle() {
         let mut engine = Engine::new(Config {
@@ -613,5 +638,31 @@ mod tests {
             engine.execute().unwrap_err(),
             "native result differs from independent transition oracle"
         );
+    }
+    #[test]
+    fn live_viewer_count_is_not_authoritative_room_state() {
+        let before = Snapshot {
+            version: 1,
+            room: "room-0".into(),
+            incarnation: "boot".into(),
+            revision: Decimal(1),
+            tasks: Vec::new(),
+            viewers: Decimal(16),
+        };
+        let presence_only = Snapshot {
+            viewers: Decimal(0),
+            ..before.clone()
+        };
+        assert!(!authoritative_state_differs(&before, &presence_only));
+        let revised = Snapshot {
+            revision: Decimal(2),
+            ..presence_only.clone()
+        };
+        assert!(authoritative_state_differs(&before, &revised));
+        let relabelled = Snapshot {
+            incarnation: "restarted".into(),
+            ..presence_only
+        };
+        assert!(authoritative_state_differs(&before, &relabelled));
     }
 }
