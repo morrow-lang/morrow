@@ -142,7 +142,7 @@ pub fn run(case: Case) -> Result<Report> {
     if client.0.len() != case.operations || server.0.len() != case.operations {
         return Err("missing measurement samples".into());
     }
-    if client.1 != server.1 {
+    if !same_room_state(&client.1, &server.1) {
         return Err("server and independently validated client state differ".into());
     }
     let samples: Vec<_> = client
@@ -360,6 +360,27 @@ fn exchange(case: Case, mut socket: transport::Socket) -> Result<(Vec<ClientSamp
         }
     }
     Ok((samples, snapshot))
+}
+/// Whether two snapshots agree on authoritative room state. The live `viewers` count
+/// is presence, and the frozen CBOR and protobuf adapters predate it, so clients using
+/// them always observe zero. Exhaustive destructuring forces a new field to be classified.
+fn same_room_state(left: &Snapshot, right: &Snapshot) -> bool {
+    let Snapshot {
+        version,
+        room,
+        incarnation,
+        revision,
+        tasks,
+        viewers: _,
+    } = left;
+    (version, room, incarnation, revision, tasks)
+        == (
+            &right.version,
+            &right.room,
+            &right.incarnation,
+            &right.revision,
+            &right.tasks,
+        )
 }
 fn distribution(mut values: Vec<u64>) -> Distribution {
     values.sort_unstable();
