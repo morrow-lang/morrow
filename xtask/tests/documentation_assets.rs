@@ -14,6 +14,12 @@ fn repository_site_includes_language_chapters_and_local_images() {
         "# Morrow\n\n![Morrow logo](docs/assets/mark.png)\n",
     )
     .unwrap();
+    // The documentation catalog is an explicit extra in `xtask::docs::EXTRAS`.
+    fs::write(
+        root.join("docs/README.md"),
+        "# Morrow documentation\n\nThe guide catalog.\n",
+    )
+    .unwrap();
     fs::write(
         root.join("docs/language/getting-started.md"),
         "# Getting started\n\nA complete first program.\n",
@@ -44,6 +50,11 @@ fn repository_site_includes_language_chapters_and_local_images() {
             fs::read_to_string(output.join("getting-started.html"))
                 .unwrap()
                 .contains("A complete first program.")
+        );
+        assert!(
+            fs::read_to_string(output.join("readme.html"))
+                .unwrap()
+                .contains("The guide catalog.")
         );
         assert_eq!(
             fs::read(output.join("docs/assets/mark.png")).unwrap(),
